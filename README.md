@@ -1,7 +1,7 @@
 # Yu-book
 
 Segundo cérebro pessoal: notas de aula, projetos, trilha de estudos e trabalho, com kanban por
-workspace e agenda empurrada para o Google Calendar.
+workspace, gaveta de links e um dashboard que responde o que precisa de você agora.
 
 Proposta e decisões de escopo em [PROPOSTA.md](PROPOSTA.md).
 Requisitos por fase em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md),
@@ -17,7 +17,6 @@ Requisitos por fase em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md),
 - **Fase 2 — workspace global + kanban:** seletor que troca o contexto da aplicação inteira,
   boards por workspace, arrasto com mouse e teclado, cards com prazo, prioridade e checklist,
   vínculo card ↔ nota nos dois sentidos e cards na paleta de busca.
-
 - **Fase 3 — gaveta de links:** favoritos e "ver depois", captura arrastando o link para dentro da
   janela, título lido da página com guarda contra endereço interno.
 - **Fase 4 — dashboard e tema claro:** tela inicial em `/` com prazos, notas recentes e a fila de
@@ -155,37 +154,86 @@ recálculo de link não perde backlink, inclusive no caso em que a nota-alvo é 
 
 ## Deploy na Railway
 
-Três serviços no mesmo projeto: **Postgres**, **API** e **web**.
+Três serviços no mesmo projeto, todos apontando para **este mesmo repositório**: **Postgres**,
+**API** e **web**.
+
+> **A ordem importa.** A API precisa saber o domínio do front (`CORS_ORIGIN`) e o front precisa
+> saber o domínio da API (`VITE_API_URL`). Como os domínios só existem depois que os serviços são
+> criados, crie os dois primeiro, gere os domínios, e só então preencha as variáveis. Os passos
+> abaixo já estão nessa ordem.
 
 ### 1. Postgres
-Adicione o plugin Postgres. Ele expõe `DATABASE_URL`.
 
-### 2. Serviço da API
-- **Config as code**: `apps/api/railway.json`
-- **Variáveis**:
+`+ New → Database → PostgreSQL`. Ele expõe `DATABASE_URL`, que os outros serviços leem por
+referência — nunca copie a string à mão.
+
+### 2. Crie os dois serviços a partir do repositório
+
+`+ New → GitHub Repo → Yu-book`, duas vezes. Em **cada** serviço, na aba *Settings*:
+
+| Campo | API | web |
+|---|---|---|
+| **Root Directory** | *(vazio — a raiz do repositório)* | *(vazio)* |
+| **Config-as-code path** | `apps/api/railway.json` | `apps/web/railway.json` |
+| **Watch Paths** | `apps/api/**`, `packages/shared/**`, `pnpm-lock.yaml` | `apps/web/**`, `packages/shared/**`, `pnpm-lock.yaml` |
+
+**Root Directory precisa ficar vazio.** O build roda `pnpm install` na raiz para que o workspace
+`@yu-book/shared` seja encontrado; apontando para `apps/api` o pnpm não enxerga o monorepo e o
+build quebra na resolução da dependência.
+
+**Watch Paths** evita que cada push reconstrua os dois serviços. Sem elas, mexer numa cor do front
+faz a API reiniciar junto.
+
+Em *Settings → Networking*, clique em **Generate Domain** nos dois. Anote os dois endereços.
+
+### 3. Variáveis da API
 
 ```
 NODE_ENV=production
 DATABASE_URL=${{Postgres.DATABASE_URL}}
-JWT_SECRET=<openssl rand -base64 48>
-CORS_ORIGIN=https://<seu-front>.up.railway.app
+JWT_SECRET=<gere com: openssl rand -base64 48>
+CORS_ORIGIN=https://<dominio-do-web>.up.railway.app
 COOKIE_SAMESITE=none
-ALLOW_SIGNUP=true          # volte para false depois de criar sua conta
+ALLOW_SIGNUP=true
+NIXPACKS_NODE_VERSION=22
 ```
 
-`PORT` a Railway injeta sozinha. O `startCommand` roda `prisma migrate deploy` antes de subir,
-então migrations são aplicadas a cada deploy.
+- `PORT` a Railway injeta sozinha.
+- **`JWT_SECRET` com menos de 32 caracteres derruba o processo no boot**, de propósito: falhar na
+  subida é melhor que rodar inseguro.
+- `NODE_ENV=production` é o que liga a flag `Secure` no cookie de refresh — sem ela, o navegador
+  recusa um cookie `SameSite=none` e você fica num laço de login.
+- `ALLOW_SIGNUP=true` só até você criar sua conta (passo 5).
 
-### 3. Serviço do web
-- **Config as code**: `apps/web/railway.json`
-- **Variáveis**:
+### 4. Variáveis do web
 
 ```
-VITE_API_URL=https://<sua-api>.up.railway.app
+VITE_API_URL=https://<dominio-da-api>.up.railway.app
+NIXPACKS_NODE_VERSION=22
 ```
 
-> `VITE_API_URL` é lida **em tempo de build**, não em runtime. Se você trocar o valor, precisa
-> fazer um novo deploy — mudar a variável sozinha não muda nada.
+> `VITE_API_URL` é lida **em tempo de build**, não em runtime. Trocar o valor não muda nada até
+> um novo deploy acontecer — é o erro mais fácil de cometer aqui.
+
+### 5. Primeiro acesso
+
+1. Abra o log da API. O `startCommand` roda `prisma migrate deploy` antes de subir, então você deve
+   ver as **cinco migrations** sendo aplicadas na primeira vez.
+2. Confirme `GET /health` respondendo `{"status":"ok"}` e `GET /health/db` respondendo
+   `{"database":"up"}`.
+3. Abra o front, crie sua conta.
+4. **Volte e troque `ALLOW_SIGNUP` para `false`.** A Railway redeploya sozinha ao salvar.
+
+### O que costuma dar errado
+
+| Sintoma | Causa |
+|---|---|
+| Build falha em `@yu-book/shared not found` | Root Directory apontando para `apps/api` em vez da raiz |
+| Front carrega mas toda chamada dá erro de CORS | `CORS_ORIGIN` sem o `https://`, com barra no fim, ou apontando para o domínio errado |
+| Login funciona e a sessão cai a cada 15 min | `COOKIE_SAMESITE` diferente de `none`, ou `NODE_ENV` que não é `production` |
+| Front chama `localhost:3333` em produção | `VITE_API_URL` definida **depois** do build — force um redeploy |
+| Web sobe e morre com `vite: not found` | o build podou as devDependencies. `vite preview` é quem serve os arquivos; se acontecer, troque o `start` do web por um servidor estático em `dependencies` |
+| Migration falha em `CREATE EXTENSION` | o usuário do Postgres não tem permissão — no plugin da Railway ele tem, mas em banco externo pode não ter |
 
 ### Sobre o cookie entre domínios
 
