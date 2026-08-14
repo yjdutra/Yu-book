@@ -2,6 +2,7 @@ const ATALHOS: { grupo: string; tecla: string; descricao: string }[] = [
   { grupo: "Geral", tecla: "Ctrl+K", descricao: "Buscar em notas e cards" },
   { grupo: "Geral", tecla: "Ctrl+N", descricao: "Nova nota" },
   { grupo: "Geral", tecla: "Ctrl+Shift+B", descricao: "Ir para os boards" },
+  { grupo: "Geral", tecla: "Ctrl+Shift+L", descricao: "Abrir a gaveta de links" },
   { grupo: "Geral", tecla: "Ctrl+/", descricao: "Mostrar/esconder esta lista" },
   { grupo: "Geral", tecla: "Esc", descricao: "Fechar o que estiver aberto" },
 
@@ -18,9 +19,15 @@ const ATALHOS: { grupo: string; tecla: string; descricao: string }[] = [
   { grupo: "Board", tecla: "↑ ↓ ← →", descricao: "Mover o card pego entre posições e colunas" },
   { grupo: "Board", tecla: "Esc", descricao: "Cancelar o movimento e devolver o card" },
   { grupo: "Board", tecla: "Enter", descricao: "Abrir o card" },
+
+  { grupo: "Links", tecla: "arrastar", descricao: "Solte um link em qualquer lugar da janela" },
+  { grupo: "Links", tecla: "← →", descricao: "Trocar entre favoritos e ver depois" },
+  { grupo: "Links", tecla: "Enter", descricao: "Abrir o link em nova aba" },
+  { grupo: "Links", tecla: "Del", descricao: "Remover o link com foco" },
+  { grupo: "Links", tecla: "Ctrl+V", descricao: "Colar uma URL na aba visível" },
 ];
 
-const GRUPOS = ["Geral", "Nota", "Board"] as const;
+const GRUPOS = ["Geral", "Nota", "Board", "Links"] as const;
 
 export function Atalhos({ aberto, onFechar }: { aberto: boolean; onFechar: () => void }) {
   if (!aberto) return null;

@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "./src",
-    "outDir": "./dist"
+    "outDir": "./dist",
+    // `URL` é padrão WHATWG e existe nos dois runtimes que consomem este
+    // pacote (Node e navegador), mas o TypeScript só a declara via lib DOM.
+    // É a única coisa daqui que o shared usa — nada de `document` ou `window`.
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["src/**/*"]
 }

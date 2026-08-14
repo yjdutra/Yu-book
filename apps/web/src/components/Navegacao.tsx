@@ -12,6 +12,9 @@ interface NavegacaoProps {
   filtros: Filtros;
   onFiltros: (f: Filtros) => void;
   onNovaNota: () => void;
+  onAbrirGaveta: () => void;
+  /** Quantos itens esperam na fila de "ver depois" (RF-16). */
+  linksParaVer: number;
 }
 
 function Item({
@@ -51,7 +54,13 @@ function Titulo({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function Navegacao({ filtros, onFiltros, onNovaNota }: NavegacaoProps) {
+export function Navegacao({
+  filtros,
+  onFiltros,
+  onNovaNota,
+  onAbrirGaveta,
+  linksParaVer,
+}: NavegacaoProps) {
   const { user, logout } = useAuth();
   const { ativoId, ativo } = useWorkspaceAtivo();
   const { data: contadores } = useContadores(ativoId);
@@ -197,6 +206,10 @@ export function Navegacao({ filtros, onFiltros, onNovaNota }: NavegacaoProps) {
       )}
 
       <div className="mt-auto pt-4">
+        {/* RF-16: a gaveta é sobreposta, então aqui é só a porta de entrada. */}
+        <Item ativo={false} onClick={onAbrirGaveta} contagem={linksParaVer || undefined}>
+          <span title="Ctrl+Shift+L">Links</span>
+        </Item>
         <Item
           ativo={!emBoards && filtros.trash}
           onClick={() => aplicar({ trash: true })}

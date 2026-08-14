@@ -36,6 +36,13 @@ enum CardPriority {
   alta
 }
 
+/// Favorito dura; "depois" existe para ser consumido e apagado. A diferença é
+/// de intenção, não de estrutura — por isso é um campo, não outra tabela.
+enum LinkKind {
+  favorito
+  depois
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
@@ -50,6 +57,7 @@ model User {
   boards        Board[]
   companies     Company[]
   events        Event[]
+  links         Link[]
   refreshTokens RefreshToken[]
 
   @@map("user")
@@ -229,6 +237,29 @@ model Card {
   // O índice trigram sem acento de `card.title` (busca da paleta, RF-42) é
   // expressão — vive só no SQL da migration, como o de `note`.
   @@map("card")
+}
+
+/// Gaveta de links (Fase 3). Não pertence a workspace: a gaveta é uma só (RN-01).
+model Link {
+  id     String   @id @default(uuid()) @db.Uuid
+  userId String   @map("user_id") @db.Uuid
+  /// Normalizada antes de gravar — é o que faz a unicidade valer (RN-02).
+  url    String
+  /// Título da página, ou o domínio quando não deu para ler.
+  title  String
+  domain String
+  kind   LinkKind @default(depois)
+  /// Ordem manual; só significa algo entre os favoritos (RN-03).
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, url])
+  @@index([userId, kind, position])
+  @@index([userId, kind, createdAt(sort: Desc)])
+  @@map("link")
 }
 
 model Company {

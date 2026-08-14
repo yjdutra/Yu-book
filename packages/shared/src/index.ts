@@ -4,5 +4,6 @@ export * from "./errors.js";
 export * from "./notes.js";
 export * from "./organizacao.js";
 export * from "./kanban.js";
+export * from "./links.js";
 export * from "./busca.js";
 export * from "./wikilinks.js";

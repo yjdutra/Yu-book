@@ -4,10 +4,11 @@ Segundo cérebro pessoal: notas de aula, projetos, trilha de estudos e trabalho,
 workspace e agenda empurrada para o Google Calendar.
 
 Proposta e decisões de escopo em [PROPOSTA.md](PROPOSTA.md).
-Requisitos por fase em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md) e
-[docs/prd-fase-2-kanban.md](docs/prd-fase-2-kanban.md).
+Requisitos por fase em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md),
+[docs/prd-fase-2-kanban.md](docs/prd-fase-2-kanban.md) e
+[docs/prd-fase-3-links.md](docs/prd-fase-3-links.md).
 
-**Status: Fases 0, 1 e 2 concluídas.**
+**Status: Fases 0 a 3 concluídas.**
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown split ao vivo com autosave, tags, workspaces,
@@ -16,7 +17,10 @@ Requisitos por fase em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md) e
   boards por workspace, arrasto com mouse e teclado, cards com prazo, prioridade e checklist,
   vínculo card ↔ nota nos dois sentidos e cards na paleta de busca.
 
-Próxima: Fase 3 — agenda no Google Calendar.
+- **Fase 3 — gaveta de links:** favoritos e "ver depois", captura arrastando o link para dentro da
+  janela, título lido da página com guarda contra endereço interno.
+
+Próxima: Fase 4 — dashboard e polimento.
 
 ---
 
@@ -203,6 +207,7 @@ persistidas.
 | `Ctrl+N` | nova nota, com o cursor já no título |
 | `Ctrl+K` | busca notas e cards, de qualquer tela |
 | `Ctrl+Shift+B` | vai para os boards |
+| `Ctrl+Shift+L` | abre a gaveta de links |
 | `Ctrl+S` | salva agora, sem esperar o autosave |
 | `Ctrl+B` / `Ctrl+I` / `` Ctrl+` `` | negrito / itálico / código |
 | `[[` | autocomplete para vincular a outra nota |
@@ -253,6 +258,44 @@ descrição em Markdown, prazo, prioridade, checklist e vínculo opcional a uma 
 - **Arquivar** tira o card do board sem apagá-lo; desarquivar devolve ao fim da mesma coluna.
   Excluir card é definitivo — não há lixeira de card.
 
+### Gaveta de links
+
+`Ctrl+Shift+L` abre a gaveta sobre qualquer tela, com duas listas: **favoritos** (os sites de
+sempre, em grade reordenável) e **ver depois** (a fila do que você guardou para consumir e apagar).
+
+Para guardar, **arraste o link de outra janela e solte em qualquer ponto do Yu-book** — duas faixas
+aparecem, você escolhe a lista e pronto. Não precisa abrir nada antes, e o que você estava fazendo
+continua onde estava. Com a gaveta aberta, `Ctrl+V` também salva.
+
+- **O item aparece na hora**, com o domínio como nome, e o título real entra quando a API responde.
+- **A mesma URL não entra duas vezes** na mesma lista: `www.github.com/` e `github.com` são o mesmo
+  link, mas `watch?v=A` e `watch?v=B` não são.
+- **Excluir não pergunta nada** — some na hora, com 8 segundos de "desfazer".
+- **Nada expira sozinho.** A fila mostra há quanto tempo cada item está parado e destaca o que
+  passou de 30 dias; quem apaga é você.
+- A gaveta é **uma só**: não segue o workspace ativo.
+
+Sem favicon, de propósito: guardar a imagem exigiria storage de objetos e buscá-la de um serviço de
+terceiros entregaria a ele a lista de tudo que você salva. A identidade é a inicial do domínio num
+bloco de cor derivada dele — mesma cor para o mesmo site, sempre.
+
+### Sobre ler o título da página
+
+Este é o único ponto do Yu-book em que **o servidor abre conexão para um endereço que veio de
+fora**, então ele é tratado como hostil:
+
+| Defesa | O que impede |
+|---|---|
+| Recusa IP de laço, privado, link-local, CGNAT e multicast | usar o Yu-book para varrer a rede interna da Railway |
+| Revalida **a cada redirecionamento**, no máximo 3 saltos | um endereço público que redireciona para `localhost` |
+| Recusa `169.254.169.254` como qualquer outro link-local | ler as credenciais de metadados da nuvem |
+| Lê no máximo 512 KB, e só se for HTML | derrubar a API com uma resposta de 2 GB |
+| Orçamento de 2 segundos no total | prender a requisição num servidor que não responde |
+| Título cortado em 200 caracteres e renderizado como texto | script vindo do `<title>` de terceiro |
+
+Falhar em qualquer uma dessas etapas **nunca** impede o link de ser salvo: ele fica com o domínio
+como nome, e há um botão para tentar ler o título de novo.
+
 ### Card ↔ nota
 
 O card mostra a nota vinculada; a nota lista, no rodapé, os cards que a referenciam, ao lado de
@@ -270,9 +313,10 @@ para a lixeira desfaz o vínculo e mantém o card.
   no mesmo board é erro de digitação, não intenção.
 - **Card não atravessa boards.** Mover para uma coluna de outro board é recusado.
 
-## O que vem na Fase 3
+## O que vem na Fase 4
 
-Agenda no Google Calendar: um botão "agendar" no card e na nota cria o evento num calendário
-dedicado do Google, com link de volta. Sem tela de calendário aqui — quem mostra é o Google.
+Dashboard e polimento: home agregada com notas recentes e prazos próximos, modo escuro e export
+das notas em `.md`/`.json`.
 
-Lista de empresas saiu do escopo: a Cod3rs já tem uma, compartilhada com o orientador.
+Depois: agenda no Google Calendar (Fase 5) e busca semântica (Fase 6, opcional). Lista de empresas
+saiu do escopo — a Cod3rs já tem uma, compartilhada com o orientador.

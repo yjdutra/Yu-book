@@ -1,6 +1,6 @@
 # Yu-book — Proposta de Projeto
 
-**Um "segundo cérebro" pessoal para a jornada na Coders:** notas de aula, projetos, trilha de estudos e trabalho, com kanban por workspace e agenda empurrada para o Google Calendar.
+**Um "segundo cérebro" pessoal para a jornada na Coders:** notas de aula, projetos, trilha de estudos e trabalho, com kanban por workspace, gaveta de links e agenda empurrada para o Google Calendar.
 
 Aplicação **single-user** (só você usa), mas com autenticação JWT de verdade — porque vai ficar exposta na internet.
 
@@ -49,7 +49,19 @@ Um seletor global no topo filtra a aplicação inteira. **Não é multi-tenancy*
 - Card: título, descrição, prazo, prioridade, checklist (JSONB) e **vínculo opcional a uma nota**.
 - Drag-and-drop com ordenação por `position` (float, ou inteiros com renumeração — resolvido em 20 linhas). Sem CRDT, sem colaboração em tempo real, sem WebSocket: você é o único usuário.
 
-### 2.5 Agenda — empurrada para o Google Calendar
+### 2.5 Gaveta de links
+
+Duas listas de links, abertas por atalho de qualquer tela: **favoritos** (os sites que você abre
+sempre) e **ver depois** (o vídeo ou artigo que você guarda para consumir e apagar). Arrastar um
+link de outra janela para dentro do Yu-book salva; o servidor lê o título da página para o item não
+ficar com cara de URL.
+
+São **uma** entidade `Link` com um campo `kind` — o mesmo princípio da seção 1. Mover entre as duas
+listas é trocar uma palavra.
+
+Detalhado em [docs/prd-fase-3-links.md](docs/prd-fase-3-links.md).
+
+### 2.6 Agenda — empurrada para o Google Calendar
 
 O Yu-book **não tem tela de calendário**. Sem visão mensal, sem agenda, sem recorrência: quem mostra é o Google Calendar, que já está aberto no seu navegador o dia inteiro. Construir uma segunda visão de calendário para competir com ela seria trabalho puro-perda.
 
@@ -67,9 +79,9 @@ O que o Yu-book faz é **criar o evento lá**. Um card com prazo, uma aula, uma 
 
 O preço: conta de serviço **não envia convite para outras pessoas**. Para agenda pessoal, isso não custa nada.
 
-**Condição de corte.** Se na Fase 3 a integração se mostrar mais cara que meio dia de trabalho — chave que não autentica, calendário que não aceita o compartilhamento, cota inesperada —, a funcionalidade inteira sai do escopo, `event` é removida do schema e o projeto termina em notas + kanban + dashboard. Não existe plano B de calendário próprio.
+**Condição de corte.** Se na Fase 5 a integração se mostrar mais cara que meio dia de trabalho — chave que não autentica, calendário que não aceita o compartilhamento, cota inesperada —, a funcionalidade inteira sai do escopo, `event` é removida do schema e o projeto termina em notas + kanban + dashboard. Não existe plano B de calendário próprio.
 
-### 2.6 Dashboard
+### 2.7 Dashboard
 Tela inicial com: notas recentes, cards com prazo próximo e busca em destaque. É o que faz a aplicação parecer útil no primeiro segundo. "Próximos eventos" não entra — quem responde isso é o Google Calendar.
 
 ---
@@ -87,7 +99,7 @@ Tela inicial com: notas recentes, cards com prazo próximo e busca em destaque. 
 | UI | **Tailwind + shadcn/ui** | Componentes prontos, sem carregar design system |
 | Estado/dados | **TanStack Query** | Cache e revalidação de graça; dispensa Redux |
 | Deploy | **Railway** | 2 serviços: API e front estático, + Postgres gerenciado |
-| Agenda *(Fase 3)* | **`googleapis`** com conta de serviço | Cliente oficial. A chave vive em variável de ambiente e alcança um calendário só |
+| Agenda *(Fase 5)* | **`googleapis`** com conta de serviço | Cliente oficial. A chave vive em variável de ambiente e alcança um calendário só |
 
 **Monorepo** com pnpm workspaces:
 
@@ -123,6 +135,10 @@ board         id, user_id, workspace_id, name, position
 column        id, board_id, name, position, wip_limit?
 card          id, column_id, title, description_md, position,
               due_date?, priority, checklist jsonb, note_id?, archived
+
+link          id, user_id, url, title, domain,
+              kind,                 -- favorito | depois
+              position, created_at  -- posição só vale para favoritos
 
 event         id, user_id, workspace_id?, title, description?,
               starts_at, ends_at, all_day, location?, url?,
@@ -173,6 +189,9 @@ PATCH  /cards/:id/move       { columnId, position }
 
 POST/PATCH/DELETE      /events      espelha a operação no Google Calendar
 
+GET    /links ?kind=        POST /links
+PATCH/DELETE /links/:id     PATCH /links/:id/move   { position }
+
 GET    /dashboard            agregado da home em 1 request
 ```
 
@@ -187,11 +206,13 @@ Padrão de resposta único, erros com código estável, paginação por cursor n
 | **0 — Fundação** | Monorepo, Prisma + migrations, JWT completo, deploy Railway funcionando ponta a ponta, healthcheck | 2–3 dias |
 | **1 — Notas** | CRUD, editor Markdown, tags, wiki links, busca FTS com filtros | 4–5 dias |
 | **2 — Workspaces + Kanban** | Seletor global, boards, drag-and-drop, vínculo card↔nota | 3–4 dias |
-| **3 — Agenda no Google** | Conta de serviço, calendário dedicado, botão "agendar" no card e na nota | 1 dia |
+| **3 — Gaveta de links** | Favoritos e "ver depois", captura por arrastar-e-soltar, título lido da página | 1,5–2 dias |
 | **4 — Dashboard + polimento** | Home agregada, atalhos de teclado, modo escuro, export Markdown | 2 dias |
-| **5 — Busca semântica** *(opcional)* | pgvector, embeddings, "pergunte às suas notas" | 3–4 dias |
+| **5 — Agenda no Google** | Conta de serviço, calendário dedicado, botão "agendar" no card e na nota | 1 dia |
+| **6 — Busca semântica** *(opcional)* | pgvector, embeddings, "pergunte às suas notas" | 3–4 dias |
 
-**Fases 0 a 4 = aplicação completa e usável.** A Fase 5 entra quando o volume de notas justificar.
+**Fases 0 a 4 = aplicação completa e usável.** A Fase 5 (agenda) é conveniência; a Fase 6 entra
+quando o volume de notas justificar.
 
 Regra de ouro: **a Fase 0 termina com deploy em produção**, ainda que só com login. Deploy no fim do projeto é onde projetos pessoais morrem.
 
@@ -204,7 +225,7 @@ Regra de ouro: **a Fase 0 termina com deploy em produção**, ainda que só com 
 | Plano Hobby | US$ 5/mês (inclui US$ 5 de uso) |
 | API + Postgres + front estático | Cabe no crédito incluído nesse volume de uso |
 | Google Calendar API | Grátis. A cota gratuita é de milhões de requisições por dia; você fará dezenas |
-| Fase 5 (embeddings) | Centavos — indexação é uma vez por nota |
+| Fase 6 (embeddings) | Centavos — indexação é uma vez por nota |
 
 Realisticamente: **~US$ 5/mês**.
 
@@ -237,7 +258,7 @@ Realisticamente: **~US$ 5/mês**.
 | **Notas vazias** (app pronto, sem conteúdo) | Usar a partir da Fase 1, em produção. Cada aula da Coders vira nota **enquanto** o resto é construído |
 | **Lock-in dos seus dados** | Export de todas as notas em `.md` + `.json` já na Fase 4. Suas notas nunca ficam reféns do app |
 | **Perda de dados** | Backup automático do Postgres na Railway + um script `pg_dump` semanal |
-| **Integração com o Google travar na Fase 3** | Timebox de meio dia. Estourou, a Fase 3 inteira sai do escopo (ver 2.5) — não se constrói calendário próprio como consolo |
+| **Integração com o Google travar na Fase 5** | Timebox de meio dia. Estourou, a Fase 5 inteira sai do escopo (ver 2.6) — não se constrói calendário próprio como consolo |
 | **Chave da conta de serviço vazar** | Só em variável de ambiente, nunca no repositório. O alcance dela é um calendário criado para isso; revogar é apagar a chave no console |
 
 ---
@@ -248,6 +269,7 @@ Realisticamente: **~US$ 5/mês**.
 
 A decisão de arquitetura que estava pendente foi resolvida na Fase 0: **API separada + SPA**, dois serviços na Railway.
 
-**Próximo passo:** Fase 3 — agenda no Google Calendar, com a condição de corte da seção 2.5.
+**Próximo passo:** Fase 3 — gaveta de links ([PRD](docs/prd-fase-3-links.md)). A agenda no Google
+passou para a Fase 5: é pontual e não é o que faz falta agora.
 
 **Decisão pendente:** o que fazer com a tabela `company`, criada na migration inicial e nunca usada. Removê-la exige uma migration de `DROP TABLE`; mantê-la custa uma tabela vazia no banco.
