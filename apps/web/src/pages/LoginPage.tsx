@@ -57,7 +57,7 @@ export function LoginPage() {
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <header className="mb-8">
-          <h1 className="text-2xl font-semibold text-white">Yu-book</h1>
+          <h1 className="text-2xl font-semibold text-titulo">Yu-book</h1>
           <p className="mt-1 text-sm text-ink-400">
             {mode === "login" ? "Entre para continuar." : "Crie sua conta."}
           </p>

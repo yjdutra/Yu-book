@@ -207,7 +207,7 @@ export function GavetaLinks({
               onClick={() => setAba(valor)}
               aria-pressed={aba === valor}
               className={`rounded px-2.5 py-1 text-sm transition ${
-                aba === valor ? "bg-ink-700 text-white" : "text-ink-400 hover:text-ink-200"
+                aba === valor ? "bg-ink-700 text-titulo" : "text-ink-400 hover:text-ink-200"
               }`}
             >
               {rotulo}

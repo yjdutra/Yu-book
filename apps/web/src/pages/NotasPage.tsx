@@ -56,7 +56,7 @@ export function NotasPage({
             notaId={notaId}
             onAbrirNota={onAbrirNota}
             onCriarPorTitulo={(titulo) => onNovaNota(titulo)}
-            onFechar={() => navigate("/")}
+            onFechar={() => navigate("/n")}
             onAbrirCard={(boardId, cardId) => navigate(`/b/${boardId}/c/${cardId}`)}
             autoFocoTitulo={recemCriada?.id === notaId && !recemCriada.comTitulo}
             autoFocoCorpo={recemCriada?.id === notaId && recemCriada.comTitulo}

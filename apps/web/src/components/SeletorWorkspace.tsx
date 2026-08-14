@@ -97,7 +97,7 @@ export function SeletorWorkspace() {
             role="menuitem"
             onClick={() => escolher(null)}
             className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
-              ativoId === null ? "bg-ink-700 text-white" : "text-ink-200 hover:bg-ink-700/50"
+              ativoId === null ? "bg-ink-700 text-titulo" : "text-ink-200 hover:bg-ink-700/50"
             }`}
           >
             <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full bg-ink-400" />
@@ -144,7 +144,7 @@ export function SeletorWorkspace() {
                     className={`flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 pr-16 text-left
                                 text-sm ${
                                   ativoId === w.id
-                                    ? "bg-ink-700 text-white"
+                                    ? "bg-ink-700 text-titulo"
                                     : "text-ink-200 hover:bg-ink-700/50"
                                 }`}
                   >

@@ -76,7 +76,7 @@ export function BoardPage() {
                   onChange={(e) => setNome(e.target.value)}
                   onBlur={() => setRenomeando(false)}
                   aria-label="Novo nome do board"
-                  className="rounded bg-ink-800 px-2 py-1 text-base font-semibold text-white
+                  className="rounded bg-ink-800 px-2 py-1 text-base font-semibold text-titulo
                              outline-none focus:ring-1 focus:ring-accent-400"
                 />
               </form>
@@ -88,7 +88,7 @@ export function BoardPage() {
                   setRenomeando(true);
                 }}
                 title="Renomear board"
-                className="text-base font-semibold text-white"
+                className="text-base font-semibold text-titulo"
               >
                 {board.name}
               </button>

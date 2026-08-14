@@ -163,7 +163,7 @@ export function ListaNotas({
                 >
                   <div className="flex items-baseline gap-2">
                     <span
-                      className={`truncate text-sm ${ativa ? "text-white" : "text-ink-200"}`}
+                      className={`truncate text-sm ${ativa ? "text-titulo" : "text-ink-200"}`}
                     >
                       {n.isFavorite && (
                         <span aria-label="favorita" className="mr-1 text-amber-400">

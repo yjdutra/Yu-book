@@ -82,7 +82,13 @@ O preço: conta de serviço **não envia convite para outras pessoas**. Para age
 **Condição de corte.** Se na Fase 5 a integração se mostrar mais cara que meio dia de trabalho — chave que não autentica, calendário que não aceita o compartilhamento, cota inesperada —, a funcionalidade inteira sai do escopo, `event` é removida do schema e o projeto termina em notas + kanban + dashboard. Não existe plano B de calendário próprio.
 
 ### 2.7 Dashboard
-Tela inicial com: notas recentes, cards com prazo próximo e busca em destaque. É o que faz a aplicação parecer útil no primeiro segundo. "Próximos eventos" não entra — quem responde isso é o Google Calendar.
+Tela inicial em `/`, com três blocos: **prazos** do kanban (vencidos e da semana), **notas
+recentes** para retomar de onde parou e o tamanho da **fila de links**. Responde a uma pergunta só:
+o que precisa de mim agora?
+
+Sem números, sem gráfico e sem "próximos eventos" — quem responde agenda é o Google Calendar.
+
+Detalhado em [docs/prd-fase-4-dashboard.md](docs/prd-fase-4-dashboard.md).
 
 ---
 
@@ -207,12 +213,13 @@ Padrão de resposta único, erros com código estável, paginação por cursor n
 | **1 — Notas** | CRUD, editor Markdown, tags, wiki links, busca FTS com filtros | 4–5 dias |
 | **2 — Workspaces + Kanban** | Seletor global, boards, drag-and-drop, vínculo card↔nota | 3–4 dias |
 | **3 — Gaveta de links** | Favoritos e "ver depois", captura por arrastar-e-soltar, título lido da página | 1,5–2 dias |
-| **4 — Dashboard + polimento** | Home agregada, atalhos de teclado, modo escuro, export Markdown | 2 dias |
+| **4 — Dashboard + tema claro** | Home agregada em `/` (prazos, notas recentes, fila de links) e suporte a tema claro | 2 dias |
 | **5 — Agenda no Google** | Conta de serviço, calendário dedicado, botão "agendar" no card e na nota | 1 dia |
 | **6 — Busca semântica** *(opcional)* | pgvector, embeddings, "pergunte às suas notas" | 3–4 dias |
 
-**Fases 0 a 4 = aplicação completa e usável.** A Fase 5 (agenda) é conveniência; a Fase 6 entra
-quando o volume de notas justificar.
+**Fases 0 a 3 já entregam uma aplicação completa e usável**; a Fase 4 é o que a faz parecer útil no
+primeiro segundo. A Fase 5 (agenda) é conveniência, e a Fase 6 entra quando o volume de notas
+justificar.
 
 Regra de ouro: **a Fase 0 termina com deploy em produção**, ainda que só com login. Deploy no fim do projeto é onde projetos pessoais morrem.
 
@@ -256,7 +263,7 @@ Realisticamente: **~US$ 5/mês**.
 |---|---|
 | **Construir a ferramenta virar o estudo** | Timebox por fase. Se a Fase 1 passar de uma semana, corta escopo — não prazo |
 | **Notas vazias** (app pronto, sem conteúdo) | Usar a partir da Fase 1, em produção. Cada aula da Coders vira nota **enquanto** o resto é construído |
-| **Lock-in dos seus dados** | Export de todas as notas em `.md` + `.json` já na Fase 4. Suas notas nunca ficam reféns do app |
+| **Lock-in dos seus dados** | **Sem mitigação hoje.** O export em `.md`/`.json` estava previsto para a Fase 4 e foi cortado a pedido — não havia necessidade no momento. O backup do Postgres protege contra *perder* os dados, não contra *querer sair*. Reavaliar quando passar de ~100 notas (Q-01 do PRD da Fase 4) |
 | **Perda de dados** | Backup automático do Postgres na Railway + um script `pg_dump` semanal |
 | **Integração com o Google travar na Fase 5** | Timebox de meio dia. Estourou, a Fase 5 inteira sai do escopo (ver 2.6) — não se constrói calendário próprio como consolo |
 | **Chave da conta de serviço vazar** | Só em variável de ambiente, nunca no repositório. O alcance dela é um calendário criado para isso; revogar é apagar a chave no console |
@@ -269,7 +276,10 @@ Realisticamente: **~US$ 5/mês**.
 
 A decisão de arquitetura que estava pendente foi resolvida na Fase 0: **API separada + SPA**, dois serviços na Railway.
 
-**Próximo passo:** Fase 3 — gaveta de links ([PRD](docs/prd-fase-3-links.md)). A agenda no Google
-passou para a Fase 5: é pontual e não é o que faz falta agora.
+**Próximo passo:** Fase 4 — dashboard e tema claro ([PRD](docs/prd-fase-4-dashboard.md)). A agenda
+no Google ficou para a Fase 5: é pontual e não é o que faz falta agora.
+
+**Dívidas declaradas, ainda abertas:** a lixeira nunca expurga (a Fase 1 prometeu 30 dias), a
+tabela `company` segue morta no schema, não existe script de `pg_dump` e não existe export.
 
 **Decisão pendente:** o que fazer com a tabela `company`, criada na migration inicial e nunca usada. Removê-la exige uma migration de `DROP TABLE`; mantê-la custa uma tabela vazia no banco.

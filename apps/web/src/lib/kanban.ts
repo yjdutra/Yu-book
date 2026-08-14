@@ -61,6 +61,7 @@ function useInvalidarKanban() {
     void qc.invalidateQueries({ queryKey: ["workspaces"] });
     void qc.invalidateQueries({ queryKey: ["search"] });
     void qc.invalidateQueries({ queryKey: ["arquivados"] });
+    void qc.invalidateQueries({ queryKey: ["dashboard"], refetchType: "none" });
   };
 }
 
@@ -285,7 +286,10 @@ export function useMoverCard(boardId: string) {
       if (contexto?.anterior) qc.setQueryData(chaveBoard(boardId), contexto.anterior);
     },
 
-    // Só o board: mover card não muda contagem de workspace nem busca.
-    onSuccess: () => void qc.invalidateQueries({ queryKey: chaveBoard(boardId) }),
+    // Só o board e a home: mover card não muda contagem de workspace nem busca.
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: chaveBoard(boardId) });
+      void qc.invalidateQueries({ queryKey: ["dashboard"], refetchType: "none" });
+    },
   });
 }

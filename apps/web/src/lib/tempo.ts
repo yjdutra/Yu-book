@@ -27,3 +27,28 @@ export function idadeRelativa(iso: string, agora = Date.now()): string {
 
 /** RF-26: acima disto, o item ganha destaque de esquecido. */
 export const DIAS_PARA_ENVELHECER = 30;
+
+/** Diferença em dias de calendário, ignorando a hora. */
+function diasDeCalendario(iso: string, agora: number): number {
+  const hoje = new Date(agora);
+  hoje.setHours(0, 0, 0, 0);
+  const alvo = new Date(iso);
+  alvo.setHours(0, 0, 0, 0);
+  return Math.round((alvo.getTime() - hoje.getTime()) / DIA);
+}
+
+/**
+ * RF-09: prazo em texto, contado por dia de calendário.
+ *
+ * O prazo é gravado às 23:59 do dia escolhido (Fase 2), então contar por horas
+ * diria "em 20 horas" para algo que vence hoje. O que importa é o dia.
+ */
+export function prazoRelativo(iso: string, agora = Date.now()): string {
+  const dias = diasDeCalendario(iso, agora);
+
+  if (dias === 0) return "vence hoje";
+  if (dias === 1) return "vence amanhã";
+  if (dias === -1) return "venceu ontem";
+  if (dias < -1) return `venceu há ${-dias} dias`;
+  return `vence em ${dias} dias`;
+}

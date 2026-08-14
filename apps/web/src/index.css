@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------
+   Paleta (RNF-05 da Fase 4)
+
+   A rampa é semântica, não literal: `ink-950` é sempre "o fundo mais
+   profundo" e `ink-200` é sempre "o texto de maior contraste". No tema claro
+   os valores se invertem; o significado, não. É isso que permite o tema viver
+   inteiro no CSS, sem um único condicional em componente (RNF-04).
+   --------------------------------------------------------------- */
 @theme {
   --color-ink-950: #0b0e14;
   --color-ink-900: #11151f;
@@ -7,8 +15,65 @@
   --color-ink-700: #273049;
   --color-ink-400: #98a2ba;
   --color-ink-200: #d3d9e6;
-  --color-accent-500: #6366f1;
+  --color-titulo: #ffffff;
+  --color-accent-500: #5d60ee;
   --color-accent-400: #8b93f8;
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Realce de sintaxe — variáveis para acompanharem o tema (RF-24). */
+  --hljs-chave: #a5b4fc;
+  --hljs-texto: #86efac;
+  --hljs-numero: #fdba74;
+  --hljs-comentario: #8a94ad;
+  --hljs-funcao: #7dd3fc;
+  --hljs-variavel: #e2e8f0;
+}
+
+/* ---------------------------------------------------------------
+   Tema claro (RF-19)
+
+   Além da rampa, os tons de estado (erro, alerta, sucesso e tipo de nota)
+   precisam de valor próprio: um vermelho claro que funciona sobre fundo
+   escuro fica ilegível sobre fundo claro (RNF-06). Cada um destes foi
+   escolhido para passar em 4,5:1 sobre `ink-950` claro (RNF-08).
+   --------------------------------------------------------------- */
+:root[data-tema="claro"] {
+  color-scheme: light;
+
+  --color-ink-950: #f6f7fa;
+  --color-ink-900: #eceff5;
+  --color-ink-800: #e0e4ee;
+  --color-ink-700: #c8cfdf;
+  --color-ink-400: #55607a;
+  --color-ink-200: #1b2130;
+  --color-titulo: #0b0e14;
+  --color-accent-500: #4f46e5;
+  --color-accent-400: #4338ca;
+
+  --color-red-500: #dc2626;
+  --color-red-400: #b91c1c;
+  --color-red-300: #b91c1c;
+  --color-red-200: #991b1b;
+  --color-amber-500: #d97706;
+  --color-amber-400: #b45309;
+  --color-amber-300: #8f5606;
+  --color-emerald-300: #036849;
+  --color-sky-300: #0369a1;
+  --color-sky-500: #0284c7;
+  --color-rose-300: #be123c;
+  --color-rose-500: #e11d48;
+  --color-violet-300: #6d28d9;
+  --color-violet-500: #7c3aed;
+
+  --hljs-chave: #4338ca;
+  --hljs-texto: #166534;
+  --hljs-numero: #92400e;
+  --hljs-comentario: #5b6478;
+  --hljs-funcao: #0369a1;
+  --hljs-variavel: #1e293b;
 }
 
 body {
@@ -40,7 +105,7 @@ body {
 .preview h2,
 .preview h3,
 .preview h4 {
-  @apply font-semibold text-white;
+  @apply font-semibold text-titulo;
   line-height: 1.3;
 }
 
@@ -89,7 +154,7 @@ body {
 }
 
 .preview strong {
-  @apply font-semibold text-white;
+  @apply font-semibold text-titulo;
 }
 .preview em {
   @apply italic;
@@ -150,7 +215,7 @@ body {
   @apply border border-ink-800 px-3 py-1.5 text-left;
 }
 .preview th {
-  @apply bg-ink-900 font-medium text-white;
+  @apply bg-ink-900 font-medium text-titulo;
 }
 
 .preview img {
@@ -161,25 +226,25 @@ body {
 .hljs-keyword,
 .hljs-selector-tag,
 .hljs-built_in {
-  color: #a5b4fc;
+  color: var(--hljs-chave);
 }
 .hljs-string,
 .hljs-attr {
-  color: #86efac;
+  color: var(--hljs-texto);
 }
 .hljs-number,
 .hljs-literal {
-  color: #fdba74;
+  color: var(--hljs-numero);
 }
 .hljs-comment {
-  color: #8a94ad;
+  color: var(--hljs-comentario);
   font-style: italic;
 }
 .hljs-function,
 .hljs-title {
-  color: #7dd3fc;
+  color: var(--hljs-funcao);
 }
 .hljs-variable,
 .hljs-params {
-  color: #e2e8f0;
+  color: var(--hljs-variavel);
 }

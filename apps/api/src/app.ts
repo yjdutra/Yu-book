@@ -9,6 +9,7 @@ import { ZodError } from "zod";
 import { env } from "./env.js";
 import { AppError } from "./lib/errors.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
+import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
 import { healthRoutes } from "./modules/health.routes.js";
 import { kanbanRoutes } from "./modules/kanban/kanban.routes.js";
 import { linksRoutes } from "./modules/links/links.routes.js";
@@ -96,6 +97,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(organizacaoRoutes);
   await app.register(kanbanRoutes);
   await app.register(linksRoutes);
+  await app.register(dashboardRoutes);
 
   return app;
 }

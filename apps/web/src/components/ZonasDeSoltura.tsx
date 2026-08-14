@@ -100,7 +100,7 @@ export function ZonasDeSoltura({ onSoltar }: ZonasDeSolturaProps) {
         {icone}
       </span>
       <span>
-        <span className="block text-base font-medium text-white">{titulo}</span>
+        <span className="block text-base font-medium text-titulo">{titulo}</span>
         <span className="block text-xs text-ink-400">{sub}</span>
       </span>
     </button>

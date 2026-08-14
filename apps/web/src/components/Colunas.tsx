@@ -154,7 +154,7 @@ export function GuardaDesktop({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen items-center justify-center px-8 text-center">
       <div className="max-w-sm">
-        <h1 className="text-lg font-semibold text-white">Yu-book é para desktop</h1>
+        <h1 className="text-lg font-semibold text-titulo">Yu-book é para desktop</h1>
         <p className="mt-2 text-sm text-ink-400">
           A escrita em três colunas precisa de pelo menos 1024px de largura. Abra numa janela
           maior.

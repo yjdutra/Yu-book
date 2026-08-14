@@ -174,7 +174,7 @@ export function Paleta({ aberta, onFechar, onAbrirNota, onAbrirCard }: PaletaPro
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  <span className="truncate text-sm text-white">{r.title}</span>
+                  <span className="truncate text-sm text-titulo">{r.title}</span>
                   {/* RF-41: card se identifica como card e diz de que board é. */}
                   <RotuloTipo tipo={r.kind ?? "card"} className="ml-auto shrink-0" />
                   {r.type === "card" ? (

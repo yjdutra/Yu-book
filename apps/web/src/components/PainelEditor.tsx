@@ -195,7 +195,7 @@ export function PainelEditor({
             placeholder="Título da nota"
             aria-label="Título da nota"
             aria-invalid={erroTitulo ? "true" : undefined}
-            className="min-w-0 flex-1 bg-transparent text-xl font-semibold text-white outline-none
+            className="min-w-0 flex-1 bg-transparent text-xl font-semibold text-titulo outline-none
                        placeholder:text-ink-400/50"
           />
 

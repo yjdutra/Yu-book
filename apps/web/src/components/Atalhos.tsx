@@ -45,7 +45,7 @@ export function Atalhos({ aberto, onFechar }: { aberto: boolean; onFechar: () =>
         className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-xl border border-ink-700
                    bg-ink-800 p-5 shadow-2xl"
       >
-        <h2 className="text-sm font-semibold text-white">Atalhos</h2>
+        <h2 className="text-sm font-semibold text-titulo">Atalhos</h2>
         {GRUPOS.map((grupo) => (
           <section key={grupo}>
             <h3 className="mt-4 text-[10px] font-medium uppercase tracking-wider text-ink-400">

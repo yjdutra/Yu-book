@@ -5,10 +5,11 @@ workspace e agenda empurrada para o Google Calendar.
 
 Proposta e decisões de escopo em [PROPOSTA.md](PROPOSTA.md).
 Requisitos por fase em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md),
-[docs/prd-fase-2-kanban.md](docs/prd-fase-2-kanban.md) e
-[docs/prd-fase-3-links.md](docs/prd-fase-3-links.md).
+[docs/prd-fase-2-kanban.md](docs/prd-fase-2-kanban.md),
+[docs/prd-fase-3-links.md](docs/prd-fase-3-links.md) e
+[docs/prd-fase-4-dashboard.md](docs/prd-fase-4-dashboard.md).
 
-**Status: Fases 0 a 3 concluídas.**
+**Status: Fases 0 a 4 concluídas.**
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown split ao vivo com autosave, tags, workspaces,
@@ -19,8 +20,10 @@ Requisitos por fase em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md),
 
 - **Fase 3 — gaveta de links:** favoritos e "ver depois", captura arrastando o link para dentro da
   janela, título lido da página com guarda contra endereço interno.
+- **Fase 4 — dashboard e tema claro:** tela inicial em `/` com prazos, notas recentes e a fila de
+  links; a aplicação deixou de ser dark-only.
 
-Próxima: Fase 4 — dashboard e polimento.
+Próxima: Fase 5 — agenda no Google Calendar.
 
 ---
 
@@ -198,9 +201,18 @@ ser same-site: aí use `COOKIE_SAMESITE=lax` e `COOKIE_DOMAIN=.seudominio.com`, 
 ## Usando
 
 A aplicação é **desktop-only** por decisão de projeto: abaixo de 1024px ela avisa em vez de
-degradar o layout. A coluna de navegação é a mesma em tudo; ao lado dela ficam lista + editor (nas
-notas) ou o quadro + painel do card (no kanban). As larguras são ajustáveis por arrasto e
+degradar o layout. A coluna de navegação é a mesma em tudo; ao lado dela ficam o dashboard (`/`),
+lista + editor (`/n`) ou o quadro + painel do card (`/b`). As larguras são ajustáveis por arrasto e
 persistidas.
+
+**A tela inicial** responde uma pergunta só: o que precisa de mim agora? Prazos vencidos no topo (o
+único conteúdo do app com urgência de verdade), depois o que vence na semana, as últimas notas
+editadas e o tamanho da fila de "ver depois". Tudo em uma requisição, e nada dali escreve: cada
+item leva ao lugar onde a alteração acontece.
+
+**Tema claro e escuro** pelo seletor no rodapé da navegação. Na primeira visita ele segue a
+preferência do sistema; depois vale a sua escolha, guardada por dispositivo. A decisão é aplicada
+antes da primeira pintura, então não há piscada ao carregar.
 
 | Atalho | O que faz |
 |---|---|
@@ -313,10 +325,21 @@ para a lixeira desfaz o vínculo e mantém o card.
   no mesmo board é erro de digitação, não intenção.
 - **Card não atravessa boards.** Mover para uma coluna de outro board é recusado.
 
-## O que vem na Fase 4
+## Sobre as cores
 
-Dashboard e polimento: home agregada com notas recentes e prazos próximos, modo escuro e export
-das notas em `.md`/`.json`.
+A rampa `ink-950 → ink-200` é **semântica**: `ink-950` é sempre "o fundo mais profundo" e `ink-200`
+sempre "o texto de maior contraste". O tema claro inverte os valores, não o significado — por isso
+a troca vive inteira no CSS e nenhum componente tem condicional de tema.
 
-Depois: agenda no Google Calendar (Fase 5) e busca semântica (Fase 6, opcional). Lista de empresas
-saiu do escopo — a Cod3rs já tem uma, compartilhada com o orientador.
+O contraste dos dois temas é verificado por cálculo, não por impressão: **74 pares texto/fundo**
+(incluindo o realce de sintaxe e os blocos coloridos gerados por domínio) passam em WCAG AA. A
+auditoria encontrou e corrigiu inclusive uma falha antiga do tema escuro — branco sobre
+`accent-500` estava em 4,47:1, abaixo do mínimo de 4,5.
+
+## O que vem na Fase 5
+
+Agenda no Google Calendar: um botão "agendar" no card e na nota cria o evento num calendário
+dedicado, com link de volta. Sem tela de calendário aqui — quem mostra é o Google.
+
+Depois, busca semântica (Fase 6, opcional). Lista de empresas saiu do escopo — a Cod3rs já tem uma,
+compartilhada com o orientador.

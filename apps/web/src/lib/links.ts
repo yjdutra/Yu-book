@@ -69,6 +69,7 @@ export function useCriarLink() {
           ? semProvisorio.map((l) => (l.id === link.id ? link : l))
           : [...semProvisorio, link];
       });
+      void qc.invalidateQueries({ queryKey: ["dashboard"], refetchType: "none" });
     },
   });
 }
@@ -96,6 +97,7 @@ export function useExcluirLink() {
       await qc.cancelQueries({ queryKey: CHAVE });
       const anterior = qc.getQueryData<Link[]>(CHAVE) ?? [];
       qc.setQueryData<Link[]>(CHAVE, anterior.filter((l) => l.id !== id));
+      void qc.invalidateQueries({ queryKey: ["dashboard"], refetchType: "none" });
       return { anterior };
     },
     onError: (_erro, _id, contexto) => {

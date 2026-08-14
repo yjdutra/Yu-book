@@ -55,7 +55,7 @@ export function BoardsPage() {
   return (
     <main className="flex min-w-0 flex-1 flex-col overflow-y-auto px-8 py-6">
       <header className="mb-6">
-        <h2 className="text-lg font-semibold text-white">Boards</h2>
+        <h2 className="text-lg font-semibold text-titulo">Boards</h2>
         <p className="mt-0.5 text-xs text-ink-400">
           {ativo ? `Workspace ${ativo.name}` : "Todos os workspaces"}
         </p>
@@ -141,7 +141,7 @@ export function BoardsPage() {
                           className="size-2.5 shrink-0 rounded-full"
                           style={{ backgroundColor: b.workspaceColor }}
                         />
-                        <span className="truncate text-sm font-medium text-white">{b.name}</span>
+                        <span className="truncate text-sm font-medium text-titulo">{b.name}</span>
                       </span>
                       <span className="mt-2 block text-xs text-ink-400">
                         {b.columnCount} colunas · {b.cardCount} cards

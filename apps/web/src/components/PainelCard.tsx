@@ -188,7 +188,7 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
               }
             }}
             aria-label="Título do card"
-            className="min-w-0 flex-1 bg-transparent text-base font-semibold text-white outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base font-semibold text-titulo outline-none"
           />
           <button
             type="button"

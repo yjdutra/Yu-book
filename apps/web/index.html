@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR" class="dark">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,6 +8,24 @@
       href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%236366f1'/><path d='M9 9h5l2 6 2-6h5L18 20v4h-4v-4z' fill='white'/></svg>"
     />
     <title>Yu-book</title>
+    <!--
+      RNF-07: o tema é decidido antes da primeira pintura. Se isto virasse um
+      efeito do React, carregar com tema claro salvo mostraria um quadro escuro
+      antes — a piscada que o CA-16 proíbe.
+    -->
+    <script>
+      (function () {
+        try {
+          var salvo = localStorage.getItem("yb:tema");
+          var claro = salvo
+            ? salvo === "claro"
+            : window.matchMedia("(prefers-color-scheme: light)").matches;
+          document.documentElement.dataset.tema = claro ? "claro" : "escuro";
+        } catch (e) {
+          document.documentElement.dataset.tema = "escuro";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -6,6 +6,7 @@ import { useBoards } from "../lib/kanban";
 import { useContadores, useTags } from "../lib/notas";
 import type { Filtros } from "../lib/notas";
 import { useWorkspaceAtivo } from "../lib/workspace";
+import { SeletorTema } from "./SeletorTema";
 import { SeletorWorkspace } from "./SeletorWorkspace";
 
 interface NavegacaoProps {
@@ -35,7 +36,7 @@ function Item({
       aria-current={ativo ? "true" : undefined}
       className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm
                   transition-colors ${
-                    ativo ? "bg-ink-700 text-white" : "text-ink-400 hover:bg-ink-800 hover:text-ink-200"
+                    ativo ? "bg-ink-700 text-titulo" : "text-ink-400 hover:bg-ink-800 hover:text-ink-200"
                   }`}
     >
       {children}
@@ -70,9 +71,11 @@ export function Navegacao({
   const { pathname } = useLocation();
 
   const emBoards = pathname.startsWith("/b");
+  const emNotas = pathname.startsWith("/n");
+  const noInicio = pathname === "/";
 
   /**
-   * Filtro de nota escolhido a partir de um board leva de volta para as notas —
+   * Filtro de nota escolhido fora da tela de notas leva de volta para elas —
    * senão o clique não teria efeito visível.
    */
   const aplicar = (extra: Partial<Filtros>) => {
@@ -84,7 +87,7 @@ export function Navegacao({
       tags: [],
       ...extra,
     });
-    if (emBoards) navigate("/");
+    if (!emNotas) navigate("/n");
   };
 
   const nenhumFiltro =
@@ -93,7 +96,7 @@ export function Navegacao({
   return (
     <nav className="flex h-full flex-col p-3">
       <div className="mb-3 flex items-center justify-between px-2">
-        <h1 className="text-sm font-semibold text-white">Yu-book</h1>
+        <h1 className="text-sm font-semibold text-titulo">Yu-book</h1>
         <button
           type="button"
           onClick={onNovaNota}
@@ -110,11 +113,15 @@ export function Navegacao({
       <SeletorWorkspace />
 
       <div className="mt-3">
-        <Item ativo={!emBoards && nenhumFiltro} onClick={() => aplicar({})} contagem={contadores?.total}>
+        {/* RF-02: a porta de entrada da aplicação. */}
+        <Item ativo={noInicio} onClick={() => navigate("/")}>
+          Início
+        </Item>
+        <Item ativo={emNotas && nenhumFiltro} onClick={() => aplicar({})} contagem={contadores?.total}>
           Todas as notas
         </Item>
         <Item
-          ativo={!emBoards && filtros.favorite}
+          ativo={emNotas && filtros.favorite}
           onClick={() => aplicar({ favorite: true })}
           contagem={contadores?.favorites}
         >
@@ -126,7 +133,7 @@ export function Navegacao({
       {NOTE_KINDS.map((tipo: NoteKind) => (
         <Item
           key={tipo}
-          ativo={!emBoards && filtros.kind === tipo}
+          ativo={emNotas && filtros.kind === tipo}
           onClick={() => aplicar({ kind: tipo })}
           contagem={contadores?.byKind[tipo]}
         >
@@ -174,7 +181,7 @@ export function Navegacao({
           <Titulo>Tags</Titulo>
           <div className="flex flex-wrap gap-1 px-2">
             {tags.map((t) => {
-              const ativa = !emBoards && filtros.tags.includes(t.name);
+              const ativa = emNotas && filtros.tags.includes(t.name);
               return (
                 <button
                   key={t.id}
@@ -187,7 +194,7 @@ export function Navegacao({
                         ? filtros.tags.filter((n) => n !== t.name)
                         : [...filtros.tags, t.name],
                     });
-                    if (emBoards) navigate("/");
+                    if (!emNotas) navigate("/n");
                   }}
                   aria-pressed={ativa}
                   className={`rounded px-1.5 py-0.5 text-[11px] transition ${
@@ -211,18 +218,20 @@ export function Navegacao({
           <span title="Ctrl+Shift+L">Links</span>
         </Item>
         <Item
-          ativo={!emBoards && filtros.trash}
+          ativo={emNotas && filtros.trash}
           onClick={() => aplicar({ trash: true })}
           contagem={contadores?.trash}
         >
           Lixeira
         </Item>
-        <div className="mt-2 flex items-center justify-between px-2">
-          <span className="truncate text-xs text-ink-400">{user?.name}</span>
+        <div className="mt-2 flex items-center gap-1 px-2">
+          <span className="min-w-0 flex-1 truncate text-xs text-ink-400">{user?.name}</span>
+          <SeletorTema />
           <button
             type="button"
             onClick={() => void logout()}
-            className="text-xs text-ink-400 transition hover:text-ink-200"
+            className="rounded px-1.5 py-0.5 text-xs text-ink-400 transition hover:bg-ink-800
+                       hover:text-ink-200"
           >
             sair
           </button>

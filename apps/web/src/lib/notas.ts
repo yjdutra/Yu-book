@@ -121,6 +121,7 @@ function useInvalidar() {
     void qc.invalidateQueries({ queryKey: ["search"] });
     void qc.invalidateQueries({ queryKey: ["tags"] });
     void qc.invalidateQueries({ queryKey: ["titles"] });
+    void qc.invalidateQueries({ queryKey: ["dashboard"], refetchType: "none" });
   };
 }
 
@@ -225,8 +226,9 @@ export function useAtualizarNota() {
         void qc.invalidateQueries({ queryKey: ["notes"] });
       }
 
-      // A paleta relê ao abrir; marcar como velha não custa rede agora.
+      // A paleta e a home releem ao abrir; marcar como velhas não custa rede.
       void qc.invalidateQueries({ queryKey: ["search"], refetchType: "none" });
+      void qc.invalidateQueries({ queryKey: ["dashboard"], refetchType: "none" });
     },
   });
 }

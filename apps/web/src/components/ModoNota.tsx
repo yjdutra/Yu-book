@@ -65,7 +65,7 @@ export function SeletorModo({ modo, onModo }: SeletorModoProps) {
             aria-pressed={ativo}
             title={`${rotulo} — ${dica}`}
             className={`px-2 py-1 transition-colors ${
-              ativo ? "bg-ink-700 text-white" : "text-ink-400 hover:bg-ink-800 hover:text-ink-200"
+              ativo ? "bg-ink-700 text-titulo" : "text-ink-400 hover:bg-ink-800 hover:text-ink-200"
             }`}
           >
             <Icone />

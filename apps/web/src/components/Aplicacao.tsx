@@ -6,6 +6,7 @@ import { useCriarLink, useExcluirLink, useLinks } from "../lib/links";
 import { FILTROS_VAZIOS, useCriarNota } from "../lib/notas";
 import type { Filtros } from "../lib/notas";
 import { useWorkspaceAtivo } from "../lib/workspace";
+import { DashboardPage } from "../pages/DashboardPage";
 import { NotasPage } from "../pages/NotasPage";
 import { Atalhos } from "./Atalhos";
 import { PainelRedimensionavel } from "./Colunas";
@@ -229,7 +230,17 @@ export function Aplicacao() {
       </PainelRedimensionavel>
 
       <Routes>
-        {["/", "/n/:id"].map((path) => (
+        {/* RF-01: a raiz é o dashboard; as notas passam a viver em /n. */}
+        <Route
+          path="/"
+          element={
+            <DashboardPage
+              onNovaNota={() => novaNota()}
+              onAbrirGaveta={() => setGavetaAberta(true)}
+            />
+          }
+        />
+        {["/n", "/n/:id"].map((path) => (
           <Route
             key={path}
             path={path}
