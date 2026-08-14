@@ -14,18 +14,35 @@ import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
 import { cardsDaNota } from "../kanban/kanban.service.js";
 
-/** Nota com as relações que a listagem e o detalhe precisam. */
-const comRelacoes = {
+/**
+ * Campos que a listagem precisa — `content_md` **não** está entre eles.
+ *
+ * O trecho de 160 caracteres vem truncado do banco (ver `trechos`): trazer o
+ * corpo inteiro de 50 notas para descartar 99% dele é o tipo de desperdício
+ * que não aparece em dev, com notas de três linhas, e dói em produção.
+ */
+const camposDaLista = {
+  id: true,
+  title: true,
+  kind: true,
+  workspaceId: true,
+  isFavorite: true,
+  occurredAt: true,
+  updatedAt: true,
+  createdAt: true,
+  deletedAt: true,
   workspace: { select: { id: true, name: true } },
   tags: { include: { tag: true } },
-} satisfies Prisma.NoteInclude;
+} satisfies Prisma.NoteSelect;
 
-type NoteComRelacoes = Prisma.NoteGetPayload<{ include: typeof comRelacoes }>;
+type NoteDaLista = Prisma.NoteGetPayload<{ select: typeof camposDaLista }>;
 
 const RESUMO_TAMANHO = 160;
+/** Prefixo lido do banco: sobra folga para a limpeza de marcação encurtar. */
+const PREFIXO_RESUMO = 600;
 
-function excerpt(contentMd: string): string {
-  return contentMd
+function excerpt(texto: string): string {
+  return texto
     .replace(/```[\s\S]*?```/g, " ") // blocos de código não ajudam no resumo
     .replace(/[#>*_`~[\]]/g, "")
     .replace(/\s+/g, " ")
@@ -33,12 +50,26 @@ function excerpt(contentMd: string): string {
     .slice(0, RESUMO_TAMANHO);
 }
 
-function toSummary(note: NoteComRelacoes): NoteSummary {
+/** Só o começo do corpo, truncado no banco antes de virar tráfego. */
+async function trechos(ids: string[]): Promise<Map<string, string>> {
+  if (ids.length === 0) return new Map();
+
+  const linhas = await prisma.$queryRaw<{ id: string; trecho: string }[]>`
+    -- O cast é obrigatório: o Prisma manda número como bigint, e não existe
+    -- left(text, bigint).
+    SELECT id, left(content_md, ${PREFIXO_RESUMO}::int) AS trecho
+    FROM note
+    WHERE id = ANY(${ids}::uuid[])
+  `;
+  return new Map(linhas.map((l) => [l.id, l.trecho]));
+}
+
+function toSummary(note: NoteDaLista, textoDoResumo: string): NoteSummary {
   return {
     id: note.id,
     title: note.title,
     kind: note.kind,
-    excerpt: excerpt(note.contentMd),
+    excerpt: excerpt(textoDoResumo),
     workspaceId: note.workspaceId,
     workspaceName: note.workspace?.name ?? null,
     tags: note.tags.map(({ tag }) => ({ id: tag.id, name: tag.name, color: tag.color })),
@@ -136,6 +167,34 @@ async function recalcularLinks(
   }
 }
 
+/**
+ * Refaz os links **de entrada** de um título que passou a existir.
+ *
+ * Sem isto, escrever `[[B]]` antes de B existir só resolveria quando A fosse
+ * salva de novo — e o autosave deixou de recalcular link à toa (ver
+ * `linksMudaram`), então "de novo" poderia nunca acontecer.
+ */
+async function reconstruirEntradas(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  titulo: string,
+): Promise<void> {
+  const referenciadoras = await tx.note.findMany({
+    where: { userId, deletedAt: null, contentMd: { contains: `[[${titulo}` } },
+    select: { id: true, contentMd: true },
+  });
+  for (const nota of referenciadoras) {
+    await recalcularLinks(tx, userId, nota.id, nota.contentMd);
+  }
+}
+
+/** Os mesmos alvos, na mesma ordem, significam nada a recalcular. */
+function mesmosLinks(antes: string, depois: string): boolean {
+  const a = extrairWikilinks(antes).map(normalizarTitulo);
+  const b = extrairWikilinks(depois).map(normalizarTitulo);
+  return a.length === b.length && a.every((t, i) => t === b[i]);
+}
+
 export async function criar(userId: string, input: CreateNoteInput): Promise<NoteDetail> {
   const dados = input as Required<CreateNoteInput>;
 
@@ -158,6 +217,8 @@ export async function criar(userId: string, input: CreateNoteInput): Promise<Not
       });
 
       await recalcularLinks(tx, userId, note.id, note.contentMd);
+      // Quem já apontava para este título passa a ter um link resolvido.
+      await reconstruirEntradas(tx, userId, note.title);
       return note.id;
     });
 
@@ -171,7 +232,7 @@ export async function criar(userId: string, input: CreateNoteInput): Promise<Not
 export async function buscarPorId(userId: string, id: string): Promise<NoteDetail> {
   const note = await prisma.note.findFirst({
     where: { id, userId },
-    include: comRelacoes,
+    select: { ...camposDaLista, contentMd: true, meta: true, sourceUrl: true },
   });
   if (!note) throw notFound("Nota não encontrada");
 
@@ -186,7 +247,7 @@ export async function buscarPorId(userId: string, id: string): Promise<NoteDetai
   ]);
 
   return {
-    ...toSummary(note),
+    ...toSummary(note, note.contentMd.slice(0, PREFIXO_RESUMO)),
     contentMd: note.contentMd,
     meta: (note.meta ?? {}) as Record<string, string | number | boolean>,
     sourceUrl: note.sourceUrl,
@@ -249,21 +310,16 @@ export async function atualizar(
         },
       });
 
-      if (input.contentMd !== undefined) {
+      // O caminho quente: o autosave manda o corpo a cada pausa de digitação,
+      // e quase nenhuma dessas pausas mexe em `[[…]]`. Recalcular link só
+      // quando o conjunto de alvos mudou tira 3 consultas de cada salvamento.
+      if (input.contentMd !== undefined && !mesmosLinks(atual.contentMd, input.contentMd)) {
         await recalcularLinks(tx, userId, id, input.contentMd);
       }
 
       // O título mudou: quem apontava para o título antigo agora resolve para
       // este, e quem apontava para o novo pode ter passado a resolver.
-      if (renomeou) {
-        const afetadas = await tx.note.findMany({
-          where: { userId, deletedAt: null, contentMd: { contains: `[[${novoTitulo}` } },
-          select: { id: true, contentMd: true },
-        });
-        for (const nota of afetadas) {
-          await recalcularLinks(tx, userId, nota.id, nota.contentMd);
-        }
-      }
+      if (renomeou) await reconstruirEntradas(tx, userId, novoTitulo);
 
       if (input.tags !== undefined) await limparTagsOrfas(tx, userId);
     });
@@ -302,15 +358,7 @@ export async function restaurar(userId: string, id: string): Promise<NoteDetail>
     await prisma.$transaction(async (tx) => {
       await tx.note.update({ where: { id }, data: { deletedAt: null } });
       await recalcularLinks(tx, userId, id, note.contentMd);
-
-      // Reconstrói os backlinks que apontavam para esta nota.
-      const referenciadoras = await tx.note.findMany({
-        where: { userId, deletedAt: null, contentMd: { contains: `[[${note.title}` } },
-        select: { id: true, contentMd: true },
-      });
-      for (const nota of referenciadoras) {
-        await recalcularLinks(tx, userId, nota.id, nota.contentMd);
-      }
+      await reconstruirEntradas(tx, userId, note.title);
     });
   } catch (erro) {
     // O título pode ter sido reaproveitado enquanto ela estava na lixeira.
@@ -359,37 +407,58 @@ export async function listar(userId: string, query: ListNotesQuery): Promise<Not
 
   const notes = await prisma.note.findMany({
     where,
-    include: comRelacoes,
+    select: camposDaLista,
     orderBy,
     take: query.limit + 1, // +1 só para saber se existe próxima página
     ...(query.cursor && { cursor: { id: query.cursor }, skip: 1 }),
   });
 
   const temMais = notes.length > query.limit;
-  const items = (temMais ? notes.slice(0, query.limit) : notes).map(toSummary);
+  const pagina = temMais ? notes.slice(0, query.limit) : notes;
+  const resumos = await trechos(pagina.map((n) => n.id));
+  const items = pagina.map((n) => toSummary(n, resumos.get(n.id) ?? ""));
 
   return { items, nextCursor: temMais ? (items.at(-1)?.id ?? null) : null };
 }
 
-/** RF-02: os contadores da barra lateral seguem o workspace ativo. */
+/**
+ * RF-02: os contadores da barra lateral seguem o workspace ativo.
+ *
+ * Uma varredura só, com `FILTER`, em vez de quatro `count` — a barra lateral
+ * pede isto a cada troca de workspace e depois de cada operação em nota.
+ */
 export async function contar(userId: string, workspaceId?: string): Promise<NoteCounts> {
-  const escopo = workspaceId ? { workspaceId } : {};
+  const escopo = workspaceId
+    ? Prisma.sql`AND workspace_id = ${workspaceId}::uuid`
+    : Prisma.empty;
 
-  const [porTipo, total, lixeira, favoritas] = await Promise.all([
-    prisma.note.groupBy({
-      by: ["kind"],
-      where: { userId, deletedAt: null, ...escopo },
-      _count: { _all: true },
-    }),
-    prisma.note.count({ where: { userId, deletedAt: null, ...escopo } }),
-    prisma.note.count({ where: { userId, deletedAt: { not: null }, ...escopo } }),
-    prisma.note.count({ where: { userId, deletedAt: null, isFavorite: true, ...escopo } }),
-  ]);
+  const linhas = await prisma.$queryRaw<
+    { kind: NoteKind; ativas: bigint; lixeira: bigint; favoritas: bigint }[]
+  >`
+    SELECT kind::text AS kind,
+           count(*) FILTER (WHERE deleted_at IS NULL) AS ativas,
+           count(*) FILTER (WHERE deleted_at IS NOT NULL) AS lixeira,
+           count(*) FILTER (WHERE deleted_at IS NULL AND is_favorite) AS favoritas
+    FROM note
+    WHERE user_id = ${userId}::uuid
+    ${escopo}
+    GROUP BY kind
+  `;
 
   const byKind = Object.fromEntries(NOTE_KINDS.map((k) => [k, 0])) as Record<NoteKind, number>;
-  for (const linha of porTipo) byKind[linha.kind] = linha._count._all;
+  let total = 0;
+  let trash = 0;
+  let favorites = 0;
 
-  return { total, trash: lixeira, favorites: favoritas, byKind };
+  for (const linha of linhas) {
+    const ativas = Number(linha.ativas);
+    byKind[linha.kind] = ativas;
+    total += ativas;
+    trash += Number(linha.lixeira);
+    favorites += Number(linha.favoritas);
+  }
+
+  return { total, trash, favorites, byKind };
 }
 
 /**

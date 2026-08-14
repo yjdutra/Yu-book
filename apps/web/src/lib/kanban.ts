@@ -9,6 +9,7 @@ import type {
   ColumnInput,
 } from "@yu-book/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 
 export const chaveBoard = (id: string) => ["board", id] as const;
@@ -151,15 +152,73 @@ export function useCriarCard() {
   });
 }
 
+/** A face do card dentro do board, recalculada a partir do detalhe salvo. */
+function paraFace(card: CardDetail): CardSummary {
+  return {
+    id: card.id,
+    columnId: card.columnId,
+    title: card.title,
+    position: card.position,
+    dueDate: card.dueDate,
+    priority: card.priority,
+    checklistDone: card.checklistDone,
+    checklistTotal: card.checklistTotal,
+    note: card.note,
+  };
+}
+
+/** Costura o card no board em cache, em vez de refazer `GET /boards/:id`. */
+function costurarNoBoard(qc: QueryClient, card: CardDetail): void {
+  qc.setQueryData<BoardDetail>(chaveBoard(card.boardId), (board) => {
+    if (!board) return board;
+    if (!board.columns.some((c) => c.cards.some((x) => x.id === card.id))) return board;
+
+    return {
+      ...board,
+      columns: board.columns.map((coluna) => ({
+        ...coluna,
+        cards: coluna.cards.map((x) => (x.id === card.id ? paraFace(card) : x)),
+      })),
+    };
+  });
+}
+
+/**
+ * Mesma lógica do autosave da nota: a descrição do card salva a cada pausa de
+ * digitação, então o caminho comum não pode arrastar board, workspaces e busca
+ * junto. Só o que mudou de fato é invalidado.
+ */
 export function useAtualizarCard() {
   const qc = useQueryClient();
   const invalidar = useInvalidarCard();
+
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: CardUpdateInput }) =>
       api.patch<CardDetail>(`/cards/${id}`, input),
     onSuccess: (card) => {
+      const anterior = qc.getQueryData<CardDetail>(["card", card.id]);
       qc.setQueryData(["card", card.id], card);
-      invalidar(card.boardId);
+
+      if (!anterior) {
+        invalidar(card.boardId);
+        return;
+      }
+
+      // Arquivar tira o card do board e mexe nas contagens: aí sim, refetch.
+      if (anterior.archived !== card.archived) {
+        invalidar(card.boardId);
+        return;
+      }
+
+      costurarNoBoard(qc, card);
+
+      // O vínculo aparece do lado da nota também (RF-38).
+      if (anterior.note?.id !== card.note?.id) {
+        void qc.invalidateQueries({ queryKey: ["note"] });
+      }
+      if (anterior.title !== card.title) {
+        void qc.invalidateQueries({ queryKey: ["search"], refetchType: "none" });
+      }
     },
   });
 }

@@ -5,6 +5,7 @@ import type {
   NoteKind,
   NoteListResponse,
   NoteSort,
+  NoteSummary,
   SearchResponse,
   Tag,
   UpdateNoteInput,
@@ -17,6 +18,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 
 export interface Filtros {
@@ -104,7 +106,13 @@ export function useBusca(termo: string, ativo: boolean, workspaceId: string | nu
   });
 }
 
-/** Invalida tudo que depende do conjunto de notas. */
+/**
+ * Invalida tudo que depende do conjunto de notas.
+ *
+ * Serve para criar, excluir e restaurar — operações pontuais, em que refazer
+ * meia dúzia de consultas é irrelevante. **Não** serve para o autosave: ali o
+ * custo é por pausa de digitação (ver `useAtualizarNota`).
+ */
 function useInvalidar() {
   const qc = useQueryClient();
   return () => {
@@ -116,6 +124,52 @@ function useInvalidar() {
   };
 }
 
+/** O que a lista mostra de uma nota — o detalhe carrega o corpo junto, a lista não. */
+function paraResumo(nota: NoteDetail): NoteSummary {
+  return {
+    id: nota.id,
+    title: nota.title,
+    kind: nota.kind,
+    excerpt: nota.excerpt,
+    workspaceId: nota.workspaceId,
+    workspaceName: nota.workspaceName,
+    tags: nota.tags,
+    isFavorite: nota.isFavorite,
+    occurredAt: nota.occurredAt,
+    updatedAt: nota.updatedAt,
+    createdAt: nota.createdAt,
+    deletedAt: nota.deletedAt,
+  };
+}
+
+/**
+ * Costura a nota salva nas listas que já estão em cache, em vez de invalidá-las.
+ *
+ * A resposta do PATCH já traz o resumo recalculado pelo servidor — refazer
+ * `GET /notes` para descobrir o que acabamos de receber é uma requisição paga
+ * a cada pausa de digitação.
+ */
+function costurarNasListas(qc: QueryClient, nota: NoteDetail): void {
+  qc.setQueriesData<InfiniteData<NoteListResponse>>({ queryKey: ["notes"] }, (dados) => {
+    if (!dados) return dados;
+
+    let mudou = false;
+    const pages = dados.pages.map((pagina) => {
+      if (!pagina.items.some((i) => i.id === nota.id)) return pagina;
+      mudou = true;
+      return {
+        ...pagina,
+        items: pagina.items.map((i) => (i.id === nota.id ? paraResumo(nota) : i)),
+      };
+    });
+
+    return mudou ? { ...dados, pages } : dados;
+  });
+}
+
+const mesmasTags = (a: NoteDetail["tags"], b: NoteDetail["tags"]) =>
+  a.length === b.length && a.every((t, i) => t.id === b[i]?.id);
+
 export function useCriarNota() {
   const invalidar = useInvalidar();
   return useMutation({
@@ -124,18 +178,55 @@ export function useCriarNota() {
   });
 }
 
+/**
+ * O caminho do autosave — o mais percorrido da aplicação.
+ *
+ * O que invalidar é decidido comparando o estado anterior com o que voltou do
+ * servidor, não pelo que foi enviado: salvar só o corpo (o caso comum, a cada
+ * 800 ms de pausa) não derruba lista, contadores, tags nem títulos. Antes, uma
+ * pausa de digitação custava 6 requisições; agora custa 1.
+ */
 export function useAtualizarNota() {
   const qc = useQueryClient();
-  const invalidar = useInvalidar();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateNoteInput }) =>
       api.patch<NoteDetail>(`/notes/${id}`, input),
     onSuccess: (nota) => {
+      const anterior = qc.getQueryData<NoteDetail>(["note", nota.id]);
       qc.setQueryData(["note", nota.id], nota);
-      invalidar();
-      // Renomear reescreve [[...]] em outras notas (RN-03): o cache delas
-      // ficou velho e precisa cair inteiro.
-      void qc.invalidateQueries({ queryKey: ["note"] });
+      costurarNasListas(qc, nota);
+
+      // Sem estado anterior não dá para saber o que mudou: cai no caminho caro.
+      if (!anterior) {
+        void qc.invalidateQueries({ queryKey: ["notes"] });
+        void qc.invalidateQueries({ queryKey: ["counts"] });
+        void qc.invalidateQueries({ queryKey: ["titles"] });
+        return;
+      }
+
+      if (anterior.title !== nota.title) {
+        void qc.invalidateQueries({ queryKey: ["titles"] });
+        // RN-03: renomear reescreve [[...]] em outras notas — o cache delas
+        // ficou velho, e a ordenação e os trechos da lista também.
+        void qc.invalidateQueries({ queryKey: ["note"] });
+        void qc.invalidateQueries({ queryKey: ["notes"] });
+      }
+
+      if (!mesmasTags(anterior.tags, nota.tags)) {
+        void qc.invalidateQueries({ queryKey: ["tags"] });
+      }
+
+      if (
+        anterior.kind !== nota.kind ||
+        anterior.workspaceId !== nota.workspaceId ||
+        anterior.isFavorite !== nota.isFavorite
+      ) {
+        void qc.invalidateQueries({ queryKey: ["counts"] });
+        void qc.invalidateQueries({ queryKey: ["notes"] });
+      }
+
+      // A paleta relê ao abrir; marcar como velha não custa rede agora.
+      void qc.invalidateQueries({ queryKey: ["search"], refetchType: "none" });
     },
   });
 }

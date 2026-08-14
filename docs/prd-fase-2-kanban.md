@@ -67,6 +67,9 @@ global não se pagou e workspace deveria ter continuado sendo um filtro simples.
 
 - **NO1** — Empresas e calendário (Fase 3). O reaproveitamento do kanban como pipeline de
   candidaturas é decisão da Fase 3, não desta.
+  > *Atualização pós-entrega:* a lista de empresas foi cancelada e o calendário virou integração
+  > com o Google Calendar — ver seção 2.5 da [PROPOSTA.md](../PROPOSTA.md). Isso não muda nada do
+  > que a Fase 2 entregou.
 - **NO2** — Dashboard agregado com "prazos próximos" e export (Fase 4).
 - **NO3** — Busca semântica (Fase 5).
 - **NO4** — Mover card entre **boards** diferentes. Movimento é dentro de um board.

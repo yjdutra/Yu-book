@@ -1,11 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { ApiError } from "../lib/api";
 import { FILTROS_VAZIOS, useCriarNota } from "../lib/notas";
 import type { Filtros } from "../lib/notas";
 import { useWorkspaceAtivo } from "../lib/workspace";
-import { BoardPage } from "../pages/BoardPage";
-import { BoardsPage } from "../pages/BoardsPage";
 import { NotasPage } from "../pages/NotasPage";
 import { Atalhos } from "./Atalhos";
 import { PainelRedimensionavel } from "./Colunas";
@@ -27,6 +25,25 @@ function tituloProvisorio(): string {
 export interface RecemCriada {
   id: string;
   comTitulo: boolean;
+}
+
+/**
+ * O kanban carrega sob demanda: a biblioteca de arrasto não precisa estar no
+ * bundle que abre a tela de notas, que é onde a aplicação começa.
+ */
+const BoardPage = lazy(() =>
+  import("../pages/BoardPage").then((m) => ({ default: m.BoardPage })),
+);
+const BoardsPage = lazy(() =>
+  import("../pages/BoardsPage").then((m) => ({ default: m.BoardsPage })),
+);
+
+function CarregandoTela() {
+  return (
+    <main className="flex flex-1 items-center justify-center text-sm text-ink-400">
+      <span className="animate-pulse">Carregando…</span>
+    </main>
+  );
 }
 
 /**
@@ -151,9 +168,25 @@ export function Aplicacao() {
             }
           />
         ))}
-        <Route path="/b" element={<BoardsPage />} />
-        <Route path="/b/:boardId" element={<BoardPage />} />
-        <Route path="/b/:boardId/c/:cardId" element={<BoardPage />} />
+        <Route
+          path="/b"
+          element={
+            <Suspense fallback={<CarregandoTela />}>
+              <BoardsPage />
+            </Suspense>
+          }
+        />
+        {["/b/:boardId", "/b/:boardId/c/:cardId"].map((path) => (
+          <Route
+            key={path}
+            path={path}
+            element={
+              <Suspense fallback={<CarregandoTela />}>
+                <BoardPage />
+              </Suspense>
+            }
+          />
+        ))}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

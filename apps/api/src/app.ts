@@ -1,3 +1,4 @@
+import compress from "@fastify/compress";
 import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
@@ -22,6 +23,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   await app.register(helmet);
+
+  // JSON comprime muito bem — o corpo de uma nota e um board cheio são texto.
+  // Abaixo de 1 KB o ganho não paga o CPU, então fica de fora.
+  await app.register(compress, { global: true, threshold: 1024, encodings: ["gzip", "deflate"] });
 
   await app.register(cors, {
     origin: env.corsOrigins,

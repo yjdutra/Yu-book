@@ -1,6 +1,6 @@
 # Yu-book — Proposta de Projeto
 
-**Um "segundo cérebro" pessoal para a jornada na Coders:** notas de aula, projetos, trilha de estudos e trabalho, com kanban por workspace, lista de empresas e calendário de eventos.
+**Um "segundo cérebro" pessoal para a jornada na Coders:** notas de aula, projetos, trilha de estudos e trabalho, com kanban por workspace e agenda empurrada para o Google Calendar.
 
 Aplicação **single-user** (só você usa), mas com autenticação JWT de verdade — porque vai ficar exposta na internet.
 
@@ -17,7 +17,7 @@ Ganhos imediatos:
 - **Um** editor, **um** sistema de tags, **um** endpoint de listagem com filtros.
 - Adicionar um novo tipo de nota amanhã = adicionar um valor no enum. Zero código novo.
 
-Só ganham tabela própria as entidades com **campos e comportamento realmente distintos**: `Company` (site, setor, status de candidatura), `Event` (início/fim, all-day) e o Kanban (`Board`/`Column`/`Card`).
+Só ganham tabela própria as entidades com **campos e comportamento realmente distintos**: `Event` (início/fim, all-day, id do evento no Google) e o Kanban (`Board`/`Column`/`Card`).
 
 ---
 
@@ -40,7 +40,7 @@ Em duas etapas, deliberadamente:
 A Fase 1 resolve ~80% do uso real e custa quase nada (é nativo do Postgres, sem serviço extra). A Fase 2 só entra quando existir volume de notas suficiente para justificar — buscar semanticamente em 12 notas é teatro.
 
 ### 2.3 Workspaces
-Um agrupador simples (nome + cor + ícone) que atravessa notas, boards, eventos e empresas. Ex.: `Coders`, `Trabalho`, `Freela`, `Pessoal`.
+Um agrupador simples (nome + cor + ícone) que atravessa notas, boards e eventos. Ex.: `Coders`, `Trabalho`, `Freela`, `Pessoal`.
 
 Um seletor global no topo filtra a aplicação inteira. **Não é multi-tenancy** — é uma coluna `workspace_id` e um filtro.
 
@@ -49,16 +49,28 @@ Um seletor global no topo filtra a aplicação inteira. **Não é multi-tenancy*
 - Card: título, descrição, prazo, prioridade, checklist (JSONB) e **vínculo opcional a uma nota**.
 - Drag-and-drop com ordenação por `position` (float, ou inteiros com renumeração — resolvido em 20 linhas). Sem CRDT, sem colaboração em tempo real, sem WebSocket: você é o único usuário.
 
-### 2.5 Empresas
-Lista com nome, site, setor, status (`interesse` / `aplicado` / `entrevista` / `descartada`), tags e observações em Markdown. Visualização em tabela filtrável + link direto para o site.
+### 2.5 Agenda — empurrada para o Google Calendar
 
-Bônus barato: reaproveitar o Kanban como pipeline de candidaturas em vez de criar um fluxo próprio.
+O Yu-book **não tem tela de calendário**. Sem visão mensal, sem agenda, sem recorrência: quem mostra é o Google Calendar, que já está aberto no seu navegador o dia inteiro. Construir uma segunda visão de calendário para competir com ela seria trabalho puro-perda.
 
-### 2.6 Calendário
-Eventos com título, início/fim, all-day, local/URL, workspace e vínculo opcional a nota ou card. Visão mensal + agenda (lista dos próximos). Recorrência: **fora do MVP** — é a funcionalidade que mais consome tempo e menos se usa; entra depois via RRULE se fizer falta.
+O que o Yu-book faz é **criar o evento lá**. Um card com prazo, uma aula, uma entrega — vira evento no seu calendário, com link de volta para a nota ou o card que o originou.
 
-### 2.7 Dashboard
-Tela inicial com: notas recentes, cards com prazo próximo, próximos eventos e busca em destaque. É o que faz a aplicação parecer útil no primeiro segundo.
+| | Decisão |
+|---|---|
+| **Direção** | Uma via: Yu-book → Google. Mudar no Google não volta para cá |
+| **Autenticação** | Conta de serviço do Google Cloud + um calendário dedicado (`Yu-book`) compartilhado com o e-mail dela |
+| **Alcance** | Criar, atualizar e apagar eventos **desse calendário só** — o resto da sua agenda é intocável |
+| **Guardado aqui** | `event` com `google_event_id`, para saber o que atualizar e o que apagar |
+| **Onde aparece na UI** | Um botão "agendar" no card e na nota. Mais nada |
+
+**Por que conta de serviço e não OAuth do usuário.** OAuth exigiria tela de consentimento, refresh token guardado e renovado — e, com o app em modo "Testing" no Google Cloud, o refresh token **expira em 7 dias**, o que significa reautorizar toda semana ou publicar o app e conviver com o aviso de "app não verificado". A conta de serviço não tem nada disso: você compartilha um calendário seu com o e-mail dela (funciona com conta Gmail pessoal, é a mesma tela de "compartilhar com pessoas específicas"), guarda a chave JSON numa variável de ambiente e acabou. Sem consentimento, sem token para renovar, sem cota de usuário.
+
+O preço: conta de serviço **não envia convite para outras pessoas**. Para agenda pessoal, isso não custa nada.
+
+**Condição de corte.** Se na Fase 3 a integração se mostrar mais cara que meio dia de trabalho — chave que não autentica, calendário que não aceita o compartilhamento, cota inesperada —, a funcionalidade inteira sai do escopo, `event` é removida do schema e o projeto termina em notas + kanban + dashboard. Não existe plano B de calendário próprio.
+
+### 2.6 Dashboard
+Tela inicial com: notas recentes, cards com prazo próximo e busca em destaque. É o que faz a aplicação parecer útil no primeiro segundo. "Próximos eventos" não entra — quem responde isso é o Google Calendar.
 
 ---
 
@@ -75,6 +87,7 @@ Tela inicial com: notas recentes, cards com prazo próximo, próximos eventos e 
 | UI | **Tailwind + shadcn/ui** | Componentes prontos, sem carregar design system |
 | Estado/dados | **TanStack Query** | Cache e revalidação de graça; dispensa Redux |
 | Deploy | **Railway** | 2 serviços: API e front estático, + Postgres gerenciado |
+| Agenda *(Fase 3)* | **`googleapis`** com conta de serviço | Cliente oficial. A chave vive em variável de ambiente e alcança um calendário só |
 
 **Monorepo** com pnpm workspaces:
 
@@ -111,12 +124,10 @@ column        id, board_id, name, position, wip_limit?
 card          id, column_id, title, description_md, position,
               due_date?, priority, checklist jsonb, note_id?, archived
 
-company       id, user_id, workspace_id?, name, website, sector?,
-              status, notes_md, created_at
-
 event         id, user_id, workspace_id?, title, description?,
               starts_at, ends_at, all_day, location?, url?,
-              note_id?, card_id?
+              note_id?, card_id?,
+              google_event_id?      -- o evento de verdade vive no Google
 ```
 
 Índices que importam: GIN em `note.search_vector`, GIN trigram em `note.title`, e B-tree em `(user_id, kind)`, `(column_id, position)`, `(user_id, starts_at)`.
@@ -149,7 +160,7 @@ POST   /notes
 GET    /notes/:id            (inclui backlinks)
 PATCH  /notes/:id
 DELETE /notes/:id
-GET    /search               busca unificada em notas, cards, empresas e eventos
+GET    /search               busca unificada em notas e cards
 
 GET    /workspaces           POST /workspaces           PATCH/DELETE /:id
 GET    /tags
@@ -160,8 +171,7 @@ POST   /columns              PATCH/DELETE /columns/:id
 POST   /cards                PATCH/DELETE /cards/:id
 PATCH  /cards/:id/move       { columnId, position }
 
-GET/POST/PATCH/DELETE  /companies
-GET    /events ?from= &to=   POST/PATCH/DELETE /events
+POST/PATCH/DELETE      /events      espelha a operação no Google Calendar
 
 GET    /dashboard            agregado da home em 1 request
 ```
@@ -177,7 +187,7 @@ Padrão de resposta único, erros com código estável, paginação por cursor n
 | **0 — Fundação** | Monorepo, Prisma + migrations, JWT completo, deploy Railway funcionando ponta a ponta, healthcheck | 2–3 dias |
 | **1 — Notas** | CRUD, editor Markdown, tags, wiki links, busca FTS com filtros | 4–5 dias |
 | **2 — Workspaces + Kanban** | Seletor global, boards, drag-and-drop, vínculo card↔nota | 3–4 dias |
-| **3 — Empresas + Calendário** | Tabela de empresas, visão mensal e agenda | 2–3 dias |
+| **3 — Agenda no Google** | Conta de serviço, calendário dedicado, botão "agendar" no card e na nota | 1 dia |
 | **4 — Dashboard + polimento** | Home agregada, atalhos de teclado, modo escuro, export Markdown | 2 dias |
 | **5 — Busca semântica** *(opcional)* | pgvector, embeddings, "pergunte às suas notas" | 3–4 dias |
 
@@ -193,6 +203,7 @@ Regra de ouro: **a Fase 0 termina com deploy em produção**, ainda que só com 
 |---|---|
 | Plano Hobby | US$ 5/mês (inclui US$ 5 de uso) |
 | API + Postgres + front estático | Cabe no crédito incluído nesse volume de uso |
+| Google Calendar API | Grátis. A cota gratuita é de milhões de requisições por dia; você fará dezenas |
 | Fase 5 (embeddings) | Centavos — indexação é uma vez por nota |
 
 Realisticamente: **~US$ 5/mês**.
@@ -211,6 +222,9 @@ Realisticamente: **~US$ 5/mês**.
 | Testes E2E completos | Testes de integração nos endpoints críticos (auth, busca, move de card). O resto não se paga |
 | Docker local | Postgres da Railway direto no dev, ou `docker run postgres` avulso. Sem docker-compose de 4 serviços |
 | Editor colaborativo, permissões, papéis, temas customizáveis, plugins | Nenhum tem usuário |
+| **Lista de empresas / pipeline de candidaturas** | A Cod3rs já tem uma, compartilhada com o orientador. Construir a segunda é trabalho que ninguém vai usar |
+| **Tela de calendário no Yu-book** | O Google Calendar já faz isso melhor. O app cria o evento lá e sai da frente |
+| **Sincronia de volta (Google → Yu-book)** | Exigiria webhook ou polling para um dado que não é consultado aqui |
 | Recorrência de eventos, notificações push, app mobile | Adiados. Entram se doer a ausência |
 
 ---
@@ -223,11 +237,17 @@ Realisticamente: **~US$ 5/mês**.
 | **Notas vazias** (app pronto, sem conteúdo) | Usar a partir da Fase 1, em produção. Cada aula da Coders vira nota **enquanto** o resto é construído |
 | **Lock-in dos seus dados** | Export de todas as notas em `.md` + `.json` já na Fase 4. Suas notas nunca ficam reféns do app |
 | **Perda de dados** | Backup automático do Postgres na Railway + um script `pg_dump` semanal |
+| **Integração com o Google travar na Fase 3** | Timebox de meio dia. Estourou, a Fase 3 inteira sai do escopo (ver 2.5) — não se constrói calendário próprio como consolo |
+| **Chave da conta de serviço vazar** | Só em variável de ambiente, nunca no repositório. O alcance dela é um calendário criado para isso; revogar é apagar a chave no console |
 
 ---
 
-## 11. Próximo passo
+## 11. Onde o projeto está
 
-Aprovada a proposta, começo pela **Fase 0**: monorepo, schema Prisma, auth JWT completo e deploy na Railway — uma aplicação que loga e responde em produção.
+**Fases 0, 1 e 2 concluídas** — fundação e deploy, notas com busca full-text e links `[[wiki]]`, workspace global e kanban. Requisitos detalhados em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md) e [docs/prd-fase-2-kanban.md](docs/prd-fase-2-kanban.md).
 
-**Decisão pendente:** API separada + SPA (proposto acima, 2 serviços) ou Next.js full-stack (1 serviço, mais simples e barato, menos reaproveitável). Sem resposta, sigo com a proposta acima.
+A decisão de arquitetura que estava pendente foi resolvida na Fase 0: **API separada + SPA**, dois serviços na Railway.
+
+**Próximo passo:** Fase 3 — agenda no Google Calendar, com a condição de corte da seção 2.5.
+
+**Decisão pendente:** o que fazer com a tabela `company`, criada na migration inicial e nunca usada. Removê-la exige uma migration de `DROP TABLE`; mantê-la custa uma tabela vazia no banco.

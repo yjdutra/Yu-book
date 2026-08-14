@@ -1,7 +1,7 @@
 # Yu-book
 
 Segundo cérebro pessoal: notas de aula, projetos, trilha de estudos e trabalho, com kanban por
-workspace, lista de empresas e calendário de eventos.
+workspace e agenda empurrada para o Google Calendar.
 
 Proposta e decisões de escopo em [PROPOSTA.md](PROPOSTA.md).
 Requisitos por fase em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md) e
@@ -16,7 +16,7 @@ Requisitos por fase em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md) e
   boards por workspace, arrasto com mouse e teclado, cards com prazo, prioridade e checklist,
   vínculo card ↔ nota nos dois sentidos e cards na paleta de busca.
 
-Próxima: Fase 3 — empresas e calendário.
+Próxima: Fase 3 — agenda no Google Calendar.
 
 ---
 
@@ -114,6 +114,35 @@ A busca full-text já está montada na migration inicial:
 - índice GIN para o full-text e GIN/trigram no título, para tolerar erro de digitação.
 
 Verificado em: busca sem acento, busca com dois termos e similaridade por trigrama.
+
+---
+
+## Desempenho
+
+O caminho mais percorrido da aplicação é o autosave: ele dispara a cada 800 ms de pausa na
+digitação, então tudo que ele arrasta junto é multiplicado por hora de escrita.
+
+| Onde | O que era | O que é |
+|---|---|---|
+| Cache do front após salvar | invalidava lista, contadores, tags, títulos e o detalhe: **6 requisições por pausa** | costura a resposta no cache e só invalida o que mudou de fato: **1 requisição** |
+| `note_link` no autosave | recalculava os links a cada salvamento do corpo | só quando o conjunto de `[[…]]` muda |
+| `GET /notes` | trazia o corpo inteiro de 50 notas para montar trechos de 160 caracteres | o banco trunca em 600 — **4,2 MB → 24 KB** por página, medido com notas de 100 KB |
+| `GET /notes/counts` | quatro `count` por chamada | uma varredura com `FILTER` |
+| Respostas da API | sem compressão | gzip acima de 1 KB |
+| Bundle inicial | 600 KB (185 KB gzip), kanban incluído | 525 KB (164 KB gzip); o kanban vira um chunk de 24 KB carregado sob demanda |
+
+Duas decisões que **não** foram tomadas, de propósito:
+
+- **O debounce continua em 800 ms.** É requisito da Fase 1 (RF-14) e tem critério de aceitação
+  próprio. O problema nunca foi a frequência do salvamento, e sim o que cada salvamento arrastava.
+- **O `PATCH` continua devolvendo o corpo da nota.** Em nota muito grande isso dobra o tráfego do
+  autosave, mas manter a resposta completa é o que garante que o cache do front nunca divirja do
+  banco. Se um dia você escrever notas de centenas de KB, dá para devolver uma resposta enxuta e
+  fundir no cliente.
+
+O que sustenta isso são os testes de integração de `tests/notas.test.ts`: eles provam que pular o
+recálculo de link não perde backlink, inclusive no caso em que a nota-alvo é criada **depois** do
+`[[…]]` que aponta para ela.
 
 ---
 
@@ -243,4 +272,7 @@ para a lixeira desfaz o vínculo e mantém o card.
 
 ## O que vem na Fase 3
 
-Empresas e calendário: tabela de candidaturas, visão mensal e agenda.
+Agenda no Google Calendar: um botão "agendar" no card e na nota cria o evento num calendário
+dedicado do Google, com link de volta. Sem tela de calendário aqui — quem mostra é o Google.
+
+Lista de empresas saiu do escopo: a Cod3rs já tem uma, compartilhada com o orientador.
