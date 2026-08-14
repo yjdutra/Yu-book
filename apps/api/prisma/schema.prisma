@@ -1,0 +1,271 @@
+// Yu-book — modelo de dados
+//
+// Princípio: UMA entidade `Note` com um campo `kind`. Aula, projeto, trilha e
+// trabalho são tipos de nota, não tabelas diferentes. Só ganham tabela própria
+// as entidades com campos e comportamento realmente distintos.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// As extensões (unaccent, pg_trgm) e a busca full-text são criadas por SQL
+// na migration inicial — não vale ligar um preview feature do Prisma por isso.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum NoteKind {
+  aula
+  projeto
+  trilha
+  trabalho
+  livre
+}
+
+enum CompanyStatus {
+  interesse
+  aplicado
+  entrevista
+  descartada
+}
+
+enum CardPriority {
+  baixa
+  media
+  alta
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  workspaces    Workspace[]
+  notes         Note[]
+  tags          Tag[]
+  boards        Board[]
+  companies     Company[]
+  events        Event[]
+  refreshTokens RefreshToken[]
+
+  @@map("user")
+}
+
+/// Sessão de refresh. Guardamos o hash do token, nunca o token — vazamento do
+/// banco não vira sessão válida. Rotação: cada uso revoga o anterior.
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?   @map("user_agent")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_token")
+}
+
+/// Agrupador que atravessa notas, boards, eventos e empresas (Coders, Trabalho…).
+/// Não é multi-tenancy: é uma coluna e um filtro.
+model Workspace {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  color     String   @default("#6366f1")
+  icon      String?
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes     Note[]
+  boards    Board[]
+  companies Company[]
+  events    Event[]
+
+  @@unique([userId, name])
+  @@index([userId, position])
+  @@map("workspace")
+}
+
+model Note {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  workspaceId String?   @map("workspace_id") @db.Uuid
+  kind        NoteKind  @default(livre)
+  title       String
+  contentMd   String    @default("") @map("content_md")
+  /// Campos livres por tipo (módulo, aula, instrutor, link da gravação…).
+  /// Evita uma migration a cada campo novo específico de um tipo.
+  meta        Json      @default("{}")
+  sourceUrl   String?   @map("source_url")
+  occurredAt  DateTime? @map("occurred_at")
+  isFavorite  Boolean   @default(false) @map("is_favorite")
+  /// Lixeira: nota excluída some de listagem, busca, autocomplete e backlinks.
+  deletedAt   DateTime? @map("deleted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  /// Mantida por trigger (ver migration). Consultada via SQL cru.
+  searchVector Unsupported("tsvector")? @map("search_vector")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  tags      NoteTag[]
+  linksOut  NoteLink[] @relation("linksOut")
+  linksIn   NoteLink[] @relation("linksIn")
+  cards     Card[]
+  events    Event[]
+
+  @@index([userId, kind])
+  @@index([userId, deletedAt, updatedAt(sort: Desc)])
+  @@index([workspaceId])
+  // Declarados aqui (e não só no SQL) para o Prisma não tentar derrubá-los
+  // a cada migration nova.
+  @@index([searchVector], map: "note_search_vector_idx", type: Gin)
+  @@index([title(ops: raw("gin_trgm_ops"))], map: "note_title_trgm_idx", type: Gin)
+  @@map("note")
+}
+
+model Tag {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  name   String
+  color  String @default("#94a3b8")
+
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes NoteTag[]
+
+  @@unique([userId, name])
+  @@map("tag")
+}
+
+model NoteTag {
+  noteId String @map("note_id") @db.Uuid
+  tagId  String @map("tag_id") @db.Uuid
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+  @@index([tagId])
+  @@map("note_tag")
+}
+
+/// Links wiki `[[titulo]]` resolvidos — alimenta a seção "referenciada por".
+model NoteLink {
+  fromNoteId String @map("from_note_id") @db.Uuid
+  toNoteId   String @map("to_note_id") @db.Uuid
+
+  from Note @relation("linksOut", fields: [fromNoteId], references: [id], onDelete: Cascade)
+  to   Note @relation("linksIn", fields: [toNoteId], references: [id], onDelete: Cascade)
+
+  @@id([fromNoteId, toNoteId])
+  @@index([toNoteId])
+  @@map("note_link")
+}
+
+model Board {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  workspaceId String   @map("workspace_id") @db.Uuid
+  name        String
+  position    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  columns   BoardColumn[]
+
+  @@index([userId, workspaceId])
+  @@map("board")
+}
+
+model BoardColumn {
+  id       String @id @default(uuid()) @db.Uuid
+  boardId  String @map("board_id") @db.Uuid
+  name     String
+  position Int    @default(0)
+  wipLimit Int?   @map("wip_limit")
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards Card[]
+
+  @@index([boardId, position])
+  @@map("board_column")
+}
+
+model Card {
+  id            String       @id @default(uuid()) @db.Uuid
+  columnId      String       @map("column_id") @db.Uuid
+  title         String
+  descriptionMd String       @default("") @map("description_md")
+  position      Int          @default(0)
+  dueDate       DateTime?    @map("due_date")
+  priority      CardPriority @default(media)
+  /// [{ "text": "...", "done": false }]
+  checklist     Json         @default("[]")
+  noteId        String?      @map("note_id") @db.Uuid
+  archived      Boolean      @default(false)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  column BoardColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  note   Note?       @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  events Event[]
+
+  @@index([columnId, position])
+  @@index([dueDate])
+  @@map("card")
+}
+
+model Company {
+  id          String        @id @default(uuid()) @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  workspaceId String?       @map("workspace_id") @db.Uuid
+  name        String
+  website     String
+  sector      String?
+  status      CompanyStatus @default(interesse)
+  notesMd     String        @default("") @map("notes_md")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@map("company")
+}
+
+model Event {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  workspaceId String?  @map("workspace_id") @db.Uuid
+  title       String
+  description String?
+  startsAt    DateTime @map("starts_at")
+  endsAt      DateTime @map("ends_at")
+  allDay      Boolean  @default(false) @map("all_day")
+  location    String?
+  url         String?
+  noteId      String?  @map("note_id") @db.Uuid
+  cardId      String?  @map("card_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  note      Note?      @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  card      Card?      @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  @@index([userId, startsAt])
+  @@map("event")
+}
