@@ -9,6 +9,7 @@ import { env } from "./env.js";
 import { AppError } from "./lib/errors.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { healthRoutes } from "./modules/health.routes.js";
+import { kanbanRoutes } from "./modules/kanban/kanban.routes.js";
 import { notesRoutes } from "./modules/notes/notes.routes.js";
 import { organizacaoRoutes } from "./modules/organizacao/organizacao.routes.js";
 
@@ -87,6 +88,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(authRoutes);
   await app.register(notesRoutes);
   await app.register(organizacaoRoutes);
+  await app.register(kanbanRoutes);
 
   return app;
 }

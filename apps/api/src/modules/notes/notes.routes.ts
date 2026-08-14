@@ -11,6 +11,7 @@ import * as notes from "./notes.service.js";
 import * as search from "./search.service.js";
 
 const paramsSchema = z.object({ id: z.string().uuid("Id inválido") });
+const escopoSchema = z.object({ workspaceId: z.string().uuid().optional() });
 
 export async function notesRoutes(app: FastifyInstance): Promise<void> {
   // Toda rota daqui exige token; o userId vem dele e de mais lugar nenhum.
@@ -21,13 +22,16 @@ export async function notesRoutes(app: FastifyInstance): Promise<void> {
     return notes.listar(request.userId, query);
   });
 
-  app.get("/notes/counts", async (request) => notes.contar(request.userId));
+  app.get("/notes/counts", async (request) => {
+    const { workspaceId } = escopoSchema.parse(request.query);
+    return notes.contar(request.userId, workspaceId);
+  });
 
   app.get("/notes/titles", async (request) => notes.titulos(request.userId));
 
   app.get("/search", async (request) => {
-    const { q, limit } = searchQuerySchema.parse(request.query);
-    return search.buscar(request.userId, q, limit);
+    const { q, limit, workspaceId } = searchQuerySchema.parse(request.query);
+    return search.buscar(request.userId, q, limit, workspaceId);
   });
 
   app.post("/notes", async (request, reply) => {

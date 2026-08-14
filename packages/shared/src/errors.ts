@@ -11,6 +11,8 @@ export const ERROR_CODES = [
   /** RN-01: já existe uma nota ativa com esse título. */
   "TITULO_DUPLICADO",
   "NOME_DUPLICADO",
+  /** RF-16: a coluna tem cards e a chamada não disse o que fazer com eles. */
+  "COLUNA_COM_CARDS",
   "RATE_LIMITED",
   "INTERNAL_ERROR",
 ] as const;

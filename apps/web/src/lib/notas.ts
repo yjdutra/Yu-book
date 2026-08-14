@@ -23,6 +23,10 @@ export interface Filtros {
   q: string;
   kind: NoteKind | null;
   tags: string[];
+  /**
+   * Vem do workspace ativo (RF-02), não de um filtro da tela. Quem o define é
+   * o contexto global — a barra lateral só mexe nos outros campos.
+   */
   workspaceId: string | null;
   favorite: boolean;
   sort: NoteSort;
@@ -70,8 +74,12 @@ export function useNota(id: string | null) {
   });
 }
 
-export function useContadores() {
-  return useQuery({ queryKey: ["counts"], queryFn: () => api.get<NoteCounts>("/notes/counts") });
+export function useContadores(workspaceId: string | null) {
+  return useQuery({
+    queryKey: ["counts", workspaceId],
+    queryFn: () =>
+      api.get<NoteCounts>(`/notes/counts${workspaceId ? `?workspaceId=${workspaceId}` : ""}`),
+  });
 }
 
 export function useWorkspaces() {
@@ -82,10 +90,14 @@ export function useTags() {
   return useQuery({ queryKey: ["tags"], queryFn: () => api.get<Tag[]>("/tags") });
 }
 
-export function useBusca(termo: string, ativo: boolean) {
+/** RF-02: a paleta busca dentro do workspace ativo, quando há um. */
+export function useBusca(termo: string, ativo: boolean, workspaceId: string | null) {
   return useQuery({
-    queryKey: ["search", termo],
-    queryFn: () => api.get<SearchResponse>(`/search?q=${encodeURIComponent(termo)}`),
+    queryKey: ["search", termo, workspaceId],
+    queryFn: () =>
+      api.get<SearchResponse>(
+        `/search?q=${encodeURIComponent(termo)}${workspaceId ? `&workspaceId=${workspaceId}` : ""}`,
+      ),
     enabled: ativo,
     // A paleta reconsulta a cada tecla; sem isso, voltar uma letra refaz a rede.
     staleTime: 15_000,

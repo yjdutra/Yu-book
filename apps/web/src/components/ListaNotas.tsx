@@ -123,11 +123,15 @@ export function ListaNotas({
               <p className="text-sm text-ink-400">
                 Nada encontrado para <span className="text-ink-200">“{filtros.q}”</span>.
               </p>
-            ) : filtros.kind || filtros.workspaceId || filtros.tags.length > 0 ? (
+            ) : filtros.kind || filtros.tags.length > 0 || filtros.favorite ? (
               <p className="text-sm text-ink-400">Nenhuma nota com esses filtros.</p>
             ) : (
+              // Workspace ativo e vazio ainda é um estado acionável: a nota
+              // nova já nasce nele (RF-05).
               <>
-                <p className="text-sm text-ink-400">Nenhuma nota ainda.</p>
+                <p className="text-sm text-ink-400">
+                  {filtros.workspaceId ? "Nenhuma nota neste workspace ainda." : "Nenhuma nota ainda."}
+                </p>
                 <button
                   type="button"
                   onClick={onNovaNota}

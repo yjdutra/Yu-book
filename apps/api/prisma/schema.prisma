@@ -184,6 +184,7 @@ model Board {
   workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   columns   BoardColumn[]
 
+  @@unique([workspaceId, name])
   @@index([userId, workspaceId])
   @@map("board")
 }
@@ -198,6 +199,7 @@ model BoardColumn {
   board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
   cards Card[]
 
+  @@unique([boardId, name])
   @@index([boardId, position])
   @@map("board_column")
 }
@@ -223,6 +225,9 @@ model Card {
 
   @@index([columnId, position])
   @@index([dueDate])
+  @@index([noteId])
+  // O índice trigram sem acento de `card.title` (busca da paleta, RF-42) é
+  // expressão — vive só no SQL da migration, como o de `note`.
   @@map("card")
 }
 

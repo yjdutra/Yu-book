@@ -31,14 +31,48 @@ interface LinhaBruta {
 function toResult(linha: LinhaBruta, approximate: boolean): SearchResult {
   return {
     id: linha.id,
+    type: "note",
     title: linha.title,
     kind: linha.kind,
     workspaceName: linha.workspace_name,
+    boardId: null,
+    boardName: null,
+    columnName: null,
     updatedAt: linha.updated_at.toISOString(),
     snippet: linha.snippet ?? "",
     approximate,
   };
 }
+
+interface LinhaCard {
+  id: string;
+  title: string;
+  updated_at: Date;
+  workspace_name: string;
+  board_id: string;
+  board_name: string;
+  column_name: string;
+  snippet: string;
+}
+
+function toResultCard(linha: LinhaCard): SearchResult {
+  return {
+    id: linha.id,
+    type: "card",
+    title: linha.title,
+    kind: null,
+    workspaceName: linha.workspace_name,
+    boardId: linha.board_id,
+    boardName: linha.board_name,
+    columnName: linha.column_name,
+    updatedAt: linha.updated_at.toISOString(),
+    snippet: linha.snippet ?? "",
+    approximate: false,
+  };
+}
+
+/** Quantos cards no máximo entram junto com as notas, sem afogar a paleta. */
+const CARDS_JUNTO = 5;
 
 /** Últimas notas editadas — o que a paleta mostra de campo vazio (RF-37). */
 async function recentes(userId: string, limit: number): Promise<LinhaBruta[]> {
@@ -57,41 +91,115 @@ export async function buscar(
   userId: string,
   entrada: string,
   limit: number,
+  /** Workspace ativo (RF-02). O `#workspace` digitado tem precedência (RF-06). */
+  workspaceId?: string,
 ): Promise<SearchResponse> {
-  const { text, kind, tag, workspace } = parseSearchQuery(entrada);
-  const filtros = { kind, tag, workspace };
+  const { text, kind, tag, workspace, card } = parseSearchQuery(entrada);
+  const escopo = workspace ? undefined : workspaceId;
+  const filtros = { kind, tag, workspace, card };
+  const alvo = { kind, tag, workspace, escopo };
+
+  // RF-45: `tipo:card` exclui notas do resultado.
+  if (card) {
+    const cards = text ? await buscarCards(userId, text, limit, alvo) : [];
+    return { results: cards.map(toResultCard), filtros, approximate: false };
+  }
 
   // Só filtro, sem termo: cai na listagem recente já filtrada.
   if (!text) {
-    const linhas = await comFiltros(userId, limit, filtros, Prisma.empty, Prisma.empty);
+    const linhas = await comFiltros(userId, limit, alvo, Prisma.empty, Prisma.empty);
     return { results: linhas.map((l) => toResult(l, false)), filtros, approximate: false };
   }
 
   const ordem = Prisma.sql`ORDER BY ts_rank_cd(n.search_vector, q.query) DESC, n.updated_at DESC`;
   const condicao = Prisma.sql`AND n.search_vector @@ q.query`;
-  const linhas = await comFiltros(userId, limit, filtros, condicao, ordem, text);
+
+  // RF-41: cards entram junto com as notas, na mesma paleta.
+  const [linhas, cards] = await Promise.all([
+    comFiltros(userId, limit, alvo, condicao, ordem, text),
+    buscarCards(userId, text, CARDS_JUNTO, alvo),
+  ]);
 
   if (linhas.length > 0) {
-    return { results: linhas.map((l) => toResult(l, false)), filtros, approximate: false };
+    return {
+      results: [...linhas.map((l) => toResult(l, false)), ...cards.map(toResultCard)],
+      filtros,
+      approximate: false,
+    };
   }
 
   // RF-34: full-text não achou nada — tenta por semelhança de título.
-  const aproximadas = await porSimilaridade(userId, text, limit, filtros);
+  const aproximadas = await porSimilaridade(userId, text, limit, alvo);
   return {
-    results: aproximadas.map((l) => toResult(l, true)),
+    results: [...aproximadas.map((l) => toResult(l, true)), ...cards.map(toResultCard)],
     filtros,
+    // O aviso de "aproximado" é sobre as notas: card não passa por full-text.
     approximate: aproximadas.length > 0,
   };
 }
 
-function fragmentosDeFiltro(filtros: {
+interface Alvo {
   kind: NoteKind | null;
   tag: string | null;
   workspace: string | null;
-}): Prisma.Sql {
+  escopo?: string | undefined;
+}
+
+/**
+ * RF-42: card é encontrado por semelhança de título, sem acento e tolerante a
+ * erro de digitação.
+ *
+ * Sem `tsvector` próprio: `card_title_trgm_unaccent_idx` cobre tanto os
+ * operadores de similaridade quanto o `LIKE '%…%'` (gin_trgm_ops indexa os
+ * dois), então nenhuma das duas condições vira varredura (RNF-12).
+ *
+ * RF-44: card arquivado não aparece.
+ */
+async function buscarCards(
+  userId: string,
+  texto: string,
+  limit: number,
+  alvo: Alvo,
+): Promise<LinhaCard[]> {
+  const porNome = alvo.workspace
+    ? Prisma.sql`AND lower(public.immutable_unaccent(w.name))
+                     = lower(public.immutable_unaccent(${alvo.workspace}))`
+    : Prisma.empty;
+  const porEscopo = alvo.escopo
+    ? Prisma.sql`AND b.workspace_id = ${alvo.escopo}::uuid`
+    : Prisma.empty;
+
+  return prisma.$queryRaw<LinhaCard[]>`
+    SELECT c.id, c.title, c.updated_at,
+           w.name AS workspace_name,
+           b.id AS board_id, b.name AS board_name, bc.name AS column_name,
+           left(regexp_replace(c.description_md, '\s+', ' ', 'g'), 160) AS snippet
+    FROM card c
+    JOIN board_column bc ON bc.id = c.column_id
+    JOIN board b ON b.id = bc.board_id
+    JOIN workspace w ON w.id = b.workspace_id
+    WHERE b.user_id = ${userId}::uuid
+      AND c.archived = false
+      AND (lower(public.immutable_unaccent(${texto})) <% lower(public.immutable_unaccent(c.title))
+           OR lower(public.immutable_unaccent(c.title))
+              LIKE '%' || lower(public.immutable_unaccent(${texto})) || '%')
+    ${porNome}
+    ${porEscopo}
+    ORDER BY word_similarity(lower(public.immutable_unaccent(${texto})),
+                             lower(public.immutable_unaccent(c.title))) DESC,
+             c.updated_at DESC
+    LIMIT ${limit}
+  `;
+}
+
+function fragmentosDeFiltro(filtros: Alvo): Prisma.Sql {
   const partes: Prisma.Sql[] = [];
 
   if (filtros.kind) partes.push(Prisma.sql`AND n.kind::text = ${filtros.kind}`);
+
+  // RF-02: escopo do workspace ativo, por id. Só vale quando o usuário não
+  // digitou `#workspace` — nesse caso o filtro por nome já cobre (RF-06).
+  if (filtros.escopo) partes.push(Prisma.sql`AND n.workspace_id = ${filtros.escopo}::uuid`);
 
   if (filtros.tag) {
     partes.push(Prisma.sql`
@@ -113,7 +221,7 @@ function fragmentosDeFiltro(filtros: {
 async function comFiltros(
   userId: string,
   limit: number,
-  filtros: { kind: NoteKind | null; tag: string | null; workspace: string | null },
+  filtros: Alvo,
   condicaoBusca: Prisma.Sql,
   ordem: Prisma.Sql,
   texto?: string,
@@ -167,7 +275,7 @@ async function porSimilaridade(
   userId: string,
   texto: string,
   limit: number,
-  filtros: { kind: NoteKind | null; tag: string | null; workspace: string | null },
+  filtros: Alvo,
 ): Promise<LinhaBruta[]> {
   const filtroSql = fragmentosDeFiltro(filtros);
 

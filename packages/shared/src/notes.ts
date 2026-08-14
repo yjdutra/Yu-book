@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { NOTE_KINDS } from "./enums.js";
 import type { NoteKind } from "./enums.js";
+// Só de tipo, nos dois sentidos: some na compilação, então não há ciclo real.
+import type { CardRef } from "./kanban.js";
 
 export const MAX_TITULO = 200;
 export const MAX_CONTEUDO = 1_000_000; // RNF-21: 1 MB
@@ -95,6 +97,8 @@ export interface NoteDetail extends NoteSummary {
   sourceUrl: string | null;
   /** Notas que apontam para esta (RF-26). */
   backlinks: NoteRef[];
+  /** Cards que referenciam esta nota (RF-38). */
+  cards: CardRef[];
 }
 
 export interface NoteListResponse {

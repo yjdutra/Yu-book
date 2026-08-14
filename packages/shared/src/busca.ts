@@ -12,13 +12,25 @@ export const HL_END = "\u0002";
 export const searchQuerySchema = z.object({
   q: z.string().max(200).default(""),
   limit: z.coerce.number().int().min(1).max(50).default(20),
+  /**
+   * RF-02: escopo do workspace ativo. O `#workspace` digitado no próprio
+   * campo tem precedência sobre ele (RF-06).
+   */
+  workspaceId: z.string().uuid().optional(),
 });
 
 export interface SearchResult {
   id: string;
+  /** RF-41: a paleta mistura nota e card, então cada resultado se identifica. */
+  type: "note" | "card";
   title: string;
-  kind: NoteKind;
+  /** null em card — card não tem tipo de nota. */
+  kind: NoteKind | null;
   workspaceName: string | null;
+  /** Preenchidos só em card: onde ele está (RF-41, RF-43). */
+  boardId: string | null;
+  boardName: string | null;
+  columnName: string | null;
   updatedAt: string;
   /** Trecho com HL_START/HL_END em volta dos termos encontrados. */
   snippet: string;
@@ -37,6 +49,8 @@ export interface SearchFilters {
   kind: NoteKind | null;
   tag: string | null;
   workspace: string | null;
+  /** RF-45: `tipo:card` restringe os resultados a cards. */
+  card: boolean;
 }
 
 export interface ParsedSearch extends SearchFilters {
@@ -58,12 +72,16 @@ export function parseSearchQuery(input: string): ParsedSearch {
   let kind: NoteKind | null = null;
   let tag: string | null = null;
   let workspace: string | null = null;
+  let card = false;
 
   const tipoMatch = text.match(PREFIXO_TIPO);
   if (tipoMatch?.[1]) {
     const candidato = tipoMatch[1].toLowerCase();
     // `tipo:xpto` não é filtro válido: deixa o termo na busca textual.
-    if ((NOTE_KINDS as readonly string[]).includes(candidato)) {
+    if (candidato === "card") {
+      card = true;
+      text = text.replace(PREFIXO_TIPO, " ");
+    } else if ((NOTE_KINDS as readonly string[]).includes(candidato)) {
       kind = candidato as NoteKind;
       text = text.replace(PREFIXO_TIPO, " ");
     }
@@ -81,7 +99,7 @@ export function parseSearchQuery(input: string): ParsedSearch {
     text = text.replace(PREFIXO_WS, " ");
   }
 
-  return { text: text.trim().replace(/\s+/g, " "), kind, tag, workspace };
+  return { text: text.trim().replace(/\s+/g, " "), kind, tag, workspace, card };
 }
 
 /** Quebra o snippet nos marcadores, para o front renderizar sem usar HTML cru. */

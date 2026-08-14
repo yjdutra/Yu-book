@@ -1,8 +1,9 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { Aplicacao } from "./components/Aplicacao";
 import { GuardaDesktop } from "./components/Colunas";
 import { useAuth } from "./lib/auth";
+import { WorkspaceProvider } from "./lib/workspace";
 import { LoginPage } from "./pages/LoginPage";
-import { NotasPage } from "./pages/NotasPage";
 
 function Splash({ label }: { label: string }) {
   return (
@@ -28,11 +29,11 @@ export function App() {
 
   return (
     <GuardaDesktop>
-      <Routes>
-        <Route path="/" element={<NotasPage />} />
-        <Route path="/n/:id" element={<NotasPage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      {/* O workspace ativo envolve a aplicação inteira: notas, busca e boards
+          leem daqui (RF-01, RF-02). */}
+      <WorkspaceProvider>
+        <Aplicacao />
+      </WorkspaceProvider>
     </GuardaDesktop>
   );
 }

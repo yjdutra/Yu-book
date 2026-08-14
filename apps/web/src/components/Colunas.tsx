@@ -79,47 +79,63 @@ function Divisor({ onArrastar, rotulo }: DivisorProps) {
   );
 }
 
-interface ColunasProps {
-  navegacao: ReactNode;
-  lista: ReactNode;
-  editor: ReactNode;
+interface PainelProps {
+  chave: string;
+  inicial: number;
+  rotulo: string;
+  className?: string;
+  /** De que lado do painel fica o divisor. Painel à direita arrasta ao contrário. */
+  divisor?: "direita" | "esquerda";
+  children: ReactNode;
 }
 
-/** RNF-02: três colunas simultâneas, aproveitando a largura do desktop. */
-export function Colunas({ navegacao, lista, editor }: ColunasProps) {
-  const [larguraNav, setLarguraNav] = useLarguraPersistida("yb:col-nav", 240);
-  const [larguraLista, setLarguraLista] = useLarguraPersistida("yb:col-lista", 320);
+/**
+ * Coluna de largura ajustável, com o divisor à direita.
+ *
+ * Existe como peça solta porque a Fase 2 tem dois layouts: navegação + lista +
+ * editor (notas) e navegação + quadro + painel do card (kanban). A navegação é
+ * a mesma coluna nos dois (RNF-05).
+ */
+export function PainelRedimensionavel({
+  chave,
+  inicial,
+  rotulo,
+  className = "",
+  divisor = "direita",
+  children,
+}: PainelProps) {
+  const [largura, setLargura] = useLarguraPersistida(chave, inicial);
+  const sinal = divisor === "direita" ? 1 : -1;
 
   const ajustar = useCallback(
-    (set: (v: (n: number) => number) => void) => (delta: number) =>
-      set((atual) => Math.min(Math.max(atual + delta, LARGURA_MIN), LARGURA_MAX)),
-    [],
+    (delta: number) =>
+      setLargura((atual) =>
+        Math.min(Math.max(atual + delta * sinal, LARGURA_MIN), LARGURA_MAX),
+      ),
+    [setLargura, sinal],
   );
 
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <aside style={{ width: larguraNav }} className="shrink-0 overflow-y-auto bg-ink-900">
-        {navegacao}
-      </aside>
-
-      <Divisor rotulo="Largura da navegação" onArrastar={ajustar(setLarguraNav)} />
-
-      <section
-        style={{ width: larguraLista }}
-        className="flex shrink-0 flex-col overflow-hidden bg-ink-900/50"
-      >
-        {lista}
-      </section>
-
-      <Divisor rotulo="Largura da lista" onArrastar={ajustar(setLarguraLista)} />
-
-      <main className="flex min-w-0 flex-1 flex-col overflow-hidden">{editor}</main>
+  const painel = (
+    <div style={{ width: largura }} className={`shrink-0 ${className}`}>
+      {children}
     </div>
+  );
+
+  return divisor === "direita" ? (
+    <>
+      {painel}
+      <Divisor rotulo={rotulo} onArrastar={ajustar} />
+    </>
+  ) : (
+    <>
+      <Divisor rotulo={rotulo} onArrastar={ajustar} />
+      {painel}
+    </>
   );
 }
 
 /**
- * RNF-01: abaixo de 1024px mostramos um aviso em vez de degradar o layout.
+ * RNF-05: abaixo de 1024px mostramos um aviso em vez de degradar o layout.
  * A decisão de ser desktop-only é explícita, então a tela estreita também é.
  */
 export function GuardaDesktop({ children }: { children: ReactNode }) {

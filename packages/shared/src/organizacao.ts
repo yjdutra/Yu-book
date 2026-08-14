@@ -19,6 +19,9 @@ export interface Workspace {
   name: string;
   color: string;
   noteCount: number;
+  /** RF-09: a confirmação de exclusão precisa dizer o que se perde junto. */
+  boardCount: number;
+  cardCount: number;
 }
 
 export const tagUpdateSchema = z.object({

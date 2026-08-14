@@ -9,19 +9,48 @@ function ehDuplicado(erro: unknown): boolean {
   return erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === "P2002";
 }
 
-export async function listarWorkspaces(userId: string): Promise<Workspace[]> {
-  const workspaces = await prisma.workspace.findMany({
-    where: { userId },
-    orderBy: [{ position: "asc" }, { name: "asc" }],
-    include: { _count: { select: { notes: { where: { deletedAt: null } } } } },
-  });
+/**
+ * Boards e cards por workspace (RF-09).
+ *
+ * Uma query só para todos os workspaces: são poucos, e a alternativa seria
+ * um `count` aninhado por workspace, que o Prisma não modela em dois níveis.
+ */
+async function contarKanban(userId: string): Promise<Map<string, [number, number]>> {
+  const linhas = await prisma.$queryRaw<
+    { workspace_id: string; boards: bigint; cards: bigint }[]
+  >`
+    SELECT b.workspace_id, count(DISTINCT b.id) AS boards, count(c.id) AS cards
+    FROM board b
+    LEFT JOIN board_column bc ON bc.board_id = b.id
+    LEFT JOIN card c ON c.column_id = bc.id AND c.archived = false
+    WHERE b.user_id = ${userId}::uuid
+    GROUP BY b.workspace_id
+  `;
 
-  return workspaces.map((w) => ({
-    id: w.id,
-    name: w.name,
-    color: w.color,
-    noteCount: w._count.notes,
-  }));
+  return new Map(linhas.map((l) => [l.workspace_id, [Number(l.boards), Number(l.cards)]]));
+}
+
+export async function listarWorkspaces(userId: string): Promise<Workspace[]> {
+  const [workspaces, kanban] = await Promise.all([
+    prisma.workspace.findMany({
+      where: { userId },
+      orderBy: [{ position: "asc" }, { name: "asc" }],
+      include: { _count: { select: { notes: { where: { deletedAt: null } } } } },
+    }),
+    contarKanban(userId),
+  ]);
+
+  return workspaces.map((w) => {
+    const [boards, cards] = kanban.get(w.id) ?? [0, 0];
+    return {
+      id: w.id,
+      name: w.name,
+      color: w.color,
+      noteCount: w._count.notes,
+      boardCount: boards,
+      cardCount: cards,
+    };
+  });
 }
 
 export async function criarWorkspace(userId: string, input: WorkspaceInput): Promise<Workspace> {
@@ -39,7 +68,7 @@ export async function criarWorkspace(userId: string, input: WorkspaceInput): Pro
         position: (maior._max.position ?? -1) + 1,
       },
     });
-    return { id: w.id, name: w.name, color: w.color, noteCount: 0 };
+    return { id: w.id, name: w.name, color: w.color, noteCount: 0, boardCount: 0, cardCount: 0 };
   } catch (erro) {
     if (ehDuplicado(erro)) throw nomeDuplicado(`um workspace chamado "${input.name}"`);
     throw erro;
@@ -63,7 +92,15 @@ export async function atualizarWorkspace(
       },
       include: { _count: { select: { notes: { where: { deletedAt: null } } } } },
     });
-    return { id: w.id, name: w.name, color: w.color, noteCount: w._count.notes };
+    const [boards, cards] = (await contarKanban(userId)).get(id) ?? [0, 0];
+    return {
+      id: w.id,
+      name: w.name,
+      color: w.color,
+      noteCount: w._count.notes,
+      boardCount: boards,
+      cardCount: cards,
+    };
   } catch (erro) {
     if (ehDuplicado(erro)) throw nomeDuplicado(`um workspace chamado "${input.name}"`);
     throw erro;

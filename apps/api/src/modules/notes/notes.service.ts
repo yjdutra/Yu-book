@@ -12,6 +12,7 @@ import type {
 import { NOTE_KINDS, extrairWikilinks, normalizarTitulo, renomearWikilinks } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
+import { cardsDaNota } from "../kanban/kanban.service.js";
 
 /** Nota com as relações que a listagem e o detalhe precisam. */
 const comRelacoes = {
@@ -174,11 +175,15 @@ export async function buscarPorId(userId: string, id: string): Promise<NoteDetai
   });
   if (!note) throw notFound("Nota não encontrada");
 
-  const backlinks = await prisma.noteLink.findMany({
-    where: { toNoteId: id, from: { deletedAt: null } },
-    select: { from: { select: { id: true, title: true, kind: true } } },
-    orderBy: { from: { title: "asc" } },
-  });
+  const [backlinks, cards] = await Promise.all([
+    prisma.noteLink.findMany({
+      where: { toNoteId: id, from: { deletedAt: null } },
+      select: { from: { select: { id: true, title: true, kind: true } } },
+      orderBy: { from: { title: "asc" } },
+    }),
+    // RF-38: o vínculo card ↔ nota aparece dos dois lados.
+    cardsDaNota(userId, id),
+  ]);
 
   return {
     ...toSummary(note),
@@ -186,6 +191,7 @@ export async function buscarPorId(userId: string, id: string): Promise<NoteDetai
     meta: (note.meta ?? {}) as Record<string, string | number | boolean>,
     sourceUrl: note.sourceUrl,
     backlinks: backlinks.map((b) => b.from),
+    cards,
   };
 }
 
@@ -280,6 +286,11 @@ export async function excluir(userId: string, id: string): Promise<void> {
   // Links de e para a nota somem junto: ela não deve aparecer em backlink de
   // ninguém, nem manter os seus.
   await prisma.noteLink.deleteMany({ where: { OR: [{ fromNoteId: id }, { toNoteId: id }] } });
+
+  // RN-07: o card continua existindo, só perde o vínculo. Restaurar a nota
+  // não o refaz — refazer é um clique, guardar o vínculo desfeito seria uma
+  // coluna a mais só para isso.
+  await prisma.card.updateMany({ where: { noteId: id }, data: { noteId: null } });
 }
 
 export async function restaurar(userId: string, id: string): Promise<NoteDetail> {
@@ -360,16 +371,19 @@ export async function listar(userId: string, query: ListNotesQuery): Promise<Not
   return { items, nextCursor: temMais ? (items.at(-1)?.id ?? null) : null };
 }
 
-export async function contar(userId: string): Promise<NoteCounts> {
+/** RF-02: os contadores da barra lateral seguem o workspace ativo. */
+export async function contar(userId: string, workspaceId?: string): Promise<NoteCounts> {
+  const escopo = workspaceId ? { workspaceId } : {};
+
   const [porTipo, total, lixeira, favoritas] = await Promise.all([
     prisma.note.groupBy({
       by: ["kind"],
-      where: { userId, deletedAt: null },
+      where: { userId, deletedAt: null, ...escopo },
       _count: { _all: true },
     }),
-    prisma.note.count({ where: { userId, deletedAt: null } }),
-    prisma.note.count({ where: { userId, deletedAt: { not: null } } }),
-    prisma.note.count({ where: { userId, deletedAt: null, isFavorite: true } }),
+    prisma.note.count({ where: { userId, deletedAt: null, ...escopo } }),
+    prisma.note.count({ where: { userId, deletedAt: { not: null }, ...escopo } }),
+    prisma.note.count({ where: { userId, deletedAt: null, isFavorite: true, ...escopo } }),
   ]);
 
   const byKind = Object.fromEntries(NOTE_KINDS.map((k) => [k, 0])) as Record<NoteKind, number>;

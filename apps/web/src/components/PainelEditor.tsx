@@ -62,6 +62,8 @@ interface PainelEditorProps {
   onAbrirNota: (id: string) => void;
   onCriarPorTitulo: (titulo: string) => void;
   onFechar: () => void;
+  /** RF-39: abrir o board com o painel do card aberto. */
+  onAbrirCard: (boardId: string, cardId: string) => void;
   /** Nota criada sem nome: campo de título vazio e focado (RNF-06). */
   autoFocoTitulo: boolean;
   /** Nota criada a partir de `[[titulo]]`: o nome já está certo, foco no corpo. */
@@ -80,6 +82,7 @@ export function PainelEditor({
   onAbrirNota,
   onCriarPorTitulo,
   onFechar,
+  onAbrirCard,
   autoFocoTitulo,
   autoFocoCorpo,
   refTitulo,
@@ -349,26 +352,54 @@ export function PainelEditor({
         refCorpo={refCorpo}
       />
 
-      {/* RF-26: quem aponta para esta nota. */}
-      {nota.backlinks.length > 0 && (
-        <footer className="shrink-0 border-t border-ink-800 px-6 py-3">
-          <p className="text-[10px] font-medium uppercase tracking-wider text-ink-400">
-            Referenciada por ({nota.backlinks.length})
-          </p>
-          <div className="mt-1.5 flex flex-wrap gap-2">
-            {nota.backlinks.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => onAbrirNota(b.id)}
-                className="flex items-center gap-1.5 rounded border border-ink-700 px-2 py-1
-                           text-xs text-ink-200 transition hover:border-accent-400"
-              >
-                {b.title}
-                <RotuloTipo tipo={b.kind} />
-              </button>
-            ))}
-          </div>
+      {/* RF-26 e RF-38: quem aponta para esta nota — outras notas e cards. */}
+      {(nota.backlinks.length > 0 || nota.cards.length > 0) && (
+        <footer className="flex shrink-0 gap-6 border-t border-ink-800 px-6 py-3">
+          {nota.backlinks.length > 0 && (
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-ink-400">
+                Referenciada por ({nota.backlinks.length})
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {nota.backlinks.map((b) => (
+                  <button
+                    key={b.id}
+                    type="button"
+                    onClick={() => onAbrirNota(b.id)}
+                    className="flex items-center gap-1.5 rounded border border-ink-700 px-2 py-1
+                               text-xs text-ink-200 transition hover:border-accent-400"
+                  >
+                    {b.title}
+                    <RotuloTipo tipo={b.kind} />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {nota.cards.length > 0 && (
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-ink-400">
+                Em cards ({nota.cards.length})
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {nota.cards.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => onAbrirCard(c.boardId, c.id)}
+                    className="flex items-center gap-1.5 rounded border border-ink-700 px-2 py-1
+                               text-xs text-ink-200 transition hover:border-accent-400"
+                  >
+                    {c.title}
+                    <span className="text-[10px] text-ink-400">
+                      {c.boardName} · {c.columnName}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </footer>
       )}
     </div>

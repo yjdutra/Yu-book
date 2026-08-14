@@ -1,16 +1,21 @@
 import { splitHighlight } from "@yu-book/shared";
+import type { SearchResult } from "@yu-book/shared";
 import { useEffect, useRef, useState } from "react";
 import { useBusca } from "../lib/notas";
+import { useWorkspaceAtivo } from "../lib/workspace";
 import { RotuloTipo } from "./RotuloTipo";
 
 interface PaletaProps {
   aberta: boolean;
   onFechar: () => void;
   onAbrirNota: (id: string) => void;
+  /** RF-43: abrir um card leva ao board com o painel aberto. */
+  onAbrirCard: (boardId: string, cardId: string) => void;
 }
 
-/** RF-28..37: busca global por teclado. */
-export function Paleta({ aberta, onFechar, onAbrirNota }: PaletaProps) {
+/** RF-28..37 (notas) e RF-41..45 (cards): busca global por teclado. */
+export function Paleta({ aberta, onFechar, onAbrirNota, onAbrirCard }: PaletaProps) {
+  const { ativo, ativoId } = useWorkspaceAtivo();
   const [texto, setTexto] = useState("");
   const [debounced, setDebounced] = useState("");
   const [indice, setIndice] = useState(0);
@@ -23,7 +28,7 @@ export function Paleta({ aberta, onFechar, onAbrirNota }: PaletaProps) {
     return () => clearTimeout(t);
   }, [texto]);
 
-  const { data, isFetching } = useBusca(debounced, aberta);
+  const { data, isFetching } = useBusca(debounced, aberta, ativoId);
   const resultados = data?.results ?? [];
 
   useEffect(() => {
@@ -47,8 +52,12 @@ export function Paleta({ aberta, onFechar, onAbrirNota }: PaletaProps) {
 
   if (!aberta) return null;
 
-  function escolher(id: string) {
-    onAbrirNota(id);
+  function escolher(resultado: SearchResult) {
+    if (resultado.type === "card" && resultado.boardId) {
+      onAbrirCard(resultado.boardId, resultado.id);
+    } else {
+      onAbrirNota(resultado.id);
+    }
     onFechar();
   }
 
@@ -68,12 +77,13 @@ export function Paleta({ aberta, onFechar, onAbrirNota }: PaletaProps) {
     if (e.key === "Enter") {
       e.preventDefault();
       const escolhido = resultados[indice];
-      if (escolhido) escolher(escolhido.id);
+      if (escolhido) escolher(escolhido);
     }
   }
 
   const filtros = data?.filtros;
-  const temChips = filtros && (filtros.kind || filtros.tag || filtros.workspace);
+  const temChips =
+    filtros && (filtros.kind || filtros.tag || filtros.workspace || filtros.card || ativo);
 
   return (
     <div
@@ -97,7 +107,7 @@ export function Paleta({ aberta, onFechar, onAbrirNota }: PaletaProps) {
             ref={campoRef}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
-            placeholder="Buscar…  tipo:aula · tag:jwt · #workspace"
+            placeholder="Buscar…  tipo:aula · tipo:card · tag:jwt · #workspace"
             aria-label="Termo de busca"
             aria-controls="paleta-resultados"
             className="w-full bg-transparent py-3.5 text-sm text-ink-200 outline-none
@@ -107,7 +117,14 @@ export function Paleta({ aberta, onFechar, onAbrirNota }: PaletaProps) {
         </div>
 
         {temChips && (
-          <div className="flex gap-2 border-b border-ink-700 px-4 py-2">
+          <div className="flex flex-wrap gap-2 border-b border-ink-700 px-4 py-2">
+            {/* RF-02: o escopo ativo é visível; RF-06: `#ws` digitado o substitui. */}
+            {ativo && !filtros.workspace && (
+              <span className="rounded bg-ink-700 px-1.5 py-0.5 text-[10px] text-ink-200">
+                em {ativo.name}
+              </span>
+            )}
+            {filtros.card && <RotuloTipo tipo="card" />}
             {filtros.kind && <RotuloTipo tipo={filtros.kind} />}
             {filtros.tag && (
               <span className="rounded bg-ink-700 px-1.5 py-0.5 text-[10px] text-ink-200">
@@ -142,14 +159,14 @@ export function Paleta({ aberta, onFechar, onAbrirNota }: PaletaProps) {
           )}
 
           {resultados.map((r, i) => (
-            <li key={r.id}>
+            <li key={`${r.type}:${r.id}`}>
               <button
                 type="button"
                 role="option"
                 data-indice={i}
                 aria-selected={i === indice}
                 onMouseEnter={() => setIndice(i)}
-                onClick={() => escolher(r.id)}
+                onClick={() => escolher(r)}
                 className={`w-full border-l-2 px-4 py-2.5 text-left ${
                   i === indice
                     ? "border-accent-400 bg-ink-700/70"
@@ -158,9 +175,16 @@ export function Paleta({ aberta, onFechar, onAbrirNota }: PaletaProps) {
               >
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm text-white">{r.title}</span>
-                  <RotuloTipo tipo={r.kind} className="ml-auto shrink-0" />
-                  {r.workspaceName && (
-                    <span className="shrink-0 text-[10px] text-ink-400">#{r.workspaceName}</span>
+                  {/* RF-41: card se identifica como card e diz de que board é. */}
+                  <RotuloTipo tipo={r.kind ?? "card"} className="ml-auto shrink-0" />
+                  {r.type === "card" ? (
+                    <span className="shrink-0 text-[10px] text-ink-400">
+                      {r.boardName} · {r.columnName}
+                    </span>
+                  ) : (
+                    r.workspaceName && (
+                      <span className="shrink-0 text-[10px] text-ink-400">#{r.workspaceName}</span>
+                    )
                   )}
                 </div>
                 {r.snippet && (

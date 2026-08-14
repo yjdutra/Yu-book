@@ -4,15 +4,19 @@ Segundo cérebro pessoal: notas de aula, projetos, trilha de estudos e trabalho,
 workspace, lista de empresas e calendário de eventos.
 
 Proposta e decisões de escopo em [PROPOSTA.md](PROPOSTA.md).
-Requisitos da fase atual em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md).
+Requisitos por fase em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md) e
+[docs/prd-fase-2-kanban.md](docs/prd-fase-2-kanban.md).
 
-**Status: Fases 0 e 1 concluídas.**
+**Status: Fases 0, 1 e 2 concluídas.**
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown split ao vivo com autosave, tags, workspaces,
   links `[[wiki]]` com backlinks, busca full-text por `Ctrl+K` e lixeira.
+- **Fase 2 — workspace global + kanban:** seletor que troca o contexto da aplicação inteira,
+  boards por workspace, arrasto com mouse e teclado, cards com prazo, prioridade e checklist,
+  vínculo card ↔ nota nos dois sentidos e cards na paleta de busca.
 
-Próxima: Fase 2 — kanban.
+Próxima: Fase 3 — empresas e calendário.
 
 ---
 
@@ -61,6 +65,11 @@ Abra `http://localhost:5173`, crie sua conta (`ALLOW_SIGNUP=true` em dev) e pron
 | `pnpm typecheck` | checagem de tipos em tudo |
 | `pnpm db:migrate` | cria/aplica migration nova |
 | `pnpm db:studio` | Prisma Studio para olhar os dados |
+| `pnpm --filter @yu-book/api test` | testes de integração (usam o `DATABASE_URL` do `.env`) |
+
+Os testes de integração sobem o Fastify inteiro e falam com o Postgres de verdade — é onde a
+renumeração de posições, a verificação de posse e a busca por índice são checadas. Eles criam e
+apagam os próprios dados; o resto do banco fica intacto.
 
 ---
 
@@ -153,28 +162,33 @@ ser same-site: aí use `COOKIE_SAMESITE=lax` e `COOKIE_DOMAIN=.seudominio.com`, 
 
 ---
 
-## Usando (Fase 1)
+## Usando
 
 A aplicação é **desktop-only** por decisão de projeto: abaixo de 1024px ela avisa em vez de
-degradar o layout. Três colunas fixas — navegação, lista, editor — com larguras ajustáveis por
-arrasto e persistidas.
+degradar o layout. A coluna de navegação é a mesma em tudo; ao lado dela ficam lista + editor (nas
+notas) ou o quadro + painel do card (no kanban). As larguras são ajustáveis por arrasto e
+persistidas.
 
 | Atalho | O que faz |
 |---|---|
 | `Ctrl+N` | nova nota, com o cursor já no título |
-| `Ctrl+K` | busca em tudo, de qualquer tela |
+| `Ctrl+K` | busca notas e cards, de qualquer tela |
+| `Ctrl+Shift+B` | vai para os boards |
 | `Ctrl+S` | salva agora, sem esperar o autosave |
 | `Ctrl+B` / `Ctrl+I` / `` Ctrl+` `` | negrito / itálico / código |
 | `[[` | autocomplete para vincular a outra nota |
+| `N` | novo card na coluna com foco |
+| `Espaço` | pega e solta o card com foco; setas movem, `Esc` cancela |
 | `Ctrl+/` | lista de atalhos |
 
 **Autosave:** salva 800 ms depois que você para de digitar. Falha de rede não apaga o que está na
 tela — o erro fica visível e há 3 novas tentativas a cada 5 s.
 
-**Busca:** `Ctrl+K` aceita filtros no próprio campo — `tipo:aula`, `tag:jwt`, `#coders` — combináveis
-com o termo. Ignora acento (`programacao` acha `programação`), aplica stemming (`autenticar` acha
-`autenticação`) e, quando não acha nada exato, cai num fallback por semelhança de título que
-tolera erro de digitação.
+**Busca:** `Ctrl+K` aceita filtros no próprio campo — `tipo:aula`, `tipo:card`, `tag:jwt`,
+`#coders` — combináveis com o termo. Ignora acento (`programacao` acha `programação`), aplica
+stemming (`autenticar` acha `autenticação`) e, quando não acha nada exato, cai num fallback por
+semelhança de título que tolera erro de digitação. Cards entram nos resultados junto com as notas,
+identificados pelo board e pela coluna.
 
 **Links entre notas:** `[[titulo]]` vira link clicável; se o título não existir, o link aparece
 marcado como "criar" e clicar nele cria a nota. Renomear uma nota reescreve os `[[…]]` de todas as
@@ -183,6 +197,39 @@ que apontam para ela, então os links não quebram. Cada nota lista quem a refer
 **Lixeira:** excluir é reversível por 30 dias. A nota some de listagem, busca, autocomplete e
 backlinks, mas dá para restaurar com tags e links intactos.
 
+### Workspace é contexto, não filtro
+
+O seletor no topo da navegação troca o contexto da **aplicação inteira**: lista de notas, paleta de
+busca e lista de boards passam a enxergar só aquele workspace, e a escolha sobrevive a recarregar a
+página. "Todos os workspaces" desliga o escopo. Digitar `#outro` na paleta sobrepõe o escopo
+naquela busca sem trocar o contexto.
+
+Excluir um workspace exclui os boards e cards dele — a confirmação diz quantos — mas **não** exclui
+notas: elas ficam sem workspace.
+
+### Kanban
+
+Board pertence a um workspace e nasce com `A fazer`, `Fazendo` e `Feito`. Card tem título,
+descrição em Markdown, prazo, prioridade, checklist e vínculo opcional a uma nota.
+
+- **Mover:** arrastar com o mouse ou pegar com `Espaço` e mover com as setas — as duas formas
+  fazem a mesma coisa, e cada etapa é anunciada para leitor de tela. O movimento aparece na hora;
+  se a API recusar, o card volta sozinho e o erro fica visível.
+- **Ordem:** as posições são renumeradas em transação a cada movimento, então não existe empate
+  nem buraco na fila.
+- **Limite de WIP:** por coluna, opcional. Estourar sinaliza o cabeçalho (`4/3`) e não bloqueia
+  nada — com um usuário só, bloquear gera contorno, não disciplina.
+- **Excluir coluna com cards** exige escolher: mover para outra coluna ou excluir junto. A API
+  recusa a exclusão que não diz o que fazer com eles.
+- **Arquivar** tira o card do board sem apagá-lo; desarquivar devolve ao fim da mesma coluna.
+  Excluir card é definitivo — não há lixeira de card.
+
+### Card ↔ nota
+
+O card mostra a nota vinculada; a nota lista, no rodapé, os cards que a referenciam, ao lado de
+"Referenciada por". Dá para criar uma nota já vinculada a partir do título do card. Mandar a nota
+para a lixeira desfaz o vínculo e mantém o card.
+
 ### Regras que valem conhecer
 
 - **Título é único por usuário**, comparado sem acento e sem diferenciar maiúsculas. É o que faz
@@ -190,7 +237,10 @@ backlinks, mas dá para restaurar com tags e links intactos.
 - **Campos de aula** (módulo, instrutor, link da gravação) ficam em `note.meta` (JSONB), num painel
   recolhível — adicionar um campo novo não pede migration.
 - **Tag sem nenhuma nota é apagada sozinha**, para o autocomplete não acumular lixo.
+- **Nome de board é único por workspace** e nome de coluna é único por board — duas colunas "Feito"
+  no mesmo board é erro de digitação, não intenção.
+- **Card não atravessa boards.** Mover para uma coluna de outro board é recusado.
 
-## O que vem na Fase 2
+## O que vem na Fase 3
 
-Kanban: boards por workspace, colunas, cards com prazo e checklist, e vínculo card ↔ nota.
+Empresas e calendário: tabela de candidaturas, visão mensal e agenda.
