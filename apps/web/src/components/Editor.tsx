@@ -7,6 +7,7 @@ import type { PosicaoCursor } from "../lib/caret";
 import { marcarNaoResolvidos, renderMarkdown } from "../lib/markdown";
 import { useTitulos } from "../lib/notas";
 import type { TituloSugerido } from "../lib/notas";
+import type { ModoNota } from "../lib/modoNota";
 import { RotuloTipo } from "./RotuloTipo";
 
 interface EditorProps {
@@ -17,6 +18,8 @@ interface EditorProps {
   onAbrirNota: (id: string) => void;
   onCriarPorTitulo: (titulo: string) => void;
   refCorpo: RefObject<HTMLTextAreaElement | null>;
+  /** Escrever, escrever vendo o resultado, ou só ler. */
+  modo: ModoNota;
 }
 
 /** Envolve a seleção com marcadores (RF-19), preservando o que estava selecionado. */
@@ -59,6 +62,7 @@ export function Editor({
   onAbrirNota,
   onCriarPorTitulo,
   refCorpo,
+  modo,
 }: EditorProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const { data: titulos } = useTitulos();
@@ -217,9 +221,17 @@ export function Editor({
     }
   }
 
+  const mostraEditor = modo !== "leitura";
+  const mostraPreview = modo !== "edicao";
+
   return (
     <div className="relative flex min-h-0 flex-1">
-      <div className="relative flex min-w-0 flex-1 flex-col border-r border-ink-800">
+      {mostraEditor && (
+      <div
+        className={`relative flex min-w-0 flex-1 flex-col ${
+          mostraPreview ? "border-r border-ink-800" : ""
+        }`}
+      >
         <textarea
           ref={refCorpo}
           value={conteudo}
@@ -273,15 +285,22 @@ export function Editor({
           </ul>
         )}
       </div>
+      )}
 
-      <div
-        ref={previewRef}
-        onScroll={() => sincronizar("preview")}
-        onClick={clicarPreview}
-        className="preview min-w-0 flex-1 overflow-y-auto px-6 py-5"
-        // Já sanitizado por DOMPurify dentro de renderMarkdown (RNF-19).
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      {mostraPreview && (
+        <div
+          ref={previewRef}
+          onScroll={() => sincronizar("preview")}
+          onClick={clicarPreview}
+          // Sozinho na tela, o texto é centralizado: linha de 72ch encostada na
+          // esquerda de uma tela larga é desconfortável de ler (RNF-10).
+          className={`preview min-w-0 flex-1 overflow-y-auto px-6 py-5 ${
+            mostraEditor ? "" : "mx-auto w-full max-w-4xl"
+          }`}
+          // Já sanitizado por DOMPurify dentro de renderMarkdown (RNF-19).
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      )}
     </div>
   );
 }

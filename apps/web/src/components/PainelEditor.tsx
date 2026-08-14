@@ -13,7 +13,9 @@ import {
 } from "../lib/notas";
 import { useAutosave } from "../lib/useAutosave";
 import type { EstadoSalvamento } from "../lib/useAutosave";
+import { useModoNota } from "../lib/modoNota";
 import { Editor } from "./Editor";
+import { SeletorModo } from "./ModoNota";
 import { RotuloTipo } from "./RotuloTipo";
 
 /** Campos extras de aula (RF-45). Ficam em `meta`, sem migration por campo. */
@@ -95,6 +97,7 @@ export function PainelEditor({
   const restaurar = useRestaurarNota();
   const excluirDefinitivo = useExcluirDefinitivo();
 
+  const [modo, setModo] = useModoNota();
   const [rascunho, setRascunho] = useState<Rascunho>({ title: "", contentMd: "" });
   const [metaAberto, setMetaAberto] = useState(false);
   const [erroTitulo, setErroTitulo] = useState<string | null>(null);
@@ -197,6 +200,7 @@ export function PainelEditor({
           />
 
           <div className="flex shrink-0 items-center gap-2 pt-1">
+            <SeletorModo modo={modo} onModo={setModo} />
             <IndicadorSalvamento estado={estado} />
             <button
               type="button"
@@ -350,6 +354,7 @@ export function PainelEditor({
         onAbrirNota={onAbrirNota}
         onCriarPorTitulo={onCriarPorTitulo}
         refCorpo={refCorpo}
+        modo={modo}
       />
 
       {/* RF-26 e RF-38: quem aponta para esta nota — outras notas e cards. */}
