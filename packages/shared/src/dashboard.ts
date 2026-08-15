@@ -31,6 +31,7 @@ export interface LinkResumo {
   title: string;
   domain: string;
   createdAt: string;
+  durationSeconds: number | null;
 }
 
 export interface Dashboard {

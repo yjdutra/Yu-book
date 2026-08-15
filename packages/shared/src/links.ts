@@ -56,6 +56,68 @@ export function normalizarUrl(entrada: string): UrlNormalizada | null {
   return { url: normalizada, domain: url.hostname };
 }
 
+/* ------------------------------------------------------------- YouTube */
+
+const HOSTS_YOUTUBE = ["youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"];
+/** Id de vídeo do YouTube: 11 caracteres de um alfabeto fixo. */
+const ID_YOUTUBE = /^[A-Za-z0-9_-]{11}$/;
+
+/**
+ * Extrai o id do vídeo, ou `null` se não for um link de vídeo do YouTube.
+ *
+ * Cobre as quatro formas que aparecem na prática: `watch?v=`, `youtu.be/`,
+ * `/shorts/` e `/embed/`. A URL chega aqui já normalizada (sem `www.`).
+ */
+export function idDoYoutube(url: string): string | null {
+  let alvo: URL;
+  try {
+    alvo = new URL(url);
+  } catch {
+    return null;
+  }
+
+  const host = alvo.hostname.replace(/^www\./, "");
+  if (!HOSTS_YOUTUBE.includes(host)) return null;
+
+  const candidato =
+    host === "youtu.be"
+      ? alvo.pathname.slice(1)
+      : (alvo.searchParams.get("v") ??
+        alvo.pathname.match(/^\/(?:shorts|embed|live)\/([^/]+)/)?.[1] ??
+        "");
+
+  return ID_YOUTUBE.test(candidato) ? candidato : null;
+}
+
+/**
+ * Miniatura do vídeo, montada a partir do id — sem requisição no salvamento.
+ *
+ * `mqdefault` tem 320×180 e ~10 KB: o suficiente para reconhecer o vídeo numa
+ * lista, sem pesar. Quem baixa é o navegador, na hora de exibir.
+ */
+export function thumbnailDoYoutube(id: string): string {
+  return `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+}
+
+/** Segundos em `4:12` ou `1:02:33` — como o próprio YouTube mostra. */
+export function formatarDuracao(segundos: number): string {
+  const total = Math.max(0, Math.floor(segundos));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+
+  const dois = (n: number) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${dois(m)}:${dois(s)}` : `${m}:${dois(s)}`;
+}
+
+/** `PT1H2M33S` (formato do YouTube Data API) em segundos. */
+export function duracaoIso8601EmSegundos(iso: string): number | null {
+  const m = iso.match(/^P(?:\d+D)?T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
+  if (!m) return null;
+  const [, h = "0", min = "0", s = "0"] = m;
+  return Number(h) * 3600 + Number(min) * 60 + Number(s);
+}
+
 export const linkInputSchema = z.object({
   url: z.string().trim().min(1, "Informe uma URL").max(MAX_URL),
   kind: linkKindSchema.default("depois"),
@@ -87,4 +149,6 @@ export interface Link {
   createdAt: string;
   /** true quando o título é o domínio, porque a página não respondeu (RF-14). */
   semTitulo: boolean;
+  /** Duração do vídeo, quando dá para saber. Hoje, só YouTube com chave. */
+  durationSeconds: number | null;
 }

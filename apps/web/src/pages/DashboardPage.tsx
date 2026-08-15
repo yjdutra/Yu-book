@@ -1,7 +1,7 @@
 import type { CardComPrazo, LinkResumo, NoteSummary } from "@yu-book/shared";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { BlocoDominio } from "../components/BlocoDominio";
+import { MiniaturaLink } from "../components/MiniaturaLink";
 import { RotuloTipo } from "../components/RotuloTipo";
 import { useDashboard } from "../lib/dashboard";
 import { idadeRelativa, prazoRelativo } from "../lib/tempo";
@@ -255,7 +255,7 @@ export function DashboardPage({ onNovaNota, onAbrirGaveta }: DashboardPageProps)
                     rel="noopener noreferrer"
                     className="flex items-center gap-3 px-4 py-2 transition hover:bg-ink-800/60"
                   >
-                    <BlocoDominio domain={link.domain} />
+                    <MiniaturaLink link={link} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm text-ink-200">{link.title}</span>
                       <span className="block truncate text-[11px] text-ink-400">{link.domain}</span>

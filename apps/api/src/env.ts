@@ -19,6 +19,10 @@ const envSchema = z.object({
   /// (o padrão na Railway). Exige Secure, e o header anti-CSRF cobre o resto.
   COOKIE_SAMESITE: z.enum(["lax", "strict", "none"]).optional(),
 
+  /// Opcional. Sem ela, links do YouTube ainda ganham título e miniatura
+  /// (via oEmbed, que não pede chave) — só a duração fica de fora.
+  YOUTUBE_API_KEY: z.string().optional(),
+
   /// Feche depois de criar sua conta. Signup aberto na internet = lixo no banco.
   ALLOW_SIGNUP: z
     .enum(["true", "false"])

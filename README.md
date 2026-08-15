@@ -339,6 +339,23 @@ Sem favicon, de propósito: guardar a imagem exigiria storage de objetos e busc�
 terceiros entregaria a ele a lista de tudo que você salva. A identidade é a inicial do domínio num
 bloco de cor derivada dele — mesma cor para o mesmo site, sempre.
 
+**Vídeo do YouTube é caso especial**, porque é a maior parte da fila. Ele ganha o título de
+verdade e a miniatura no lugar do bloco de letra:
+
+- O título vem do **oEmbed** do YouTube — sem chave de API e com ~1 KB de resposta. O leitor
+  genérico de título não dava conta: a página de um vídeo passa de 1,3 MB e o `<title>` fica além
+  do limite de 512 KB que ele lê, então o link era salvo como "youtube.com".
+- A **miniatura** é montada a partir do id do vídeo (`i.ytimg.com/vi/<id>/mqdefault.jpg`), sem
+  nenhuma requisição no momento de salvar. Quem baixa é o navegador, ao exibir a lista. Isso
+  revela ao Google **qual vídeo** apareceu na sua lista — bem menos do que um serviço de favicon,
+  que veria todos os domínios que você guarda.
+- A **duração** só aparece se existir `YOUTUBE_API_KEY` no ambiente da API. Sem a chave, nada é
+  requisitado e o resto continua funcionando. Não há caminho barato sem chave: o `lengthSeconds`
+  fica por volta do byte 700.000 da página do vídeo.
+
+Para ligar a duração: crie uma chave da **YouTube Data API v3** no Google Cloud e defina
+`YOUTUBE_API_KEY` no serviço da API. Cada link salvo custa 1 unidade da cota diária de 10.000.
+
 ### Sobre ler o título da página
 
 Este é o único ponto do Yu-book em que **o servidor abre conexão para um endereço que veio de

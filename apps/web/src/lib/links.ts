@@ -47,6 +47,7 @@ export function useCriarLink() {
         position: anterior.length,
         createdAt: new Date().toISOString(),
         semTitulo: !input.title,
+        durationSeconds: null,
       };
 
       qc.setQueryData<Link[]>(CHAVE, [...anterior, provisorio]);

@@ -99,6 +99,7 @@ export async function montar(userId: string, workspaceId?: string): Promise<Dash
         title: l.title,
         domain: l.domain,
         createdAt: l.createdAt.toISOString(),
+        durationSeconds: l.durationSeconds,
       })),
     },
   };

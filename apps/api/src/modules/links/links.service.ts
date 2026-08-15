@@ -4,6 +4,7 @@ import { normalizarUrl } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
 import { buscarTitulo } from "./titulo.service.js";
+import { metadadosDoYoutube } from "./youtube.service.js";
 
 type LinkNoBanco = Prisma.LinkGetPayload<Record<string, never>>;
 
@@ -20,7 +21,22 @@ function toLink(link: LinkNoBanco): Link {
     createdAt: link.createdAt.toISOString(),
     // RF-14: sem título de verdade, o nome é o domínio — e dá para tentar de novo.
     semTitulo: link.title === link.domain,
+    durationSeconds: link.durationSeconds,
   };
+}
+
+/**
+ * Descobre nome e duração de um link.
+ *
+ * Vídeo do YouTube tem caminho próprio porque o genérico não dá conta: a
+ * página passa de 1 MB e o título fica além do limite de leitura. Qualquer
+ * falha cai no caminho comum, e o comum caindo vira o domínio.
+ */
+async function descrever(url: string, dominio: string) {
+  const youtube = await metadadosDoYoutube(url);
+  if (youtube) return { title: youtube.title, durationSeconds: youtube.durationSeconds };
+
+  return { title: (await buscarTitulo(url)) || dominio, durationSeconds: null };
 }
 
 /** Favoritos vêm na ordem manual; a fila, do mais novo para o mais velho. */
@@ -58,8 +74,9 @@ export async function criar(userId: string, input: LinkInput): Promise<Link> {
 
   // O desfazer (RN-05) recria o link com o nome que ele já tinha: não faz
   // sentido pagar a busca de título de novo.
-  const titulo =
-    input.title?.trim() || (await buscarTitulo(normalizada.url)) || normalizada.domain;
+  const descricao = input.title?.trim()
+    ? { title: input.title.trim(), durationSeconds: null }
+    : await descrever(normalizada.url, normalizada.domain);
 
   const position =
     kind === "favorito" ? await prisma.link.count({ where: { userId, kind } }) : 0;
@@ -70,7 +87,8 @@ export async function criar(userId: string, input: LinkInput): Promise<Link> {
         userId,
         url: normalizada.url,
         domain: normalizada.domain,
-        title: titulo.slice(0, 200), // RNF-06: título é dado de terceiro
+        title: descricao.title.slice(0, 200), // RNF-06: título é dado de terceiro
+        durationSeconds: descricao.durationSeconds,
         kind,
         position,
       },
@@ -176,12 +194,15 @@ export async function mover(userId: string, id: string, position: number): Promi
 /** RF-14: tenta de novo o título de um link que ficou com o domínio. */
 export async function rebuscarTitulo(userId: string, id: string): Promise<Link> {
   const atual = await doUsuario(userId, id);
-  const titulo = await buscarTitulo(atual.url);
-  if (!titulo) return toLink(atual);
+  const descricao = await descrever(atual.url, atual.domain);
+  if (descricao.title === atual.domain) return toLink(atual);
 
   const link = await prisma.link.update({
     where: { id },
-    data: { title: titulo.slice(0, 200) },
+    data: {
+      title: descricao.title.slice(0, 200),
+      ...(descricao.durationSeconds !== null && { durationSeconds: descricao.durationSeconds }),
+    },
   });
   return toLink(link);
 }

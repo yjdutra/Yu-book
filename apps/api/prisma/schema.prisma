@@ -249,6 +249,8 @@ model Link {
   title  String
   domain String
   kind   LinkKind @default(depois)
+  /// Duração em segundos, quando a fonte informa (hoje: vídeo do YouTube).
+  durationSeconds Int? @map("duration_seconds")
   /// Ordem manual; só significa algo entre os favoritos (RN-03).
   position  Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at")

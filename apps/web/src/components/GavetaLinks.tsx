@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ordenar, useAtualizarLink, useMoverLink, useRebuscarTitulo } from "../lib/links";
 import { DIAS_PARA_ENVELHECER, diasDesde, idadeRelativa } from "../lib/tempo";
 import { BlocoDominio } from "./BlocoDominio";
+import { MiniaturaLink } from "./MiniaturaLink";
 
 /** RNF-16: a página aberta não pode ter referência à janela do Yu-book. */
 const ALVO = { target: "_blank", rel: "noopener noreferrer" } as const;
@@ -315,7 +316,7 @@ export function GavetaLinks({
                     <span className="w-4 shrink-0 text-center text-xs text-amber-300">
                       {velho ? "⚠" : ""}
                     </span>
-                    <BlocoDominio domain={link.domain} />
+                    <MiniaturaLink link={link} />
 
                     <a
                       href={link.url}

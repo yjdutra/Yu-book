@@ -1,7 +1,13 @@
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import type { Link } from "@yu-book/shared";
-import { normalizarUrl } from "@yu-book/shared";
+import {
+  duracaoIso8601EmSegundos,
+  formatarDuracao,
+  idDoYoutube,
+  normalizarUrl,
+  thumbnailDoYoutube,
+} from "@yu-book/shared";
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { prisma } from "../src/db.js";
@@ -331,5 +337,66 @@ describe("posse", () => {
       ((await chamar(app, { method: "GET", url: "/links", token: intruso.token })).body as Link[])
         .length,
     ).toBe(0);
+  });
+});
+
+describe("YouTube", () => {
+  test("reconhece as formas de URL de vídeo e ignora o resto do site", () => {
+    const id = "dQw4w9WgXcQ";
+    for (const url of [
+      `https://youtube.com/watch?v=${id}`,
+      `https://www.youtube.com/watch?v=${id}&t=42s`,
+      `https://youtu.be/${id}`,
+      `https://youtube.com/shorts/${id}`,
+      `https://youtube.com/embed/${id}`,
+      `https://m.youtube.com/watch?v=${id}`,
+      `https://music.youtube.com/watch?v=${id}`,
+    ]) {
+      expect(idDoYoutube(url), url).toBe(id);
+    }
+
+    for (const url of [
+      "https://youtube.com",
+      "https://youtube.com/@RickAstleyYT",
+      "https://youtube.com/watch?v=curto",
+      "https://vimeo.com/123456",
+      "https://naoyoutube.com/watch?v=dQw4w9WgXcQ",
+    ]) {
+      expect(idDoYoutube(url), url).toBeNull();
+    }
+  });
+
+  test("a miniatura sai do id, sem requisição", () => {
+    expect(thumbnailDoYoutube("dQw4w9WgXcQ")).toBe(
+      "https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg",
+    );
+  });
+
+  test("duração ISO-8601 vira segundos e depois texto legível", () => {
+    expect(duracaoIso8601EmSegundos("PT3M33S")).toBe(213);
+    expect(duracaoIso8601EmSegundos("PT1H2M33S")).toBe(3753);
+    expect(duracaoIso8601EmSegundos("PT45S")).toBe(45);
+    expect(duracaoIso8601EmSegundos("nada disso")).toBeNull();
+
+    expect(formatarDuracao(213)).toBe("3:33");
+    expect(formatarDuracao(3753)).toBe("1:02:33");
+    expect(formatarDuracao(45)).toBe("0:45");
+  });
+
+  // O caso que falhava: a página do vídeo tem ~1,3 MB e o título fica além do
+  // limite de 512 KB, então o link era salvo como "youtube.com".
+  test("vídeo é salvo com o título de verdade, não com o domínio", async () => {
+    const { status, body } = await salvar({
+      url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      kind: "depois",
+    });
+
+    expect(status).toBe(201);
+    const link = body as Link;
+    expect(link.title).not.toBe("youtube.com");
+    expect(link.title.toLowerCase()).toContain("never gonna give you up");
+    expect(link.semTitulo).toBe(false);
+    // Sem YOUTUBE_API_KEY configurada, a duração não vem — e isso é esperado.
+    expect(link.durationSeconds === null || typeof link.durationSeconds === "number").toBe(true);
   });
 });
