@@ -225,6 +225,7 @@ export function Aplicacao() {
           onFiltros={setFiltros}
           onNovaNota={() => novaNota()}
           onAbrirGaveta={() => setGavetaAberta(true)}
+          onAbrirAtalhos={() => setAtalhosAbertos(true)}
           linksParaVer={(links ?? []).filter((l) => l.kind === "depois").length}
         />
       </PainelRedimensionavel>
