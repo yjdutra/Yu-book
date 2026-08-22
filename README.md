@@ -4,10 +4,10 @@ Segundo cérebro pessoal: notas de aula, projetos, trilha de estudos e trabalho,
 workspace, gaveta de links e um dashboard que responde o que precisa de você agora.
 
 Proposta e decisões de escopo em [PROPOSTA.md](PROPOSTA.md).
-Requisitos por fase em [docs/prd-fase-1-notas.md](docs/prd-fase-1-notas.md),
-[docs/prd-fase-2-kanban.md](docs/prd-fase-2-kanban.md),
-[docs/prd-fase-3-links.md](docs/prd-fase-3-links.md) e
-[docs/prd-fase-4-dashboard.md](docs/prd-fase-4-dashboard.md).
+Requisitos por fase em [docs/old/prd-fase-1-notas.md](docs/old/prd-fase-1-notas.md),
+[docs/old/prd-fase-2-kanban.md](docs/old/prd-fase-2-kanban.md),
+[docs/old/prd-fase-3-links.md](docs/old/prd-fase-3-links.md) e
+[docs/old/prd-fase-4-dashboard.md](docs/old/prd-fase-4-dashboard.md).
 
 **Status: Fases 0 a 4 concluídas.**
 

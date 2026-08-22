@@ -47,7 +47,7 @@ Não existe `CHANGELOG.md` nem `docs/historico.md`, e os três pacotes estão em
 
 Na primeira execução, crie os dois arquivos e preencha o changelog **retroativamente**, tratando as
 Fases 0 a 4 como uma única versão `0.1.0` já entregue — não invente cinco versões que nunca
-existiram. As fontes são `docs/prd-fase-*.md`, o `README.md` e o histórico do git.
+existiram. As fontes são `docs/old/prd-fase-*.md`, o `README.md` e o histórico do git.
 
 O histórico do repositório tem commits fora do padrão (`fixes`, `kambam`, `links`). **Não reescreva
 o histórico do git** para corrigi-los. A convenção vale daqui para a frente.

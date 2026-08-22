@@ -1,6 +1,6 @@
 # PRD — Yu-book: estrutura `.claude` de agentes, skills e memória
 
-**Versão:** v0.1 (draft) · **Autor:** yjdutra · **Data:** 2026-08-22 · **Status:** rascunho
+**Versão:** v0.2 (draft) · **Autor:** yjdutra · **Data:** 2026-08-22 · **Status:** rascunho
 
 > Este PRD não entrega funcionalidade de produto. Entrega a **infraestrutura de trabalho** que os
 > agentes usam para construir o Yu-book sem redescobrir o projeto a cada sessão. Os PRDs de fase
@@ -48,7 +48,7 @@ seguido com confiança.
 
 ### 2.1 Métricas de sucesso
 
-- **M1** — Agentes registrados: **0 hoje → 7**, todos carregando sem erro de parsing.
+- **M1** — Agentes registrados: **0 hoje → 8**, todos carregando sem erro de parsing.
 - **M2** — Skills do projeto: **0 hoje → 6**, cada uma com `SKILL.md` e descrição acionável.
 - **M3** — Tamanho de cada `MEMORY.md` após curadoria: **≤ 2 KB e ≤ 60 linhas**. Medido por
   `wc -c -l`.
@@ -85,7 +85,7 @@ seguido com confiança.
 **Yuri (operador).** Único humano. Abre uma sessão, delega a um agente, revisa e aprova. Não quer
 repetir contexto. Frequência: diária durante fase ativa.
 
-**Os sete agentes (consumidores).** Cada um recebe um recorte do projeto. Três escrevem código de
+**Os oito agentes (consumidores).** Cada um recebe um recorte do projeto. Três escrevem código de
 aplicação (`backend`, `frontend`, `testes`), dois só leem e relatam (`revisor`, `zelador` em modo
 padrão), dois escrevem apenas documentação e configuração (`versionador`, `curador`).
 
@@ -199,7 +199,30 @@ agente edita a própria memória, a própria definição ou uma skill. Essa assi
   fase e do histórico do git, marcando-as como uma única versão `0.1.0` já entregue.
 - **RF-38** — Não cria tag git nem publica release. Propõe; quem executa é o operador.
 
-### 5.9 Agente `curador`
+### 5.9 Agente `publicador`
+
+> Acrescentado na v0.2, em 2026-08-22, a pedido do operador. A separação em relação ao
+> `versionador` é de risco, não de assunto: um edita markdown, o outro publica em produção.
+
+- **RF-38a** — Responsável por commit, push e deploy. Somente leitura em arquivo: ferramentas
+  `Bash, Read, Grep, Glob, Skill`, sem `Edit` e sem `Write`.
+- **RF-38b** — Executa os portões (`pnpm typecheck` e, se `apps/api` mudou, a suíte da API) **antes**
+  de commitar, e relata a saída real. Portão vermelho interrompe.
+- **RF-38c** — **Nunca executa `git push` sem pedido explícito no turno.** No Yu-book, push para
+  `master` é deploy em produção sem etapa de aprovação. Autorização para commitar não é autorização
+  para publicar.
+- **RF-38d** — Nunca reescreve histórico publicado: sem `rebase`, sem `push --force`, sem
+  `reset --hard`.
+- **RF-38e** — Recusa-se a commitar se `git status` mostrar qualquer `.env`.
+- **RF-38f** — Antes do push, avisa o que o push dispara, conhecendo as Watch Paths: mudança em
+  `packages/shared` ou `pnpm-lock.yaml` reconstrói **os dois** serviços; migration nova é aplicada em
+  produção no boot; `VITE_API_URL` do front é lido em tempo de build.
+- **RF-38g** — Depois de publicar, confirma `/health` e `/health/db` em produção, e reporta
+  `degraded` imediatamente.
+- **RF-38h** — Não escreve `CHANGELOG.md` nem `docs/historico.md` — verifica que o `versionador` já
+  passou e avisa quando não passou.
+
+### 5.10 Agente `curador`
 
 - **RF-39** — Único agente com escrita em `.claude/`. Não altera código de aplicação.
 - **RF-40** — Persiste os blocos `## Para a memória` emitidos pelos demais agentes, aplicando a
@@ -214,7 +237,7 @@ agente edita a própria memória, a própria definição ou uma skill. Essa assi
 - **RF-44** — Registra as próprias decisões de curadoria em `.claude/agent-memory/curador/MEMORY.md`,
   para que a doutrina seja aplicada de forma estável entre sessões.
 
-### 5.10 Skills
+### 5.11 Skills
 
 - **RF-45** — `convencoes-yu-book` — nomenclatura de domínio em português e fronteira de API em
   inglês; imports internos com extensão `.js`; comentário explica o porquê e cita `RF-xx`/`RN-xx`
@@ -243,7 +266,7 @@ agente edita a própria memória, a própria definição ou uma skill. Essa assi
 - **RF-51** — Cada `SKILL.md` tem frontmatter com `name` e `description`, e a `description` declara
   os gatilhos de acionamento em linguagem que o modelo consiga casar com um pedido do usuário.
 
-### 5.11 `CLAUDE.md`
+### 5.12 `CLAUDE.md`
 
 - **RF-52** — `CLAUDE.md` contém apenas o que quebra o projeto se ignorado: identificação do
   monorepo e dos três pacotes; a regra de nomenclatura PT/EN; a obrigação de buildar `shared` antes
@@ -379,9 +402,11 @@ model: inherit
 - **CA-01** (RF-01, RF-03) — Dado o repositório após a execução, quando se roda `git status`, então
   `.claude/agents/`, `.claude/skills/` e `.claude/agent-memory/` aparecem como novos arquivos
   rastreados, nenhum ignorado.
-- **CA-02** (RF-05, M1) — Dado o comando `/agents`, quando executado, então os sete agentes aparecem
+- **CA-02** (RF-05, M1) — Dado o comando `/agents`, quando executado, então os oito agentes aparecem
   listados, sem erro de parsing de frontmatter.
-- **CA-03** (RF-07) — Dado cada um dos sete agentes, quando se verifica
+- **CA-02a** (RF-38a) — Dado `.claude/agents/publicador.md`, quando se lê o frontmatter, então
+  `tools` não contém `Edit` nem `Write`.
+- **CA-03** (RF-07) — Dado cada um dos oito agentes, quando se verifica
   `.claude/agent-memory/<nome>/MEMORY.md`, então o arquivo existe, com cabeçalho e seções vazias.
 - **CA-04** (RNF-01) — Dado qualquer `MEMORY.md`, quando se roda `wc -c -l`, então o resultado é
   ≤ 2048 bytes e ≤ 60 linhas.
@@ -445,7 +470,7 @@ agentes não têm o que carregar.
 **Onda 2 — uso diário.** `backend`, `frontend`, `revisor`, `testes`, com as respectivas memórias
 inicializadas vazias.
 
-**Onda 3 — fechamento de marco.** `zelador` e `versionador`. O `versionador` executa, no mesmo
+**Onda 3 — fechamento de marco.** `zelador`, `versionador` e `publicador`. O `versionador` executa, no mesmo
 passo, o preenchimento retroativo do `CHANGELOG.md` (RF-37) e a criação de `docs/historico.md`.
 
 **Onda 4 — validação.** Roda `pnpm typecheck`, confere `git diff --stat` contra RNF-06, mede os

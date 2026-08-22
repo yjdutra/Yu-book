@@ -62,7 +62,7 @@ Update parcial é sempre spread condicional, para distinguir "não enviado" de `
 ## 4. Comentário
 
 Comentário explica **por quê**, nunca o quê. Em português. Cita o identificador do requisito quando
-existe — `RF-14`, `RN-03`, `RNF-08`, `CA-16`, `S-04` —, que resolve para `docs/prd-fase-*.md`.
+existe — `RF-14`, `RN-03`, `RNF-08`, `CA-16`, `S-04` —, que resolve para `docs/old/prd-fase-*.md`.
 
 ```ts
 // RF-15. Ctrl+L puro é a barra de endereço do navegador — daí o Shift.

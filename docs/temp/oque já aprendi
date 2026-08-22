@@ -1,0 +1,319 @@
+# Lesson 01: Apresentando o MCP
+# Model Context Protocol (MCP): Guia Completo
+
+O **Model Context Protocol (MCP)** é uma camada de comunicação que fornece ao Claude contexto e ferramentas sem exigir que você escreva um monte de código de integração tedioso. Pense nisso como uma maneira de transferir a carga de definições e execução de ferramentas do seu servidor para servidores MCP especializados.
+
+Ao encontrar o MCP pela primeira vez, você verá diagramas mostrando a arquitetura básica: um cliente MCP (seu servidor) conectando-se a servidores MCP que contêm ferramentas, prompts e recursos. Cada servidor MCP atua como uma interface para algum serviço externo.
+
+---
+
+## O problema que o MCP resolve
+
+Digamos que você esteja criando uma interface de bate-papo onde os usuários podem perguntar ao Claude sobre seus dados do GitHub. Um usuário pode perguntar: _"Quais solicitações de pull abertas existem em todos os meus repositórios?"_. Para lidar com isso, o Claude precisa de ferramentas para acessar a API do GitHub.
+
+O GitHub tem uma funcionalidade enorme: repositórios, solicitações de pull, problemas, projetos e muito mais. Sem o MCP, você precisaria criar um número incrível de esquemas de ferramentas e funções para lidar com todos os recursos do GitHub.
+
+Isso significa escrever, testar e manter todo esse código de integração sozinho. Isso representa muito esforço e carga de manutenção contínua.
+
+---
+
+## Como funciona o MCP
+
+O MCP transfere essa carga movendo as definições e a execução das ferramentas do seu servidor para servidores MCP dedicados. Em vez de você criar todas essas ferramentas do GitHub, um servidor MCP para o GitHub cuida disso.
+
+O servidor MCP reúne diversas funcionalidades do GitHub e as expõe como um conjunto padronizado de ferramentas. Seu aplicativo se conecta a este servidor MCP em vez de implementar tudo do zero.
+
+---
+
+## Servidores MCP explicados
+
+Os servidores MCP fornecem acesso a dados ou funcionalidades implementadas por serviços externos. Eles atuam como interfaces especializadas que expõem ferramentas, prompts e recursos de maneira padronizada.
+
+Em nosso exemplo do GitHub, o servidor MCP para GitHub contém ferramentas como `get_repos()` e se conecta diretamente à API do GitHub. Seu servidor se comunica com o servidor MCP, que lida com todos os detalhes de implementação específicos do GitHub.
+
+---
+
+## Perguntas comuns
+
+### Quem é o autor dos servidores MCP?
+Qualquer pessoa pode criar uma implementação de servidor MCP. Muitas vezes, os próprios prestadores de serviços farão as suas próprias implementações oficiais do MCP. Por exemplo, a AWS pode lançar um servidor MCP oficial com ferramentas para seus vários serviços.
+
+### Como isso é diferente de chamar APIs diretamente?
+Os servidores MCP fornecem esquemas de ferramentas e funções já definidas para você. Se você quiser chamar uma API diretamente, você mesmo criará essas definições de ferramentas. O MCP poupa você desse trabalho de implementação.
+
+### MCP não é exatamente o mesmo que uso de ferramentas?
+Este é um equívoco comum. Os servidores MCP e o uso de ferramentas são conceitos complementares, mas diferentes. Os servidores MCP fornecem esquemas de ferramentas e funções já definidas para você, enquanto o uso de ferramentas depende de como o Claude realmente as chama. A principal diferença é quem faz o trabalho: com o MCP, outra pessoa já implementou as ferramentas para você.
+
+---
+
+## Conclusão
+
+O benefício é claro: em vez de manter você mesmo um conjunto complexo de integrações, você pode aproveitar os servidores MCP que lidam com o trabalho pesado de conexão a serviços externos.
+
+---
+
+# Lesson 02: Clientes MCP
+# O Papel do Cliente MCP e o Fluxo de Comunicação
+
+O cliente MCP serve como ponte de comunicação entre seu servidor e os servidores MCP. É o seu ponto de acesso a todas as ferramentas que um servidor MCP fornece, lidando com a troca de mensagens e detalhes do protocolo para que seu aplicativo não precise fazer isso.
+
+---
+
+## Comunicação Agnóstica de Transporte
+
+Um dos principais pontos fortes do MCP é ser independente de transporte — uma maneira sofisticada de dizer que o cliente e o servidor podem se comunicar por meio de diferentes protocolos, dependendo da sua configuração.
+
+A configuração mais comum executa o cliente e o servidor MCP na mesma máquina, comunicando-se por meio de entrada/saída padrão. Mas você também pode conectá-los utilizando:
+* HTTP
+* Soquetes da Web (WebSockets)
+* Vários outros protocolos de rede
+
+---
+
+## Tipos de mensagens MCP
+
+Uma vez conectados, o cliente e o servidor trocam tipos de mensagens específicos definidos na especificação MCP. Os principais com os quais você trabalhará são:
+
+* **`ListToolsRequest` / `ListToolsResult`**: O cliente pergunta ao servidor _"quais ferramentas você fornece?"_ e o servidor retorna uma lista de ferramentas disponíveis.
+* **`CallToolRequest` / `CallToolResult`**: O cliente solicita ao servidor que execute uma ferramenta específica com determinados argumentos e, em seguida, recebe os resultados correspondentes.
+
+---
+
+## Como tudo funciona junto
+
+Aqui está um exemplo completo mostrando como uma consulta de usuário flui por todo o sistema — do seu servidor, passando pelo cliente MCP, até serviços externos como o GitHub e de volta ao Claude.
+
+Digamos que um usuário pergunte: _"Quais repositórios eu tenho?"_. Aqui está o fluxo passo a passo:
+
+1. **Consulta do usuário**: O usuário envia sua pergunta ao seu servidor.
+2. **Descoberta de ferramentas**: Seu servidor precisa saber quais ferramentas estão disponíveis para enviar ao Claude.
+3. **Troca de ferramentas de lista**: Seu servidor solicita ao cliente MCP as ferramentas disponíveis.
+4. **Comunicação MCP**: O cliente MCP envia um `ListToolsRequest` para o servidor MCP e recebe um `ListToolsResult`.
+5. **Solicitação Claude**: Seu servidor envia a consulta do usuário mais as ferramentas disponíveis para o Claude.
+6. **Decisão de uso da ferramenta**: O Claude decide que precisa chamar uma ferramenta para responder à pergunta.
+7. **Solicitação de execução da ferramenta**: Seu servidor solicita ao cliente MCP que execute a ferramenta especificada pelo Claude.
+8. **Chamada de API externa**: O cliente MCP envia um `CallToolRequest` para o servidor MCP, que faz a chamada de API real do GitHub.
+9. **Resultados Flow Back**: O GitHub responde com dados do repositório, que fluem de volta através do servidor MCP como um `CallToolResult`.
+10. **Resultado da ferramenta para Claude**: Seu servidor envia os resultados da ferramenta de volta para o Claude.
+11. **Resposta Final**: O Claude formula uma resposta final usando os dados do repositório.
+12. **O usuário obtém resposta**: Seu servidor devolve a resposta do Claude ao usuário.
+
+---
+
+## Conclusão
+
+Sim, este fluxo envolve muitas etapas, mas cada componente tem uma responsabilidade clara. O cliente MCP abstrai a complexidade da comunicação do servidor, permitindo que você se concentre na lógica do seu aplicativo e ainda tenha acesso a poderosas ferramentas externas e fontes de dados.
+
+Entender esse fluxo é crucial porque você verá todas essas peças ao criar seus próprios clientes e servidores MCP nas próximas seções.
+
+---
+
+# Lesson 03:Definindo ferramentas com MCP
+# Construindo um Servidor MCP com Python
+
+Construir um servidor MCP torna-se muito mais simples quando você usa o SDK oficial do Python. Em vez de escrever esquemas JSON complexos manualmente, você pode definir ferramentas com decoradores e deixar o SDK lidar com o trabalho pesado.
+
+Neste exemplo, estamos criando um servidor de gerenciamento de documentos com duas ferramentas principais: uma para ler documentos e outra para atualizá-los. Todos os documentos existem na memória como um dicionário simples, onde as chaves são IDs de documentos e os valores são o conteúdo.
+
+---
+
+## Configurando o servidor MCP
+
+O Python MCP SDK torna a criação de servidores simples. Você pode inicializar um servidor com apenas uma linha:
+
+```python
+from mcp.server.fastmcp import FastMCP
+
+mcp = FastMCP("DocumentMCP", log_level="ERROR")
+
+```
+
+Seus documentos podem ser armazenados em uma estrutura de dicionário simples:
+
+```python
+docs = {
+    "deposition.md": "This deposition covers the testimony of Angela Smith, P.E.",
+    "report.pdf": "The report details the state of a 20m condenser tower.",
+    "financials.docx": "These financials outline the project's budget and expenditures",
+    "outlook.pdf": "This document presents the projected future performance of the system",
+    "plan.md": "The plan outlines the steps for the project's implementation.",
+    "spec.txt": "These specifications define the technical requirements for the equipment"
+}
+
+```
+
+---
+
+## Definição de ferramenta com decoradores
+
+O SDK usa decoradores para definir ferramentas. Em vez de escrever esquemas JSON manualmente, você pode usar dicas de tipo Python e descrições de campo. O SDK gera automaticamente o esquema adequado que o Claude pode entender.
+
+### Criando uma ferramenta de leitura de documentos
+
+A primeira ferramenta lê o conteúdo do documento por ID. Aqui está a implementação completa:
+
+```python
+@mcp.tool(
+    name="read_doc_contents",
+    description="Read the contents of a document and return it as a string."
+)
+def read_document(
+    doc_id: str = Field(description="Id of the document to read")
+):
+    if doc_id not in docs:
+        raise ValueError(f"Doc with id {doc_id} not found")
+    return docs[doc_id]
+
+```
+
+O decorador especifica o nome e a descrição da ferramenta, enquanto os parâmetros da função definem os argumentos necessários. A classe `Field` do Pydantic fornece descrições de argumentos que ajudam o Claude a entender o que cada parâmetro espera.
+
+### Construindo uma ferramenta de edição de documentos
+
+A segunda ferramenta executa operações simples de localização e substituição em documentos:
+
+```python
+@mcp.tool(
+    name="edit_document",
+    description="Edit a document by replacing a string in the documents content with a new string."
+)
+def edit_document(
+    doc_id: str = Field(description="Id of the document that will be edited"),
+    old_str: str = Field(description="The text to replace. Must match exactly, including whitespace."),
+    new_str: str = Field(description="The new text to insert in place of the old text.")
+):
+    if doc_id not in docs:
+        raise ValueError(f"Doc with id {doc_id} not found")
+    docs[doc_id] = docs[doc_id].replace(old_str, new_str)
+
+```
+
+Esta ferramenta usa três parâmetros: o ID do documento, o texto a ser encontrado e o texto de substituição. A implementação inclui tratamento de erros para documentos ausentes e executa uma substituição direta de strings.
+
+---
+
+## Principais benefícios da abordagem SDK
+
+* Não é necessária a escrita manual do esquema JSON.
+* As dicas de tipo fornecem validação automática.
+* Descrições claras de parâmetros ajudam o Claude a entender o uso da ferramenta.
+* O tratamento de erros integra-se naturalmente com exceções Python.
+* O registro de ferramentas acontece automaticamente por meio de decoradores.
+
+O MCP Python SDK transforma a criação de ferramentas de um exercício complexo de escrita de esquemas em definições simples de funções Python. Essa abordagem torna muito mais fácil construir e manter servidores MCP, garantindo ao mesmo tempo que o Claude receba especificações de ferramentas formatadas corretamente.
+---
+
+# Lesson 04: O inspetor do servidor
+
+Ao criar servidores MCP, você precisa de uma maneira de testar sua funcionalidade sem se conectar a um aplicativo completo. O Python MCP SDK inclui um inspetor integrado baseado em navegador que permite depurar e testar seu servidor em tempo real.
+
+Iniciando o Inspetor
+Primeiro, certifique-se de que seu ambiente Python esteja ativado (verifique o README do seu projeto para obter o comando exato). Em seguida, execute o inspetor com:
+
+mcp dev mcp_server.py
+Isso inicia um servidor de desenvolvimento e fornece uma URL local, normalmente algo comohttp://127.0.0.1:6274 . Abra este URL no seu navegador para acessar o MCP Inspector.
+
+Usando a interface do inspetor
+A interface do inspetor está sendo desenvolvida ativamente, por isso pode parecer diferente quando você a usa. No entanto, a funcionalidade principal permanece consistente. Procure estes elementos-chave:
+
+Um botão Conectar para iniciar seu servidor MCP
+Guias de navegação para recursos, ferramentas, prompts e outros recursos
+Um painel de listagem e teste de ferramentas
+Clique primeiro no botão Conectar para inicializar seu servidor. Você verá o status da conexão mudar de "Desconectado" para "Conectado".
+
+Testando suas ferramentas
+Navegue até a seção Ferramentas e clique em "Listar ferramentas" para ver todas as ferramentas disponíveis no seu servidor. Ao selecionar uma ferramenta, o painel direito mostra seus detalhes e campos de entrada.
+
+Inspetor MCP com a guia Ferramentas aberta, mostrando as ferramentas read_doc_contents e edit_document listadas e o painel read_doc_contents com um campo de entrada doc_id e botão Executar ferramenta
+
+Por exemplo, para testar uma ferramenta de leitura de documentos:
+
+Selecione aread_doc_contents ferramenta
+Insira um ID de documento (como "deposition.md")
+Clique em "Executar ferramenta"
+Verifique os resultados para sucesso e saída esperada
+O inspetor mostra tanto o status de sucesso quanto os dados realmente retornados, facilitando a verificação de que sua ferramenta funciona corretamente.
+
+Testando interações de ferramentas
+Você pode testar várias ferramentas em sequência para verificar fluxos de trabalho complexos. Por exemplo, depois de usar uma ferramenta de edição para modificar um documento, teste imediatamente a ferramenta de leitura para confirmar se as alterações foram aplicadas corretamente.
+
+O inspetor mantém o estado do seu servidor entre as chamadas de ferramentas, para que as edições persistam e você possa verificar a funcionalidade completa do seu servidor MCP.
+
+Fluxo de trabalho de desenvolvimento
+O Inspetor MCP torna-se uma parte essencial do seu processo de desenvolvimento. Em vez de escrever scripts de teste separados ou conectar-se a aplicativos completos, você pode:
+
+Itere rapidamente nas implementações de ferramentas
+Casos extremos de teste e condições de erro
+Verifique as interações das ferramentas e o gerenciamento de estado
+Depurar problemas em tempo real
+Esse ciclo de feedback imediato torna o desenvolvimento do servidor MCP muito mais eficiente e ajuda a detectar problemas no início do processo de desenvolvimento.
+
+# Lesson 05: Implementando um cliente
+
+Agora que temos nosso servidor MCP funcionando, é hora de construir o lado do cliente. O cliente é o que permite que nosso código de aplicativo se comunique com o servidor MCP e acesse sua funcionalidade.
+
+Compreendendo a Arquitetura do Cliente
+Na maioria dos projetos do mundo real, você implementará um cliente MCP ou um servidor MCP — não ambos. Estamos construindo ambos neste projeto apenas para que você possa ver como eles trabalham juntos.
+
+Diagrama observando que um projeto normalmente implementa um cliente MCP ou um servidor MCP; nosso projeto implementa ambos, mostrando o cliente MCP dentro de nosso servidor conectado ao servidor MCP
+
+O cliente MCP consiste em dois componentes principais:
+
+Cliente MCP - Uma classe personalizada que criamos para facilitar o uso da sessão
+Sessão do cliente - A conexão real com o servidor (parte do MCP Python SDK)
+Diagrama de mcp_client.py contendo o Cliente MCP, uma classe personalizada que criamos para facilitar o uso da sessão, e a Sessão do Cliente, a conexão real com o servidor MCP
+
+A sessão do cliente requer um gerenciamento cuidadoso de recursos - precisamos limpar adequadamente as conexões quando terminarmos. É por isso que o envolvemos em nossa própria classe que lida com toda a limpeza automaticamente.
+
+Como o cliente se encaixa em nossa aplicação
+Lembra do nosso diagrama de fluxo de aplicação? O cliente é o que permite que nosso código interaja com o servidor MCP em dois pontos principais:
+
+Diagrama de sequência do fluxo do aplicativo com chamadas destacando onde nosso código CLI usa o cliente para obter uma lista de ferramentas para passar para Claude e onde ele usa o cliente para chamar uma ferramenta
+
+Nosso código CLI usa o cliente para:
+
+Obtenha uma lista de ferramentas disponíveis para enviar a Claude
+Execute ferramentas quando Claude as solicitar
+Implementando funções principais do cliente
+Precisamos implementar duas funções essenciais:list_tools() ecall_tool() .
+
+Função de ferramentas de lista
+Esta função obtém todas as ferramentas disponíveis do servidor MCP:
+
+Pitão
+async def list_tools(self) -> list[types.Tool]:
+    result = await self.session().list_tools()
+    return result.tools
+É simples: acessamos nossa sessão (a conexão com o servidor), chamamos o método integradolist_tools() e retornamos as ferramentas do resultado.
+
+Função de ferramenta de chamada
+Esta função executa uma ferramenta específica no servidor:
+
+Pitão
+async def call_tool(
+    self, tool_name: str, tool_input: dict
+) -> types.CallToolResult | None:
+    return await self.session().call_tool(tool_name, tool_input)
+Passamos o nome da ferramenta e os parâmetros de entrada (fornecidos por Claude) para o servidor e retornamos o resultado.
+
+Testando o cliente
+O arquivo do cliente inclui um chicote de testes simples na parte inferior. Você pode executá-lo diretamente para verificar se tudo funciona:
+
+uv run mcp_client.py
+Isso se conectará ao seu servidor MCP e imprimirá as ferramentas disponíveis. Você deverá ver a saída mostrando as definições da sua ferramenta, incluindo descrições e esquemas de entrada.
+
+Juntando tudo
+Depois que as funções do cliente forem implementadas, você pode testar o fluxo completo executando seu aplicativo principal:
+
+uv run main.py
+Tente perguntar:
+
+Qual é o conteúdo do documento report.pdf?
+Eis o que acontece nos bastidores:
+
+Seu aplicativo usa o cliente para obter ferramentas disponíveis
+Essas ferramentas são enviadas para Claude junto com sua pergunta
+Claude decide usar a ferramenta read_doc_contents
+Seu aplicativo usa o cliente para executar essa ferramenta
+O resultado é devolvido a Claude, que então responde a você
+O cliente atua como a ponte entre a lógica do seu aplicativo e a funcionalidade do servidor MCP, facilitando a integração de ferramentas poderosas em seus fluxos de trabalho de IA.

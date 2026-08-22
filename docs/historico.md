@@ -9,10 +9,50 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-08-22 — Servidor MCP, Etapa 1, e o agente `publicador`
+
+Primeira etapa do servidor MCP do Yu-book em `apps/mcp`: quatro tools de leitura sobre stdio.
+Guia em [`temp/proposta- mcp-inicial.md`](temp/proposta-%20mcp-inicial.md).
+
+**TypeScript em vez do Python das aulas.** O curso ensina com o SDK Python, mas em TS o servidor
+importa `@yu-book/shared` e os schemas Zod das tools **são** os que a API já valida. Em Python
+seriam reescritos em Pydantic — exatamente a segunda fonte de verdade que o projeto evita. O
+Inspector da aula 04 existe em TS, então nada do material se perde.
+
+**O servidor é cliente da API, não do banco.** Custa uma requisição a mais e herda de graça o
+escopo por `userId`, a posse por cadeia e os códigos de erro estáveis. Importar o Prisma exigiria
+reimplementar esse escopo fora dos services, e erro ali vaza dado entre contextos. Efeito colateral
+bem-vindo: trocar entre local e produção virou trocar uma variável de ambiente.
+
+**`search_notes` não devolve corpo de nota.** É o mesmo problema que `GET /notes` teve — o corpo de
+50 notas custava 4,2 MB por página até truncarem no banco. Numa tool, quem paga a conta é a janela
+de contexto do modelo. Ficou o par: `search_notes` acha, `get_note` lê. E a resposta é texto
+compacto, não JSON: vinte resultados em JSON gastam um terço dos tokens em chaves repetidas.
+
+**Login por credencial no `.env`, não fluxo de autorização.** O `fetch` do Node não guarda cookie e
+o refresh token vive num cookie `httpOnly`; em vez de um cookie jar, o servidor entra de novo quando
+o token de 15 min expira. É o primeiro item a mudar quando entrarem transporte HTTP e autenticação.
+
+**O domínio de produção da API foi descoberto pelo bundle do front.** `VITE_API_URL` é substituído
+em tempo de build, então o endereço da API fica dentro do JavaScript publicado. O domínio que
+parecia ser o da API (`yu-bookweb-production`) era o do SPA — o `/health` dele devolve HTML.
+
+**Novo agente `publicador`, e o PRD foi para a v0.2.** A separação em relação ao `versionador` é de
+risco, não de assunto: um edita markdown, o outro publica em produção. Aqui `git push` para `master`
+é deploy sem etapa de aprovação, e isso merece um agente com guarda própria — nunca dá push sem
+pedido explícito no turno, e autorização para commitar não vale como autorização para publicar.
+
+**Dívida descoberta e ainda aberta:** instalar `apps/mcp` somou 80 pacotes ao `pnpm-lock.yaml`, que
+está nas Watch Paths da API **e** do web. Um push passa a reconstruir os dois serviços por causa de
+um pacote que nenhum deles usa, e o `pnpm install` da raiz leva o SDK do MCP para dentro do build de
+produção. Conserto candidato: filtrar o install no `buildCommand` do `apps/api/railway.json`.
+
+---
+
 ## 2026-08-22 — Estrutura de agentes, skills e memória
 
 Criada a estrutura `.claude/` do projeto: sete agentes, seis skills, memória persistente por agente
-e `CLAUDE.md`. Requisitos em [`prd-agentes-e-skills.md`](prd-agentes-e-skills.md).
+e `CLAUDE.md`. Requisitos em [`old/prd-agentes-e-skills.md`](old/prd-agentes-e-skills.md).
 
 **Por que agentes especialistas e não um prompt genérico.** O repositório acumulou decisões que
 parecem erro para quem não as conhece — 404 no lugar de 403 no kanban, o termo repetido inline em
