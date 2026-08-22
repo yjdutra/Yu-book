@@ -8,7 +8,7 @@ Segundo cérebro pessoal, single-user. Monorepo pnpm com três pacotes:
 | `apps/web` | React 19 + Vite 6 + Tailwind v4 | SPA desktop-only |
 | `packages/shared` | Zod 3 | Schemas e helpers usados pelos dois |
 
-Proposta e decisões de escopo em `PROPOSTA.md`. Requisitos por fase em `docs/prd-fase-*.md` —
+Proposta e decisões de escopo em `PROPOSTA.md`. Requisitos por fase em `docs/old/prd-fase-*.md` —
 os comentários do código citam os identificadores `RF-xx`, `RN-xx`, `RNF-xx` e `CA-xx` de lá.
 Fases 0 a 4 entregues; a próxima é a 5 (Google Calendar).
 
@@ -52,4 +52,9 @@ São os únicos portões automáticos que existem. Rode-os e relate a saída rea
 | `design-system-yu-book` | Tokens, temas, ícones, acessibilidade |
 | `changelog-e-versao` | Formato do changelog, semver, commits |
 
-Agentes especialistas em `.claude/agents/`. Só o `curador` escreve em `.claude/`.
+Agentes especialistas em `.claude/agents/`. Só o `curador` escreve em `.claude/`; só o
+`publicador` faz commit e deploy, e ele nunca dá push sem alguém pedir — aqui push para `master`
+é deploy em produção.
+
+`apps/mcp` é o servidor MCP do Yu-book. Ele **não é deployado**: roda na máquina do operador,
+iniciado pelo cliente MCP, e fala HTTPS com a API.
