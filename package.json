@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
-    "build": "pnpm --filter @yu-book/shared build && pnpm --filter @yu-book/api build && pnpm --filter @yu-book/web build",
+    "build": "pnpm --filter @yu-book/shared build && pnpm --filter @yu-book/api build && pnpm --filter @yu-book/web build && pnpm --filter @yu-book/mcp build",
     "typecheck": "pnpm -r typecheck",
     "db:migrate": "pnpm --filter @yu-book/api db:migrate",
     "db:studio": "pnpm --filter @yu-book/api db:studio"

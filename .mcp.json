@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "yu-book": {
+      "command": "node",
+      "args": ["--env-file=apps/mcp/.env", "apps/mcp/dist/index.js"]
+    }
+  }
+}
