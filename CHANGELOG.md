@@ -9,11 +9,31 @@ para os PRDs em [`docs/`](docs/).
 
 ## [Não lançado]
 
+_Nada pendente._
+
+---
+
+## [0.2.0] — 2026-08-22
+
+Infraestrutura de trabalho e a primeira etapa do servidor MCP. **Nenhum dos serviços deployados
+mudou**: `apps/api`, `apps/web` e `packages/shared` seguem em `0.1.0`. O pacote novo `apps/mcp`
+nasce em `0.1.0`.
+
 ### Adicionado
-- Estrutura `.claude/` de trabalho: sete agentes especialistas, seis skills e memória persistente
-  por agente, com `CLAUDE.md` como contexto mínimo. Requisitos em
-  [`docs/prd-agentes-e-skills.md`](docs/prd-agentes-e-skills.md).
+- **Servidor MCP do Yu-book** em `apps/mcp` (Etapa 1 — só leitura, transporte stdio), com as tools
+  `search_notes`, `get_note`, `list_boards` e `get_board`. Registrado em `.mcp.json`.
+  Verificado contra a API de produção: as quatro tools respondem sobre dados reais.
+- `pnpm --filter @yu-book/mcp verificar`, diagnóstico que confirma `/health`, `/health/db`, o login
+  e a contagem de notas antes de conectar um cliente.
+- **Estrutura `.claude/` de trabalho:** oito agentes especialistas, seis skills e memória
+  persistente por agente, com `CLAUDE.md` como contexto mínimo. Requisitos em
+  [`docs/old/prd-agentes-e-skills.md`](docs/old/prd-agentes-e-skills.md).
 - `CHANGELOG.md` e `docs/historico.md`.
+
+### Alterado
+- Os PRDs de fase foram arquivados em `docs/old/`; as referências no README, no `CLAUDE.md` e nas
+  skills acompanham o novo caminho.
+- `pnpm build` na raiz passa a compilar também `@yu-book/mcp`.
 
 ---
 
