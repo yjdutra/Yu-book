@@ -16,6 +16,7 @@ import type { EstadoSalvamento } from "../lib/useAutosave";
 import { useModoNota } from "../lib/modoNota";
 import { Editor } from "./Editor";
 import { SeletorModo } from "./ModoNota";
+import { IconeCopiar } from "./Icones";
 import { RotuloTipo } from "./RotuloTipo";
 
 /** Campos extras de aula (RF-45). Ficam em `meta`, sem migration por campo. */
@@ -102,7 +103,14 @@ export function PainelEditor({
   const [metaAberto, setMetaAberto] = useState(false);
   const [erroTitulo, setErroTitulo] = useState<string | null>(null);
   const [tagsTexto, setTagsTexto] = useState("");
+  /** RF-30: sucesso some sozinho; erro fica na tela até ser resolvido. */
+  const [copia, setCopia] = useState<"ocioso" | "copiado" | "erro">("ocioso");
+  const timerCopiaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const carregadaRef = useRef<string | null>(null);
+
+  useEffect(() => () => {
+    if (timerCopiaRef.current) clearTimeout(timerCopiaRef.current);
+  }, []);
 
   // Carrega o rascunho ao trocar de nota. Sem a guarda por id, cada refetch
   // sobrescreveria o que está sendo digitado.
@@ -176,6 +184,33 @@ export function PainelEditor({
     atualizar.mutate({ id: notaId, input });
   }
 
+  /**
+   * RF-29: a nota inteira como Markdown — o título vira `# titulo` e o corpo vai
+   * exatamente como está, sem uma vírgula reescrita.
+   *
+   * Copia o rascunho, não o que está no banco: é o que está na tela, e entre uma
+   * tecla e o autosave existem 800 ms em que os dois divergem.
+   */
+  // Arrow, e não `function`: declaração de função é içada para o topo do escopo,
+  // e o TypeScript perde ali o estreitamento de `nota` que a guarda acima fez.
+  const copiar = async () => {
+    if (timerCopiaRef.current) clearTimeout(timerCopiaRef.current);
+
+    const titulo = rascunho.title.trim() || nota.title;
+    const texto = `# ${titulo}\n\n${rascunho.contentMd}`;
+
+    try {
+      // Fora de https e de localhost o objeto simplesmente NÃO EXISTE — não é
+      // uma promessa que rejeita, é `undefined`. Os dois casos caem no catch.
+      if (!navigator.clipboard?.writeText) throw new Error("sem área de transferência");
+      await navigator.clipboard.writeText(texto);
+      setCopia("copiado");
+      timerCopiaRef.current = setTimeout(() => setCopia("ocioso"), 2000);
+    } catch {
+      setCopia("erro");
+    }
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="shrink-0 border-b border-ink-800 px-6 pb-3 pt-4">
@@ -201,6 +236,26 @@ export function PainelEditor({
 
           <div className="flex shrink-0 items-center gap-2 pt-1">
             <SeletorModo modo={modo} onModo={setModo} />
+
+            {/* RF-28: sem atalho de teclado de propósito — `Ctrl+Shift+C` é
+                "inspecionar elemento" no Chrome e no Firefox, e `preventDefault`
+                não cancela isso. */}
+            <button
+              type="button"
+              onClick={() => void copiar()}
+              title="Copiar a nota inteira como Markdown"
+              aria-label="Copiar a nota inteira como Markdown"
+              className={`rounded px-1.5 py-1 transition-colors ${
+                copia === "copiado" ? "text-emerald-300" : "text-ink-400 hover:text-ink-200"
+              }`}
+            >
+              <IconeCopiar className="size-3.5" />
+            </button>
+            {/* RNF-09: o resultado é anunciado, não só colorido. */}
+            <span aria-live="polite" className="sr-only">
+              {copia === "copiado" ? "Nota copiada." : ""}
+            </span>
+
             <IndicadorSalvamento estado={estado} />
             <button
               type="button"
@@ -227,6 +282,21 @@ export function PainelEditor({
         {erroTitulo && (
           <p role="alert" className="mt-1 text-xs text-red-300">
             {erroTitulo}
+          </p>
+        )}
+
+        {/* RF-30: erro de cópia não é toast — fica até você fechar. */}
+        {copia === "erro" && (
+          <p role="alert" className="mt-1 flex items-center gap-2 text-xs text-red-300">
+            Não foi possível copiar. O navegador negou o acesso à área de transferência.
+            <button
+              type="button"
+              onClick={() => setCopia("ocioso")}
+              aria-label="Fechar aviso de cópia"
+              className="rounded px-1 text-red-300"
+            >
+              ×
+            </button>
           </p>
         )}
 

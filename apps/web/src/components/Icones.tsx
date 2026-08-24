@@ -101,6 +101,16 @@ export function IconeTag(p: IconeProps) {
   );
 }
 
+/** Duas folhas sobrepostas — RF-28, o botão de copiar a nota. */
+export function IconeCopiar(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="5.6" y="5.6" width="7.6" height="8.2" rx="1.2" />
+      <path d="M10.6 5.6V3.4a1.2 1.2 0 0 0-1.2-1.2H4a1.2 1.2 0 0 0-1.2 1.2v7a1.2 1.2 0 0 0 1.2 1.2h1.6" />
+    </Icone>
+  );
+}
+
 export function IconeInfo(p: IconeProps) {
   return (
     <Icone {...p}>
