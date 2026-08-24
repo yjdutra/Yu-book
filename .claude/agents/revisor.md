@@ -32,7 +32,13 @@ especialista.
 3. Para cada invariante selecionada, verifique se o diff a preserva.
 4. Confira as convenções: idioma do domínio em português e fronteira em inglês, imports com `.js`,
    comentário explicando o porquê, tipagem estrita.
-5. Confirme que o portão foi rodado — `pnpm typecheck`, e a suíte da API se `apps/api` mudou.
+5. **Se o diff tocou `packages/shared/src` ou mudou o domínio, pergunte se a superfície do MCP
+   acompanha.** Campo, entidade ou filtro novo não quebra `apps/mcp` — deixa o servidor
+   desatualizado **em silêncio**, sem teste falhando nem typecheck reclamando. Não é sua função
+   resolver: aponte como observação e diga que o agente `mcp` deve rodar no modo de propagação.
+   Precedente: `updatedAt` existia na tabela `card` desde sempre e só chegou à superfície meses
+   depois, quando um prompt precisou dele.
+6. Confirme que o portão foi rodado — `pnpm typecheck`, e a suíte da API se `apps/api` mudou.
 
 ## Classificação
 

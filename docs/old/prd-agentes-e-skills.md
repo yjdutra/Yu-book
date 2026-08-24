@@ -1,6 +1,6 @@
 # PRD — Yu-book: estrutura `.claude` de agentes, skills e memória
 
-**Versão:** v0.2 (draft) · **Autor:** yjdutra · **Data:** 2026-08-22 · **Status:** rascunho
+**Versão:** v0.3 (draft) · **Autor:** yjdutra · **Data:** 2026-08-22 · **Status:** rascunho
 
 > Este PRD não entrega funcionalidade de produto. Entrega a **infraestrutura de trabalho** que os
 > agentes usam para construir o Yu-book sem redescobrir o projeto a cada sessão. Os PRDs de fase
@@ -48,8 +48,8 @@ seguido com confiança.
 
 ### 2.1 Métricas de sucesso
 
-- **M1** — Agentes registrados: **0 hoje → 8**, todos carregando sem erro de parsing.
-- **M2** — Skills do projeto: **0 hoje → 6**, cada uma com `SKILL.md` e descrição acionável.
+- **M1** — Agentes registrados: **0 hoje → 9**, todos carregando sem erro de parsing.
+- **M2** — Skills do projeto: **0 hoje → 7**, cada uma com `SKILL.md` e descrição acionável.
 - **M3** — Tamanho de cada `MEMORY.md` após curadoria: **≤ 2 KB e ≤ 60 linhas**. Medido por
   `wc -c -l`.
 - **M4** — Suítes de teste de integração: **5 hoje → 7**, com `auth` e `organizacao` cobertas,
@@ -85,7 +85,7 @@ seguido com confiança.
 **Yuri (operador).** Único humano. Abre uma sessão, delega a um agente, revisa e aprova. Não quer
 repetir contexto. Frequência: diária durante fase ativa.
 
-**Os oito agentes (consumidores).** Cada um recebe um recorte do projeto. Três escrevem código de
+**Os nove agentes (consumidores).** Cada um recebe um recorte do projeto. Três escrevem código de
 aplicação (`backend`, `frontend`, `testes`), dois só leem e relatam (`revisor`, `zelador` em modo
 padrão), dois escrevem apenas documentação e configuração (`versionador`, `curador`).
 
@@ -222,7 +222,23 @@ agente edita a própria memória, a própria definição ou uma skill. Essa assi
 - **RF-38h** — Não escreve `CHANGELOG.md` nem `docs/historico.md` — verifica que o `versionador` já
   passou e avisa quando não passou.
 
-### 5.10 Agente `curador`
+### 5.10 Agente `mcp`
+
+> Acrescentado na v0.3, em 2026-08-24. Preenche uma lacuna do desenho original: `apps/mcp` existia
+> sem dono. E cobre um risco que nenhum portão pega — mudança de domínio não quebra o servidor MCP,
+> deixa-o desatualizado **em silêncio**.
+
+- **RF-38i** — Especialista em `apps/mcp`. Escreve **apenas** dentro desse pacote; se a superfície do
+  MCP precisar de um campo que a API não expõe, reporta ao operador em vez de alterar `apps/api`.
+- **RF-38j** — Pré-carrega `servidor-mcp-yu-book`, `convencoes-yu-book` e `contrato-compartilhado`.
+- **RF-38k** — Opera em dois modos: **A**, criar ou alterar uma primitiva a pedido; **B**,
+  verificar propagação depois que o domínio mudou.
+- **RF-38l** — No modo B, percorre a lista de propagação da skill item por item e, **quando nada
+  precisa mudar, declara isso explicitamente**. Silêncio é indistinguível de esquecimento.
+- **RF-38m** — O `revisor` cobra a mesma verificação como observação quando o diff toca
+  `packages/shared/src`, para que a propagação seja pega mesmo se ninguém chamar o agente `mcp`.
+
+### 5.11 Agente `curador`
 
 - **RF-39** — Único agente com escrita em `.claude/`. Não altera código de aplicação.
 - **RF-40** — Persiste os blocos `## Para a memória` emitidos pelos demais agentes, aplicando a
@@ -237,7 +253,7 @@ agente edita a própria memória, a própria definição ou uma skill. Essa assi
 - **RF-44** — Registra as próprias decisões de curadoria em `.claude/agent-memory/curador/MEMORY.md`,
   para que a doutrina seja aplicada de forma estável entre sessões.
 
-### 5.11 Skills
+### 5.12 Skills
 
 - **RF-45** — `convencoes-yu-book` — nomenclatura de domínio em português e fronteira de API em
   inglês; imports internos com extensão `.js`; comentário explica o porquê e cita `RF-xx`/`RN-xx`
@@ -261,12 +277,15 @@ agente edita a própria memória, a própria definição ou uma skill. Essa assi
   proibição do `dark:`; obrigação de definir cor nos dois temas; ícones 16×16 `currentColor` em
   `Icones.tsx`; `GuardaDesktop` abaixo de 1024px; estado nunca comunicado por cor sozinha; e a
   invariante da seção recolhível — o resumo precisa revelar o filtro que continua ativo.
+- **RF-50a** — `servidor-mcp-yu-book` — decisões do servidor MCP: cliente da API e não do banco,
+  orçamento de contexto, resource direto versus template, identidade por uuid, uma formatação para
+  duas superfícies, tolerar API mais velha que o contrato, e a lista de propagação.
 - **RF-50** — `changelog-e-versao` — formato do `CHANGELOG.md`, formato do `docs/historico.md`,
   regra de bump semver por pacote e a convenção de commit.
 - **RF-51** — Cada `SKILL.md` tem frontmatter com `name` e `description`, e a `description` declara
   os gatilhos de acionamento em linguagem que o modelo consiga casar com um pedido do usuário.
 
-### 5.12 `CLAUDE.md`
+### 5.13 `CLAUDE.md`
 
 - **RF-52** — `CLAUDE.md` contém apenas o que quebra o projeto se ignorado: identificação do
   monorepo e dos três pacotes; a regra de nomenclatura PT/EN; a obrigação de buildar `shared` antes
@@ -402,11 +421,11 @@ model: inherit
 - **CA-01** (RF-01, RF-03) — Dado o repositório após a execução, quando se roda `git status`, então
   `.claude/agents/`, `.claude/skills/` e `.claude/agent-memory/` aparecem como novos arquivos
   rastreados, nenhum ignorado.
-- **CA-02** (RF-05, M1) — Dado o comando `/agents`, quando executado, então os oito agentes aparecem
+- **CA-02** (RF-05, M1) — Dado o comando `/agents`, quando executado, então os nove agentes aparecem
   listados, sem erro de parsing de frontmatter.
 - **CA-02a** (RF-38a) — Dado `.claude/agents/publicador.md`, quando se lê o frontmatter, então
   `tools` não contém `Edit` nem `Write`.
-- **CA-03** (RF-07) — Dado cada um dos oito agentes, quando se verifica
+- **CA-03** (RF-07) — Dado cada um dos nove agentes, quando se verifica
   `.claude/agent-memory/<nome>/MEMORY.md`, então o arquivo existe, com cabeçalho e seções vazias.
 - **CA-04** (RNF-01) — Dado qualquer `MEMORY.md`, quando se roda `wc -c -l`, então o resultado é
   ≤ 2048 bytes e ≤ 60 linhas.

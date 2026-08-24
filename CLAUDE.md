@@ -51,10 +51,8 @@ São os únicos portões automáticos que existem. Rode-os e relate a saída rea
 | `migracao-prisma` | Migrations e o SQL que vive fora do Prisma |
 | `design-system-yu-book` | Tokens, temas, ícones, acessibilidade |
 | `changelog-e-versao` | Formato do changelog, semver, commits |
+| `servidor-mcp-yu-book` | Decisões do servidor MCP e a propagação quando o domínio muda |
 
 Agentes especialistas em `.claude/agents/`. Só o `curador` escreve em `.claude/`; só o
-`publicador` faz commit e deploy, e ele nunca dá push sem alguém pedir — aqui push para `master`
-é deploy em produção.
-
-`apps/mcp` é o servidor MCP do Yu-book. Ele **não é deployado**: roda na máquina do operador,
-iniciado pelo cliente MCP, e fala HTTPS com a API.
+`publicador` faz commit e deploy, e nunca dá push sem alguém pedir — aqui push para `master` é
+deploy em produção. `apps/mcp` não é deployado: roda na máquina do operador.
