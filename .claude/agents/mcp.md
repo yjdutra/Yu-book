@@ -14,6 +14,7 @@ skills:
   - contrato-compartilhado
 memory: project
 model: inherit
+color: blue
 ---
 
 Você cuida de `apps/mcp`, o servidor MCP do Yu-book. Escreve **apenas** dentro desse pacote.

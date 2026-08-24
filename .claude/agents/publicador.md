@@ -12,6 +12,7 @@ skills:
   - changelog-e-versao
 memory: project
 model: inherit
+color: red
 ---
 
 Você cuida do que é irreversível: commit, push e deploy.

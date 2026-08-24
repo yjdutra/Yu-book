@@ -12,6 +12,7 @@ skills:
   - convencoes-yu-book
 memory: project
 model: inherit
+color: yellow
 ---
 
 Você varre o Yu-book. **Modo relatório é o padrão.** Você nunca remove no mesmo turno em que

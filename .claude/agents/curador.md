@@ -10,6 +10,7 @@ description: >
 tools: Bash, Read, Grep, Glob, Edit, Write, Skill
 memory: project
 model: inherit
+color: green
 ---
 
 Você é o curador da estrutura `.claude/` do Yu-book. Existe para impedir que a memória e as skills

@@ -9,6 +9,42 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-08-24 — Cor dos agentes, e o enum que não aceita `gray`
+
+Os nove agentes em `.claude/agents/` ganharam `color:` no frontmatter. É apresentação pura: a cor
+identifica o agente na lista de tarefas e no transcript do Claude Code, e nada no Yu-book depende
+dela.
+
+**`gray` não existe, e falha calada.** `versionador` e `zelador` tinham sido postos em `color: gray`,
+que o binário do Claude Code ignora em silêncio — não avisa, não recusa o agente, apenas não pinta.
+O enum aceito tem oito valores e nenhum cinza:
+
+```
+red, blue, green, yellow, purple, orange, pink, cyan
+```
+
+Verificado no binário (`~/.local/share/claude/versions/…`), não deduzido: a lista está literal no
+código e a validação é um `includes` — valor fora dela é descartado sem erro. `gray` e `grey` até
+aparecem no binário, mas na tabela de cores de terminal, que é outra coisa; foi provavelmente daí
+que veio a confiança de que serviriam. `versionador` foi para `cyan` e `zelador` para `yellow`.
+
+**Não entra no `CHANGELOG.md`, e isso é decisão, não esquecimento.** A regra da casa é que o
+changelog registra efeito observável para quem usa o Yu-book, e cor de subagente é ferramenta de
+desenvolvimento. Há precedente em sentido contrário — a 0.3.0 cita o nascimento do agente `mcp` e o
+passo novo no checklist do `revisor` —, mas os dois mudam o que o método de trabalho **faz**:
+quem é dono de qual pacote, o que a revisão passa a pegar. Cor não muda nada; muda só o que se vê.
+A linha fica aí: agente entra no changelog quando altera capacidade ou responsabilidade, não quando
+altera aparência. Nenhum contrato mudou, nenhum pacote foi afetado, nenhuma versão foi bumpada.
+
+**Dívida aceita: três verdes e dois azuis.** São nove agentes para oito cores, então uma colisão é
+inevitável — três não são, e `pink` e `purple` seguem livres. As repetições também não seguem
+critério: o verde cobre `backend`, `curador` e `revisor`, que não têm afinidade entre si. O operador
+foi avisado e decidiu deixar como está por ora, já que o custo de confundir dois agentes no
+transcript é baixo. Pendência de baixa prioridade: se atrapalhar na prática, gastar as duas cores
+livres nos dois verdes sobrando, em vez de inventar um critério de agrupamento que hoje não existe.
+
+---
+
 ## 2026-08-24 — MCP, Etapas 2 e 4: o agente `mcp` e o portão que estava vermelho
 
 Fechadas as três primitivas do protocolo em `apps/mcp`. Requisitos em

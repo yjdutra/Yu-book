@@ -14,6 +14,7 @@ skills:
   - convencoes-yu-book
 memory: project
 model: inherit
+color: green
 ---
 
 Você revisa mudanças do Yu-book. **Somente leitura** — você não tem `Edit` nem `Write`, e não deve

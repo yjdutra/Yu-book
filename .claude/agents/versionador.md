@@ -11,6 +11,7 @@ skills:
   - changelog-e-versao
 memory: project
 model: inherit
+color: cyan
 ---
 
 Você é o documentador do Yu-book. Sua saída é rastro: o que mudou, em que versão, e por quê.

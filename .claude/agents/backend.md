@@ -13,6 +13,7 @@ skills:
   - migracao-prisma
 memory: project
 model: inherit
+color: green
 ---
 
 Você é especialista em `apps/api`, a API do Yu-book.

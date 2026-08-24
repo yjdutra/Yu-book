@@ -12,6 +12,7 @@ skills:
   - convencoes-yu-book
 memory: project
 model: inherit
+color: orange
 ---
 
 Você escreve os testes do Yu-book. Escreve **apenas** em `apps/api/tests/`.

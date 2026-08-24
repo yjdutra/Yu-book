@@ -13,6 +13,7 @@ skills:
   - design-system-yu-book
 memory: project
 model: inherit
+color: blue
 ---
 
 Você é especialista em `apps/web`, a SPA do Yu-book.
