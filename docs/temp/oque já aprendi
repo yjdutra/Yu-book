@@ -317,3 +317,231 @@ Claude decide usar a ferramenta read_doc_contents
 Seu aplicativo usa o cliente para executar essa ferramenta
 O resultado é devolvido a Claude, que então responde a você
 O cliente atua como a ponte entre a lógica do seu aplicativo e a funcionalidade do servidor MCP, facilitando a integração de ferramentas poderosas em seus fluxos de trabalho de IA.
+
+---
+
+# Leson 06: Definindo recursos:
+Recursos em servidores MCP permitem que você exponha dados a clientes, semelhante aos manipuladores de solicitações GET em um servidor HTTP típico. Eles são perfeitos para cenários em que você precisa buscar informações em vez de executar ações.
+
+Compreendendo os recursos por meio de um exemplo
+Digamos que você queira criar um recurso de menção de documentos onde os usuários possam digitar@document_name para referenciar arquivos. Isso requer duas operações:
+
+Obtendo uma lista de todos os documentos disponíveis (para preenchimento automático)
+Buscar o conteúdo de um documento específico (quando mencionado)
+Slide de recurso: os usuários podem mencionar um documento escrevendo @doc_name; digitar @ mostra uma lista de todos os documentos disponíveis em um preenchimento automático, e o conteúdo de um documento mencionado é injetado automaticamente no prompt
+
+Quando um usuário menciona um documento, seu sistema injeta automaticamente o conteúdo do documento no prompt enviado a Claude, eliminando a necessidade de Claude usar ferramentas para buscar as informações.
+
+Diagrama de um usuário perguntando "O que há no arquivo @report.pdf?" — nosso código envolve a consulta em um prompt para Claude com o conteúdo do documento referenciado injetado dentro de uma tag de documento
+
+Como funcionam os recursos
+Os recursos seguem um padrão de solicitação-resposta. Quando seu cliente precisa de dados, ele enviaReadResourceRequest um URI para identificar qual recurso deseja. O servidor MCP processa essa solicitação e retorna os dados em umReadResourceResult .
+
+Diagrama de sequência: o usuário digita "O que há no @…", nosso código solicita ao cliente MCP uma lista de nomes de documentos para o preenchimento automático e o cliente envia um ReadResourceRequest com o URI docs://documents para o servidor MCP
+
+O fluxo é assim: seu código solicita um recurso do cliente MCP, que encaminha a solicitação para o servidor MCP. O servidor processa o URI, executa a função apropriada e retorna o resultado.
+
+O diagrama de sequência continua: o servidor MCP retorna um ReadResourceResult contendo a lista de nomes de documentos, que o cliente MCP passa de volta ao nosso código para colocar no preenchimento automático
+
+Tipos de Recursos
+Existem dois tipos de recursos:
+
+Recursos Diretos
+Os recursos diretos possuem URIs estáticos que nunca mudam. Eles são perfeitos para operações que não precisam de parâmetros.
+
+Pitão
+@mcp.resource(
+    "docs://documents",
+    mime_type="application/json"
+)
+def list_docs() -> list[str]:
+    return list(docs.keys())
+Recursos modelados
+Os recursos modelados incluem parâmetros em seus URIs. O Python SDK analisa automaticamente esses parâmetros e os passa como argumentos de palavras-chave para sua função.
+
+Pitão
+@mcp.resource(
+    "docs://documents/{doc_id}",
+    mime_type="text/plain"
+)
+def fetch_doc(doc_id: str) -> str:
+    if doc_id not in docs:
+        raise ValueError(f"Doc with id {doc_id} not found")
+    return docs[doc_id]
+Comparação lado a lado: um recurso direto cujo URI não contém nenhum parâmetro e um recurso modelado cujo URI contém um ou mais parâmetros que o Python SDK analisa e passa como argumentos para sua função
+
+Detalhes da implementação
+Os recursos podem retornar qualquer tipo de dados - strings, JSON, dados binários, etc. Use omime_type parâmetro para dar aos clientes uma dica sobre que tipo de dados você está retornando:
+
+"application/json"para dados estruturados
+"text/plain"para texto simples
+"application/pdf"para arquivos binários
+O MCP Python SDK serializa automaticamente seus valores de retorno. Você não precisa converter manualmente objetos em strings JSON - basta retornar a estrutura de dados e deixar o SDK lidar com a serialização.
+
+Testando seus recursos
+Você pode testar recursos usando o MCP Inspector. Inicie seu servidor com:
+
+uv run mcp dev mcp_server.py
+Em seguida, conecte-se ao inspetor no seu navegador. Você verá duas seções:
+
+Recursos - Lista seus recursos diretos/estáticos
+Modelos de recursos - Lista seus recursos modelados
+Inspetor MCP com a aba Recursos aberta, mostrando o recurso direto docs://documents em Recursos, o modelo fetch_doc em Modelos de Recursos e a resposta JSON para docs://documents com seu URI, mimeType e lista serializada de nomes de documentos
+
+Clique em qualquer recurso para testá-lo. Para recursos modelados, você precisará fornecer valores para os parâmetros. O inspetor mostra a estrutura exata de resposta que seu cliente receberá, incluindo o tipo MIME e dados serializados.
+
+Os recursos fornecem uma maneira limpa de expor dados somente leitura do seu servidor MCP, facilitando aos clientes a busca de informações sem a complexidade das chamadas de ferramentas.
+
+## Lesson 07:
+Os recursos no MCP permitem que seu servidor exponha informações que podem ser incluídas diretamente nos prompts, em vez de exigir chamadas de ferramentas para acessar os dados. Isso cria uma maneira mais eficiente de fornecer contexto aos modelos de IA.
+
+Diagrama de sequência de acesso a recursos: um usuário digita "O que há no @..." na CLI, nosso código envia um ReadResourceRequest para o servidor MCP e o servidor retorna um ReadResourceResult contendo o conteúdo do recurso
+
+O diagrama acima mostra como os recursos funcionam: quando um usuário digita algo como "O que há no @...", nosso código reconhece isso como uma solicitação de recurso, envia um ReadResourceRequest para o servidor MCP e recebe de volta um ReadResourceResult com o conteúdo real.
+
+Implementando Leitura de Recursos
+Para habilitar o acesso a recursos no seu cliente MCP, você precisa implementar umaread_resource função. Primeiro, adicione as importações necessárias:
+
+Pitão
+import json
+from pydantic import AnyUrl
+A função principal faz uma solicitação ao servidor MCP e processa a resposta com base em seu tipo MIME:
+
+Pitão
+async def read_resource(self, uri: str) -> Any:
+    result = await self.session().read_resource(AnyUrl(uri))
+    resource = result.contents[0]
+
+    if isinstance(resource, types.TextResourceContents):
+        if resource.mimeType == "application/json":
+            return json.loads(resource.text)
+
+    return resource.text
+Compreendendo a estrutura de resposta
+Quando você solicita um recurso, o servidor retorna um resultado com umacontents lista. Acessamos o primeiro elemento, pois normalmente precisamos apenas de um recurso por vez. A resposta inclui:
+
+O conteúdo real (texto ou dados)
+Um tipo MIME que nos diz como analisar o conteúdo
+Outros metadados sobre o recurso
+Manipulação de tipo de conteúdo
+A função verifica o tipo MIME para determinar como processar o conteúdo:
+
+Se forapplication/json , analise o texto como JSON e retorne o objeto analisado
+Caso contrário, retorne o conteúdo bruto do texto
+Essa abordagem lida perfeitamente com dados estruturados (como JSON) e documentos de texto simples.
+
+Testando acesso a recursos
+Uma vez implementado, você pode testar a funcionalidade do recurso por meio do seu aplicativo CLI. Quando você digita "@" seguido de um nome de recurso, o sistema irá:
+
+Mostrar os recursos disponíveis numa lista de preenchimento automático
+Permita que você selecione um recurso usando as setas do teclado e o espaço
+Inclua o conteúdo do recurso diretamente no seu prompt
+Envie tudo para o modelo de IA sem exigir chamadas de ferramentas adicionais
+Isso cria uma experiência de usuário muito mais suave em comparação a ter o modelo de IA fazendo chamadas de ferramentas separadas para acessar o conteúdo do documento. O conteúdo do recurso passa a fazer parte do contexto inicial, permitindo respostas imediatas sobre os dados.
+
+# Lesson 08: 
+Definindo prompts
+Lição 1
+2 min
+Os prompts nos servidores MCP permitem que você defina instruções pré-criadas e de alta qualidade que os clientes podem usar em vez de escrever seus próprios prompts do zero. Pense neles como modelos cuidadosamente elaborados que oferecem melhores resultados do que aqueles que os usuários podem criar por conta própria.
+
+Diagrama de um cliente MCP conectando-se a dois servidores MCP, cada um expondo Ferramentas, Recursos e Prompts — com Prompts destacados — na frente de serviços externos
+
+Por que usar prompts?
+Aqui está o principal insight: os usuários já podem pedir a Claude para realizar a maioria das tarefas diretamente. Por exemplo, um usuário pode digitar "reformatar o relatório.pdf em markdown" e obter resultados decentes. Mas eles obterão resultados muito melhores se você fornecer um prompt especializado e exaustivamente testado que lide com casos extremos e siga as melhores práticas.
+
+Como autor do servidor MCP, você pode gastar tempo elaborando, testando e avaliando prompts que funcionam de forma consistente em diferentes cenários. Os usuários se beneficiam dessa experiência sem precisar se tornar eles próprios especialistas imediatos em engenharia.
+
+Comparação lado a lado do prompt curto que um usuário escreveria — "Converter report.pdf em markdown" — versus o prompt muito mais longo e cuidadosamente avaliado que um autor de servidor MCP pode fornecer em vez disso
+
+Construindo um comando de formato
+Vamos implementar um exemplo prático: um comando de formato que converte documentos em markdown. Os usuários digitarão/format doc_id e receberão de volta uma versão markdown formatada profissionalmente de seu documento.
+
+O fluxo de trabalho é assim:
+
+Tipos de usuário/ para ver comandos disponíveis
+Eles selecionamformat e especificam um ID de documento
+Claude usa seu prompt pré-construído para ler e reformatar o documento
+O resultado é uma marcação limpa com cabeçalhos, listas e formatação adequados
+Definindo prompts
+Os prompts usam um padrão de decorador semelhante às ferramentas e recursos:
+
+Pitão
+@mcp.prompt(
+    name="format",
+    description="Rewrites the contents of the document in Markdown format."
+)
+def format_document(
+    doc_id: str = Field(description="Id of the document to format")
+) -> list[base.Message]:
+    prompt = f"""
+Your goal is to reformat a document to be written with markdown syntax.
+
+The id of the document you need to reformat is:
+<document_id>
+{doc_id}
+</document_id>
+
+Add in headers, bullet points, tables, etc as necessary. Feel free to add in structure.
+Use the 'edit_document' tool to edit the document. After the document has been reformatted...
+"""
+
+    return [
+        base.UserMessage(prompt)
+    ]
+A função retorna uma lista de mensagens que são enviadas diretamente para Claude. Você pode incluir várias mensagens de usuário e assistente para criar fluxos de conversação mais complexos.
+
+Testando seus prompts
+Use o MCP Inspector para testar seus prompts antes de implantá-los:
+
+O Inspetor MCP com o prompt de formato selecionado, mostrando o argumento doc_id e a mensagem interpolada que será enviada a Claude
+
+O inspetor mostra exatamente quais mensagens serão enviadas a Claude, incluindo como as variáveis são interpoladas em seu modelo de prompt. Isso permite que você verifique se o prompt parece correto antes que os usuários comecem a confiar nele.
+
+Principais benefícios
+Consistência - Os usuários obtêm resultados confiáveis sempre
+Experiência - Você pode codificar conhecimento de domínio em prompts
+Reutilização - Vários aplicativos clientes podem usar os mesmos prompts
+Manutenção - Atualize os prompts em um só lugar para melhorar todos os clientes
+Os prompts funcionam melhor quando são especializados para o domínio do seu servidor MCP. Um servidor de gerenciamento de documentos pode ter instruções para formatar, resumir ou analisar documentos. Um servidor de análise de dados pode ter prompts para gerar relatórios ou visualizações.
+
+O objetivo é fornecer prompts tão bem elaborados e testados que os usuários prefiram escrevê-los em vez de escrever suas próprias instruções do zero.
+
+# Lesson 09: Prompts no cliente
+A etapa final na construção do nosso cliente MCP é implementar a funcionalidade imediata. Isso nos permite listar todos os prompts disponíveis no servidor e recuperar prompts específicos com variáveis preenchidas.
+
+Implementando prompts de lista
+Olist_prompts método é simples. Ele chama a função prompts da lista da sessão e retorna os prompts:
+
+Pitão
+async def list_prompts(self) -> list[types.Prompt]:
+    result = await self.session().list_prompts()
+    return result.prompts
+Obtendo prompts individuais
+Oget_prompt método é mais interessante porque lida com interpolação de variáveis. Ao solicitar um prompt, você fornece argumentos que são passados para a função prompt como argumentos de palavra-chave:
+
+Pitão
+async def get_prompt(self, prompt_name, args: dict[str, str]):
+    result = await self.session().get_prompt(prompt_name, args)
+    return result.messages
+Por exemplo, se o seu servidor tiver umformat_document prompt que espera umdoc_id parâmetro, o dicionário de argumentos conterá{"doc_id": "plan.md"} . Este valor é interpolado no modelo de prompt.
+
+Testando prompts em ação
+Uma vez implementado, você pode testar prompts através da CLI. Quando você digita uma barra ()/, os prompts disponíveis aparecem como comandos. Selecionar um prompt como "formato" solicitará que você escolha entre os documentos disponíveis.
+
+A CLI após digitar "/format plan.md", mostrando um menu suspenso de documentos disponíveis — deposition.md, report.pdf, financials.docx, outlook.pdf, plan.md e spec.txt — com plan.md destacado
+
+Após selecionar um documento, o sistema envia o prompt completo para Claude. A IA recebe as instruções de formatação e o ID do documento e, em seguida, usa as ferramentas disponíveis para buscar e processar o conteúdo.
+
+Como funcionam os prompts
+Slide explicando prompts: eles definem um conjunto de mensagens de usuário e assistente que os clientes podem usar e devem ser de alta qualidade, bem testadas e relevantes para o propósito do MCP — junto com um trecho de código do servidor MCP definindo um prompt de "formato" com o decorador @mcp.prompt
+
+Os prompts definem um conjunto de mensagens de usuário e assistente que os clientes podem usar. Eles devem ser de alta qualidade, bem testados e relevantes para a finalidade do seu servidor MCP. O fluxo de trabalho é:
+
+Escreva e avalie um prompt relevante para a funcionalidade do seu servidor
+Defina o prompt no seu servidor MCP usando o@mcp.prompt decorador
+Os clientes podem solicitar o prompt a qualquer momento
+Os argumentos fornecidos pelo cliente tornam-se argumentos de palavras-chave na sua função de prompt
+A função retorna mensagens formatadas prontas para o modelo de IA
+Este sistema cria prompts reutilizáveis e parametrizados que mantêm a consistência e permitem a personalização por meio de variáveis. É particularmente útil para fluxos de trabalho complexos, nos quais você deseja garantir que a IA receba instruções devidamente estruturadas todas as vezes.
+
