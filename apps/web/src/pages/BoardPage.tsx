@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { BarraDeTags } from "../components/BarraDeTags";
 import { CartaoCard } from "../components/CartaoCard";
 import { PainelRedimensionavel } from "../components/Colunas";
 import { PainelCard } from "../components/PainelCard";
 import { Quadro } from "../components/Quadro";
 import { ApiError } from "../lib/api";
 import { useArquivados, useAtualizarBoard, useBoard, useCriarColuna } from "../lib/kanban";
+import { cardCasaFiltro, catalogoDeTags } from "../lib/tags";
 
 /** RF-13: board completo em uma requisição; o painel do card empurra, não cobre. */
 export function BoardPage() {
@@ -20,7 +22,19 @@ export function BoardPage() {
   const [nome, setNome] = useState("");
   const [arquivadosAbertos, setArquivadosAbertos] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [tagsFiltro, setTagsFiltro] = useState<string[]>([]);
   const { data: arquivados } = useArquivados(boardId, arquivadosAbertos);
+
+  // RF-10: a página não remonta ao navegar entre boards, então o filtro
+  // sobreviveria à troca e recortaria um quadro onde aquela tag nem existe.
+  useEffect(() => setTagsFiltro([]), [boardId]);
+
+  const tagsDoBoard = useMemo(() => catalogoDeTags(board?.columns ?? []), [board]);
+
+  const escondidos = useMemo(() => {
+    const cards = board?.columns.flatMap((c) => c.cards) ?? [];
+    return cards.filter((c) => !cardCasaFiltro(c.tags, tagsFiltro)).length;
+  }, [board, tagsFiltro]);
 
   if (isError) {
     return (
@@ -144,6 +158,21 @@ export function BoardPage() {
           )}
         </header>
 
+        {/* RF-08: só aparece quando há o que filtrar. */}
+        {tagsDoBoard.length > 0 && (
+          <BarraDeTags
+            tags={tagsDoBoard}
+            selecionadas={tagsFiltro}
+            escondidos={escondidos}
+            onAlternar={(nome) =>
+              setTagsFiltro((atual) =>
+                atual.includes(nome) ? atual.filter((t) => t !== nome) : [...atual, nome],
+              )
+            }
+            onLimpar={() => setTagsFiltro([])}
+          />
+        )}
+
         {arquivadosAbertos && (
           <section
             aria-label="Cards arquivados"
@@ -177,6 +206,7 @@ export function BoardPage() {
           <Quadro
             board={board}
             cardAtivoId={cardId}
+            tagsFiltro={tagsFiltro}
             onAbrirCard={(id) => navigate(`/b/${board.id}/c/${id}`)}
           />
         )}

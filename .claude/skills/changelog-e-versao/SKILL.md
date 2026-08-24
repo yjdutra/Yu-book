@@ -1,6 +1,6 @@
 ---
 name: changelog-e-versao
-description: Formato do CHANGELOG.md e do histórico de contexto do Yu-book, regras de versionamento semver dos três pacotes e a convenção de mensagem de commit. Use ao fechar uma entrega, ao registrar o que mudou numa sessão de trabalho, ao decidir bump de versão ou ao propor mensagem de commit.
+description: Formato do CHANGELOG.md e do histórico de contexto do Yu-book, regras de versionamento semver dos quatro pacotes, a diferença entre a versão do conjunto no heading e a dos package.json, o que se faz com documento movido para docs/old e a convenção de mensagem de commit. Use ao fechar uma entrega, ao registrar o que mudou numa sessão de trabalho, ao decidir bump de versão ou ao propor mensagem de commit.
 ---
 
 # Changelog, histórico e versão
@@ -18,7 +18,7 @@ inversa, seções em português e só as que tiverem conteúdo.
 ## [0.2.0] — 2026-09-01
 
 ### Adicionado
-- Agenda no Google Calendar: botão "agendar" no card e na nota (Fase 5, RF-01 a RF-06).
+- Agenda no Google Calendar: botão "agendar" no card e na nota (Fase 6, RF-01 a RF-06).
 
 ### Alterado
 - `GET /dashboard` passa a incluir o próximo evento agendado.
@@ -44,7 +44,7 @@ Regras:
 Registro narrativo, uma entrada por sessão de trabalho, mais recente no topo:
 
 ```markdown
-## 2026-09-01 — Fase 5, decisão sobre autenticação do Google
+## 2026-09-01 — Fase 6, decisão sobre autenticação do Google
 
 Optamos por conta de serviço em vez de OAuth do usuário. OAuth exigiria tela de consentimento e
 refresh token renovado toda semana enquanto o app estiver em "Testing" no Google Cloud.
@@ -59,8 +59,8 @@ resolvido; dívida assumida conscientemente; pendência que sobrou. O que **não
 
 ## 3. Versão
 
-Três pacotes com semver independente: `apps/api`, `apps/web` e `packages/shared`, cada um no seu
-`package.json`. O `package.json` da raiz é privado e não acompanha.
+Quatro pacotes com semver independente: `apps/api`, `apps/web`, `apps/mcp` e `packages/shared`,
+cada um no seu `package.json`. O `package.json` da raiz é privado e não acompanha.
 
 | Bump | Quando |
 |---|---|
@@ -72,10 +72,25 @@ Regras:
 
 - **Mudança em `packages/shared` que altera um schema ou tipo bumpa os quatro pacotes**, porque
   todos consomem o contrato — `apps/api`, `apps/web` e também `apps/mcp`, que declara
-  `@yu-book/shared` e importa os tipos direto. A regra dizia "os três" enquanto `apps/mcp` não
-  existia.
+  `@yu-book/shared` e importa os tipos direto.
 - Uma fase entregue é **um** bump minor, não um por commit.
-- O changelog nomeia a versão do conjunto. Quando os pacotes divergirem, cite o pacote na linha.
+
+### 3.1 O heading do changelog não é a versão dos pacotes
+
+**São dois números diferentes e eles já divergem.** O heading nomeia a versão do **conjunto**; o
+`package.json` nomeia a do pacote. A `0.2.0` do conjunto foi uma entrega que não bumpou nenhum
+pacote deployado (`apps/mcp` nasceu ali, em `0.1.0`), e desde então o heading corre **um minor à
+frente**: `## [0.4.0]` é a entrega em que os quatro pacotes foram a `0.3.0`.
+
+Por isso, ao abrir uma entrada nova:
+
+1. Leia o **corpo** da última entrada do `CHANGELOG.md` — ele diz a que versão os pacotes foram.
+2. O heading novo é o último heading + o bump, **nunca** o número que está no `package.json`.
+3. Diga no corpo, em uma linha, para onde os pacotes vão. É o que mantém os dois números
+   reconciliáveis pela próxima pessoa.
+
+Olhar só o `package.json` produz um heading que já existe. Quando os pacotes divergirem entre si,
+cite o pacote na linha.
 
 ## 4. Commits
 
@@ -98,5 +113,22 @@ o histórico** para corrigi-los — a convenção vale daqui para a frente.
 1. Atualize `CHANGELOG.md` com a versão nova e a data.
 2. Registre a decisão em `docs/historico.md`, se houve alguma.
 3. Bumpe o `package.json` dos pacotes afetados.
-4. Atualize `README.md` e `PROPOSTA.md` se o status das fases mudou.
+4. Atualize `README.md` se o status das fases mudou. **Não** atualize os documentos de
+   `docs/old/` — ver §6.
 5. **Proponha** a mensagem de commit. Não crie tag nem release — quem executa é o operador.
+
+## 6. `docs/old/` é registro de época
+
+Documento movido para `docs/old/` **congela**. Não se corrige o status das fases, a estimativa nem o
+escopo lá dentro: ele vale como o que se pensava naquela data, e reescrevê-lo apaga exatamente a
+informação que justifica tê-lo guardado. `docs/old/PROPOSTA-inicial.md` ainda diz "Fases 0, 1 e 2
+concluídas" — está certo assim.
+
+O que **se** conserta é o link de quem aponta para ele. Ao mover um documento para `docs/old/`,
+procure quem o citava e atualize o caminho:
+
+```bash
+grep -rn "PROPOSTA.md" --include="*.md" . | grep -v docs/old/
+```
+
+A verdade corrente sobre fases mora no `README.md` e no PRD da fase em andamento.

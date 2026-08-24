@@ -26,6 +26,9 @@ const ESTILO_PRIORIDADE: Record<CardPriority, { sigla: string; classe: string }>
   baixa: { sigla: "⬇", classe: "text-sky-300" },
 };
 
+/** RF-07: a face mostra três; o resto vira `+n`, com todas no `title`. */
+const TAGS_NA_FACE = 3;
+
 function dataCurta(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
@@ -76,6 +79,19 @@ export function CartaoCard({ card, arrastando = false }: CartaoCardProps) {
             title={`${card.checklistDone} de ${card.checklistTotal} itens feitos`}
           >
             ☑ {card.checklistDone}/{card.checklistTotal}
+          </span>
+        )}
+
+        {/* RF-07: rótulo, não botão — o card inteiro é a alça de arraste, e um
+            alvo clicável aqui dentro competiria com o gesto. */}
+        {card.tags.slice(0, TAGS_NA_FACE).map((tag) => (
+          <span key={tag} className="rounded bg-ink-700 px-1.5 text-ink-400">
+            {tag}
+          </span>
+        ))}
+        {card.tags.length > TAGS_NA_FACE && (
+          <span className="text-ink-400" title={card.tags.join(", ")}>
+            +{card.tags.length - TAGS_NA_FACE}
           </span>
         )}
 

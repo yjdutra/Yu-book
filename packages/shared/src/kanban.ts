@@ -10,6 +10,8 @@ export const MAX_CHECKLIST_ITENS = 50;
 export const MAX_CHECKLIST_TEXTO = 200;
 export const MAX_COLUNAS = 20;
 export const MAX_NOME = 60;
+export const MAX_TAGS_CARD = 8;
+export const MAX_TAG_TEXTO = 24;
 
 export const cardPrioritySchema = z.enum(CARD_PRIORITIES);
 
@@ -30,6 +32,38 @@ export const checklistSchema = z
   .max(MAX_CHECKLIST_ITENS, `No máximo ${MAX_CHECKLIST_ITENS} itens`);
 
 export type ChecklistItem = z.infer<typeof checklistItemSchema>;
+
+/* ------------------------------------------------------------------ tags */
+
+/**
+ * Forma canônica de uma etiqueta de card (RF-01, RN-01).
+ *
+ * **Não remove acento**: `revisão` é gravada `revisão`. Quem precisa casar
+ * `revisao` com `revisão` usa `normalizarTitulo` como chave de comparação —
+ * é a mesma função que espelha `immutable_unaccent` no banco, e uma terceira
+ * definição de "mesmo texto" neste projeto seria dívida.
+ *
+ * Devolve string vazia para entrada que não sobra nada; quem chama filtra.
+ */
+export function normalizarTag(bruto: string): string {
+  return bruto
+    .trim()
+    .replace(/^#+/, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .slice(0, MAX_TAG_TEXTO)
+    .trim();
+}
+
+/**
+ * Os dois limites são de naturezas diferentes, de propósito: **quantidade** é
+ * recusa (como `checklistSchema` faz), porque passar de 8 é engano de quem
+ * chama; **tamanho de uma tag** é cosmético e `normalizarTag` corta em silêncio
+ * (RN-01) em vez de derrubar a requisição inteira por um caractere a mais.
+ */
+export const cardTagsSchema = z
+  .array(z.string().max(200))
+  .max(MAX_TAGS_CARD, `No máximo ${MAX_TAGS_CARD} tags por card`);
 
 /* ---------------------------------------------------------------- boards */
 
@@ -81,6 +115,7 @@ export const cardInputSchema = z.object({
   dueDate: z.coerce.date().nullable().default(null),
   priority: cardPrioritySchema.default("media"),
   checklist: checklistSchema.default([]),
+  tags: cardTagsSchema.default([]),
   noteId: z.string().uuid().nullable().default(null),
 });
 
@@ -125,6 +160,8 @@ export interface CardSummary {
   priority: CardPriority;
   checklistDone: number;
   checklistTotal: number;
+  /** RF-07: etiquetas livres, na ordem em que foram aplicadas (RN-03). */
+  tags: string[];
   note: NoteRef | null;
   /**
    * Última alteração do card. Está na face porque "o que está parado" é uma

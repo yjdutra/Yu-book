@@ -13,6 +13,68 @@ _Nada pendente._
 
 ---
 
+## [0.4.0] — 2026-08-24
+
+**Etapa A da Fase 5**: tags de card no kanban e busca na lista de tags da barra lateral. As duas
+saíram juntas porque são o mesmo gesto — filtrar uma lista de etiquetas por texto digitado —, e
+implementá-las em sessões separadas as faria divergir. A Etapa **B** (precisão do arraste) saiu logo em seguida, na
+`0.5.0`; a **C** (copiar nota e editor ao vivo) não começou: a Fase 5 **não** está concluída.
+
+Os quatro pacotes vão a `0.3.0`. `packages/shared` mudou contrato — `CardSummary` e `cardInputSchema`
+ganharam `tags` —, e a regra do projeto manda bumpar junto quem consome o contrato: `apps/api`,
+`apps/web` e `apps/mcp`. Requisitos em [`docs/prd-fase-5-refino.md`](docs/prd-fase-5-refino.md).
+
+### Adicionado
+- **Tags de card no kanban** (RF-01 a RF-07): até 8 etiquetas livres por card, com até 24
+  caracteres cada, criadas ao digitar no painel do card — não existe tela de cadastro. O seletor
+  oferece as tags já em uso naquele board, ordenadas por quantidade de cards, para que marcar o
+  segundo card com o mesmo assunto seja escolher e não redigitar. A face do card mostra três
+  etiquetas e resume o resto em `+n`.
+- **Barra de filtro por tag acima das colunas** (RF-08 a RF-10). O filtro é **OU**: duas tags
+  selecionadas mostram os cards que tenham qualquer uma das duas. Cada coluna passa a exibir
+  `visíveis de total` enquanto o filtro estiver valendo. É local — não vai para a URL, não sobrevive
+  a recarregar a página nem a trocar de board.
+- **Busca no cartão de tags da barra lateral** (RF-12 a RF-17): campo acima da lista, casando por
+  trecho, sem acento e sem caixa (`progr` acha `programação`). Uma tag ativa como filtro continua
+  visível mesmo que não case com o texto — esconder um filtro que está valendo faria a tela mentir.
+  Com texto digitado o campo declara quantas tags de quantas está mostrando; `Esc` limpa o texto e,
+  já vazio, devolve o foco à lista; nenhuma tag casando, o cartão diz qual termo não achou nada.
+- Migration `20260824215324_tags_do_card`: coluna `tags` (`text[]`) na tabela `card`. **Sem índice**
+  — o filtro roda no cliente sobre o board que `GET /boards/:id` já devolve inteiro, e índice sem
+  consulta que o use é peso morto na escrita.
+- Oito testes de kanban: normalização, fusão por acento e caixa, corte da tag longa em vez de
+  recusa, `422` ao passar de 8 tags sem gravar nada, tags na face de cada card, e preservação das
+  tags ao salvar só o título, ao mover e ao arquivar.
+
+### Alterado
+- **Reverte o NO6 da Fase 2** ("etiquetas próprias do card não; tags são de nota"). O uso mostrou
+  que assunto e estágio são eixos independentes: a coluna diz em que ponto o card está, a tag diz de
+  que assunto ele é, e forçar os dois no mesmo eixo multiplicava colunas.
+- `CardSummary` passa a trazer `tags` e `cardInputSchema` a aceitá-las; `CardDetail` e
+  `cardUpdateSchema` herdam. **Nenhum endpoint novo:** o catálogo de tags de um board é derivado dos
+  cards que a resposta do board já traz, e um `/boards/:id/tags` seria segunda fonte de verdade para
+  a mesma informação.
+- O texto da tag é normalizado no servidor mesmo já tendo sido normalizado no front, e duas tags que
+  só diferem por acento ou caixa são fundidas numa só, prevalecendo a primeira grafia recebida
+  (RN-01, RN-02). `tags` só é gravada quando vem na requisição, para que salvar só o título de um
+  card não zere as etiquetas dele.
+- **Com filtro de tag ativo, mover card fica desabilitado — mouse e teclado** (RN-05). O índice de
+  destino é contado sobre a lista renderizada; filtrada, "soltar na segunda posição" viraria a
+  segunda posição do recorte e o servidor renumeraria a coluna inteira em cima disso. Recusar o
+  gesto, com o motivo escrito no quadro e um botão para limpar o filtro, é mais honesto que traduzir
+  índices.
+- O servidor MCP mostra as tags na linha de cada card (RF-11), e a descrição de `get_board` passou a
+  dizer que elas agrupam por assunto num eixo independente da coluna. O resource
+  `yubook://board/{id}` herda sem alteração, porque formata pela mesma função.
+- A revisão passou a ter o que cobrar: `invariantes-yu-book` ganhou INV-33 (arraste desligado sob
+  filtro) e INV-34 (as duas noções de tag não são para ser unificadas), e `contrato-compartilhado`
+  ganhou `normalizarTag` no catálogo de espelhamentos que quebram em silêncio.
+- `PROPOSTA.md` virou [`docs/old/PROPOSTA-inicial.md`](docs/old/PROPOSTA-inicial.md) e
+  `docs/prd-mcp-resources-e-prompts.md` foi para `docs/old/`. Os dois são registro do que se decidiu
+  na época, não descrição do estado atual. As referências no README acompanham.
+
+---
+
 ## [0.3.0] — 2026-08-24
 
 Etapas 2 e 4 do servidor MCP: com elas o servidor passa a expor as três primitivas do protocolo —

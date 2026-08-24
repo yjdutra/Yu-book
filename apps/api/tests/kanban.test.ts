@@ -246,6 +246,135 @@ describe("cards", () => {
   });
 });
 
+/* Tags do card — Fase 5, Etapa A. */
+describe("tags do card", () => {
+  /** Atalho: aplica tags e devolve o card já salvo. */
+  async function comTags(cardId: string, tags: string[]) {
+    const { status, body } = await chamar(app, {
+      method: "PATCH",
+      url: `/cards/${cardId}`,
+      token: dono.token,
+      body: { tags },
+    });
+    return { status, card: body as CardDetail };
+  }
+
+  // CA-04 / RN-01
+  test("normaliza: corta espaço e cerquilha, colapsa espaço e baixa a caixa", async () => {
+    const board = await novoBoard("Board de tags");
+    const card = await novoCard(board.columns[0]?.id as string, "Card com tag");
+
+    const { card: salvo } = await comTags(card.id, ["  #Banco   De Dados  ", "", "   "]);
+    expect(salvo.tags).toEqual(["banco de dados"]);
+  });
+
+  // CA-02 / RN-02
+  test("funde tags que só diferem por acento ou caixa, mantendo a primeira grafia", async () => {
+    const board = await novoBoard("Board de acento");
+    const card = await novoCard(board.columns[0]?.id as string, "Card com acento");
+
+    const { card: salvo } = await comTags(card.id, ["Revisão", "revisao", "REVISÃO"]);
+    expect(salvo.tags).toEqual(["revisão"]);
+  });
+
+  // CA-04: tamanho é cosmético — corta, não recusa.
+  test("tag longa demais é cortada em 24 caracteres, não recusada", async () => {
+    const board = await novoBoard("Board de tag longa");
+    const card = await novoCard(board.columns[0]?.id as string, "Card longo");
+
+    const { status, card: salvo } = await comTags(card.id, ["a".repeat(40)]);
+    expect(status).toBe(200);
+    expect(salvo.tags).toEqual(["a".repeat(24)]);
+  });
+
+  // CA-03: quantidade é limite — recusa.
+  test("passar de 8 tags é recusado com 422 e não grava nada", async () => {
+    const board = await novoBoard("Board de limite");
+    const card = await novoCard(board.columns[0]?.id as string, "Card no limite");
+
+    const oito = Array.from({ length: 8 }, (_, i) => `tag-${i}`);
+    const { card: salvo } = await comTags(card.id, oito);
+    expect(salvo.tags).toHaveLength(8);
+
+    const { status } = await comTags(card.id, [...oito, "tag-8"]);
+    expect(status).toBe(422);
+
+    const depois = (
+      await chamar(app, { method: "GET", url: `/cards/${card.id}`, token: dono.token })
+    ).body as CardDetail;
+    expect(depois.tags).toEqual(oito);
+  });
+
+  // CA-05: a tag é do quadro, então vem na face — sem uma requisição por card.
+  test("GET /boards/:id devolve as tags na face de cada card", async () => {
+    const board = await novoBoard("Board na face");
+    const coluna = board.columns[0];
+    const card = await novoCard(coluna?.id as string, "Card visível");
+    await comTags(card.id, ["sql"]);
+
+    const { body } = await chamar(app, {
+      method: "GET",
+      url: `/boards/${board.id}`,
+      token: dono.token,
+    });
+    const face = (body as BoardDetail).columns
+      .find((c) => c.id === coluna?.id)
+      ?.cards.find((c) => c.id === card.id);
+    expect(face?.tags).toEqual(["sql"]);
+  });
+
+  // O espalhamento condicional de `atualizarCard`: salvar outro campo não pode
+  // apagar as tags. É o caminho que o autosave da descrição percorre a cada
+  // pausa de digitação.
+  test("salvar só o título preserva as tags", async () => {
+    const board = await novoBoard("Board de preservação");
+    const card = await novoCard(board.columns[0]?.id as string, "Antes");
+    await comTags(card.id, ["indices", "revisão"]);
+
+    const { body } = await chamar(app, {
+      method: "PATCH",
+      url: `/cards/${card.id}`,
+      token: dono.token,
+      body: { title: "Depois" },
+    });
+    expect((body as CardDetail).tags).toEqual(["indices", "revisão"]);
+  });
+
+  // RN-04: tag não participa de posição nem de arquivamento.
+  test("mover e arquivar preservam as tags", async () => {
+    const board = await novoBoard("Board de movimento");
+    const [origem, destino] = board.columns;
+    const card = await novoCard(origem?.id as string, "Card viajante");
+    await comTags(card.id, ["entrevista"]);
+
+    const movido = (
+      await chamar(app, {
+        method: "PATCH",
+        url: `/cards/${card.id}/move`,
+        token: dono.token,
+        body: { columnId: destino?.id, position: 0 },
+      })
+    ).body as CardDetail;
+    expect(movido.tags).toEqual(["entrevista"]);
+
+    const arquivado = (
+      await chamar(app, {
+        method: "PATCH",
+        url: `/cards/${card.id}`,
+        token: dono.token,
+        body: { archived: true },
+      })
+    ).body as CardDetail;
+    expect(arquivado.tags).toEqual(["entrevista"]);
+  });
+
+  test("card novo nasce sem tags", async () => {
+    const board = await novoBoard("Board sem tag");
+    const card = await novoCard(board.columns[0]?.id as string, "Card pelado");
+    expect(card.tags).toEqual([]);
+  });
+});
+
 // CA-32 / RNF-14 / RNF-15
 describe("posse", () => {
   test("id de outro usuário responde 404 em board, coluna e card", async () => {

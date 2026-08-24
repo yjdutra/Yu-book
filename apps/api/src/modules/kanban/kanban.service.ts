@@ -11,7 +11,13 @@ import type {
   BoardSummary,
   ColumnInput,
 } from "@yu-book/shared";
-import { MAX_COLUNAS, progressoChecklist } from "@yu-book/shared";
+import {
+  MAX_COLUNAS,
+  MAX_TAGS_CARD,
+  normalizarTag,
+  normalizarTitulo,
+  progressoChecklist,
+} from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
 
@@ -114,6 +120,30 @@ function idsAtivos(db: Cliente, columnId: string, exceto?: string) {
   });
 }
 
+/* -------------------------------------------------------------------- tags */
+
+/**
+ * RN-01 / RN-02: normaliza, descarta o que sobrou vazio e funde o que só
+ * difere por acento ou caixa — prevalece a primeira grafia recebida.
+ *
+ * A chave de comparação é `normalizarTitulo`, a mesma que espelha
+ * `immutable_unaccent` no banco: digitar `revisao` num card que já tem
+ * `revisão` não pode criar uma segunda etiqueta.
+ *
+ * Roda no servidor mesmo já tendo rodado no front. `packages/shared` é a fonte
+ * única; confiar no cliente aqui é como confiar nele no `userId`.
+ */
+function normalizarTags(nomes: string[]): string[] {
+  const porChave = new Map<string, string>();
+  for (const bruto of nomes) {
+    const tag = normalizarTag(bruto);
+    if (!tag) continue;
+    const chave = normalizarTitulo(tag);
+    if (!porChave.has(chave)) porChave.set(chave, tag);
+  }
+  return [...porChave.values()].slice(0, MAX_TAGS_CARD);
+}
+
 /* -------------------------------------------------------------- conversão */
 
 const CARD_FACE = {
@@ -124,6 +154,7 @@ const CARD_FACE = {
   dueDate: true,
   priority: true,
   checklist: true,
+  tags: true,
   updatedAt: true,
   note: { select: { id: true, title: true, kind: true } },
 } satisfies Prisma.CardSelect;
@@ -141,6 +172,7 @@ function toCardSummary(card: CardFace): CardSummary {
     priority: card.priority,
     checklistDone: done,
     checklistTotal: total,
+    tags: card.tags,
     note: card.note,
     updatedAt: card.updatedAt.toISOString(),
   };
@@ -430,6 +462,7 @@ export async function criarCard(userId: string, input: CardInput): Promise<CardD
         dueDate: dados.dueDate ? new Date(dados.dueDate) : null,
         priority: dados.priority ?? "media",
         checklist: (dados.checklist ?? []) as Prisma.InputJsonValue,
+        tags: normalizarTags(dados.tags ?? []),
         noteId: dados.noteId ?? null,
         position: ativos.length, // nasce no fim da coluna
       },
@@ -461,6 +494,7 @@ export async function buscarCard(userId: string, id: string): Promise<CardDetail
     priority: card.priority,
     checklistDone: done,
     checklistTotal: total,
+    tags: card.tags,
     note: card.note,
     boardId: card.column.board.id,
     boardName: card.column.board.name,
@@ -493,6 +527,8 @@ export async function atualizarCard(
         ...(input.checklist !== undefined && {
           checklist: input.checklist as Prisma.InputJsonValue,
         }),
+        // Espalhamento condicional: salvar só o título não pode apagar as tags.
+        ...(input.tags !== undefined && { tags: normalizarTags(input.tags) }),
         ...(input.noteId !== undefined && { noteId: input.noteId }),
         ...(input.archived !== undefined && { archived: input.archived }),
       },

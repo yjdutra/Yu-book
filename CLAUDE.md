@@ -1,16 +1,20 @@
 # Yu-book
 
-Segundo cérebro pessoal, single-user. Monorepo pnpm com três pacotes:
+Segundo cérebro pessoal, single-user. Monorepo pnpm com quatro pacotes:
 
 | Pacote | Stack | Papel |
 |---|---|---|
 | `apps/api` | Fastify 5 + Prisma 6 + Postgres 16 | API REST |
 | `apps/web` | React 19 + Vite 6 + Tailwind v4 | SPA desktop-only |
+| `apps/mcp` | SDK MCP + stdio | Servidor MCP, cliente da própria API |
 | `packages/shared` | Zod 3 | Schemas e helpers usados pelos dois |
 
-Proposta e decisões de escopo em `PROPOSTA.md`. Requisitos por fase em `docs/old/prd-fase-*.md` —
+Proposta inicial em `docs/old/PROPOSTA-inicial.md` (registro de época, não se atualiza).
+Requisitos por fase em `docs/old/prd-fase-*.md` e, da Fase 5 em diante, em `docs/prd-fase-*.md` —
 os comentários do código citam os identificadores `RF-xx`, `RN-xx`, `RNF-xx` e `CA-xx` de lá.
-Fases 0 a 4 entregues; a próxima é a 5 (Google Calendar).
+Fases 0 a 4 entregues. A 5 é refino do que já existe (`docs/prd-fase-5-refino.md`), em três etapas:
+A (tags de card) entregue, B (arraste) e C (copiar nota + editor ao vivo) não iniciadas. O Google
+Calendar virou a Fase 6.
 
 ## Regras que quebram o projeto se ignoradas
 

@@ -9,6 +9,81 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-08-24 — Fase 5, Etapa A: tag de card, e o eixo que faltava no quadro
+
+Entregues as tags de card e a busca no cartão de tags da barra lateral. Requisitos em
+[`prd-fase-5-refino.md`](prd-fase-5-refino.md), um PRD novo que cobre as três etapas da Fase 5.
+
+**A Fase 5 deixou de ser o Google Calendar.** O PRD assume a numeração nova: refino do que já
+existe é a Fase 5, e a agenda passa para a Fase 6. Não é reordenação por conveniência — o operador
+decidiu que o Calendar é a prioridade mais baixa hoje, e a `PROPOSTA-inicial.md` já tratava a agenda
+como conveniência, com condição de corte de meio dia. Só a Etapa A está entregue; B (arraste) e C
+(copiar nota, editor ao vivo) não começaram.
+
+**Revertemos o NO6 da Fase 2, de propósito.** O PRD do kanban dizia, com todas as letras, que
+etiqueta era coisa de nota e que o card não teria a sua. O uso desmentiu: coluna e assunto são eixos
+independentes, e sem o segundo o quadro só sabia agrupar por estágio — quem quisesse ver "tudo de
+banco de dados" espalhado por três colunas não tinha como. Forçar isso no eixo que existia
+significava criar coluna por assunto, que é justamente o que faz um kanban parar de dizer em que
+ponto as coisas estão. Um não-objetivo revertido pelo uso é conhecimento adquirido, não erro
+corrigido, e por isso está escrito no changelog em vez de apagado do PRD antigo.
+
+**Tag de card é `text[]` na linha do card, sem tabela.** A tentação era reaproveitar a tabela `tag`,
+que já existe para as notas. Ela tem cor, id próprio, unicidade por usuário e um `limparTagsOrfas`
+que roda depois de cada desvínculo. Tag de card não quer nada disso: o escopo é um board, a
+identidade é o próprio texto, não há renomeação e ela morre com o card. Reaproveitar a tabela
+obrigaria `limparTagsOrfas` a varrer duas relações e daria catálogo global e cor a algo que não usa
+nenhum dos dois — acoplando duas coisas que só coincidem no nome. O preço aceito é a assimetria:
+duas noções de "tag" no projeto, com armazenamentos diferentes, e quem ler o schema pela primeira
+vez vai estranhar. Está anotado no comentário do modelo `Card` por causa disso.
+
+**O filtro do board é OU; o filtro de notas da barra lateral continua E.** Divergência deliberada
+entre duas telas que parecem fazer a mesma coisa. No cartão de notas (RF-07 da Fase 1) o objetivo é
+**estreitar** até achar uma nota específica, e cada tag adicionada corta mais. No board o objetivo é
+o oposto: **agregar** assuntos espalhados por colunas diferentes. Com E, selecionar a segunda tag
+esvaziaria o quadro quase sempre, já que poucos cards carregam duas etiquetas ao mesmo tempo — o
+gesto pareceria quebrado. Se um dia isso confundir, a saída é rotular o modo na barra, não unificar
+a semântica.
+
+**RN-05 — com filtro ativo, o arraste é desligado, e isso é recusa e não limitação.** O índice de
+destino do arraste é contado sobre a lista renderizada. Com o quadro recortado, "soltar na segunda
+posição" significa a segunda posição *do recorte*, e o servidor renumera a coluna inteira em cima
+desse número (RN-01 / INV-11): a ordem real embaralharia sem ninguém ver, que é exatamente a
+corrupção silenciosa que a invariante existe para impedir. A alternativa seria traduzir o índice do
+recorte para o da lista real — possível, mas é aritmética que só está certa enquanto ninguém mexe
+na coleção durante o gesto, e errar ali não dá erro, dá ordem trocada. Vale para mouse **e**
+teclado: `coluna.cards` continua sendo a verdade para contagem, WIP e posição; o filtro só decide o
+que é pintado. O quadro filtrado diz por que o arraste não responde e oferece o botão de limpar.
+
+**Nenhum endpoint novo.** O catálogo de tags de um board sai dos cards que o `GET /boards/:id` já
+traz inteiros. Um `/boards/:id/tags` seria uma segunda fonte de verdade para a mesma informação, com
+a chance de discordar da primeira num intervalo de cache. A consequência boa é que a última
+desmarcação faz a tag sumir do catálogo sozinha — não há órfã para limpar, e é o que dispensa um
+`limparTagsOrfas` do lado do card.
+
+**O `ADD COLUMN` ficou sem `NOT NULL`, e foi mantido como o gerador escreveu.** É a convenção do
+próprio Prisma para lista escalar: `String[]` não aceita nulo do lado do cliente, e o default
+`ARRAY[]::TEXT[]` cobre as linhas existentes. Editar o SQL à mão para "melhorar" a migration
+introduziria drift entre o arquivo e o que o Prisma espera, e `migrate deploy` roda no boot de
+produção — drift ali derruba deploy. Regra que vale para a próxima: migration gerada não se edita
+por estética.
+
+**Dívida nova, do tipo que quebra em silêncio:** `normalizarTag` é chamada no front, antes de
+mandar, e de novo na API, antes de gravar. A repetição é intencional — confiar no cliente aqui é
+como confiar nele no `userId` —, mas se um dos dois lados deixar de chamar, `Banco` e `banco` viram
+duas entradas no catálogo do board e nada acusa: `typecheck` passa, os testes passam, e o efeito só
+aparece como duas etiquetas quase iguais na barra de filtro. Entra na lista de espelhamentos
+frágeis, ao lado de `normalizarTitulo`/`immutable_unaccent` e de `moverNoBoard`/renumeração.
+
+**Pendência.** A verificação à mão da interface — dois temas, navegação por teclado no seletor de
+tags e na barra de filtro — **não foi feita**. O que passou foi `pnpm typecheck` nos quatro pacotes,
+55 testes da API e o build do front; o formato do MCP foi conferido isoladamente. A propagação para
+as skills que a §13 do PRD exige já foi feita pelo `curador` na mesma sessão: `normalizarTag` entrou
+no catálogo de espelhamentos frágeis de `contrato-compartilhado`, e RN-05 e a assimetria entre as
+duas noções de tag viraram INV-33 e INV-34 em `invariantes-yu-book`.
+
+---
+
 ## 2026-08-24 — Cor dos agentes, e o enum que não aceita `gray`
 
 Os nove agentes em `.claude/agents/` ganharam `color:` no frontmatter. É apresentação pura: a cor

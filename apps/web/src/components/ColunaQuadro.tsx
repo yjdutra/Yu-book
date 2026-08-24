@@ -1,8 +1,9 @@
 import type { CardSummary, ColumnDetail } from "@yu-book/shared";
 import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { SortableContext, useSortable } from "@dnd-kit/sortable";
+import type { SortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ApiError } from "../lib/api";
 import { useAtualizarColuna, useCriarCard, useExcluirColuna } from "../lib/kanban";
 import { CartaoCard } from "./CartaoCard";
@@ -10,23 +11,55 @@ import { CartaoCard } from "./CartaoCard";
 export const idColunaArrastavel = (id: string) => `coluna:${id}`;
 export const idZonaDeSoltura = (id: string) => `zona:${id}`;
 
+/**
+ * Nenhum deslocamento por transform entre os cards.
+ *
+ * Quem abre o vão aqui é o DOM: `moverLocal` reordena o estado local a cada
+ * `dragOver` e o React repinta a lista já na ordem nova. Uma estratégia de
+ * ordenação por cima disso desloca *de novo* o que já foi deslocado —
+ * `verticalListSortingStrategy` empurra o vizinho pela altura do card ativo, em
+ * cima da lista que o DOM já reordenou, e o vizinho pula com a mão parada.
+ *
+ * Não é sempre: o `SortableContext` desliga os transforms enquanto os `items`
+ * estão mudando, e volta a ligá-los no primeiro frame em que a lista se repete
+ * — que é exatamente quando você para a mão para mirar.
+ *
+ * O arraste de COLUNA continua usando `horizontalListSortingStrategy` em
+ * `Quadro.tsx`: lá os `items` não mudam durante o gesto, e o transform é o
+ * único mecanismo que existe.
+ */
+const SEM_DESLOCAMENTO: SortingStrategy = () => null;
+
 interface CardArrastavelProps {
   card: CardSummary;
   ativo: boolean;
+  /** RN-05: filtro de tag ativo desliga o arraste, mas não o resto do card. */
+  desativado: boolean;
   onAbrir: () => void;
 }
 
-function CardArrastavel({ card, ativo, onAbrir }: CardArrastavelProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+function CardArrastavel({ card, ativo, desativado, onAbrir }: CardArrastavelProps) {
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({
     id: card.id,
     data: { tipo: "card", columnId: card.columnId },
+    disabled: desativado,
   });
 
   return (
+    // Sem `transform` nem `transition`: ver SEM_DESLOCAMENTO acima.
     <li
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={isDragging ? "opacity-40" : undefined}
+      // RF-22: o card que está no cursor deixa aqui o vão que ele vai ocupar.
+      //
+      // `outline` e não `border` de propósito — borda mudaria o box em 2px, e o
+      // ResizeObserver de cada card remediria a coluna inteira no meio do gesto.
+      //
+      // E o card de dentro some com `opacity-0`, nunca com `visibility`: ele é
+      // o elemento focado, e é nele que o KeyboardSensor escuta. Escondê-lo de
+      // verdade tiraria o foco e mataria o arraste por teclado (INV-30).
+      className={
+        isDragging ? "rounded-lg outline-2 outline-dashed outline-accent-400" : undefined
+      }
     >
       {/* O próprio card é o alvo de arrasto e o botão que abre o painel:
           Espaço pega (RF-25), Enter abre (RNF-01). */}
@@ -43,9 +76,9 @@ function CardArrastavel({ card, ativo, onAbrir }: CardArrastavelProps) {
             onAbrir();
           }
         }}
-        className={`cursor-grab rounded-lg outline-none ring-accent-400 focus-visible:ring-2 ${
-          ativo ? "ring-2" : ""
-        }`}
+        className={`rounded-lg outline-none ring-accent-400 focus-visible:ring-2 ${
+          desativado ? "cursor-pointer" : "cursor-grab"
+        } ${ativo ? "ring-2" : ""} ${isDragging ? "opacity-0" : ""}`}
       >
         <CartaoCard card={card} />
       </div>
@@ -57,11 +90,25 @@ interface ColunaQuadroProps {
   coluna: ColumnDetail;
   /** As outras colunas: destino possível ao excluir esta com cards (RF-16). */
   colunas: ColumnDetail[];
+  /**
+   * O recorte de `coluna.cards` que o filtro de tag deixou passar (RF-08).
+   * Sem filtro é a lista inteira. `coluna.cards` continua sendo a verdade para
+   * contagem, limite de WIP e cálculo de posição.
+   */
+  cardsVisiveis: CardSummary[];
+  arrasteDesativado: boolean;
   cardAtivoId: string | null;
   onAbrirCard: (id: string) => void;
 }
 
-export function ColunaQuadro({ coluna, colunas, cardAtivoId, onAbrirCard }: ColunaQuadroProps) {
+export function ColunaQuadro({
+  coluna,
+  colunas,
+  cardsVisiveis,
+  arrasteDesativado,
+  cardAtivoId,
+  onAbrirCard,
+}: ColunaQuadroProps) {
   const criarCard = useCriarCard();
   const atualizar = useAtualizarColuna();
   const excluir = useExcluirColuna();
@@ -78,6 +125,7 @@ export function ColunaQuadro({ coluna, colunas, cardAtivoId, onAbrirCard }: Colu
   const sortable = useSortable({
     id: idColunaArrastavel(coluna.id),
     data: { tipo: "coluna" },
+    disabled: arrasteDesativado,
   });
   // A zona de soltura cobre a coluna inteira: sem ela, coluna vazia não
   // aceitaria card nenhum.
@@ -86,7 +134,15 @@ export function ColunaQuadro({ coluna, colunas, cardAtivoId, onAbrirCard }: Colu
     data: { tipo: "zona", columnId: coluna.id },
   });
 
+  /**
+   * RF-25: o `SortableContext` guarda `items` por identidade e o valor de
+   * contexto dele muda junto — array novo a cada render faria todo `useSortable`
+   * da coluna repintar a cada frame do arraste.
+   */
+  const idsVisiveis = useMemo(() => cardsVisiveis.map((c) => c.id), [cardsVisiveis]);
+
   const excedido = coluna.wipLimit !== null && coluna.cards.length > coluna.wipLimit;
+  const filtrada = cardsVisiveis.length !== coluna.cards.length;
   const outras = colunas.filter((c) => c.id !== coluna.id);
 
   function novoCard(e: React.FormEvent) {
@@ -143,8 +199,10 @@ export function ColunaQuadro({ coluna, colunas, cardAtivoId, onAbrirCard }: Colu
             type="button"
             {...sortable.attributes}
             {...sortable.listeners}
+            disabled={arrasteDesativado}
             aria-label={`Mover coluna ${coluna.name}`}
-            className="cursor-grab rounded px-0.5 text-ink-400 hover:text-ink-200"
+            className="cursor-grab rounded px-0.5 text-ink-400 hover:text-ink-200
+                       disabled:cursor-not-allowed disabled:opacity-40"
           >
             ⠿
           </button>
@@ -188,14 +246,19 @@ export function ColunaQuadro({ coluna, colunas, cardAtivoId, onAbrirCard }: Colu
               excedido ? "bg-amber-500/20 text-amber-300" : "text-ink-400"
             }`}
             title={
-              coluna.wipLimit === null
-                ? `${coluna.cards.length} cards`
-                : `${coluna.cards.length} de ${coluna.wipLimit} (limite de WIP)`
+              filtrada
+                ? `${cardsVisiveis.length} de ${coluna.cards.length} cards passam pelo filtro`
+                : coluna.wipLimit === null
+                  ? `${coluna.cards.length} cards`
+                  : `${coluna.cards.length} de ${coluna.wipLimit} (limite de WIP)`
             }
           >
             {excedido && <span aria-hidden="true">⚠ </span>}
-            {coluna.cards.length}
-            {coluna.wipLimit !== null && `/${coluna.wipLimit}`}
+            {/* RF-09: filtrando, a contagem diz o recorte e o total. O aviso de
+                WIP continua olhando o total — o limite é do trabalho em curso,
+                não do que está na tela. */}
+            {filtrada ? `${cardsVisiveis.length} de ${coluna.cards.length}` : coluna.cards.length}
+            {!filtrada && coluna.wipLimit !== null && `/${coluna.wipLimit}`}
           </span>
 
           <button
@@ -318,23 +381,27 @@ export function ColunaQuadro({ coluna, colunas, cardAtivoId, onAbrirCard }: Colu
           isOver ? "rounded bg-accent-500/5" : ""
         }`}
       >
-        <SortableContext items={coluna.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext items={idsVisiveis} strategy={SEM_DESLOCAMENTO}>
           <ul className="flex flex-col gap-2">
-            {coluna.cards.map((card) => (
+            {cardsVisiveis.map((card) => (
               <CardArrastavel
                 key={card.id}
                 card={card}
                 ativo={card.id === cardAtivoId}
+                desativado={arrasteDesativado}
                 onAbrir={() => onAbrirCard(card.id)}
               />
             ))}
           </ul>
         </SortableContext>
 
-        {coluna.cards.length === 0 && (
+        {cardsVisiveis.length === 0 && (
           // RNF-19: coluna vazia diz o que fazer, em vez de ficar em branco.
+          // Vazia por causa do filtro é outra coisa, e diz outra coisa.
           <p className="px-1 py-3 text-center text-[11px] text-ink-400/70">
-            Sem cards. Escreva abaixo para criar.
+            {coluna.cards.length === 0
+              ? "Sem cards. Escreva abaixo para criar."
+              : "Nenhum card com as tags do filtro."}
           </p>
         )}
       </div>

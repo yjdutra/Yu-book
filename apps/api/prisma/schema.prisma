@@ -222,6 +222,10 @@ model Card {
   priority      CardPriority @default(media)
   /// [{ "text": "...", "done": false }]
   checklist     Json         @default("[]")
+  /// Etiquetas livres do card (RF-01). Texto na própria linha, sem tabela: tag
+  /// de card não tem cor, não é renomeada e não existe fora do card — morre
+  /// com ele. A tag de NOTA é outra coisa, e tem tabela (`tag`) por isso.
+  tags          String[]     @default([])
   noteId        String?      @map("note_id") @db.Uuid
   archived      Boolean      @default(false)
   createdAt     DateTime     @default(now()) @map("created_at")

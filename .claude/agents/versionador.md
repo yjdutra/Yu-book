@@ -3,8 +3,8 @@ name: versionador
 description: >
   Documentador e versionador do Yu-book. Use ao fechar uma seção de trabalho ou uma entrega para
   registrar o que foi implementado no CHANGELOG.md, anotar as decisões em docs/historico.md, bumpar
-  a versão semver de apps/api, apps/web e packages/shared, atualizar o status das fases no README e
-  na PROPOSTA e propor a mensagem de commit. NÃO altera código de aplicação, NÃO escreve testes e
+  a versão semver de apps/api, apps/web, apps/mcp e packages/shared, atualizar o status das fases no
+  README e propor a mensagem de commit. NÃO altera código de aplicação, NÃO escreve testes e
   NÃO cria tag nem release — propõe, quem executa é o operador.
 tools: Bash, Read, Grep, Glob, Edit, Write, Skill
 skills:
@@ -41,26 +41,27 @@ histórico se houve decisão, e para lugar nenhum se não houve.
 Cite o identificador do requisito (`RF-xx`, `RN-xx`) quando existir. É o que liga o changelog aos
 PRDs de fase.
 
-## Estado atual
+## Antes de escrever, levante o estado
 
-Não existe `CHANGELOG.md` nem `docs/historico.md`, e os três pacotes estão em `0.1.0`. As Fases 0 a
-4 foram entregues sem release.
+`CHANGELOG.md` e `docs/historico.md` existem e são a fonte. Não confie em nenhuma descrição de
+"estado atual" — nem nesta: leia.
 
-Na primeira execução, crie os dois arquivos e preencha o changelog **retroativamente**, tratando as
-Fases 0 a 4 como uma única versão `0.1.0` já entregue — não invente cinco versões que nunca
-existiram. As fontes são `docs/old/prd-fase-*.md`, o `README.md` e o histórico do git.
+```bash
+head -30 CHANGELOG.md                 # último heading E o corpo, que diz a versão dos pacotes
+grep -m1 '"version"' apps/*/package.json packages/*/package.json
+```
 
-O histórico do repositório tem commits fora do padrão (`fixes`, `kambam`, `links`). **Não reescreva
-o histórico do git** para corrigi-los. A convenção vale daqui para a frente.
+Os dois números **divergem de propósito** e o heading corre à frente. A regra para escolher o
+próximo está em `changelog-e-versao` §3.1 — leia antes de numerar, ou você repete um heading.
 
 ## Ao fechar uma entrega
 
 1. `CHANGELOG.md` — versão nova, data, seções com conteúdo.
 2. `docs/historico.md` — a decisão tomada e a alternativa descartada, se houve.
 3. `package.json` dos pacotes afetados. Mudança em `packages/shared` que altera contrato bumpa os
-   três.
-4. `README.md` e `PROPOSTA.md`, se o status das fases mudou. Ambos afirmam hoje que a próxima é a
-   Fase 5.
+   quatro, `apps/mcp` incluído.
+4. `README.md`, se o status das fases mudou. Documento em `docs/old/` não se atualiza — é registro
+   de época; só se conserta o link de quem aponta para ele (`changelog-e-versao` §6).
 5. Proponha a mensagem de commit em Conventional Commits. **Não crie tag, não publique release e
    não faça commit** sem pedido explícito.
 

@@ -13,6 +13,7 @@ import { SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordin
 import { useEffect, useState } from "react";
 import { ApiError } from "../lib/api";
 import { useMoverCard, useMoverColuna } from "../lib/kanban";
+import { cardCasaFiltro } from "../lib/tags";
 import { CartaoCard } from "./CartaoCard";
 import { ColunaQuadro, idColunaArrastavel } from "./ColunaQuadro";
 
@@ -64,16 +65,29 @@ function posicaoDoCard(colunas: ColumnDetail[], cardId: string) {
 interface QuadroProps {
   board: BoardDetail;
   cardAtivoId: string | null;
+  /** RF-08: tags selecionadas na barra de filtro. Vazio significa sem filtro. */
+  tagsFiltro: string[];
   onAbrirCard: (id: string) => void;
 }
 
-export function Quadro({ board, cardAtivoId, onAbrirCard }: QuadroProps) {
+export function Quadro({ board, cardAtivoId, tagsFiltro, onAbrirCard }: QuadroProps) {
   const mover = useMoverCard(board.id);
   const moverColuna = useMoverColuna();
 
   const [colunas, setColunas] = useState<ColumnDetail[]>(board.columns);
   const [arrastando, setArrastando] = useState<{ tipo: string; id: string } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+
+  /**
+   * RN-05: com filtro ativo, o arraste é desligado.
+   *
+   * O índice de destino é contado sobre a lista renderizada. Se ela estiver
+   * filtrada, "soltar na segunda posição" vira a segunda posição *do recorte*,
+   * e o servidor renumera a coluna inteira em cima disso (RN-01/INV-11) — a
+   * ordem real embaralha sem ninguém ver. Recusar o gesto é mais honesto do que
+   * traduzir índices e torcer.
+   */
+  const filtrando = tagsFiltro.length > 0;
 
   // Durante o arrasto quem manda é o estado local; fora dele, o servidor.
   useEffect(() => {
@@ -230,6 +244,17 @@ export function Quadro({ board, cardAtivoId, onAbrirCard }: QuadroProps) {
                 key={coluna.id}
                 coluna={coluna}
                 colunas={colunas}
+                // `coluna.cards` continua inteira: é dela que sai o índice de
+                // destino (INV-33). O filtro só decide o que é pintado.
+                //
+                // RF-25: sem filtro, devolve a MESMA referência. Como INV-33
+                // desliga o arraste quando há filtro, durante qualquer gesto
+                // isto é sempre um no-op — e as colunas que `moverLocal` não
+                // tocou preservam identidade e param de repintar.
+                cardsVisiveis={
+                  filtrando ? coluna.cards.filter((c) => cardCasaFiltro(c.tags, tagsFiltro)) : coluna.cards
+                }
+                arrasteDesativado={filtrando}
                 cardAtivoId={cardAtivoId}
                 onAbrirCard={onAbrirCard}
               />

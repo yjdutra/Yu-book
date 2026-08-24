@@ -1,11 +1,13 @@
 import { NOTE_KINDS } from "@yu-book/shared";
 import type { NoteKind } from "@yu-book/shared";
+import { useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { useBoards } from "../lib/kanban";
 import { useContadores, useTags } from "../lib/notas";
 import type { Filtros } from "../lib/notas";
 import { useSecao } from "../lib/secoes";
+import { casaTermo } from "../lib/tags";
 import { useWorkspaceAtivo } from "../lib/workspace";
 import {
   ICONE_TIPO,
@@ -338,6 +340,18 @@ function CartaoTags({
   onAlternarTag: (nome: string) => void;
 }) {
   const [aberto, alternar] = useSecao("tags");
+  const [busca, setBusca] = useState("");
+  const listaRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * RF-13 / RF-14: filtra sem acento e sem caixa, mas **uma tag ativa nunca
+   * some**. Esconder um filtro que está valendo faria a tela mentir sobre o
+   * que a lista de notas está mostrando.
+   */
+  const visiveis = useMemo(
+    () => tags.filter((t) => ativas.includes(t.name) || casaTermo(t.name, busca)),
+    [tags, ativas, busca],
+  );
 
   return (
     <>
@@ -360,24 +374,62 @@ function CartaoTags({
         )}
         <span className="ml-auto tabular-nums">{tags.length}</span>
       </button>
-      <div id="secao-tags" hidden={!aberto} className="flex flex-wrap gap-1 px-2 pb-2">
-        {tags.map((t) => {
-          const ativa = ativas.includes(t.name);
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => onAlternarTag(t.name)}
-              aria-pressed={ativa}
-              className={`rounded px-1.5 py-0.5 text-[11px] transition ${
-                ativa ? "bg-accent-500 text-white" : "bg-ink-800 text-ink-400 hover:text-ink-200"
-              }`}
-            >
-              {t.name}
-              <span className="ml-1 opacity-60">{t.noteCount}</span>
-            </button>
-          );
-        })}
+
+      <div id="secao-tags" hidden={!aberto} className="px-2 pb-2">
+        {/* RF-12: o campo fica dentro do cartão, acima da lista. Não rouba foco
+            ao abrir — abrir o cartão é para olhar, não necessariamente digitar. */}
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return;
+            // RF-16: primeiro limpa; já vazio, o Esc devolve o foco à lista.
+            // Sem nenhum dos dois para fazer, deixa o Esc seguir para quem
+            // tiver algo aberto na tela.
+            const primeira = listaRef.current?.querySelector("button");
+            if (!busca && !primeira) return;
+            e.stopPropagation();
+            e.preventDefault();
+            if (busca) setBusca("");
+            else primeira?.focus();
+          }}
+          placeholder="filtrar tags…"
+          aria-label="Filtrar tags"
+          className="mb-1.5 w-full rounded bg-ink-800 px-2 py-1 text-[11px] text-ink-200
+                     outline-none placeholder:text-ink-400/60 focus:ring-1 focus:ring-accent-400"
+        />
+
+        {/* RF-15: só faz sentido dizer o recorte quando existe um recorte. */}
+        {busca && (
+          <p className="mb-1 text-[10px] tabular-nums text-ink-400">
+            {visiveis.length} de {tags.length}
+          </p>
+        )}
+
+        <div ref={listaRef} className="flex flex-wrap gap-1">
+          {visiveis.map((t) => {
+            const ativa = ativas.includes(t.name);
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => onAlternarTag(t.name)}
+                aria-pressed={ativa}
+                className={`rounded px-1.5 py-0.5 text-[11px] transition ${
+                  ativa ? "bg-accent-500 text-white" : "bg-ink-800 text-ink-400 hover:text-ink-200"
+                }`}
+              >
+                {t.name}
+                <span className="ml-1 opacity-60">{t.noteCount}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* RF-17: vazio explicado é melhor que área em branco. */}
+        {visiveis.length === 0 && (
+          <p className="py-1 text-[11px] text-ink-400/70">nenhuma tag com «{busca}»</p>
+        )}
       </div>
     </>
   );

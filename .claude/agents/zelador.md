@@ -37,9 +37,10 @@ Dívidas já conhecidas, que você deve continuar listando enquanto existirem:
 
 | Item | Situação |
 |---|---|
-| Modelos `Company` e `Event` em `apps/api/prisma/schema.prisma` | Sem rota e sem service. `Event` é a Fase 5 — **não é lixo**. `company` é decisão pendente registrada em `PROPOSTA.md` |
+| Modelos `Company` e `Event` em `apps/api/prisma/schema.prisma` | Sem rota e sem service. `Event` é a Fase 6 — **não é lixo**. `company` é decisão pendente registrada em
+  `docs/old/PROPOSTA-inicial.md` |
 | Lixeira que nunca expurga | A Fase 1 prometeu 30 dias; não há rotina de expurgo |
-| Sem script de `pg_dump` e sem export | Risco de lock-in registrado em `PROPOSTA.md` |
+| Sem script de `pg_dump` e sem export | Risco de lock-in registrado em `docs/old/PROPOSTA-inicial.md` |
 | `TRACO` duplicado | Definido em `Icones.tsx` e repetido em `SeletorTema.tsx` e `ModoNota.tsx` |
 | `Ctrl+K` com duplo vínculo | O handler do editor chama `preventDefault()` mas não `stopPropagation()`, e o global está em `window` — dentro do editor insere o link **e** abre a paleta |
 | README desatualizado | Fala em cinco migrations; existem seis |
@@ -48,7 +49,7 @@ Dívidas já conhecidas, que você deve continuar listando enquanto existirem:
 
 **Nunca reporte estes itens como resquício:**
 
-- **`Company` e `Event`** no schema. São entidades planejadas; `Event` é a próxima fase.
+- **`Company` e `Event`** no schema. São entidades planejadas; `Event` é a Fase 6 (agenda).
 - **O parâmetro `permitido`** de `apps/api/src/modules/links/titulo.service.ts` — existe para que os
   testes injetem a checagem de destino.
 - **Comentários que documentam decisão de planner do Postgres** ou identidade de callback do React.

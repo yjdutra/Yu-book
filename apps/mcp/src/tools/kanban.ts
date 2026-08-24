@@ -46,7 +46,8 @@ export function registrarToolsDeKanban(server: McpServer): void {
       title: "Ver um quadro inteiro",
       description:
         "Devolve as colunas de um quadro na ordem, com os cards de cada uma — título, prazo, " +
-        "prioridade, progresso do checklist e nota vinculada. Cards arquivados não aparecem. " +
+        "prioridade, progresso do checklist, tags e nota vinculada. As tags agrupam cards por " +
+        "assunto, num eixo independente da coluna. Cards arquivados não aparecem. " +
         "A descrição do card não vem aqui: o quadro é uma visão de superfície.",
       inputSchema: {
         id: z.string().uuid().describe("Id do quadro, como devolvido por list_boards."),

@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro ou função usada pelos dois lados.
+description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro ou função usada pelos dois lados.
 ---
 
 # O contrato compartilhado
@@ -16,7 +16,8 @@ Vai:
 - Todo tipo de resposta da API (`NoteDetail`, `BoardSummary`, `Dashboard`…).
 - Todo enum de domínio (`NOTE_KINDS`, `CARD_PRIORITIES`, `LinkKind`).
 - Toda função que os dois lados precisam calcular igual (`normalizarTitulo`, `normalizarUrl`,
-  `parseSearchQuery`, `splitHighlight`, `progressoChecklist`, `idDoYoutube`, `formatarDuracao`).
+  `normalizarTag`, `parseSearchQuery`, `splitHighlight`, `progressoChecklist`, `idDoYoutube`,
+  `formatarDuracao`).
 
 Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/client`, React ou Fastify.
 
@@ -46,7 +47,7 @@ contrato.
 
 ## 4. Os espelhamentos frágeis
 
-Três lugares onde duas implementações precisam concordar e **divergir não gera erro** — gera
+Quatro lugares onde duas implementações precisam concordar e **divergir não gera erro** — gera
 comportamento errado em silêncio. São o motivo principal desta skill existir.
 
 ### 4.1 `normalizarTitulo` ↔ o índice único do Postgres
@@ -77,6 +78,24 @@ final, mas **preserva a query string** (`watch?v=A` e `watch?v=B` são links dif
 
 Se divergirem: o front deixa de detectar duplicata que o banco recusa, ou vice-versa.
 
+### 4.4 `normalizarTag` ↔ a normalização do card no servidor
+
+`normalizarTag` (`packages/shared/src/kanban.ts:48`) é chamada **nos dois lados**: o front normaliza
+para montar o catálogo e comparar (`apps/web/src/components/SeletorDeTags.tsx:51,63`) e
+`normalizarTags` normaliza de novo antes de gravar
+(`apps/api/src/modules/kanban/kanban.service.ts:136`). Corta espaço, remove `#` inicial, colapsa
+espaço interno, baixa a caixa e trunca em `MAX_TAG_TEXTO` — **não remove acento**: `revisão` é
+gravada `revisão`.
+
+Se um lado deixar de chamar: tags visualmente iguais viram entradas diferentes no catálogo do board
+(`Banco` e `banco` lado a lado). Nada falha, nada avisa — só se percebe quando a lista já está suja.
+
+**A chave de comparação de tags é `normalizarTitulo`, não uma função nova.** Quem precisa casar
+`revisao` com `revisão` — a busca do seletor e a da barra lateral (`apps/web/src/lib/tags.ts:24`) —
+usa `normalizarTitulo` de `wikilinks.ts`, a mesma do §4.1. Foi decisão explícita **não** criar uma
+terceira definição de "mesmo texto" no projeto: `normalizarTag` canoniza para gravar,
+`normalizarTitulo` compara. Não escreva uma `normalizarTagParaBusca`.
+
 ## 5. Verificação
 
 Depois de qualquer mudança em `packages/shared`:
@@ -85,4 +104,4 @@ Depois de qualquer mudança em `packages/shared`:
 pnpm --filter @yu-book/shared build && pnpm typecheck
 ```
 
-Se tocou num dos três espelhamentos, rode também `pnpm --filter @yu-book/api test`.
+Se tocou num dos quatro espelhamentos, rode também `pnpm --filter @yu-book/api test`.

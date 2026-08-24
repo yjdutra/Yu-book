@@ -2,12 +2,14 @@ import { CARD_PRIORITIES, MAX_CHECKLIST_ITENS } from "@yu-book/shared";
 import type { CardPriority, CardUpdateInput, ChecklistItem } from "@yu-book/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "../lib/api";
-import { useAtualizarCard, useCard, useExcluirCard } from "../lib/kanban";
+import { useAtualizarCard, useBoard, useCard, useExcluirCard } from "../lib/kanban";
 import { renderMarkdown } from "../lib/markdown";
 import { useCriarNota, useTitulos } from "../lib/notas";
+import { catalogoDeTags } from "../lib/tags";
 import { useAutosave } from "../lib/useAutosave";
 import type { EstadoSalvamento } from "../lib/useAutosave";
 import { RotuloTipo } from "./RotuloTipo";
+import { SeletorDeTags } from "./SeletorDeTags";
 
 /** O `input type="date"` fala yyyy-mm-dd local; o banco fala ISO. */
 function paraCampoData(iso: string | null): string {
@@ -74,6 +76,9 @@ interface Rascunho {
 /** RF-27: painel à direita do board, sem modal e sem cobrir as colunas. */
 export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
   const { data: card, isLoading } = useCard(cardId);
+  // RNF-03: o board já está em cache (viemos dele) — as sugestões de tag saem
+  // dos cards que ele trouxe, sem requisição nova.
+  const { data: board } = useBoard(card?.boardId ?? null);
   const atualizar = useAtualizarCard();
   const excluir = useExcluirCard();
   const criarNota = useCriarNota();
@@ -115,6 +120,8 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
   const { estado, salvarAgora } = useAutosave({ valor: rascunho, chave: cardId, salvar, iguais });
 
   const html = useMemo(() => renderMarkdown(rascunho.descriptionMd), [rascunho.descriptionMd]);
+
+  const tagsDoBoard = useMemo(() => catalogoDeTags(board?.columns ?? []), [board]);
 
   const sugestoes = useMemo(() => {
     const termo = buscaNota.trim().toLowerCase();
@@ -247,6 +254,21 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
             </select>
           </label>
         </div>
+
+        {/* RF-01: o segundo eixo do card. A coluna diz em que ponto ele está;
+            a tag diz de que assunto ele é. */}
+        <section>
+          <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-ink-400">
+            Tags
+          </p>
+          <SeletorDeTags
+            tags={card.tags}
+            sugestoes={tagsDoBoard}
+            // Escolha discreta, como prazo e prioridade: salva na hora, não
+            // entra no autosave do título e da descrição.
+            onMudar={(tags) => aplicar({ tags })}
+          />
+        </section>
 
         {/* RF-28: coluna única com preview alternável — não é o split da nota. */}
         <section>

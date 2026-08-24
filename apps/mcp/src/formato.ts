@@ -87,6 +87,9 @@ export function formatarCard(card: CardSummary): string {
   if (card.dueDate) partes.push(`prazo ${card.dueDate.slice(0, 10)}`);
   if (card.priority !== "media") partes.push(`prioridade ${card.priority}`);
   if (card.checklistTotal > 0) partes.push(`${card.checklistDone}/${card.checklistTotal}`);
+  // As tags são o segundo eixo do quadro (RF-01): sem elas, o modelo só
+  // enxerga estágio e não consegue responder "o que aqui é do assunto X".
+  if (card.tags.length) partes.push(`tags: ${card.tags.join(", ")}`);
   if (card.note) partes.push(`nota: ${card.note.title}`);
   return `${partes.join(" · ")}\n  id: ${card.id}`;
 }
