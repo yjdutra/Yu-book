@@ -1,21 +1,50 @@
-import type { BoardDetail, ColumnDetail } from "@yu-book/shared";
+import type { BoardDetail, CardSummary, ColumnDetail } from "@yu-book/shared";
 import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
   PointerSensor,
   closestCorners,
+  pointerWithin,
+  rectIntersection,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import type { Announcements, DragOverEvent, DragStartEvent, DragEndEvent, Over } from "@dnd-kit/core";
+import type {
+  Announcements,
+  ClientRect,
+  CollisionDetection,
+  DragOverEvent,
+  DropAnimation,
+  DragStartEvent,
+  DragEndEvent,
+  Over,
+  UniqueIdentifier,
+} from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "../lib/api";
 import { useMoverCard, useMoverColuna } from "../lib/kanban";
 import { cardCasaFiltro } from "../lib/tags";
 import { CartaoCard } from "./CartaoCard";
 import { ColunaQuadro, idColunaArrastavel } from "./ColunaQuadro";
+
+/**
+ * RF-21: a faixa que dispara a rolagem automática, por eixo.
+ *
+ * O default é 0,2 da medida do contêiner nos DOIS eixos — num board de 1400px
+ * isso é uma faixa horizontal de 280px em cada borda. Como o dnd-kit percorre
+ * os contêineres roláveis do mais externo para o mais interno e **para no
+ * primeiro que consegue rolar**, essa faixa engole o gesto antes de chegar na
+ * coluna: a primeira e a última coluna de um board largo nunca rolariam na
+ * vertical. Faixa horizontal estreita, faixa vertical um pouco mais generosa.
+ */
+const ROLAGEM = { threshold: { x: 0.06, y: 0.22 } };
+
+const ASSENTAMENTO: DropAnimation = {
+  duration: 180,
+  easing: "cubic-bezier(0.2, 0, 0, 1)",
+};
 
 /** Qual coluna está embaixo do ponteiro: outro card, a área vazia ou a coluna. */
 function colunaDeOver(colunas: ColumnDetail[], over: Over): string | null {
@@ -54,6 +83,39 @@ function moverLocal(
   });
 }
 
+/**
+ * RF-18: o índice de destino é **quantos cards da coluna têm o ponto médio
+ * acima do ponteiro**, ignorando o card que está sendo arrastado.
+ *
+ * A formulação óbvia — "estou sobre qual card, antes ou depois da metade dele" —
+ * oscila: inserir empurra o card sob o cursor, a metade dele cruza o ponteiro,
+ * e a conta se inverte no frame seguinte, de volta e de novo, com a mão parada.
+ *
+ * Esta é idempotente por construção. Inserir na posição k empurra para baixo só
+ * quem tem índice >= k; quem estava acima do ponteiro continua acima, quem
+ * estava abaixo continua abaixo, e recontar devolve k. É um ponto fixo, e não
+ * depende da altura do card arrastado nem de onde ele foi pego.
+ *
+ * De quebra, funciona nos 8px de `gap` entre dois cards e no espaço vazio da
+ * coluna, onde não existe "card sob o cursor" nenhum.
+ */
+function indicePorPonteiro(
+  cards: CardSummary[],
+  cardAtivoId: string,
+  y: number,
+  rects: Map<UniqueIdentifier, ClientRect>,
+): number {
+  let indice = 0;
+  for (const card of cards) {
+    if (card.id === cardAtivoId) continue;
+    const rect = rects.get(card.id);
+    // Card ainda não medido não conta: contá-lo por engano deslocaria a fila
+    // inteira. Ele entra na conta assim que o dnd-kit o medir.
+    if (rect && rect.top + rect.height / 2 < y) indice += 1;
+  }
+  return indice;
+}
+
 function posicaoDoCard(colunas: ColumnDetail[], cardId: string) {
   for (const coluna of colunas) {
     const indice = coluna.cards.findIndex((c) => c.id === cardId);
@@ -88,6 +150,54 @@ export function Quadro({ board, cardAtivoId, tagsFiltro, onAbrirCard }: QuadroPr
    * traduzir índices e torcer.
    */
   const filtrando = tagsFiltro.length > 0;
+
+  /**
+   * O que a última detecção de colisão viu. `onDragOver` não recebe ponteiro
+   * nem retângulos, e lê-los daqui garante que sejam exatamente os dados que
+   * produziram aquele `over` — não uma segunda medição, um frame fora de fase.
+   */
+  const ultimaColisao = useRef<{
+    ponteiro: { x: number; y: number } | null;
+    rects: Map<UniqueIdentifier, ClientRect>;
+  }>({ ponteiro: null, rects: new Map() });
+
+  /**
+   * RF-19: o ponteiro decide; o retângulo é a rede de segurança.
+   *
+   * Encadeado, nunca concatenado: `data.value` tem escalas incompatíveis entre
+   * os algoritmos (distância ascendente em `pointerWithin` e `closestCorners`,
+   * razão de interseção descendente em `rectIntersection`), e só o primeiro
+   * item do array importa — o dnd-kit usa `getFirstCollision`.
+   *
+   * `pointerWithin` devolve vazio quando não há ponteiro, que é sempre o caso
+   * do teclado (RF-26 / INV-30). Por isso o fallback é obrigatório, não
+   * refinamento: sem ele o arraste por teclado para de achar destino.
+   */
+  const detectarColisao = useCallback<CollisionDetection>((args) => {
+    ultimaColisao.current = { ponteiro: args.pointerCoordinates, rects: args.droppableRects };
+
+    const porPonteiro = pointerWithin(args);
+    if (porPonteiro.length > 0) return porPonteiro;
+
+    const porIntersecao = rectIntersection(args);
+    if (porIntersecao.length > 0) return porIntersecao;
+
+    return closestCorners(args);
+  }, []);
+
+  /**
+   * RF-23: o cursor de "segurando" enquanto o gesto durar.
+   *
+   * Num efeito com limpeza, e não em `aoTerminar`: aquele tem quatro saídas
+   * antecipadas, e o componente ainda pode desmontar no meio do arraste (trocar
+   * de board). Qualquer um desses caminhos deixaria a página travada em
+   * `grabbing`.
+   */
+  useEffect(() => {
+    if (!arrastando) return;
+    document.documentElement.setAttribute("data-arrastando", "");
+    return () => document.documentElement.removeAttribute("data-arrastando");
+  }, [arrastando]);
 
   // Durante o arrasto quem manda é o estado local; fora dele, o servidor.
   useEffect(() => {
@@ -145,18 +255,38 @@ export function Quadro({ board, cardAtivoId, tagsFiltro, onAbrirCard }: QuadroPr
     const { active, over } = evento;
     if (!over || active.data.current?.tipo !== "card") return;
     const cardId = String(active.id);
+    const { ponteiro, rects } = ultimaColisao.current;
 
     setColunas((atual) => {
+      // `over` responde uma pergunta só: qual coluna. A posição dentro dela é
+      // geometria, não "sobre qual card estou".
       const destinoId = colunaDeOver(atual, over);
       if (!destinoId) return atual;
 
       const destino = atual.find((c) => c.id === destinoId);
       if (!destino) return atual;
 
-      const sobreCard = over.data.current?.tipo === "card";
-      const alvo = sobreCard ? destino.cards.findIndex((c) => c.id === String(over.id)) : -1;
-      const indice = alvo >= 0 ? alvo : destino.cards.length;
+      let indice: number;
+      if (ponteiro) {
+        indice = indicePorPonteiro(destino.cards, cardId, ponteiro.y, rects);
+      } else {
+        /*
+         * Ramo do teclado (INV-30), inalterado desde a Fase 2.
+         *
+         * O off-by-one aparente está certo: `moverLocal` remove o card ANTES do
+         * splice, então "inserir no índice do alvo" já significa DEPOIS dele
+         * quando o movimento é para baixo na mesma coluna — que é a semântica
+         * que as setas querem. O bug do "nunca depois do último" era só entre
+         * colunas, onde o card não está na lista e o filtro não desloca nada.
+         */
+        const sobreCard = over.data.current?.tipo === "card";
+        const alvo = sobreCard ? destino.cards.findIndex((c) => c.id === String(over.id)) : -1;
+        indice = alvo >= 0 ? alvo : destino.cards.length;
+      }
 
+      // `indice` é posição na lista sem o card ativo; `posicaoDoCard` devolve a
+      // posição na lista com ele. Os dois coincidem no resultado final, porque
+      // inserir em k na lista filtrada deixa o card em k na lista completa.
       const atualPos = posicaoDoCard(atual, cardId);
       if (atualPos?.columnId === destinoId && atualPos.indice === indice) return atual;
 
@@ -198,6 +328,11 @@ export function Quadro({ board, cardAtivoId, tagsFiltro, onAbrirCard }: QuadroPr
     );
   }
 
+  const idsDasColunas = useMemo(
+    () => colunas.map((c) => idColunaArrastavel(c.id)),
+    [colunas],
+  );
+
   const cardArrastado =
     arrastando?.tipo === "card"
       ? colunas.flatMap((c) => c.cards).find((c) => c.id === arrastando.id)
@@ -226,7 +361,8 @@ export function Quadro({ board, cardAtivoId, tagsFiltro, onAbrirCard }: QuadroPr
 
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCorners}
+        collisionDetection={detectarColisao}
+        autoScroll={ROLAGEM}
         accessibility={{ announcements: anuncios }}
         onDragStart={aoIniciar}
         onDragOver={aoPassar}
@@ -235,10 +371,7 @@ export function Quadro({ board, cardAtivoId, tagsFiltro, onAbrirCard }: QuadroPr
       >
         {/* RNF-06: o board rola na horizontal; cada coluna rola sozinha. */}
         <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-4">
-          <SortableContext
-            items={colunas.map((c) => idColunaArrastavel(c.id))}
-            strategy={horizontalListSortingStrategy}
-          >
+          <SortableContext items={idsDasColunas} strategy={horizontalListSortingStrategy}>
             {colunas.map((coluna) => (
               <ColunaQuadro
                 key={coluna.id}
@@ -262,7 +395,9 @@ export function Quadro({ board, cardAtivoId, tagsFiltro, onAbrirCard }: QuadroPr
           </SortableContext>
         </div>
 
-        <DragOverlay>
+        {/* O assentamento ao soltar: sem ele o card some do cursor e reaparece
+            na coluna, e o olho perde o movimento. */}
+        <DragOverlay dropAnimation={ASSENTAMENTO}>
           {cardArrastado ? (
             <div className="w-72 rotate-1">
               <CartaoCard card={cardArrastado} arrastando />

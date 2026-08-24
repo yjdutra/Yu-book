@@ -248,3 +248,15 @@ body {
 .hljs-params {
   color: var(--hljs-variavel);
 }
+
+/* ---------------------------------------------------------------
+   Arraste do kanban (RF-23)
+
+   O cursor precisa dizer "segurando" o gesto inteiro. `document.body.style`
+   não serve: os cards têm `cursor-grab` próprio, e o ponteiro passa o arraste
+   todo em cima deles — o valor do descendente ganha. O atributo no `<html>`,
+   com `!important`, é o mesmo idioma de `data-tema`, e vence de lá de cima.
+   --------------------------------------------------------------- */
+:root[data-arrastando] * {
+  cursor: grabbing !important;
+}

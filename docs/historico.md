@@ -9,6 +9,72 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-08-24 — Fase 5, Etapa B: o arraste do kanban, e o índice que não podia oscilar
+
+Entregue a precisão do arraste. Só `apps/web` mudou; contrato, banco, API e MCP ficaram intactos.
+Requisitos em [`prd-fase-5-refino.md`](prd-fase-5-refino.md) §5.3.
+
+**O índice de inserção virou contagem geométrica, não "o ponto médio do card sob o cursor".** A
+regra do ponto médio, que era a redação original de RF-18, oscila: inserir empurra o card que estava
+sob o cursor, a metade dele cruza o ponteiro, e a conta se inverte no frame seguinte — com a mão
+parada. O vizinho pulava sozinho. A contagem — quantos cards da coluna têm o ponto médio acima do
+ponteiro, ignorando o arrastado — é idempotente por construção: inserir em `k` empurra só quem tem
+índice `≥ k`, então recontar devolve `k` de novo. Não depende da altura do card arrastado nem de
+onde ele foi pego. RF-18 foi reescrito no PRD com essa explicação, para que a redação antiga não
+volte parecendo simplificação.
+
+**`MeasuringStrategy.Always` foi descartado depois de verificado no `dist`, não deduzido.** RF-20
+pedia. No `@dnd-kit/core` 6.3.1 instalado, `isDisabled()` devolve `false` tanto para `Always` quanto
+para o default enquanto o arraste acontece — os dois são idênticos durante o gesto —, e a remedição
+periódica depende de `frequency` **numérico**, que o default deixa como a string `"optimized"`. Quem
+remede é o `SortableContext`, a cada mudança de `items`, e mover o card no estado local muda `items`
+a cada `dragOver`. Trocar a estratégia só acrescentaria medição **fora** do arraste. RF-20 virou um
+bloco de "já atendido, não implementar" no PRD, com o motivo escrito: sem isso, a próxima leitura do
+requisito reintroduz a mudança e o custo volta sem que nada acuse.
+
+**As estratégias de ordenação são assimétricas de propósito: desligadas nos cards, ligadas nas
+colunas.** `verticalListSortingStrategy` deslocava o vizinho pela altura do card ativo em cima de um
+DOM que já tinha sido reordenado pelo estado local — deslocamento duplo, e o `SortableContext`
+religava os transforms justamente no primeiro frame em que a lista se repete, que é quando a mão
+para para mirar. Nos cards, quem abre o vão é o DOM. Nas colunas não dá para desligar: ali os
+`items` não mudam durante o gesto e o transform é o único mecanismo que existe. Padronizar os dois
+lados quebra um deles, e a tentação de padronizar é real porque o código fica com dois
+`SortableContext` visivelmente diferentes lado a lado. Virou RF-27 no PRD e INV-36 no catálogo de
+invariantes.
+
+**O card do vão some por opacidade e nunca por `visibility` ou `display`.** Ele é o elemento focado,
+e é nele que o `KeyboardSensor` escuta. Escondê-lo de verdade tiraria o foco do documento e mataria
+o arraste por teclado inteiro — e **nada acusaria**: `typecheck` passa, os testes da API passam, e
+não existe teste de front neste projeto. Pela mesma razão o contorno tracejado é `outline` e não
+`border`: borda mudaria o box e dispararia remedição da coluna no meio do gesto.
+
+**O limiar do auto-scroll ficou assimétrico entre os eixos (`{x: 0.06, y: 0.22}`).** O default de
+0,2 da largura cria uma faixa de ~280 px num board de 1400 px, e o dnd-kit para no **primeiro**
+contêiner que consegue rolar: dentro dessa faixa, o board horizontal ganha sempre, e a primeira e a
+última coluna nunca rolariam na vertical. Estreitar o eixo x devolve a rolagem vertical às colunas
+das pontas sem tirar a horizontal do board. É a única mudança da etapa apoiada em **análise do
+comportamento da biblioteca**, e não em observação do gesto — o que a torna a primeira candidata a
+estar errada.
+
+**Pendência, e é a que mais pesa: a verificação à mão do gesto não foi feita.** Nenhum portão
+automático valida esta etapa. O que passou foi `pnpm typecheck` nos quatro pacotes, os 55 testes de
+integração da API (rodados como regressão; nenhum novo, porque a API não mudou) e o build do front —
+e nenhum deles observa um arraste. **CA-14 a CA-22 estão implementados e não verificados.** O
+operador decidiu fechar assim mesmo para começar a Etapa C; o registro fica para que ninguém leia
+"entregue" como "conferido". Dois pontos merecem destaque quando a conferência acontecer:
+
+1. **Arrastar uma posição e parar a mão.** Nenhum vizinho pode pular. É o sintoma que motivou a
+   etapa inteira e o que a contagem geométrica e as estratégias desligadas existem para eliminar —
+   se ele sobrevive, a hipótese estava errada, não o ajuste.
+2. **Rolagem vertical na primeira e na última coluna de um board largo**, com o board também
+   rolando na horizontal. É a única mudança sem observação por trás.
+
+O `curador` já rodou na mesma sessão: INV-35 (o índice geométrico e por que a regra do ponto médio
+oscila) e INV-36 (a assimetria das estratégias de ordenação) entraram em `invariantes-yu-book`, e
+INV-30 e INV-33 ganharam notas — o catálogo está em 272 de 300 linhas, perto do teto.
+
+---
+
 ## 2026-08-24 — Fase 5, Etapa A: tag de card, e o eixo que faltava no quadro
 
 Entregues as tags de card e a busca no cartão de tags da barra lateral. Requisitos em

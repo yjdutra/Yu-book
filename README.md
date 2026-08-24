@@ -3,13 +3,16 @@
 Segundo cérebro pessoal: notas de aula, projetos, trilha de estudos e trabalho, com kanban por
 workspace, gaveta de links e um dashboard que responde o que precisa de você agora.
 
-Proposta e decisões de escopo em [PROPOSTA.md](PROPOSTA.md).
+Proposta e decisões de escopo em
+[docs/old/PROPOSTA-inicial.md](docs/old/PROPOSTA-inicial.md) — registro do que se decidiu no começo,
+não do estado de hoje.
 Requisitos por fase em [docs/old/prd-fase-1-notas.md](docs/old/prd-fase-1-notas.md),
 [docs/old/prd-fase-2-kanban.md](docs/old/prd-fase-2-kanban.md),
-[docs/old/prd-fase-3-links.md](docs/old/prd-fase-3-links.md) e
-[docs/old/prd-fase-4-dashboard.md](docs/old/prd-fase-4-dashboard.md).
+[docs/old/prd-fase-3-links.md](docs/old/prd-fase-3-links.md),
+[docs/old/prd-fase-4-dashboard.md](docs/old/prd-fase-4-dashboard.md) e
+[docs/prd-fase-5-refino.md](docs/prd-fase-5-refino.md).
 
-**Status: Fases 0 a 4 concluídas.**
+**Status: Fases 0 a 4 concluídas; Fase 5 em andamento, com as Etapas A e B entregues.**
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown split ao vivo com autosave, tags, workspaces,
@@ -21,8 +24,15 @@ Requisitos por fase em [docs/old/prd-fase-1-notas.md](docs/old/prd-fase-1-notas.
   janela, título lido da página com guarda contra endereço interno.
 - **Fase 4 — dashboard e tema claro:** tela inicial em `/` com prazos, notas recentes e a fila de
   links; a aplicação deixou de ser dark-only.
+- **Fase 5 — refino do que já existe**, em três etapas independentes.
+  **Etapa A entregue:** tags de card no kanban, com barra de filtro no quadro, e busca na lista de
+  tags da barra lateral. **Etapa B entregue:** precisão e fluidez do arraste — destino decidido pelo
+  ponteiro, vão tracejado no lugar do card fantasma e menos repintura durante o gesto; os critérios
+  de aceitação dela ainda **não foram verificados à mão**, ver
+  [docs/historico.md](docs/historico.md). **Etapa C ainda não começou.**
 
-Próxima: Fase 5 — agenda no Google Calendar.
+Próximo: Fase 5, Etapa C — botão de copiar a nota e editor Markdown ao vivo. A agenda no Google
+Calendar passou para a Fase 6.
 
 ---
 
@@ -387,6 +397,11 @@ para a lixeira desfaz o vínculo e mantém o card.
 - **Campos de aula** (módulo, instrutor, link da gravação) ficam em `note.meta` (JSONB), num painel
   recolhível — adicionar um campo novo não pede migration.
 - **Tag sem nenhuma nota é apagada sozinha**, para o autocomplete não acumular lixo.
+- **Tag de nota e tag de card são coisas diferentes.** A de nota tem cor, é global no seu acervo e
+  vive numa tabela; a de card é texto livre na linha do card, vale só dentro daquele board e morre
+  com ele. O nome coincide, o comportamento não.
+- **Com filtro de tag ativo no quadro, mover card fica desabilitado** — mouse e teclado. A posição
+  de destino seria contada sobre o recorte e o servidor renumeraria a coluna inteira em cima dela.
 - **Nome de board é único por workspace** e nome de coluna é único por board — duas colunas "Feito"
   no mesmo board é erro de digitação, não intenção.
 - **Card não atravessa boards.** Mover para uma coluna de outro board é recusado.
@@ -402,10 +417,19 @@ O contraste dos dois temas é verificado por cálculo, não por impressão: **74
 auditoria encontrou e corrigiu inclusive uma falha antiga do tema escuro — branco sobre
 `accent-500` estava em 4,47:1, abaixo do mínimo de 4,5.
 
-## O que vem na Fase 5
+## O que falta na Fase 5
 
-Agenda no Google Calendar: um botão "agendar" no card e na nota cria o evento num calendário
-dedicado, com link de volta. Sem tela de calendário aqui — quem mostra é o Google.
+A Fase 5 refina o que já existe, em três etapas independentes
+([PRD](docs/prd-fase-5-refino.md)). A **Etapa A** está entregue: tags de card, filtro por tag no
+quadro e busca na lista de tags da barra lateral.
 
-Depois, busca semântica (Fase 6, opcional). Lista de empresas saiu do escopo — a Cod3rs já tem uma,
-compartilhada com o orientador.
+- **Etapa B — arraste do kanban:** índice de inserção pelo ponto médio do card sob o ponteiro,
+  colisão priorizando o ponteiro, rolagem automática perto das bordas e vão tracejado no lugar de
+  destino. Não toca contrato nem banco.
+- **Etapa C — a nota:** botão de copiar a nota inteira como Markdown e um quarto modo de edição,
+  "ao vivo", que esconde a marcação fora da linha do cursor. O motor do editor ainda não está
+  decidido (D-01 do PRD) e nada da etapa começa antes disso.
+
+Depois: **Fase 6** — agenda no Google Calendar, um botão "agendar" no card e na nota criando o
+evento num calendário dedicado, sem tela de calendário aqui. E busca semântica, opcional. Lista de
+empresas saiu do escopo — a Cod3rs já tem uma, compartilhada com o orientador.

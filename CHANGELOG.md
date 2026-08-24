@@ -13,6 +13,57 @@ _Nada pendente._
 
 ---
 
+## [0.5.0] — 2026-08-24
+
+**Etapa B da Fase 5**: precisão e fluidez do arraste do kanban. Mudou **só `apps/web`** — nenhum
+contrato, migration, endpoint ou primitiva do MCP —, então só ele bumpa, de `0.3.0` para `0.4.0`;
+`apps/api`, `apps/mcp` e `packages/shared` seguem em `0.3.0`. A Etapa **C** (copiar nota e editor ao
+vivo) não começou: a Fase 5 **não** está concluída. Requisitos em
+[`docs/prd-fase-5-refino.md`](docs/prd-fase-5-refino.md) §5.3 (RF-18 a RF-27).
+
+**Esta etapa não tem portão automático que a valide.** `pnpm typecheck` nos quatro pacotes, os 55
+testes de integração da API (regressão — nenhum novo, a Etapa B não toca a API) e o build do front
+passaram, mas o que ela entrega é tato, e não existe teste de front no projeto: CA-14 a CA-22 estão
+implementados e **não verificados à mão**. O que falta conferir está em
+[`docs/historico.md`](docs/historico.md).
+
+### Alterado
+- **O destino do arraste passa a ser decidido pelo ponteiro** (RF-19): `pointerWithin` primeiro,
+  `rectIntersection` quando o ponteiro não está sobre nada e `closestCorners` como último recurso —
+  encadeados, nunca somados, porque a pontuação de cada algoritmo está em escala própria e misturar
+  as listas ordena por números incomparáveis. O arraste por teclado, que não tem coordenada de
+  mouse, cai no fallback retangular e continua com a mesma completude (INV-30).
+- **A posição de inserção é contada, não apontada** (RF-18): o índice é quantos cards da coluna têm
+  o ponto médio acima do ponteiro, ignorando o card arrastado. Antes era o índice do card sob o
+  cursor.
+- **O destino aparece como um vão de contorno tracejado**, no lugar do card fantasma em opacidade
+  reduzida (RF-22).
+- **O gesto ficou mais legível**: cursor de "segurando" durante todo o arraste e animação de
+  assentamento ao soltar (RF-23).
+- **A rolagem automática ficou mais estreita na horizontal** e mais generosa na vertical (RF-21).
+  Com o limiar padrão, a faixa lateral de um board largo engolia a primeira e a última coluna, e
+  elas nunca rolavam na vertical.
+- **Menos repintura durante o arraste** (RF-25): a lista de cards visíveis devolve a mesma
+  referência quando não há filtro, os `items` dos dois `SortableContext` são memoizados e o cartão
+  do card só repinta quando os dados dele mudam.
+- Nada do arraste por teclado mudou (RF-26): `Espaço` pega e solta, `Esc` cancela, as setas movem e
+  cada etapa continua sendo anunciada.
+- O PRD da Fase 5 foi corrigido em três pontos, e um deles **renumerou a Etapa C**: RF-18 passou a
+  descrever a contagem geométrica com a nota de por que a redação anterior oscilava; RF-20 virou um
+  bloco de "já atendido, não implementar"; e entrou o RF-27, descoberto na investigação. A Etapa C,
+  que ia de RF-27 a RF-40, agora vai de **RF-28 a RF-41**.
+
+### Corrigido
+- **A última posição de uma coluna cheia era inalcançável**, a não ser mirando a margem inferior do
+  quadro: como o índice vinha do card sob o cursor, não havia card abaixo do último para apontar.
+- **O vizinho trocava de lugar sozinho com a mão parada.** Duas causas somadas: a regra do ponto
+  médio se invertia no frame seguinte ao da inserção, e a estratégia de ordenação vertical dos
+  cards deslocava de novo o vizinho que o DOM já tinha reordenado (RF-27). As estratégias dos cards
+  foram desligadas; as das **colunas** continuam ligadas, porque ali os itens não mudam durante o
+  gesto e o deslocamento é o único mecanismo que existe.
+
+---
+
 ## [0.4.0] — 2026-08-24
 
 **Etapa A da Fase 5**: tags de card no kanban e busca na lista de tags da barra lateral. As duas

@@ -1,4 +1,5 @@
 import type { CardPriority, CardSummary } from "@yu-book/shared";
+import { memo } from "react";
 
 /** RF-32: vencido e "vence logo" são estados diferentes, com destaques diferentes. */
 export type EstadoPrazo = "vencido" | "proximo" | "normal";
@@ -39,8 +40,18 @@ interface CartaoCardProps {
   arrastando?: boolean;
 }
 
-/** RF-31: a face do card. Sem descrição — ela vive no painel. */
-export function CartaoCard({ card, arrastando = false }: CartaoCardProps) {
+/**
+ * RF-31: a face do card. Sem descrição — ela vive no painel.
+ *
+ * RF-25: memoizado porque é o único componente da árvore do quadro que não lê
+ * o contexto do `SortableContext` — quem lê repinta de qualquer jeito. Durante
+ * o arraste, `moverLocal` preserva a identidade de todo card que não se moveu,
+ * então nenhum deles repinta.
+ */
+export const CartaoCard = memo(function CartaoCard({
+  card,
+  arrastando = false,
+}: CartaoCardProps) {
   const prazo = estadoDoPrazo(card.dueDate);
   const prioridade = ESTILO_PRIORIDADE[card.priority];
 
@@ -105,4 +116,4 @@ export function CartaoCard({ card, arrastando = false }: CartaoCardProps) {
       </div>
     </div>
   );
-}
+});

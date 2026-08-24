@@ -46,14 +46,14 @@ e `GavetaLinks` são `lazy()` porque carregam `@dnd-kit`, que não pode entrar n
   autosave **nunca dispara**.
 - **`carregadaRef` guarda o carregamento do rascunho.** Sem ele, todo refetch sobrescreve o que está
   sendo digitado.
-- **Durante o arraste o estado local vence; fora dele, o servidor vence** (`Quadro.tsx:80`).
-- **`Espaço` pega e solta no kanban, não `Enter`** (`Quadro.tsx:90`), porque `Enter` abre o card. O
-  `PointerSensor` exige 4 px de deslocamento para que clique continue clique.
 - **`onMouseDown` com `preventDefault` no autocomplete de wikilink**, não `onClick` — senão o campo
   perde o foco antes da inserção.
 - **Marcação de link quebrado roda em `useLayoutEffect`**, não `useEffect`, senão pisca a cada render.
 
-Carregue `invariantes-yu-book` para o catálogo completo, com identificador por invariante.
+O kanban tem regra demais para caber aqui — o arraste inteiro (estado local contra servidor,
+teclado, índice de inserção, filtro de tag) vive em INV-29 a INV-36. Carregue
+`invariantes-yu-book` para o catálogo completo, com identificador e `arquivo:linha` por
+invariante, antes de tocar em `Quadro.tsx` ou `ColunaQuadro.tsx`.
 
 ## Proibições
 
