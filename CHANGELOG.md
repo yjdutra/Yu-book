@@ -13,6 +13,60 @@ _Nada pendente._
 
 ---
 
+## [0.3.0] — 2026-08-24
+
+Etapas 2 e 4 do servidor MCP: com elas o servidor passa a expor as três primitivas do protocolo —
+tools, resources e prompts — e as propriedades de contrato que elas exigiram. **Nenhuma migration
+nesta versão:** as colunas já existiam na tabela; o que mudou foi o que a API expõe (RF-25).
+
+Os quatro pacotes vão a `0.2.0`. `packages/shared` mudou contrato, e a regra do projeto manda bumpar
+junto quem consome o contrato — `apps/api`, `apps/web` e também `apps/mcp`, que importa os mesmos
+tipos. Requisitos em [`docs/prd-mcp-resources-e-prompts.md`](docs/prd-mcp-resources-e-prompts.md).
+
+### Adicionado
+- **Resources do servidor MCP** (RF-01 a RF-06): `yubook://notas`, `yubook://boards`,
+  `yubook://tags` e `yubook://workspaces`. São índices — identificam e rotulam, sem corpo de nota
+  nem descrição de card. O catálogo de notas para em 200 itens e **declara o total real quando
+  corta** (RNF-01): cap silencioso faz o modelo concluir que o acervo é só aquilo. Notas na lixeira
+  não aparecem.
+- **Resource templates** `yubook://nota/{id}` e `yubook://board/{id}` (RF-07 a RF-10) — o conteúdo
+  sob demanda, endereçado por uuid, para que renomear uma nota não invalide uma URI já injetada no
+  contexto de alguém. Verificado contra a API de produção: `yubook://nota/{id}` e a tool `get_note`
+  devolvem os mesmos 5080 bytes, caractere a caractere (CA-05).
+- **Prompts** `revisao_semanal` e `retomar_contexto` (RF-13 a RF-18). Buscam pelas tools e declaram
+  o que **não** fazer: não inventar prazo que não veio da API, não embutir conteúdo de nota na
+  própria mensagem, citar o `id` de cada nota mencionada.
+- **Tool `get_dashboard`** (RF-11, RF-12): prazos vencidos, prazos dos próximos sete dias, notas
+  editadas recentemente e o tamanho da fila de links, numa requisição só. É a fonte dos prompts —
+  nenhum deles remonta esse recorte por conta própria.
+- Nono agente especialista, `mcp`, dono de `apps/mcp`, e a sétima skill, `servidor-mcp-yu-book`. O
+  agente opera em dois modos: criar ou alterar uma primitiva, e verificar propagação depois que o
+  domínio mudou (RF-38i a RF-38m, RF-50a).
+
+### Alterado
+- `CardSummary` passa a trazer `updatedAt` (RF-23). "O que está parado" é uma pergunta sobre o
+  quadro inteiro, e respondê-la exigia uma requisição por card. `CardDetail` herda a propriedade em
+  vez de declarar a sua.
+- `GET /notes/titles` passa a devolver `NoteTitle`, com o nome do workspace e `updatedAt` (RF-24).
+  Um endpoint só serve ao autocomplete de `[[…]]` no front e ao catálogo do servidor MCP.
+- A tool `get_board` passa a formatar pela mesma função do resource equivalente (RF-19): tool e
+  resource são duas superfícies do mesmo recurso, e o que se duplica de propósito é a superfície,
+  nunca a implementação.
+- O `revisor` ganhou um passo no checklist: diff que toca `packages/shared/src` vira observação de
+  que o agente `mcp` deve rodar no modo de propagação.
+- `docs/casos-para-conteudo.md` foi para `docs/temp/` — é matéria-prima de outro projeto, não
+  documentação técnica do Yu-book.
+
+### Corrigido
+- O catálogo de notas era orçado em "~40 bytes por nota", número que nunca foi medido e que chegou a
+  ser copiado para um requisito não funcional. A medição real dá ~100 bytes, porque o uuid sozinho
+  ocupa 36 caracteres. Corrigido no comentário de `titulos()` e em RNF-01, que passou a limitar o
+  catálogo por **quantidade** de itens em vez de por tamanho de acervo.
+- JSDoc duplicado em `titulos()`: o comentário antigo sobreviveu a uma reescrita e ficou empilhado
+  com o novo.
+
+---
+
 ## [0.2.0] — 2026-08-22
 
 Infraestrutura de trabalho e a primeira etapa do servidor MCP. **Nenhum dos serviços deployados

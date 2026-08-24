@@ -9,6 +9,54 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-08-24 — MCP, Etapas 2 e 4: o agente `mcp` e o portão que estava vermelho
+
+Fechadas as três primitivas do protocolo em `apps/mcp`. Requisitos em
+[`prd-mcp-resources-e-prompts.md`](prd-mcp-resources-e-prompts.md).
+
+**Nasceu o agente `mcp` por causa de um risco que nenhum portão pega.** `apps/mcp` era o único
+pacote sem dono, mas não foi a lacuna organizacional que decidiu: foi o modo de falha. Campo novo
+no domínio, entidade nova, filtro novo — nada disso **quebra** o servidor MCP. `pnpm typecheck`
+passa, a suíte da API passa, e o servidor simplesmente continua expondo o mundo de ontem. O
+precedente estava à mão: `updatedAt` existia na tabela `card` desde a Fase 2 e só chegou à face do
+card agora, quando um prompt precisou dele. Uma falha silenciosa só se pega por procedimento, então
+o agente ganhou um modo B — verificar propagação depois que o domínio muda — com a obrigação de
+**declarar quando nada precisa mudar**, porque silêncio é indistinguível de esquecimento. E o
+`revisor` passou a apontar a mesma verificação quando o diff toca `packages/shared/src`, para o caso
+de ninguém chamar o agente.
+
+**A skill do MCP foi escrita, não baixada.** Existe skill genérica de servidor MCP disponível, e ela
+seria pior que nada aqui. Skill é prescritiva, e quase toda decisão nossa é o oposto do padrão que
+uma skill genérica ensina: o servidor é cliente da API e não do banco, a resposta é texto compacto e
+não JSON, `search_notes` não devolve corpo de nota, a identidade é uuid e não título, o esquema fica
+em português. Uma skill genérica não teria dito nada disso e teria contradito parte. O que se
+importa de fora é conhecimento do protocolo — que o SDK já traz na tipagem.
+
+**Propriedade nova sem migration.** `CardSummary.updatedAt` e o `NoteTitle` com workspace saíram de
+colunas que já existiam: o que faltava era a API expô-las. Virou regra do PRD (RF-25) — se uma
+propriedade da superfície do MCP exigir coluna nova, ela não entra nessa etapa e vira pedido
+separado. O servidor MCP não é motivo suficiente para mexer no modelo de dados.
+
+**Estimativa não medida vira requisito.** O comentário de `titulos()` dizia "~40 bytes por nota".
+Ninguém mediu, e o número é impossível: o uuid sozinho tem 36 caracteres. A medição real deu ~98 B.
+O problema não foi o comentário errado — foi ele ter sido copiado para um RNF antes de alguém
+conferir. O teto do catálogo passou a ser por **quantidade** de itens (200), que é o que se
+consegue garantir sem medir de novo a cada mudança de campo.
+
+**O único portão automático do projeto estava vermelho havia semanas.** A suíte de integração da API
+acusou 15 falhas. Antes de atribuí-las ao trabalho da sessão, o trabalho foi guardado e a suíte
+rodou contra o código original: **as mesmas 15 falhas**. A causa era `public.link` não existir no
+banco local — as migrations de duas fases nunca tinham sido aplicadas ali. Depois de `db:deploy`,
+47 de 47. Duas lições: rodar a suíte contra o código original antes de culpar o diff, e que um
+portão que ninguém roda não é portão. Fica a pendência de rodar a suíte no começo da sessão, não no
+fim, já que não existe CI para fazê-lo.
+
+**`docs/` é documentação técnica do Yu-book.** O dossiê de casos foi para `docs/temp/`: é
+matéria-prima para outro projeto gerar conteúdo, e material que descreve o projeto de fora não deve
+concorrer com PRD e histórico na busca de quem procura como o Yu-book funciona.
+
+---
+
 ## 2026-08-22 — Servidor MCP, Etapa 1, e o agente `publicador`
 
 Primeira etapa do servidor MCP do Yu-book em `apps/mcp`: quatro tools de leitura sobre stdio.
