@@ -1,5 +1,11 @@
 import { splitHighlight } from "@yu-book/shared";
-import type { CardSummary, NoteDetail, SearchResult } from "@yu-book/shared";
+import type {
+  BoardDetail,
+  CardSummary,
+  Dashboard,
+  NoteDetail,
+  SearchResult,
+} from "@yu-book/shared";
 
 /**
  * O orçamento de contexto é o assunto desta camada.
@@ -82,4 +88,74 @@ export function formatarCard(card: CardSummary): string {
   if (card.checklistTotal > 0) partes.push(`${card.checklistDone}/${card.checklistTotal}`);
   if (card.note) partes.push(`nota: ${card.note.title}`);
   return `${partes.join(" · ")}\n  id: ${card.id}`;
+}
+
+/**
+ * O quadro como texto. Vive aqui, e não na tool, porque `get_board` e o
+ * resource `yubook://board/{id}` precisam produzir exatamente o mesmo texto —
+ * duas implementações divergem, e a divergência aparece como o mesmo recurso
+ * com duas caras (RN-03).
+ */
+export function formatarQuadro(board: BoardDetail): string {
+  const linhas = [`# ${board.name}`, `workspace: ${board.workspaceName}`, ""];
+
+  for (const coluna of board.columns) {
+    // O limite de WIP avisa e não bloqueia (INV-15) — informamos como o quadro
+    // informa, sem sugerir que estourar seja erro.
+    const wip = coluna.wipLimit ? ` [${coluna.cards.length}/${coluna.wipLimit}]` : "";
+    linhas.push(`## ${coluna.name}${wip}`);
+    linhas.push(coluna.cards.length ? coluna.cards.map(formatarCard).join("\n") : "_(vazia)_");
+    linhas.push("");
+  }
+
+  if (board.archivedCount > 0) {
+    linhas.push(`_${board.archivedCount} card(s) arquivado(s), fora do quadro._`);
+  }
+
+  return linhas.join("\n");
+}
+
+/** O agregado da tela inicial como texto. Fonte única dos prompts. */
+export function formatarDashboard(d: Dashboard): string {
+  const linhas: string[] = [];
+
+  const prazo = (c: { title: string; dueDate: string; priority: string; boardName: string; columnName: string; id: string }) =>
+    `- ${c.title} — vence ${c.dueDate.slice(0, 10)} · prioridade ${c.priority} · ` +
+    `${c.boardName} / ${c.columnName}\n  id: ${c.id}`;
+
+  linhas.push("## Prazos vencidos");
+  if (d.prazos.vencidos.length === 0) linhas.push("_nenhum_");
+  else {
+    linhas.push(...d.prazos.vencidos.map(prazo));
+    // O recorte mostra alguns; o total diz quantos ficaram de fora, para o
+    // modelo não concluir que a lista é tudo o que existe.
+    const resto = d.prazos.totalVencidos - d.prazos.vencidos.length;
+    if (resto > 0) linhas.push(`_e mais ${resto} vencido(s) fora deste recorte._`);
+  }
+
+  linhas.push("", "## Vence nos próximos 7 dias");
+  if (d.prazos.proximos.length === 0) linhas.push("_nenhum_");
+  else {
+    linhas.push(...d.prazos.proximos.map(prazo));
+    const resto = d.prazos.totalProximos - d.prazos.proximos.length;
+    if (resto > 0) linhas.push(`_e mais ${resto} fora deste recorte._`);
+  }
+
+  linhas.push("", "## Notas editadas recentemente");
+  linhas.push(
+    d.notas.length === 0
+      ? "_nenhuma_"
+      : d.notas
+          .map((n) => `- ${n.title} (${n.kind}) — ${n.updatedAt.slice(0, 10)}\n  id: ${n.id}`)
+          .join("\n"),
+  );
+
+  linhas.push("", "## Fila de links");
+  linhas.push(
+    d.links.total === 0
+      ? "_vazia_"
+      : `${d.links.total} item(ns) guardado(s) para ver depois. Nada aqui expira.`,
+  );
+
+  return linhas.join("\n");
 }

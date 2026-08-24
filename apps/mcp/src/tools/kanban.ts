@@ -1,9 +1,9 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { BoardDetail, BoardSummary } from "@yu-book/shared";
+import type { BoardDetail, BoardSummary, Dashboard } from "@yu-book/shared";
 import { api } from "../cliente.js";
 import { comErro } from "../erros.js";
-import { formatarCard } from "../formato.js";
+import { formatarDashboard, formatarQuadro } from "../formato.js";
 
 export function registrarToolsDeKanban(server: McpServer): void {
   server.registerTool(
@@ -54,27 +54,31 @@ export function registrarToolsDeKanban(server: McpServer): void {
     },
     comErro(async ({ id }) => {
       const board = await api.get<BoardDetail>(`/boards/${id}`);
+      return { content: [{ type: "text", text: formatarQuadro(board) }] };
+    }),
+  );
 
-      const linhas = [`# ${board.name}`, `workspace: ${board.workspaceName}`, ""];
-
-      for (const coluna of board.columns) {
-        // O limite de WIP avisa e não bloqueia (INV-15) — informamos como o
-        // quadro informa, sem sugerir que estourar seja erro.
-        const wip = coluna.wipLimit ? ` [${coluna.cards.length}/${coluna.wipLimit}]` : "";
-        linhas.push(`## ${coluna.name}${wip}`);
-        linhas.push(
-          coluna.cards.length
-            ? coluna.cards.map(formatarCard).join("\n")
-            : "_(vazia)_",
-        );
-        linhas.push("");
-      }
-
-      if (board.archivedCount > 0) {
-        linhas.push(`_${board.archivedCount} card(s) arquivado(s), fora do quadro._`);
-      }
-
-      return { content: [{ type: "text", text: linhas.join("\n") }] };
+  server.registerTool(
+    "get_dashboard",
+    {
+      title: "O que precisa de atenção agora",
+      description:
+        "Devolve o agregado da tela inicial numa requisição só: prazos vencidos, prazos dos " +
+        "próximos 7 dias, notas editadas recentemente e o tamanho da fila de links. É a fonte " +
+        "dos prompts de revisão — prefira esta tool a montar o mesmo recorte com várias chamadas.",
+      inputSchema: {
+        workspaceId: z
+          .string()
+          .uuid()
+          .optional()
+          .describe("Restringe prazos e notas a um workspace. A fila de links nunca é filtrada."),
+      },
+    },
+    comErro(async ({ workspaceId }) => {
+      const busca = new URLSearchParams();
+      if (workspaceId) busca.set("workspaceId", workspaceId);
+      const dados = await api.get<Dashboard>("/dashboard", busca);
+      return { content: [{ type: "text", text: formatarDashboard(dados) }] };
     }),
   );
 }
