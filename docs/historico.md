@@ -48,7 +48,7 @@ livres nos dois verdes sobrando, em vez de inventar um critério de agrupamento 
 ## 2026-08-24 — MCP, Etapas 2 e 4: o agente `mcp` e o portão que estava vermelho
 
 Fechadas as três primitivas do protocolo em `apps/mcp`. Requisitos em
-[`prd-mcp-resources-e-prompts.md`](prd-mcp-resources-e-prompts.md).
+[`old/prd-mcp-resources-e-prompts.md`](old/prd-mcp-resources-e-prompts.md).
 
 **Nasceu o agente `mcp` por causa de um risco que nenhum portão pega.** `apps/mcp` era o único
 pacote sem dono, mas não foi a lacuna organizacional que decidiu: foi o modo de falha. Campo novo
@@ -200,7 +200,7 @@ Nenhum token de cor mudou. O redesenho ficou contido em quatro arquivos.
 ## 2026-08-14 — Fases 0 a 4
 
 Entregues em sequência, sem release intermediário — daí a versão única `0.1.0` no changelog.
-As decisões de escopo estão em [`../PROPOSTA.md`](../PROPOSTA.md) e os requisitos nos PRDs de fase.
+As decisões de escopo estão em [`old/PROPOSTA-inicial.md`](old/PROPOSTA-inicial.md) e os requisitos nos PRDs de fase.
 
 **A decisão que sustenta o resto: uma entidade forte, não sete.** Uma `Note` com um campo `kind`, em
 vez de tabelas separadas para aula, projeto, trilha e trabalho. É o que faz uma busca só atravessar

@@ -21,7 +21,7 @@ nesta versão:** as colunas já existiam na tabela; o que mudou foi o que a API 
 
 Os quatro pacotes vão a `0.2.0`. `packages/shared` mudou contrato, e a regra do projeto manda bumpar
 junto quem consome o contrato — `apps/api`, `apps/web` e também `apps/mcp`, que importa os mesmos
-tipos. Requisitos em [`docs/prd-mcp-resources-e-prompts.md`](docs/prd-mcp-resources-e-prompts.md).
+tipos. Requisitos em [`docs/old/prd-mcp-resources-e-prompts.md`](docs/old/prd-mcp-resources-e-prompts.md).
 
 ### Adicionado
 - **Resources do servidor MCP** (RF-01 a RF-06): `yubook://notas`, `yubook://boards`,
