@@ -32,6 +32,7 @@ Próxima: Fase 5 — agenda no Google Calendar.
 yu-book/
 ├─ apps/api/        Fastify + Prisma + Postgres
 ├─ apps/web/        React + Vite + Tailwind
+├─ apps/mcp/        servidor MCP — roda local, não é deployado
 └─ packages/shared/ schemas Zod e tipos usados pelos dois
 ```
 

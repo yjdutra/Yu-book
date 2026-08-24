@@ -70,8 +70,10 @@ Três pacotes com semver independente: `apps/api`, `apps/web` e `packages/shared
 
 Regras:
 
-- **Mudança em `packages/shared` que altera um schema ou tipo bumpa os três**, porque os dois apps
-  consomem o contrato.
+- **Mudança em `packages/shared` que altera um schema ou tipo bumpa os quatro pacotes**, porque
+  todos consomem o contrato — `apps/api`, `apps/web` e também `apps/mcp`, que declara
+  `@yu-book/shared` e importa os tipos direto. A regra dizia "os três" enquanto `apps/mcp` não
+  existia.
 - Uma fase entregue é **um** bump minor, não um por commit.
 - O changelog nomeia a versão do conjunto. Quando os pacotes divergirem, cite o pacote na linha.
 
