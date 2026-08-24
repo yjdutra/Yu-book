@@ -420,16 +420,22 @@ auditoria encontrou e corrigiu inclusive uma falha antiga do tema escuro — bra
 ## O que falta na Fase 5
 
 A Fase 5 refina o que já existe, em três etapas independentes
-([PRD](docs/prd-fase-5-refino.md)). A **Etapa A** está entregue: tags de card, filtro por tag no
-quadro e busca na lista de tags da barra lateral.
+([PRD](docs/prd-fase-5-refino.md)). **As Etapas A e B estão entregues:**
 
-- **Etapa B — arraste do kanban:** índice de inserção pelo ponto médio do card sob o ponteiro,
-  colisão priorizando o ponteiro, rolagem automática perto das bordas e vão tracejado no lugar de
-  destino. Não toca contrato nem banco.
-- **Etapa C — a nota:** botão de copiar a nota inteira como Markdown e um quarto modo de edição,
-  "ao vivo", que esconde a marcação fora da linha do cursor. O motor do editor ainda não está
-  decidido (D-01 do PRD) e nada da etapa começa antes disso.
+- **Etapa A — tags de card:** tags próprias do card, filtro por tag no quadro e busca na lista de
+  tags da barra lateral.
+- **Etapa B — arraste do kanban:** colisão pelo ponteiro, índice de inserção por **contagem
+  geométrica** — quantos cards da coluna têm o ponto médio acima do ponteiro —, rolagem automática
+  perto das bordas e vão tracejado no lugar do card fantasma. Não tocou contrato nem banco. Os
+  critérios de aceitação estão implementados e **não foram verificados à mão**, ver
+  [docs/historico.md](docs/historico.md).
+
+Falta a **Etapa C — a nota:** botão de copiar a nota inteira como Markdown e um quarto modo de
+edição, "ao vivo", que esconde a marcação fora da linha do cursor. O motor está decidido —
+**CodeMirror 6 com decorações** (D-01 do PRD, fechada em 2026-08-24) — e a etapa está liberada
+para começar.
 
 Depois: **Fase 6** — agenda no Google Calendar, um botão "agendar" no card e na nota criando o
-evento num calendário dedicado, sem tela de calendário aqui. E busca semântica, opcional. Lista de
-empresas saiu do escopo — a Cod3rs já tem uma, compartilhada com o orientador.
+evento num calendário dedicado, sem tela de calendário aqui; é hoje o item de **menor prioridade**
+do roadmap. E busca semântica, opcional. Lista de empresas saiu do escopo — a Cod3rs já tem uma,
+compartilhada com o orientador.

@@ -92,6 +92,14 @@ Por isso, ao abrir uma entrada nova:
 Olhar só o `package.json` produz um heading que já existe. Quando os pacotes divergirem entre si,
 cite o pacote na linha.
 
+É a regra 3 que decide se **duas etapas da mesma fase cabem numa entrada só**: cabem quando movem o
+mesmo conjunto de pacotes, e não cabem quando movem conjuntos diferentes. A Fase 5 ficou em duas
+entradas por isso — `[0.4.0]` (Etapa A, os quatro pacotes a `0.3.0`) e `[0.5.0]` (Etapa B, só
+`apps/web`, a `0.4.0`). Fundidas, a linha do corpo teria que dizer "os quatro vão a `0.3.0` **e**
+`apps/web` vai a `0.4.0`", e é exatamente essa linha que torna os dois números irreconciliáveis
+depois. Nenhuma das duas ter sido lançada não muda nada: quem funde perde o registro de qual etapa
+moveu qual pacote.
+
 ## 4. Commits
 
 Conventional Commits, com escopo em português quando houver:

@@ -62,7 +62,14 @@ Update parcial é sempre spread condicional, para distinguir "não enviado" de `
 ## 4. Comentário
 
 Comentário explica **por quê**, nunca o quê. Em português. Cita o identificador do requisito quando
-existe — `RF-14`, `RN-03`, `RNF-08`, `CA-16`, `S-04` —, que resolve para `docs/old/prd-fase-*.md`.
+existe — `RF-14`, `RN-03`, `RNF-08`, `CA-16`, `S-04`.
+
+**O identificador é local ao PRD da fase, não global, e os números se repetem entre fases.** `RF-19`
+é o tema em `apps/web/src/lib/tema.ts:8` (Fase 1) e é "o ponteiro decide o destino do arraste" em
+`apps/web/src/components/Quadro.tsx:165` (Fase 5). Quem lê resolve pelo arquivo em que o comentário
+está: fases 1 a 4 em `docs/old/prd-fase-*.md`, Fase 5 em diante em `docs/prd-fase-*.md`. Quem
+escreve **não** renumera nem inventa prefixo de fase para desambiguar — o código inteiro já cita
+assim, e mudar metade dele é pior que a ambiguidade.
 
 ```ts
 // RF-15. Ctrl+L puro é a barra de endereço do navegador — daí o Shift.

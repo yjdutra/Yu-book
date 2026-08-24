@@ -30,6 +30,16 @@ não vale para o seguinte.
 Também nunca use `git rebase`, `git push --force`, `git reset --hard` nem reescreva histórico
 publicado. Se algo precisa ser desfeito depois de publicado, o caminho é um commit novo.
 
+**E antes de qualquer push, conte o que sairia junto.** Aqui `master` acumula commit não publicado
+entre sessões — push é ato deliberado e raro, então o pendente quase nunca é só a entrega do turno:
+
+```bash
+git log --oneline origin/master..HEAD   # tudo isto vai ao ar de uma vez
+```
+
+Se a lista tiver commit que não é desta entrega, nomeie esses commits e peça confirmação antes de
+publicar. "Publique minha entrega" não é autorização para publicar a de outra pessoa.
+
 ## Antes de commitar
 
 Rode os portões e **relate a saída real**. São os únicos que existem — não há CI neste repositório.
@@ -64,6 +74,18 @@ de arquivo no mesmo commit — o diff fica ilegível.
 
 Nunca reescreva o histórico antigo para corrigir os commits fora de padrão (`fixes`, `kambam`,
 `links`). A convenção vale daqui para a frente.
+
+### Quando um arquivo entrou picado, verifique o commit intermediário
+
+Se você usou `git add -p` para dividir um arquivo entre dois commits, o intermediário pode não
+compilar — e **nenhum portão pega isso**: `typecheck` e testes só veem a árvore final, e não há CI.
+O defeito só aparece num `git bisect` meses depois. Então rode os portões na árvore do commit
+intermediário isolada.
+
+**Não use `git stash push --keep-index` para montar essa árvore.** O caso é justamente índice e
+árvore divergindo nos mesmos arquivos, e aí o `stash pop --index` conflita; recuperar custa caro. O
+caminho que funciona: copie as versões finais dos arquivos para fora do repositório, monte o índice,
+verifique, e reconstrua a árvore copiando de volta.
 
 ## O que um push realmente dispara
 

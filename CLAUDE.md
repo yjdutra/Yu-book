@@ -13,8 +13,13 @@ Proposta inicial em `docs/old/PROPOSTA-inicial.md` (registro de época, não se 
 Requisitos por fase em `docs/old/prd-fase-*.md` e, da Fase 5 em diante, em `docs/prd-fase-*.md` —
 os comentários do código citam os identificadores `RF-xx`, `RN-xx`, `RNF-xx` e `CA-xx` de lá.
 Fases 0 a 4 entregues. A 5 é refino do que já existe (`docs/prd-fase-5-refino.md`), em três etapas:
-A (tags de card) entregue, B (arraste) e C (copiar nota + editor ao vivo) não iniciadas. O Google
-Calendar virou a Fase 6.
+A (tags de card) e B (precisão do arraste) entregues — as duas sem conferência de interface à mão;
+C (copiar nota + editor Markdown ao vivo) não iniciada, com o motor já decidido: CodeMirror 6 com
+decorações. O Google Calendar virou a Fase 6 e é hoje o item de menor prioridade.
+
+**O `RF-xx` do comentário resolve para o PRD da fase daquele código — os números colidem entre
+fases.** `RF-19` é o tema claro em `apps/web/src/lib/tema.ts` e é a colisão pelo ponteiro em
+`apps/web/src/components/Quadro.tsx`. Não renumere nem invente prefixo para desambiguar.
 
 ## Regras que quebram o projeto se ignoradas
 

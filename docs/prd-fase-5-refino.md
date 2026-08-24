@@ -7,9 +7,11 @@ Contexto anterior: [README.md](../README.md) (Fases 0 a 4 concluídas),
 [docs/old/prd-fase-2-kanban.md](old/prd-fase-2-kanban.md) (boards, arraste, posições) e
 [docs/historico.md](historico.md).
 
-> **Numeração do roadmap.** O roadmap chamava de Fase 5 a agenda no Google Calendar. Esta entrega
-> assume o número 5 e empurra o Calendar para a Fase 6. É uma escolha de sequência, não de escopo:
-> o que está aqui é refino do que já se usa todo dia; o Calendar é superfície nova. Ver Q-01.
+> **Numeração do roadmap — confirmada pelo operador em 2026-08-24 (Q-01).** O roadmap chamava de
+> Fase 5 a agenda no Google Calendar. Esta entrega assume o número 5 e empurra o Calendar para a
+> Fase 6, hoje o item de menor prioridade. É uma escolha de sequência, não de escopo: o que está
+> aqui é refino do que já se usa todo dia; o Calendar é superfície nova. Já aplicado no `README.md`
+> e no `CLAUDE.md`.
 
 ---
 
@@ -118,8 +120,9 @@ que pode ser revertida inteira sem consequência para o resto.
 **Por que C junta os itens 4 e 5.** Os dois moram no cabeçalho e no corpo do editor de nota
 (`PainelEditor.tsx` / `Editor.tsx`). O botão de copiar é meia hora de trabalho no arquivo que a
 etapa vai reescrever de qualquer forma — separar significaria abrir o mesmo arquivo duas vezes.
-**Ordem interna obrigatória:** o botão de copiar entra e é entregue *antes* do editor. Se a Etapa C
-travar em D-01, o item 4 já estará em produção.
+**Ordem interna obrigatória:** o botão de copiar entra e é entregue *antes* do editor. O item 4 é
+barato e independente; se a troca de motor do item 5 empacar ou for revertida, ele já estará em
+produção.
 
 ---
 
@@ -254,7 +257,10 @@ travar em D-01, o item 4 já estará em produção.
 - **RF-40** — No modo `dividido`, a rolagem sincronizada entre os painéis continua como hoje
   (RF-12 da Fase 1). No modo ao vivo não há segundo painel, então não há o que sincronizar.
 - **RF-41** — O autosave não muda: mesma pausa, mesmo `Ctrl+S`, mesmas 3 tentativas, mesma cirurgia
-  de cache (INV-23).
+  de cache (INV-23). Trocar o motor do editor sem religar o debounce de 800 ms, as refs de callback
+  (INV-26 — sem elas o efeito reagenda para sempre e o autosave **nunca dispara**) e o descarte do
+  timer pendente ao trocar de nota (INV-27 — sem ele o conteúdo da nota anterior vaza para a nova)
+  é regressão que nenhum portão automático acusa.
 
 ---
 
@@ -514,7 +520,10 @@ catálogo do board, e ninguém percebe até a lista ter `Banco` e `banco`.
 
 ## 12. Decisões técnicas
 
-### D-01 — Motor do editor ao vivo *(a confirmar antes da Etapa C)*
+### D-01 — Motor do editor ao vivo: CodeMirror 6 com decorações
+
+**Decidida em 2026-08-24 pelo operador.** A opção 1 da tabela abaixo foi adotada; a Etapa C
+está liberada para começar. O que segue é o registro de por que as outras foram descartadas.
 
 A exigência de **esconder o `#`** elimina a maior parte das saídas baratas: um `textarea` não
 consegue ocultar caracteres, e uma camada espelhada por cima dele só funciona enquanto cada
@@ -523,7 +532,7 @@ maior que o corpo.
 
 | Opção | Modelo do documento | Custo | Veredito |
 |---|---|---|---|
-| **1. CodeMirror 6 + decorações** | a própria string de Markdown | ~6 pacotes `@codemirror/*`, reescrita de `Editor.tsx`, `caret.ts` sai de cena | **recomendada** |
+| **1. CodeMirror 6 + decorações** | a própria string de Markdown | ~6 pacotes `@codemirror/*`, reescrita de `Editor.tsx`, `caret.ts` sai de cena | **adotada** |
 | 2. `contenteditable` próprio | string de Markdown | seleção, IME, desfazer e colar por conta própria | rejeitada — meses de trabalho para reimplementar um editor |
 | 3. TipTap / Lexical / ProseMirror | árvore de documento rico | Markdown vira import/export, com round-trip com perda | rejeitada — quebra RN-08, M6, os wikilinks derivados e o `contentMd` que o MCP lê |
 | 4. `textarea` + camada espelhada | string de Markdown | zero dependências | rejeitada — não atende RF-33 |
@@ -534,17 +543,26 @@ para este repositório:
 
 - `contentMd` continua sendo uma string editada diretamente → RN-08, RNF-08 e M6 saem de graça.
 - `caret.ts` (o truque do `div` espelhado para achar o cursor) deixa de ser necessário: o editor
-  informa a posição do cursor em pixels. **O arquivo sai do projeto** — anotar para o `zelador`.
+  informa a posição do cursor em pixels.
 - Os atalhos migram de `onKeyDown` para o mapa de teclas do editor. Comportamento idêntico.
 - O realce de sintaxe dentro de bloco de código passa a ser do editor; o `highlight.js` continua
   servindo os modos `dividido` e `leitura` via `renderMarkdown`.
 - É a maior dependência que o projeto já aceitou. O `CLAUDE.md` proíbe biblioteca de **UI** e de
-  **ícones** — um motor de edição de texto não é nem um nem outro, mas a decisão é do operador e
-  não do agente. **Nada da Etapa C começa antes desta confirmação.**
+  **ícones**; um motor de edição de texto não é nem um nem outro, e **o operador autorizou
+  explicitamente esta dependência** — a autorização vale para o CodeMirror 6 e para nada além dele.
+  Continua valendo RNF-13: nenhuma biblioteca de UI, nenhuma de ícones.
+- O teto de peso continua sendo RNF-05: acima de 120 KB comprimidos, o editor entra por `import()`
+  sob demanda.
 
-Se D-01 for recusada, a Etapa C encolhe para o item 4 (copiar) mais melhorias possíveis sem esconder
-marcação: realce da marcação no próprio `textarea`, tamanho de fonte por nível de título e
-atalhos novos. O item 5 sai do escopo e vira questão em aberto.
+**Consequência para o `zelador`:** a Etapa C **remove** `apps/web/src/lib/caret.ts` do projeto —
+o editor informa a posição do cursor e o truque do `div` espelhado morre com ele. Nenhuma skill e
+nenhuma memória citam o arquivo (verificado pelo `curador` em 2026-08-24), então a remoção não
+propaga para `.claude/`.
+
+**Alternativa descartada junto com a decisão.** Se D-01 tivesse sido recusada, a Etapa C encolheria
+para o item 4 (copiar) mais melhorias possíveis sem esconder marcação — realce da marcação no
+próprio `textarea`, tamanho de fonte por nível de título, atalhos novos — e o item 5 sairia do
+escopo. Esse caminho está fechado.
 
 ### D-02 — O catálogo de tags do board é derivado, não consultado
 
@@ -586,7 +604,9 @@ quatro pacotes. B e C são só `apps/web`.
 - **D1** — Postgres 16 com `text[]`. Já é o caso.
 - **D2** — `@dnd-kit/core` ≥ 6.3 para as estratégias de medição e colisão da Etapa B. Já é o caso;
   nada a instalar.
-- **D3** — Etapa C depende de D-01 confirmada.
+- **D3** — A Etapa C dependia de D-01 confirmada. **Satisfeita em 2026-08-24:** D-01 decidida por
+  CodeMirror 6 com decorações, e a etapa está liberada. O que falta é instalar os ~6 pacotes
+  `@codemirror/*` quando ela começar, dentro do teto de RNF-05.
 
 ### Restrições
 - **R1** — Duas camadas na API e só duas: rota valida e chama service; service tem a regra e o
@@ -614,9 +634,6 @@ quatro pacotes. B e C são só `apps/web`.
 
 ## 15. Questões em aberto
 
-- **Q-01** — Esta entrega assume o número "Fase 5" e empurra o Google Calendar para a Fase 6.
-  Confirmar antes de mexer em README, PROPOSTA e CHANGELOG.
-- **Q-02** — D-01: CodeMirror 6 entra no projeto? Bloqueia a Etapa C.
 - **Q-03** — Ordem das etapas. A recomendada é A → B → C (contrato primeiro, risco por último). B é
   a de maior retorno diário imediato e não depende de nada — se o incômodo do arraste for o mais
   urgente, ela pode vir primeiro sem custo nenhum.
@@ -624,6 +641,14 @@ quatro pacotes. B e C são só `apps/web`.
   Está em NO12, mas é a extensão mais óbvia depois da Etapa A.
 - **Q-05** — O botão de copiar deveria oferecer "copiar sem o título"? Assumido que não: a nota
   inteira inclui o título (RF-29).
+
+### Resolvidas
+
+- **Q-01 — numeração das fases. Resolvida em 2026-08-24: sim.** Esta entrega é a Fase 5; o Google
+  Calendar é a Fase 6 e é hoje o item de **menor prioridade** do roadmap. Já aplicado no
+  `README.md`, no `CLAUDE.md` e na estrutura deste documento.
+- **Q-02 — CodeMirror 6 entra no projeto? Resolvida em 2026-08-24: sim**, autorizado pelo operador.
+  Ver D-01, que deixou de ser proposta e virou decisão tomada. A Etapa C não está mais bloqueada.
 
 ## 16. Suposições assumidas
 
@@ -647,8 +672,9 @@ Para **cada etapa**, antes de considerar entregue:
    (Etapa A: normalização, limite de 8, corte em 24, tags no retorno do board).
 3. Todos os CA da etapa verificados à mão, nos **dois temas**, incluindo os de teclado.
 4. Revisão pela skill `invariantes-yu-book` — em especial INV-11, INV-13, INV-23, INV-30 e a nova
-   RN-05.
+   RN-05. Na Etapa C, somam-se INV-09 (o modo ao vivo é um caminho de renderização que não passa
+   por `renderMarkdown`; ver RNF-07 e CA-34) e INV-26/INV-27 (RF-41).
 5. Propagação da §13 feita, quando a etapa a exige.
 6. `CHANGELOG.md`, `docs/historico.md` e as versões dos pacotes atualizados.
 7. Nada de resquício: `console.log`, import morto, arquivo temporário. `caret.ts` removido junto
-   com a Etapa C, se D-01 for aprovada.
+   com a Etapa C (D-01 aprovada; nenhuma skill ou memória cita o arquivo).

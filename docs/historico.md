@@ -9,6 +9,37 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-08-24 — Três decisões do operador fechadas na documentação
+
+Nenhuma linha de código mudou aqui; o que mudou foi o que a documentação afirma. Estavam abertas no
+PRD coisas que o operador já tinha decidido, e quem começasse a Etapa C leria que ela estava
+bloqueada por uma pergunta respondida.
+
+**D-01 fechada: o editor ao vivo será CodeMirror 6 com decorações.** O operador autorizou a
+dependência. Ela é a maior que o projeto já aceitou, e o `CLAUDE.md` proíbe biblioteca de UI e de
+ícones — um motor de edição de texto não é nem um nem outro, e a autorização vale para o CodeMirror
+6 e para nada além dele; RNF-13 continua de pé. As três alternativas seguem registradas em D-01 com
+o motivo da recusa; a que mais doía descartar era o `textarea` com camada espelhada, zero
+dependências, que morre na exigência de esconder o `#` (RF-33). Consequências já escritas no PRD, e
+não só nesta conversa: a Etapa C remove `apps/web/src/lib/caret.ts` (nenhuma skill ou memória cita o
+arquivo) e o caminho de fallback — Etapa C encolhida ao botão de copiar — está fechado.
+
+**Q-01 fechada: a numeração das fases.** Fase 5 é este refino, Google Calendar é a Fase 6, e o
+Calendar é hoje o item de **menor prioridade** do roadmap. Já estava aplicada em três lugares
+(README, `CLAUDE.md`, estrutura do PRD) e só faltava a questão parar de dizer "confirmar antes".
+
+**A seção "O que falta na Fase 5" do README ensinava a regra errada.** Ela descrevia a Etapa B como
+pendente e com a formulação original de RF-18 — "índice de inserção pelo ponto médio do card sob o
+ponteiro" —, que é exatamente a regra que oscila e que a entrega de hoje substituiu por contagem
+geométrica. Um README que contradiz o próprio topo é ruim; um README que ensina a regra descartada é
+pior, porque a próxima leitura a reintroduz achando que simplifica. Reescrita, com a ressalva de
+**não verificada à mão** mantida.
+
+Ficou pendente: Q-03 (ordem das etapas) sobrou na lista de questões em aberto e virou letra morta —
+a ordem A → B já aconteceu. Não foi mexida por estar fora do pedido.
+
+---
+
 ## 2026-08-24 — Fase 5, Etapa B: o arraste do kanban, e o índice que não podia oscilar
 
 Entregue a precisão do arraste. Só `apps/web` mudou; contrato, banco, API e MCP ficaram intactos.
