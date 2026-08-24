@@ -463,21 +463,22 @@ export async function contar(userId: string, workspaceId?: string): Promise<Note
 }
 
 /**
- * Todos os títulos ativos do usuário.
- *
- * Serve a dois propósitos no front, e por isso é um endpoint só: filtrar o
- * autocomplete de `[[` (RF-22) sem uma requisição por tecla, e decidir quais
- * `[[…]]` estão resolvidos no preview (RF-24) com exatidão — sem esse conjunto,
- * um link recém-digitado apareceria como quebrado até o autosave.
- *
- * São ~40 bytes por nota: com o volume previsto (S-06, 1.000 notas) dá 40 KB,
- * cacheado pelo TanStack Query.
- */
-/**
  * Catálogo de notas ativas: identifica e rotula, sem carregar conteúdo.
- * Serve ao autocomplete de `[[…]]` e ao resource `yubook://notas` do servidor
- * MCP. O custo por item é fixo — é isso que permite listar o acervo inteiro
- * numa requisição só enquanto listar o conteúdo nunca seria viável.
+ *
+ * Serve a três propósitos, e por isso é um endpoint só: filtrar o autocomplete
+ * de `[[` (RF-22) sem uma requisição por tecla, decidir quais `[[…]]` estão
+ * resolvidos no preview (RF-24) — sem esse conjunto, um link recém-digitado
+ * apareceria como quebrado até o autosave — e alimentar o resource
+ * `yubook://notas` do servidor MCP.
+ *
+ * O custo por item é **fixo**: é isso que permite listar o acervo inteiro numa
+ * requisição só, enquanto listar o conteúdo nunca seria viável.
+ *
+ * Medido: ~100 bytes por nota só com id, título e tipo — o uuid sozinho ocupa
+ * 36 caracteres. `workspaceName` e `updatedAt` levam a ~160. Com o volume
+ * previsto (S-06, 1.000 notas) são ~160 KB, cacheados pelo TanStack Query.
+ * O comentário anterior estimava 40 bytes por nota sem medir, e essa estimativa
+ * chegou a ser copiada para um requisito antes de alguém conferir.
  */
 export async function titulos(userId: string): Promise<NoteTitle[]> {
   const notas = await prisma.note.findMany({

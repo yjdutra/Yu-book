@@ -1,6 +1,7 @@
 import { splitHighlight } from "@yu-book/shared";
 import type {
   BoardDetail,
+  CardComPrazo,
   CardSummary,
   Dashboard,
   NoteDetail,
@@ -119,7 +120,7 @@ export function formatarQuadro(board: BoardDetail): string {
 export function formatarDashboard(d: Dashboard): string {
   const linhas: string[] = [];
 
-  const prazo = (c: { title: string; dueDate: string; priority: string; boardName: string; columnName: string; id: string }) =>
+  const prazo = (c: CardComPrazo) =>
     `- ${c.title} — vence ${c.dueDate.slice(0, 10)} · prioridade ${c.priority} · ` +
     `${c.boardName} / ${c.columnName}\n  id: ${c.id}`;
 
