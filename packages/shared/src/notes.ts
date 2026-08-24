@@ -69,6 +69,19 @@ export interface NoteTagRef {
   color: string;
 }
 
+/**
+ * Item do catálogo de notas: identifica e rotula, sem carregar conteúdo.
+ * Serve ao autocomplete de `[[…]]` no front e ao resource `yubook://notas`
+ * do servidor MCP — os dois querem a mesma coisa, um índice barato.
+ */
+export interface NoteTitle {
+  id: string;
+  title: string;
+  kind: NoteKind;
+  workspaceName: string | null;
+  updatedAt: string;
+}
+
 export interface NoteRef {
   id: string;
   title: string;

@@ -7,6 +7,7 @@ import type {
   NoteKind,
   NoteListResponse,
   NoteSummary,
+  NoteTitle,
   UpdateNoteInput,
 } from "@yu-book/shared";
 import { NOTE_KINDS, extrairWikilinks, normalizarTitulo, renomearWikilinks } from "@yu-book/shared";
@@ -472,13 +473,31 @@ export async function contar(userId: string, workspaceId?: string): Promise<Note
  * São ~40 bytes por nota: com o volume previsto (S-06, 1.000 notas) dá 40 KB,
  * cacheado pelo TanStack Query.
  */
-export async function titulos(
-  userId: string,
-): Promise<{ id: string; title: string; kind: NoteKind }[]> {
-  return prisma.note.findMany({
+/**
+ * Catálogo de notas ativas: identifica e rotula, sem carregar conteúdo.
+ * Serve ao autocomplete de `[[…]]` e ao resource `yubook://notas` do servidor
+ * MCP. O custo por item é fixo — é isso que permite listar o acervo inteiro
+ * numa requisição só enquanto listar o conteúdo nunca seria viável.
+ */
+export async function titulos(userId: string): Promise<NoteTitle[]> {
+  const notas = await prisma.note.findMany({
     where: { userId, deletedAt: null },
-    select: { id: true, title: true, kind: true },
+    select: {
+      id: true,
+      title: true,
+      kind: true,
+      updatedAt: true,
+      workspace: { select: { name: true } },
+    },
     orderBy: { updatedAt: "desc" },
     take: 2000,
   });
+
+  return notas.map((n) => ({
+    id: n.id,
+    title: n.title,
+    kind: n.kind,
+    workspaceName: n.workspace?.name ?? null,
+    updatedAt: n.updatedAt.toISOString(),
+  }));
 }
