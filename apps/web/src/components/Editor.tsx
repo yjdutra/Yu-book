@@ -199,7 +199,10 @@ export function Editor({
     }
 
     const mod = e.ctrlKey || e.metaKey;
-    if (!mod) return;
+    // Com Shift, o atalho é de outra pessoa: `Ctrl+Shift+B` e `Ctrl+Shift+L` são
+    // da navegação, em Aplicacao.tsx. Sem este teste, `e.key.toLowerCase()`
+    // transforma `Ctrl+Shift+B` em negrito e o card navega *e* fica em negrito.
+    if (!mod || e.shiftKey || e.altKey) return;
 
     const atalhos: Record<string, [string, string]> = {
       b: ["**", "**"],
@@ -211,12 +214,17 @@ export function Editor({
     const par = atalhos[e.key.toLowerCase()];
     if (par) {
       e.preventDefault();
+      // `preventDefault` sozinho não basta: o listener global de `window`
+      // (Aplicacao.tsx) recebe o evento mesmo assim, e `Ctrl+K` abria a paleta
+      // ao mesmo tempo em que inseria o link.
+      e.stopPropagation();
       envolver(e.currentTarget, par[0], par[1], onConteudo);
       return;
     }
 
     if (e.key.toLowerCase() === "s") {
       e.preventDefault();
+      e.stopPropagation();
       onSalvarAgora();
     }
   }
