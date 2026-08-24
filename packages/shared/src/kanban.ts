@@ -126,6 +126,12 @@ export interface CardSummary {
   checklistDone: number;
   checklistTotal: number;
   note: NoteRef | null;
+  /**
+   * Última alteração do card. Está na face porque "o que está parado" é uma
+   * pergunta sobre o quadro inteiro: sem isto, responder exigiria uma
+   * requisição por card.
+   */
+  updatedAt: string;
 }
 
 export interface ColumnDetail {
@@ -152,7 +158,6 @@ export interface CardDetail extends CardSummary {
   descriptionMd: string;
   checklist: ChecklistItem[];
   archived: boolean;
-  updatedAt: string;
 }
 
 /** Um card visto do lado da nota (RF-38). */

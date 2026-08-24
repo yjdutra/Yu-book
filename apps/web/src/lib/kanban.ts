@@ -165,6 +165,7 @@ function paraFace(card: CardDetail): CardSummary {
     checklistDone: card.checklistDone,
     checklistTotal: card.checklistTotal,
     note: card.note,
+    updatedAt: card.updatedAt,
   };
 }
 

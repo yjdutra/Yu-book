@@ -124,6 +124,7 @@ const CARD_FACE = {
   dueDate: true,
   priority: true,
   checklist: true,
+  updatedAt: true,
   note: { select: { id: true, title: true, kind: true } },
 } satisfies Prisma.CardSelect;
 
@@ -141,6 +142,7 @@ function toCardSummary(card: CardFace): CardSummary {
     checklistDone: done,
     checklistTotal: total,
     note: card.note,
+    updatedAt: card.updatedAt.toISOString(),
   };
 }
 
