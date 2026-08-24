@@ -1,4 +1,4 @@
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import type { CallToolResult, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import { ErroDaApi } from "./cliente.js";
 
 /**
@@ -56,6 +56,29 @@ export function comErro<A>(
     } catch (erro) {
       console.error("[yu-book-mcp]", erro);
       return { content: [{ type: "text", text: mensagemDeErro(erro) }], isError: true };
+    }
+  };
+}
+
+/**
+ * Mesma tradução de erro das tools, para resources. Um resource que falha por
+ * rede ou por id inexistente precisa dizer o que fazer, igual a uma tool —
+ * quem lê a mensagem é o modelo, e ele vai tentar contornar o que ler.
+ *
+ * O tipo vem do SDK (`ReadResourceResult`), nunca escrito à mão: o SDK exige
+ * uma assinatura de índice que um tipo caseiro não tem.
+ */
+export function comErroDeResource<A extends unknown[]>(
+  handler: (uri: URL, ...args: A) => Promise<ReadResourceResult>,
+): (uri: URL, ...args: A) => Promise<ReadResourceResult> {
+  return async (uri: URL, ...args: A) => {
+    try {
+      return await handler(uri, ...args);
+    } catch (erro) {
+      console.error("[yu-book-mcp]", erro);
+      // Resource não tem `isError`: a falha precisa ser exceção para o cliente
+      // distinguir "não encontrei" de "aqui está, e está vazio".
+      throw new Error(mensagemDeErro(erro));
     }
   };
 }
