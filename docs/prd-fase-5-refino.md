@@ -231,7 +231,11 @@ produção.
   sem reformatação.
 - **RF-30** — O botão confirma o resultado por 2 segundos ("copiado ✓") e anuncia por
   `aria-live`. Falha de permissão da área de transferência vira aviso visível, não silêncio.
-- **RF-31** — Atalho `Ctrl+Shift+C`, listado no modal de atalhos (`Ctrl+/`).
+- **RF-31** — ~~Atalho `Ctrl+Shift+C`, listado no modal de atalhos (`Ctrl+/`).~~
+  **Fora do escopo (2026-08-24, decisão do operador): não implementar.** `Ctrl+Shift+C` é
+  "inspecionar elemento" no Chrome e no Firefox, e `preventDefault()` não cancela — o atalho
+  abriria o DevTools em vez de copiar. O botão de RF-28 não tem atalho de teclado, e `Atalhos.tsx`
+  não ganha linha nova.
 
 ### 5.5 Etapa C — Editor ao vivo
 
@@ -240,7 +244,11 @@ produção.
   existindo e funcionando como hoje.
 - **RF-33** — No modo ao vivo, a marcação de uma linha fica **oculta** e o texto aparece já
   formatado: `# Título` vira um título sem o `#`, `**negrito**` vira negrito sem os asteriscos,
-  `- item` vira marcador, ` ``` ` delimita um bloco com realce de sintaxe.
+  `- item` vira marcador, ` ``` ` delimita um bloco de código.
+  **Reduzido na entrega (2026-08-24):** o bloco de código no modo ao vivo tem fonte monoespaçada e
+  fundo, mas **não tem realce por token**. Realce dentro da cerca exigiria parsers aninhados por
+  linguagem — exatamente o peso que D-01 recusou ao descartar `@codemirror/lang-markdown`. O realce
+  completo continua nos modos `dividido` e `leitura`, via `renderMarkdown` e `highlight.js`.
 - **RF-34** — A linha onde o cursor está mostra a marcação crua. Sair da linha volta a esconder.
   É o que permite editar a marcação sem sair do modo.
 - **RF-35** — Selecionar um trecho revela a marcação de tudo o que está dentro da seleção — sem
@@ -532,7 +540,7 @@ maior que o corpo.
 
 | Opção | Modelo do documento | Custo | Veredito |
 |---|---|---|---|
-| **1. CodeMirror 6 + decorações** | a própria string de Markdown | ~6 pacotes `@codemirror/*`, reescrita de `Editor.tsx`, `caret.ts` sai de cena | **adotada** |
+| **1. CodeMirror 6 + decorações** | a própria string de Markdown | 6 pacotes (`@codemirror/*` e `@lezer/markdown`), `Editor.tsx` passa a montar um motor ou outro conforme o modo | **adotada** |
 | 2. `contenteditable` próprio | string de Markdown | seleção, IME, desfazer e colar por conta própria | rejeitada — meses de trabalho para reimplementar um editor |
 | 3. TipTap / Lexical / ProseMirror | árvore de documento rico | Markdown vira import/export, com round-trip com perda | rejeitada — quebra RN-08, M6, os wikilinks derivados e o `contentMd` que o MCP lê |
 | 4. `textarea` + camada espelhada | string de Markdown | zero dependências | rejeitada — não atende RF-33 |
@@ -542,8 +550,12 @@ e o editor aplica decorações que escondem os marcadores nas linhas fora do cur
 para este repositório:
 
 - `contentMd` continua sendo uma string editada diretamente → RN-08, RNF-08 e M6 saem de graça.
-- `caret.ts` (o truque do `div` espelhado para achar o cursor) deixa de ser necessário: o editor
-  informa a posição do cursor em pixels.
+- ~~`caret.ts` (o truque do `div` espelhado para achar o cursor) deixa de ser necessário: o editor
+  informa a posição do cursor em pixels.~~ **Não se confirmou (2026-08-24).** Isto pressupunha que o
+  CodeMirror *substituiria* a `<textarea>`; a entrega manteve os três modos antigos nela, e o
+  autocomplete de `[[` daquele caminho continua usando `posicaoDoCursor` e `wikilinkEmDigitacao`.
+  **`caret.ts` fica no projeto.** Dentro do modo ao vivo, sim, quem informa a posição do cursor é o
+  editor — o arquivo só não atende mais o projeto inteiro.
 - Os atalhos migram de `onKeyDown` para o mapa de teclas do editor. Comportamento idêntico.
 - O realce de sintaxe dentro de bloco de código passa a ser do editor; o `highlight.js` continua
   servindo os modos `dividido` e `leitura` via `renderMarkdown`.
@@ -554,10 +566,13 @@ para este repositório:
 - O teto de peso continua sendo RNF-05: acima de 120 KB comprimidos, o editor entra por `import()`
   sob demanda.
 
-**Consequência para o `zelador`:** a Etapa C **remove** `apps/web/src/lib/caret.ts` do projeto —
-o editor informa a posição do cursor e o truque do `div` espelhado morre com ele. Nenhuma skill e
-nenhuma memória citam o arquivo (verificado pelo `curador` em 2026-08-24), então a remoção não
-propaga para `.claude/`.
+**Consequência para o `zelador` — revogada em 2026-08-24, na entrega da Etapa C.** Estava escrito
+aqui que a Etapa C **removeria** `apps/web/src/lib/caret.ts`. **Não removeu, e não deve remover.**
+A previsão dependia de a `<textarea>` sair de cena; ela ficou, junto com os modos `edicao`,
+`dividido` e `leitura`, e o autocomplete de `[[` deles importa `posicaoDoCursor` e
+`wikilinkEmDigitacao` de lá. Apagar o arquivo quebra três dos quatro modos. Nenhuma skill e nenhuma
+memória o citam (verificado pelo `curador` em 2026-08-24) — nada a propagar para `.claude/` em
+nenhuma das duas direções.
 
 **Alternativa descartada junto com a decisão.** Se D-01 tivesse sido recusada, a Etapa C encolheria
 para o item 4 (copiar) mais melhorias possíveis sem esconder marcação — realce da marcação no
@@ -676,5 +691,7 @@ Para **cada etapa**, antes de considerar entregue:
    por `renderMarkdown`; ver RNF-07 e CA-34) e INV-26/INV-27 (RF-41).
 5. Propagação da §13 feita, quando a etapa a exige.
 6. `CHANGELOG.md`, `docs/historico.md` e as versões dos pacotes atualizados.
-7. Nada de resquício: `console.log`, import morto, arquivo temporário. `caret.ts` removido junto
-   com a Etapa C (D-01 aprovada; nenhuma skill ou memória cita o arquivo).
+7. Nada de resquício: `console.log`, import morto, arquivo temporário. ~~`caret.ts` removido junto
+   com a Etapa C.~~ **Corrigido em 2026-08-24:** `caret.ts` **permanece** — a `<textarea>` ficou nos
+   modos `edicao`, `dividido` e `leitura`, e o autocomplete de `[[` deles depende do arquivo. Ver
+   D-01.

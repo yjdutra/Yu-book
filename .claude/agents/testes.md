@@ -62,8 +62,13 @@ Ao receber uma tarefa aberta, priorize a lacuna de maior risco.
 3. Regressão de bug recém-corrigido.
 4. Caminho feliz.
 
-Carregue `invariantes-yu-book`: cada `INV-xx` é candidato natural a um caso de teste, e citar o
+Carregue `invariantes-yu-book` e abra o arquivo de referência da área (`referencias/servidor.md`
+ou `referencias/front.md`): cada `INV-xx` é candidato natural a um caso de teste, e citar o
 identificador no nome do caso liga o teste ao catálogo.
+
+**As invariantes de front não têm onde ser testadas.** A suíte é só de `apps/api`, e não existe
+harness de front neste projeto. Não proponha um: relate quais `INV-xx` ficaram sem cobertura, como
+o passo 5 daquela skill manda, e deixe a decisão com o operador.
 
 ## Ao terminar
 

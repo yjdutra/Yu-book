@@ -12,10 +12,10 @@ Requisitos por fase em [docs/old/prd-fase-1-notas.md](docs/old/prd-fase-1-notas.
 [docs/old/prd-fase-4-dashboard.md](docs/old/prd-fase-4-dashboard.md) e
 [docs/prd-fase-5-refino.md](docs/prd-fase-5-refino.md).
 
-**Status: Fases 0 a 4 concluídas; Fase 5 em andamento, com as Etapas A e B entregues.**
+**Status: Fases 0 a 5 concluídas.** A Fase 5 fechou com as três etapas entregues.
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
-- **Fase 1 — notas:** CRUD, editor Markdown split ao vivo com autosave, tags, workspaces,
+- **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
   links `[[wiki]]` com backlinks, busca full-text por `Ctrl+K` e lixeira.
 - **Fase 2 — workspace global + kanban:** seletor que troca o contexto da aplicação inteira,
   boards por workspace, arrasto com mouse e teclado, cards com prazo, prioridade e checklist,
@@ -24,15 +24,18 @@ Requisitos por fase em [docs/old/prd-fase-1-notas.md](docs/old/prd-fase-1-notas.
   janela, título lido da página com guarda contra endereço interno.
 - **Fase 4 — dashboard e tema claro:** tela inicial em `/` com prazos, notas recentes e a fila de
   links; a aplicação deixou de ser dark-only.
-- **Fase 5 — refino do que já existe**, em três etapas independentes.
-  **Etapa A entregue:** tags de card no kanban, com barra de filtro no quadro, e busca na lista de
-  tags da barra lateral. **Etapa B entregue:** precisão e fluidez do arraste — destino decidido pelo
-  ponteiro, vão tracejado no lugar do card fantasma e menos repintura durante o gesto; os critérios
-  de aceitação dela ainda **não foram verificados à mão**, ver
-  [docs/historico.md](docs/historico.md). **Etapa C ainda não começou.**
+- **Fase 5 — refino do que já existe**, em três etapas independentes, todas entregues.
+  **Etapa A:** tags de card no kanban, com barra de filtro no quadro, e busca na lista de tags da
+  barra lateral. **Etapa B:** precisão e fluidez do arraste — destino decidido pelo ponteiro, vão
+  tracejado no lugar do card fantasma e menos repintura durante o gesto. **Etapa C:** botão de
+  copiar a nota inteira como Markdown e um quarto modo de edição, **"ao vivo"**, que esconde a
+  marcação fora da linha do cursor e passa a ser o padrão.
 
-Próximo: Fase 5, Etapa C — botão de copiar a nota e editor Markdown ao vivo. A agenda no Google
-Calendar passou para a Fase 6.
+**Os critérios de aceitação das Etapas B e C estão implementados e não foram verificados à mão** —
+não existe teste de front no projeto, e no caso da Etapa C isso significa que um editor inteiro foi
+escrito sem nunca ter sido executado. Ver [docs/historico.md](docs/historico.md).
+
+Próximo: **Fase 6** — agenda no Google Calendar, hoje o item de menor prioridade do roadmap.
 
 ---
 
@@ -417,23 +420,31 @@ O contraste dos dois temas é verificado por cálculo, não por impressão: **74
 auditoria encontrou e corrigiu inclusive uma falha antiga do tema escuro — branco sobre
 `accent-500` estava em 4,47:1, abaixo do mínimo de 4,5.
 
-## O que falta na Fase 5
+## A Fase 5, entregue
 
-A Fase 5 refina o que já existe, em três etapas independentes
-([PRD](docs/prd-fase-5-refino.md)). **As Etapas A e B estão entregues:**
+A Fase 5 refinou o que já existia, em três etapas independentes
+([PRD](docs/prd-fase-5-refino.md)). **As três estão entregues:**
 
 - **Etapa A — tags de card:** tags próprias do card, filtro por tag no quadro e busca na lista de
   tags da barra lateral.
 - **Etapa B — arraste do kanban:** colisão pelo ponteiro, índice de inserção por **contagem
   geométrica** — quantos cards da coluna têm o ponto médio acima do ponteiro —, rolagem automática
-  perto das bordas e vão tracejado no lugar do card fantasma. Não tocou contrato nem banco. Os
-  critérios de aceitação estão implementados e **não foram verificados à mão**, ver
-  [docs/historico.md](docs/historico.md).
+  perto das bordas e vão tracejado no lugar do card fantasma. Não tocou contrato nem banco.
+- **Etapa C — a nota:** botão de copiar a nota inteira como Markdown e o modo **"ao vivo"**, quarto
+  do editor e agora o padrão, em que a marcação some do que já foi escrito e reaparece na linha do
+  cursor. O motor é **CodeMirror 6 com decorações** (D-01 do PRD), embrulhando `@lezer/markdown`
+  cru; o documento continua sendo a string de Markdown, e a `<textarea>` ficou nos outros três
+  modos. O editor entra por `import()` sob demanda — 115,9 KB gz, dentro do teto de RNF-05 — e o
+  bundle inicial não mudou.
 
-Falta a **Etapa C — a nota:** botão de copiar a nota inteira como Markdown e um quarto modo de
-edição, "ao vivo", que esconde a marcação fora da linha do cursor. O motor está decidido —
-**CodeMirror 6 com decorações** (D-01 do PRD, fechada em 2026-08-24) — e a etapa está liberada
-para começar.
+**Os critérios de aceitação das Etapas B e C não foram verificados à mão.** Estão implementados, o
+typecheck e o build passam e os 55 testes da API seguem verdes, mas não existe teste de front no
+projeto: nenhum portão carrega uma `EditorView`. Ver [docs/historico.md](docs/historico.md).
+
+Três desvios da Etapa C frente ao PRD estão corrigidos lá e valem aqui: o botão de copiar **não tem
+atalho** (`Ctrl+Shift+C` é do DevTools), `caret.ts` **não foi removido** porque a `<textarea>` ficou,
+e bloco de código no modo ao vivo **não tem realce por token** — o realce completo continua nos
+modos `dividido` e `leitura`.
 
 Depois: **Fase 6** — agenda no Google Calendar, um botão "agendar" no card e na nota criando o
 evento num calendário dedicado, sem tela de calendário aqui; é hoje o item de **menor prioridade**

@@ -42,8 +42,7 @@ Dívidas já conhecidas, que você deve continuar listando enquanto existirem:
 | Lixeira que nunca expurga | A Fase 1 prometeu 30 dias; não há rotina de expurgo |
 | Sem script de `pg_dump` e sem export | Risco de lock-in registrado em `docs/old/PROPOSTA-inicial.md` |
 | `TRACO` duplicado | Definido em `Icones.tsx` e repetido em `SeletorTema.tsx` e `ModoNota.tsx` |
-| `Ctrl+K` com duplo vínculo | O handler do editor chama `preventDefault()` mas não `stopPropagation()`, e o global está em `window` — dentro do editor insere o link **e** abre a paleta |
-| README desatualizado | Fala em cinco migrations; existem seis |
+| README desatualizado | `README.md:232` fala em cinco migrations; existem sete |
 
 ## Lista de exclusão — o que parece morto e não é
 
@@ -59,6 +58,10 @@ Dívidas já conhecidas, que você deve continuar listando enquanto existirem:
 - **A rampa `ink-*` inteira**, mesmo que um token pareça sem uso: ela é semântica e vale nos dois
   temas.
 - **Código que um comentário `RF-xx`/`RN-xx` justifica** — ele implementa requisito.
+- **`apps/web/src/lib/caret.ts`.** A §12/D-01 de `docs/prd-fase-5-refino.md` prometeu removê-lo na
+  Etapa C e a Etapa C **não removeu**: a `<textarea>` ficou por acessibilidade (INV-38), e o
+  autocomplete dela ainda usa `posicaoDoCursor` e `wikilinkEmDigitacao`. Não é promessa de PRD não
+  cumprida nem resquício — é decisão. A promessa é que caducou.
 
 Na dúvida entre resquício e dívida, classifique como **dívida** e deixe a decisão com o operador.
 

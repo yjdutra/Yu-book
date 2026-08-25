@@ -71,7 +71,8 @@ essa separação.
   precisam chamar `reconstruirEntradas`.
 
 Antes de alterar qualquer um desses pontos, leia o comentário que os acompanha e confirme com o
-operador. Carregue a skill `invariantes-yu-book` para o catálogo completo.
+operador. Carregue a skill `invariantes-yu-book` e abra `referencias/servidor.md` — a skill traz
+só o índice; o `arquivo:linha` de cada invariante está lá.
 
 ## Verificação
 

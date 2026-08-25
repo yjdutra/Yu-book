@@ -13,6 +13,77 @@ _Nada pendente._
 
 ---
 
+## [0.6.0] — 2026-08-24
+
+**Etapa C da Fase 5 — a nota**: botão de copiar e um quarto modo de edição, "ao vivo". Com ela a
+**Fase 5 está completa** (Etapas A, B e C entregues). Mudou **só `apps/web`** — nenhum contrato,
+migration, endpoint ou primitiva do MCP —, então só ele bumpa, de `0.4.0` para `0.5.0`; `apps/api`,
+`apps/mcp` e `packages/shared` seguem em `0.3.0`. Requisitos em
+[`docs/prd-fase-5-refino.md`](docs/prd-fase-5-refino.md) §5.4 e §5.5 (RF-28 a RF-41).
+
+É a primeira dependência externa nova do front desde a Fase 3: seis pacotes (`@codemirror/state`,
+`@codemirror/view`, `@codemirror/language`, `@codemirror/commands`, `@codemirror/autocomplete` e
+`@lezer/markdown`), autorizados pelo operador em D-01 e **só eles** — RNF-13 continua valendo.
+O editor entra por `import()` sob demanda: o chunk ficou em **115,9 KB comprimidos**, dentro do teto
+de 120 KB de RNF-05, e o bundle inicial seguiu em 171,35 KB gz, inalterado.
+
+**Esta etapa não foi executada uma única vez.** `pnpm typecheck` limpo nos quatro pacotes, os 55
+testes de integração da API verdes (regressão — nenhum novo, a Etapa C não toca a API) e
+`pnpm --filter @yu-book/web build` ok, mas **nenhum portão do projeto carrega uma `EditorView`**,
+porque não existe teste de front aqui. Um editor inteiro foi escrito e nunca rodou: **CA-23 a CA-35
+estão implementados e não verificados**. É a terceira entrega seguida nessa condição. O que falta
+conferir está em [`docs/historico.md`](docs/historico.md).
+
+### Adicionado
+- **Modo "ao vivo", o quarto do editor de notas** (RF-32 a RF-41): a marcação some do que já foi
+  escrito e o texto aparece formatado no próprio lugar em que se digita — `# Título` vira título sem
+  o `#`, `**negrito**` vira negrito sem os asteriscos. A linha onde o cursor está mostra a marcação
+  crua (RF-34), e selecionar um trecho revela a marcação de tudo o que está dentro da seleção
+  (RF-35). O documento continua sendo a string de Markdown: fechar uma nota sem digitar não altera
+  um byte.
+- **`[[wikilink]]` clicável dentro do texto** no modo ao vivo (RF-36), com o mesmo comportamento do
+  preview — resolvido navega, não resolvido cria a nota — e os não resolvidos continuam marcados.
+- **Caixa de tarefa clicável** (RF-39): marcar `- [ ]` no modo ao vivo edita o texto do Markdown.
+- **Autocomplete de `[[` e atalhos de formatação no modo novo** (RF-37, RF-38): `Ctrl+B`, `Ctrl+I`,
+  `Ctrl+K`, ``Ctrl+` `` e `Ctrl+S` continuam, e cada aplicação de marcação é **um** passo do
+  desfazer (CA-31).
+- **Botão de copiar a nota inteira como Markdown**, no cabeçalho, ao lado do seletor de modo
+  (RF-28 a RF-30): copia `# Título`, uma linha em branco e o corpo exatamente como está, sem
+  reescrita. Copia o **rascunho**, não o que está gravado, porque entre a tecla e o autosave existem
+  800 ms em que os dois divergem. Confirma por 2 segundos e anuncia por `aria-live`; falha de
+  permissão da área de transferência vira aviso visível, não silêncio.
+
+### Alterado
+- **O modo "ao vivo" passa a ser o padrão** (RF-32), e a escolha de modo anterior é descartada uma
+  vez: a chave do `localStorage` mudou de nome, então quem já tinha um modo salvo cai no novo padrão
+  na primeira abertura e escolhe de novo se quiser. Os três modos antigos — `edicao`, `dividido` e
+  `leitura` — continuam existindo e **idênticos**, inclusive a rolagem sincronizada do dividido
+  (RF-40) e o autosave (RF-41).
+- **O PRD da Fase 5 foi corrigido em três pontos que a entrega contradisse**: RF-31 (atalho do botão
+  de copiar) saiu do escopo, a remoção de `caret.ts` prometida em D-01 e na §17 não aconteceu, e o
+  realce de sintaxe dentro de bloco de código descrito em RF-33 não vale para o modo ao vivo.
+
+### Corrigido
+- **`Ctrl+K` dentro do editor abria a paleta de busca além de inserir o link.** O handler chamava
+  `preventDefault` sem `stopPropagation`, e o listener global de `window` recebia o evento assim
+  mesmo.
+- **`Ctrl+Shift+B` deixava a seleção em negrito além de navegar para os boards.** O mapa de atalhos
+  do editor nunca testava `shiftKey`, e com Shift o `e.key` é `"B"`, que minúsculo casa com o
+  negrito. Os dois eram bugs pré-existentes, não introduzidos pela etapa.
+
+### Limitações conhecidas
+- **O botão de copiar não tem atalho de teclado** (RF-31 fora do escopo, decisão do operador):
+  `Ctrl+Shift+C` é "inspecionar elemento" no Chrome e no Firefox, e `preventDefault()` não cancela.
+- **Bloco de código no modo ao vivo não tem realce por token** — só fonte monoespaçada e fundo.
+  Realce dentro da cerca exigiria parsers aninhados por linguagem, exatamente o peso recusado em
+  D-01. Nos modos `dividido` e `leitura` o realce completo continua, via `renderMarkdown`.
+- **O mesmo texto pode aparecer levemente diferente entre o modo ao vivo e o modo leitura**: são
+  dois parsers de Markdown convivendo no bundle, o `marked` e o do Lezer.
+- **Para leitor de tela, o modo ao vivo é pior que a `<textarea>`.** Manter os três modos antigos
+  intactos **é** a mitigação — ver [`docs/historico.md`](docs/historico.md).
+
+---
+
 ## [0.5.0] — 2026-08-24
 
 **Etapa B da Fase 5**: precisão e fluidez do arraste do kanban. Mudou **só `apps/web`** — nenhum

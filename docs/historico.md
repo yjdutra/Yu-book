@@ -9,6 +9,68 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-08-24 — Fase 5, Etapa C: o editor ao vivo, e o que ele custou
+
+A etapa fecha a Fase 5 e a proposta. Saiu em duas metades: os dois commits de ponto de controle
+(`f99c0ad`, correção de dois atalhos; `fe798d6`, botão de copiar) e o editor ao vivo, que veio
+depois. Uma entrada só no changelog porque movem o mesmo pacote.
+
+**`@codemirror/lang-markdown` foi recusado, e não foi só por peso.** Ele importa
+`@codemirror/lang-html` estaticamente e o avalia em escopo de módulo, então tree-shaking não remove:
+viriam as pilhas de HTML, CSS e JavaScript junto, ~175 KB gz contra ~105 do conjunto mínimo. O que
+decidiu, porém, foi outra coisa: aquele pacote instala três comportamentos que **mexem no documento
+sozinhos** — continuar o marcador de lista no Enter, transformar URL colada em link, completar tag
+HTML. O requisito de não reescrever um byte (RNF-08) é inegociável aqui, porque `contentMd` é o que
+o MCP lê e o que os wikilinks derivam. Usamos `@lezer/markdown` cru embrulhado num `Language`, que é
+exatamente o que aquele pacote faz por dentro, sem as três gentilezas.
+
+**A `<textarea>` ficou, e essa é a decisão mais importante da etapa.** Só o modo novo usa CodeMirror;
+`edicao`, `dividido` e `leitura` continuam idênticos, na `<textarea>` de sempre. Resolve quatro
+coisas de uma vez: o carregamento sob demanda tem o que mostrar enquanto o chunk não chega, CA-33
+sai de graça, existe saída imediata se o editor novo der errado — e **acessibilidade**. O
+`contentDOM` do CodeMirror é um `role="textbox"` sem nome acessível, só o viewport existe no DOM, e
+esconder marcação tira texto do DOM de propósito. Para quem usa leitor de tela, o modo ao vivo é
+pior que a `<textarea>`; manter os três modos antigos não é conservadorismo, **é** a mitigação.
+
+**O índice de decoração é reconstruído com três guardas.** Só o viewport visível; comparação das
+linhas ativas antes de redesenhar por movimento de cursor; e `if (view.composing) return`. Esta
+última é sobre português: cada acento morto (á, ã, ç) é uma composição, e trocar DOM sob composição
+ativa duplica ou perde caractere. Custou pouco e evita um bug que só apareceria em uso real.
+
+**`defaultHighlightStyle` foi descartado.** Traz cores fixas, que não seguiriam os dois temas. As
+decorações pintam com as variáveis do `index.css`, então o tema claro e o escuro saem sem um
+condicional em JavaScript — mesma regra que vale para o resto do front.
+
+**A chave do `localStorage` do modo foi renomeada** (`yb:modo-nota` → `yb:modo-nota-2`), para migrar
+o operador ao modo novo uma vez. Trocar só o default não bastaria: o valor antigo continuaria
+valendo e o modo que a etapa inteira existe para construir ficaria escondido de quem já tinha
+escolhido `dividido`. A chave velha é varrida na primeira leitura, não lida.
+
+**Três desvios foram corrigidos no PRD, porque ele afirmava o contrário do que foi entregue.**
+
+- **RF-31 saiu do escopo**: o botão de copiar não tem atalho. `Ctrl+Shift+C` é "inspecionar
+  elemento" no Chrome e no Firefox e `preventDefault()` não cancela. Decisão do operador.
+- **`caret.ts` não foi removido.** D-01 e a §17 item 7 diziam que a Etapa C o removeria — e isso
+  pressupunha substituir a `<textarea>`. Como ela ficou, o autocomplete dela continua usando
+  `posicaoDoCursor` e `wikilinkEmDigitacao`. As duas afirmações foram corrigidas no PRD.
+- **Bloco de código no modo ao vivo não tem realce por token**, só monospace e fundo. Realce dentro
+  da cerca exigiria parsers aninhados por linguagem, exatamente o peso recusado acima. É uma redução
+  frente à redação de RF-33, e o realce completo continua nos modos que passam por `renderMarkdown`.
+
+**Fora de propósito, e assumido:** `marked` e o parser do Lezer convivem no bundle, então o mesmo
+texto pode aparecer levemente diferente entre o editor ao vivo e o modo leitura. Unificar os dois
+seria trocar o motor de renderização de leitura, que está fora da Fase 5.
+
+**Ficou pendente, e pesa mais do que nas etapas anteriores: nada disto foi executado.**
+`pnpm typecheck` limpo nos quatro pacotes, 55 testes da API verdes (nenhum novo — a API não mudou) e
+o build do front ok, mas **nenhum portão do projeto carrega uma `EditorView`**, porque não existe
+teste de front aqui. Um editor inteiro foi escrito e nunca rodou uma vez. CA-23 a CA-35 estão
+implementados e **não verificados**. É a terceira entrega seguida assim, e a primeira em que o não
+verificado é um motor de edição e não um ajuste de tato — a falta de teste de front deixou de ser
+uma economia e virou dívida com juros. Vale abrir a discussão antes da Fase 6.
+
+---
+
 ## 2026-08-24 — Três decisões do operador fechadas na documentação
 
 Nenhuma linha de código mudou aqui; o que mudou foi o que a documentação afirma. Estavam abertas no

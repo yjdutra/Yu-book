@@ -29,7 +29,9 @@ especialista.
    git diff
    git log --oneline -5
    ```
-2. Liste os arquivos tocados e selecione as invariantes de `invariantes-yu-book` que cobrem cada um.
+2. Liste os arquivos tocados e selecione as invariantes de `invariantes-yu-book` que cobrem cada
+   um. A skill é só o índice — abra `referencias/servidor.md`, `referencias/front.md`, ou os dois,
+   conforme a área do diff.
 3. Para cada invariante selecionada, verifique se o diff a preserva.
 4. Confira as convenções: idioma do domínio em português e fronteira em inglês, imports com `.js`,
    comentário explicando o porquê, tipagem estrita.

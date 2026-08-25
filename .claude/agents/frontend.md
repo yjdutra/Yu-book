@@ -50,10 +50,12 @@ e `GavetaLinks` são `lazy()` porque carregam `@dnd-kit`, que não pode entrar n
   perde o foco antes da inserção.
 - **Marcação de link quebrado roda em `useLayoutEffect`**, não `useEffect`, senão pisca a cada render.
 
-O kanban tem regra demais para caber aqui — o arraste inteiro (estado local contra servidor,
-teclado, índice de inserção, filtro de tag) vive em INV-29 a INV-36. Carregue
-`invariantes-yu-book` para o catálogo completo, com identificador e `arquivo:linha` por
-invariante, antes de tocar em `Quadro.tsx` ou `ColunaQuadro.tsx`.
+O kanban e o editor têm regra demais para caber aqui — o arraste inteiro (estado local contra
+servidor, teclado, índice de inserção, filtro de tag) e o editor ao vivo (documento sem modelo
+intermediário, a `<textarea>` que fica por acessibilidade, os dois mapas de atalho) vivem em
+INV-29 a INV-39. Carregue `invariantes-yu-book` e **abra `referencias/front.md`** — a skill traz
+só o índice; o `arquivo:linha` de cada invariante está lá. Faça isso antes de tocar em
+`Quadro.tsx`, `ColunaQuadro.tsx`, `Editor.tsx` ou qualquer arquivo `editorMd*`.
 
 ## Proibições
 

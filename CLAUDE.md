@@ -7,15 +7,16 @@ Segundo cérebro pessoal, single-user. Monorepo pnpm com quatro pacotes:
 | `apps/api` | Fastify 5 + Prisma 6 + Postgres 16 | API REST |
 | `apps/web` | React 19 + Vite 6 + Tailwind v4 | SPA desktop-only |
 | `apps/mcp` | SDK MCP + stdio | Servidor MCP, cliente da própria API |
-| `packages/shared` | Zod 3 | Schemas e helpers usados pelos dois |
+| `packages/shared` | Zod 3 | Schemas e helpers que os outros três consomem |
 
 Proposta inicial em `docs/old/PROPOSTA-inicial.md` (registro de época, não se atualiza).
 Requisitos por fase em `docs/old/prd-fase-*.md` e, da Fase 5 em diante, em `docs/prd-fase-*.md` —
 os comentários do código citam os identificadores `RF-xx`, `RN-xx`, `RNF-xx` e `CA-xx` de lá.
-Fases 0 a 4 entregues. A 5 é refino do que já existe (`docs/prd-fase-5-refino.md`), em três etapas:
-A (tags de card) e B (precisão do arraste) entregues — as duas sem conferência de interface à mão;
-C (copiar nota + editor Markdown ao vivo) não iniciada, com o motor já decidido: CodeMirror 6 com
-decorações. O Google Calendar virou a Fase 6 e é hoje o item de menor prioridade.
+**Fases 0 a 5 entregues.** A 5 foi refino do que já existe
+(`docs/prd-fase-5-refino.md`): tags de card, precisão do arraste, e o editor Markdown ao vivo com
+CodeMirror 6. As três etapas dela foram fechadas **sem conferência de interface à mão** — a dívida
+está registrada em `docs/historico.md`, e no caso do editor nenhum portão chega a instanciar uma
+`EditorView`. A próxima é a Fase 6 (Google Calendar), hoje o item de menor prioridade.
 
 **O `RF-xx` do comentário resolve para o PRD da fase daquele código — os números colidem entre
 fases.** `RF-19` é o tema claro em `apps/web/src/lib/tema.ts` e é a colisão pelo ponteiro em
