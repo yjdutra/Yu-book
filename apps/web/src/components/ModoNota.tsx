@@ -9,6 +9,17 @@ const TRACO = {
   strokeLinejoin: "round" as const,
 };
 
+/** Texto já formatado, com o cursor dentro — o modo em que se escreve vendo. */
+function AoVivo() {
+  return (
+    <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true" {...TRACO}>
+      <path d="M2.4 4h5.6" strokeWidth={2.4} />
+      <path d="M2.4 8h8.4M2.4 11.6h5.6" />
+      <path d="M13.2 6.4v6.4" />
+    </svg>
+  );
+}
+
 function Lapis() {
   return (
     <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true" {...TRACO}>
@@ -37,6 +48,7 @@ function Olho() {
 }
 
 const OPCOES: { modo: ModoNota; rotulo: string; dica: string; Icone: () => ReactElement }[] = [
+  { modo: "aovivo", rotulo: "Ao vivo", dica: "A marcação some fora da linha do cursor", Icone: AoVivo },
   { modo: "edicao", rotulo: "Só edição", dica: "Só o Markdown", Icone: Lapis },
   { modo: "dividido", rotulo: "Edição e leitura", dica: "Markdown e resultado lado a lado", Icone: Dividido },
   { modo: "leitura", rotulo: "Só leitura", dica: "Só o resultado formatado", Icone: Olho },

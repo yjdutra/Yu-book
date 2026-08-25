@@ -15,6 +15,7 @@ import { useAutosave } from "../lib/useAutosave";
 import type { EstadoSalvamento } from "../lib/useAutosave";
 import { useModoNota } from "../lib/modoNota";
 import { Editor } from "./Editor";
+import type { FocoDoCorpo } from "./Editor";
 import { SeletorModo } from "./ModoNota";
 import { IconeCopiar } from "./Icones";
 import { RotuloTipo } from "./RotuloTipo";
@@ -72,7 +73,7 @@ interface PainelEditorProps {
   /** Nota criada a partir de `[[titulo]]`: o nome já está certo, foco no corpo. */
   autoFocoCorpo: boolean;
   refTitulo: RefObject<HTMLInputElement | null>;
-  refCorpo: RefObject<HTMLTextAreaElement | null>;
+  refCorpo: RefObject<FocoDoCorpo | null>;
 }
 
 interface Rascunho {

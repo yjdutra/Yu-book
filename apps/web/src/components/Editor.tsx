@@ -1,6 +1,6 @@
 import type { NoteDetail } from "@yu-book/shared";
 import { normalizarTitulo } from "@yu-book/shared";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { posicaoDoCursor, wikilinkEmDigitacao } from "../lib/caret";
 import type { PosicaoCursor } from "../lib/caret";
@@ -10,6 +10,24 @@ import type { TituloSugerido } from "../lib/notas";
 import type { ModoNota } from "../lib/modoNota";
 import { RotuloTipo } from "./RotuloTipo";
 
+/**
+ * O que quem está de fora precisa do corpo da nota: pôr o foco nele. A
+ * `<textarea>` e o editor ao vivo cumprem isso de formas diferentes, e nem
+ * `NotasPage` nem `PainelEditor` deveriam saber qual dos dois está montado.
+ */
+export interface FocoDoCorpo {
+  focus: () => void;
+}
+
+/**
+ * O CodeMirror sai do bundle inicial (RNF-05). O corte é dentro da tela de
+ * notas e não por rota, mas o motivo é o mesmo do kanban e da gaveta: quem abre
+ * a aplicação não paga por um motor de edição que talvez não use nesta sessão.
+ */
+const EditorAoVivo = lazy(() =>
+  import("./EditorAoVivo").then((m) => ({ default: m.EditorAoVivo })),
+);
+
 interface EditorProps {
   nota: NoteDetail;
   conteudo: string;
@@ -17,7 +35,7 @@ interface EditorProps {
   onSalvarAgora: () => void;
   onAbrirNota: (id: string) => void;
   onCriarPorTitulo: (titulo: string) => void;
-  refCorpo: RefObject<HTMLTextAreaElement | null>;
+  refCorpo: RefObject<FocoDoCorpo | null>;
   /** Escrever, escrever vendo o resultado, ou só ler. */
   modo: ModoNota;
 }
@@ -65,6 +83,8 @@ export function Editor({
   modo,
 }: EditorProps) {
   const previewRef = useRef<HTMLDivElement>(null);
+  /** A `<textarea>` em si. `refCorpo` é o contrato de fora, e é mais estreito. */
+  const areaRef = useRef<HTMLTextAreaElement>(null);
   const { data: titulos } = useTitulos();
   const [sugestao, setSugestao] = useState<Sugestao>(SUGESTAO_FECHADA);
 
@@ -113,7 +133,7 @@ export function Editor({
     (origem: "editor" | "preview") => {
       if (sincronizando.current && sincronizando.current !== origem) return;
 
-      const editor = refCorpo.current;
+      const editor = areaRef.current;
       const preview = previewRef.current;
       if (!editor || !preview) return;
 
@@ -129,7 +149,7 @@ export function Editor({
         sincronizando.current = null;
       });
     },
-    [refCorpo],
+    [],
   );
 
   /** Filtragem local: os títulos já estão em cache, então não há rede por tecla. */
@@ -157,7 +177,7 @@ export function Editor({
   }
 
   function inserirSugestao(titulo: string) {
-    const campo = refCorpo.current;
+    const campo = areaRef.current;
     if (!campo) return;
 
     const antes = conteudo.slice(0, sugestao.inicio);
@@ -229,11 +249,51 @@ export function Editor({
     }
   }
 
-  const mostraEditor = modo !== "leitura";
-  const mostraPreview = modo !== "edicao";
+  const aoVivo = modo === "aovivo";
+  const mostraEditor = modo === "edicao" || modo === "dividido";
+  const mostraPreview = modo === "dividido" || modo === "leitura";
+
+  /**
+   * Com a `<textarea>` montada, é ela quem responde ao pedido de foco; no modo
+   * ao vivo quem se registra é o `EditorAoVivo`. Os dois escrevem no mesmo
+   * `refCorpo`, e cada um limpa o que escreveu ao sair.
+   */
+  useLayoutEffect(() => {
+    if (!mostraEditor) return;
+    refCorpo.current = { focus: () => areaRef.current?.focus() };
+    return () => {
+      refCorpo.current = null;
+    };
+  }, [mostraEditor, refCorpo]);
 
   return (
     <div className="relative flex min-h-0 flex-1">
+      {aoVivo && (
+        <Suspense
+          fallback={
+            <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-ink-400">
+              <span className="animate-pulse">Carregando o editor…</span>
+            </div>
+          }
+        >
+          <EditorAoVivo
+            conteudo={conteudo}
+            onConteudo={onConteudo}
+            onSalvarAgora={onSalvarAgora}
+            onAbrirTitulo={(titulo) => {
+              const existente = porTitulo.get(normalizarTitulo(titulo));
+              if (existente) onAbrirNota(existente.id);
+              else onCriarPorTitulo(titulo);
+            }}
+            onCriarTitulo={onCriarPorTitulo}
+            titulos={titulos ?? []}
+            notaId={nota.id}
+            rotulo={`Conteúdo da nota ${nota.title}`}
+            refFoco={refCorpo}
+          />
+        </Suspense>
+      )}
+
       {mostraEditor && (
       <div
         className={`relative flex min-w-0 flex-1 flex-col ${
@@ -241,7 +301,7 @@ export function Editor({
         }`}
       >
         <textarea
-          ref={refCorpo}
+          ref={areaRef}
           value={conteudo}
           onChange={(e) => {
             onConteudo(e.target.value);

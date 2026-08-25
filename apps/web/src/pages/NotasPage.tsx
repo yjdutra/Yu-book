@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import type { RecemCriada } from "../components/Aplicacao";
 import { PainelRedimensionavel } from "../components/Colunas";
 import { ListaNotas } from "../components/ListaNotas";
+import type { FocoDoCorpo } from "../components/Editor";
 import { PainelEditor } from "../components/PainelEditor";
 import type { Filtros } from "../lib/notas";
 
@@ -30,7 +31,7 @@ export function NotasPage({
   const navigate = useNavigate();
 
   const refTitulo = useRef<HTMLInputElement>(null);
-  const refCorpo = useRef<HTMLTextAreaElement>(null);
+  const refCorpo = useRef<FocoDoCorpo | null>(null);
 
   return (
     <>
