@@ -2,7 +2,7 @@
 
 **Versão:** v0.2 · **Status:** executado · **Autor:** yjdutra · **Data:** 2026-08-22
 
-> Etapas 2 e 4 da [proposta de MCP](temp/proposta-%20mcp-inicial.md). A Etapa 1 (tools de leitura
+> Etapas 2 e 4 da [proposta de MCP](proposta-mcp-inicial.md). A Etapa 1 (tools de leitura
 > sobre stdio) foi entregue na versão 0.2.0 e está verificada contra produção. Este PRD fecha as
 > **três primitivas do protocolo** e conclui o programático do curso de introdução.
 
