@@ -2,6 +2,7 @@ import { splitHighlight } from "@yu-book/shared";
 import type {
   BoardDetail,
   CardComPrazo,
+  CardDetail,
   CardSummary,
   Dashboard,
   NoteDetail,
@@ -36,6 +37,41 @@ export function limparDestaque(snippet: string): string {
     .join("")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * O dia de um prazo, em hora local.
+ *
+ * Não é `.slice(0, 10)` sobre o ISO, e a diferença não é estética. O front
+ * grava o prazo às 23:59:59 **do fuso local** (`apps/web/src/components/
+ * PainelCard.tsx`, convenção da Fase 2, documentada em `lib/tempo.ts`). Em
+ * UTC-3, isso vira 02:59 do dia seguinte — e fatiar o ISO relataria o dia
+ * errado, um dia à frente, em todo card com prazo. O corte por string é
+ * seguro para `createdAt`/`updatedAt`, que são instantes; para prazo, não.
+ *
+ * A mesma conversão vale na volta: `diaParaPrazo` é o que `create_card` usa
+ * para gravar no formato que o front espera. As duas juntas mantêm o MCP e a
+ * interface concordando sobre o que é "o dia do prazo".
+ */
+export function diaDoPrazo(iso: string): string {
+  const d = new Date(iso);
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mes}-${dia}`;
+}
+
+/**
+ * `AAAA-MM-DD` vira o fim daquele dia, em hora local — como o front grava.
+ *
+ * O formato já é validado pelo schema da tool, mas formato válido não é data
+ * válida: `2026-13-45` passa no regex e vira `Invalid Date`, e o
+ * `.toISOString()` lançaria `RangeError: Invalid time value` — que chegaria ao
+ * modelo como essa frase nua, sem dizer o campo nem o que fazer.
+ */
+export function diaParaPrazo(dia: string): string {
+  const d = new Date(`${dia}T23:59:59`);
+  if (Number.isNaN(d.getTime())) throw new Error(`dueDate não é uma data existente: ${dia}`);
+  return d.toISOString();
 }
 
 export function encurtar(texto: string, limite = LIMITE_TRECHO): string {
@@ -84,7 +120,7 @@ export function formatarNota(nota: NoteDetail): string {
 
 export function formatarCard(card: CardSummary): string {
   const partes = [`- ${card.title}`];
-  if (card.dueDate) partes.push(`prazo ${card.dueDate.slice(0, 10)}`);
+  if (card.dueDate) partes.push(`prazo ${diaDoPrazo(card.dueDate)}`);
   if (card.priority !== "media") partes.push(`prioridade ${card.priority}`);
   if (card.checklistTotal > 0) partes.push(`${card.checklistDone}/${card.checklistTotal}`);
   // As tags são o segundo eixo do quadro (RF-01): sem elas, o modelo só
@@ -108,6 +144,11 @@ export function formatarQuadro(board: BoardDetail): string {
     // informa, sem sugerir que estourar seja erro.
     const wip = coluna.wipLimit ? ` [${coluna.cards.length}/${coluna.wipLimit}]` : "";
     linhas.push(`## ${coluna.name}${wip}`);
+    // O id da coluna é o que torna a escrita alcançável: `create_card` e
+    // `move_card` endereçam por `columnId`, e este é o único lugar do servidor
+    // onde ele aparece. Custa 36 caracteres por coluna, com teto de 20 colunas
+    // por quadro — ~1 KB no pior caso, e sem ele as duas tools são inúteis.
+    linhas.push(`  id: ${coluna.id}`);
     linhas.push(coluna.cards.length ? coluna.cards.map(formatarCard).join("\n") : "_(vazia)_");
     linhas.push("");
   }
@@ -119,12 +160,56 @@ export function formatarQuadro(board: BoardDetail): string {
   return linhas.join("\n");
 }
 
+/**
+ * A confirmação de uma escrita de card. Serve `create_card` e `move_card`, que
+ * devolvem `CardDetail`.
+ *
+ * Não dá para reusar `formatarCard`: ela recebe `CardSummary` e produz a face
+ * do card dentro de um quadro, sem `boardName`, `columnName` nem `archived` —
+ * que é exatamente o que uma confirmação precisa provar. A pergunta que ela
+ * responde é "foi parar onde?".
+ *
+ * A descrição vira **contagem, não trecho**. Devolver ao modelo o Markdown que
+ * ele mesmo acabou de escrever gasta contexto sem dizer nada; cortá-lo seria
+ * cap silencioso, que este servidor não faz.
+ */
+export function formatarCardDetalhe(card: CardDetail): string {
+  const linhas = [
+    `**${card.title}**`,
+    `quadro: ${card.boardName} / coluna: ${card.columnName} · posição ${card.position}`,
+    `id: ${card.id}`,
+  ];
+
+  const face = [];
+  if (card.dueDate) face.push(`prazo ${diaDoPrazo(card.dueDate)}`);
+  face.push(`prioridade ${card.priority}`);
+  if (card.checklistTotal > 0) face.push(`checklist ${card.checklistDone}/${card.checklistTotal}`);
+  if (card.tags.length) face.push(`tags: ${card.tags.join(", ")}`);
+  linhas.push(face.join(" · "));
+
+  if (card.note) linhas.push(`nota: ${card.note.title} (${card.note.id})`);
+  if (card.descriptionMd) linhas.push(`descrição: ${card.descriptionMd.length} caracteres`);
+  if (card.archived) linhas.push("arquivado — fora do quadro");
+
+  return linhas.join("\n");
+}
+
+/**
+ * O cabeçalho de uma nota, sem o corpo. É o que as escritas de nota devolvem:
+ * confirmação não é leitura, e `formatarNota` despeja o `contentMd` inteiro,
+ * que pode ter 1 MB.
+ */
+export function formatarNotaBreve(nota: NoteDetail): string {
+  const onde = nota.workspaceName ? ` · workspace: ${nota.workspaceName}` : "";
+  return `**${nota.title}**\ntipo: ${nota.kind}${onde}\nid: ${nota.id}`;
+}
+
 /** O agregado da tela inicial como texto. Fonte única dos prompts. */
 export function formatarDashboard(d: Dashboard): string {
   const linhas: string[] = [];
 
   const prazo = (c: CardComPrazo) =>
-    `- ${c.title} — vence ${c.dueDate.slice(0, 10)} · prioridade ${c.priority} · ` +
+    `- ${c.title} — vence ${diaDoPrazo(c.dueDate)} · prioridade ${c.priority} · ` +
     `${c.boardName} / ${c.columnName}\n  id: ${c.id}`;
 
   linhas.push("## Prazos vencidos");

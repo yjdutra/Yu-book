@@ -13,10 +13,15 @@ Proposta inicial em `docs/old/PROPOSTA-inicial.md` (registro de época, não se 
 Requisitos por fase em `docs/old/prd-fase-*.md` e, da Fase 5 em diante, em `docs/prd-fase-*.md` —
 os comentários do código citam os identificadores `RF-xx`, `RN-xx`, `RNF-xx` e `CA-xx` de lá.
 **Fases 0 a 5 entregues.** A 5 foi refino do que já existe
-(`docs/prd-fase-5-refino.md`): tags de card, precisão do arraste, e o editor Markdown ao vivo com
+(`docs/old/prd-fase-5-refino.md`): tags de card, precisão do arraste, e o editor Markdown ao vivo com
 CodeMirror 6. As três etapas dela foram fechadas **sem conferência de interface à mão** — a dívida
 está registrada em `docs/historico.md`, e no caso do editor nenhum portão chega a instanciar uma
 `EditorView`. A próxima é a Fase 6 (Google Calendar), hoje o item de menor prioridade.
+
+**Três numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
+vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 3 (escrita) foi
+entregue em 2026-08-26; o **roteiro de IA aplicada** tem fases próprias. "Etapa 3" não é "Fase 3".
+Não unifique nem renumere — a entrada de 2026-08-26 em `docs/historico.md` diz de onde vem cada uma.
 
 **O `RF-xx` do comentário resolve para o PRD da fase daquele código — os números colidem entre
 fases.** `RF-19` é o tema claro em `apps/web/src/lib/tema.ts` e é a colisão pelo ponteiro em
@@ -65,4 +70,5 @@ São os únicos portões automáticos que existem. Rode-os e relate a saída rea
 
 Agentes especialistas em `.claude/agents/`. Só o `curador` escreve em `.claude/`; só o
 `publicador` faz commit e deploy, e nunca dá push sem alguém pedir — aqui push para `master` é
-deploy em produção. `apps/mcp` não é deployado: roda na máquina do operador.
+deploy em produção. `apps/mcp` não é deployado: roda na máquina do operador. Ele **escreve** desde a Etapa 3, e a
+escrita só se registra contra API local — a skill `servidor-mcp-yu-book` tem o porquê e o alvo.

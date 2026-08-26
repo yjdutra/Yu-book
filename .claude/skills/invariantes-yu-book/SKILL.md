@@ -1,6 +1,6 @@
 ---
 name: invariantes-yu-book
-description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, defesas de SSRF, escopo por usuário, a precisão do arraste do kanban, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) e as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
+description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, defesas de SSRF, escopo por usuário, a precisão do arraste do kanban, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — e o id de coluna que o servidor MCP imprime num lugar só, sem o qual as tools de escrita ficam inalcançáveis. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
 ---
 
 # Invariantes do Yu-book
@@ -20,7 +20,7 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 
 | O diff toca | Abra |
 |---|---|
-| `apps/api`, `packages/shared`, migration, SQL | `referencias/servidor.md` |
+| `apps/api`, `packages/shared`, `apps/mcp`, migration, SQL | `referencias/servidor.md` |
 | `apps/web` | `referencias/front.md` |
 | os dois | os dois |
 
@@ -45,12 +45,13 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-16 | Título é único por usuário, sem acento e só entre notas ativas |
 | INV-17 | `note_link` é tabela derivada |
 | INV-18 | O recálculo de links é condicional, e isso tem consequência |
-| INV-19 | Excluir nota desfaz vínculos e restaurar não os refaz |
+| INV-19 | Excluir nota desfaz dois vínculos; restaurar refaz um só |
 | INV-20 | Tag órfã é apagada sozinha |
 | INV-21 | Excluir workspace apaga boards e cards, mas não notas |
 | INV-22 | Link duplicado devolve o existente, não erro |
 | INV-31 | Duas armadilhas de planner no SQL |
 | INV-32 | Listagem de notas nunca carrega o corpo inteiro |
+| INV-40 | `formatarQuadro` imprime o id de cada coluna, e é o único lugar que imprime |
 
 ### Índice — front
 
@@ -83,8 +84,9 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 4. Classifique: **violação de invariante** bloqueia; divergência de convenção e observação, não.
 5. **Diga o que você não pôde verificar.** Não existe teste de front neste projeto, e nenhum portão
    carrega uma `EditorView` nem executa um arraste. INV-29, INV-30, INV-33, INV-35, INV-36, INV-38 e
-   INV-39 só se confirmam à mão. Se o diff as toca, nomeie-as e diga que faltam — uma revisão que
-   omite isso passa por verde o que ninguém executou.
+   INV-39 só se confirmam à mão. **INV-40 também**: nenhum portão fala JSON-RPC, e o `pnpm test` não
+   alcança `apps/mcp`. Se o diff as toca, nomeie-as e diga que faltam — uma revisão que omite isso
+   passa por verde o que ninguém executou.
 
 Se encontrar uma invariante que o catálogo não cobre, emita-a no bloco `## Para a memória` — o
 curador decide se ela entra aqui.
@@ -97,6 +99,12 @@ A **Fase 5 fechou** com a Etapa C (botão de copiar, correção dos atalhos e o 
 vivo). Dela nasceram INV-37, INV-38 e INV-39; INV-09 ganhou a cláusula do segundo caminho de
 renderização; as referências de INV-26 e INV-27 foram corrigidas. Nada do editor foi executado —
 ver o passo 5 acima.
+
+Depois dela, a **Etapa 3 do servidor MCP** (2026-08-26) deu escrita ao `apps/mcp` e trouxe INV-40.
+Ela também **corrigiu INV-19**, que descrevia como irreversível algo que restaurar refaz: os
+`[[…]]` voltam, o vínculo do card não. O título antigo já tinha induzido uma afirmação errada numa
+`description` de tool. Esse é o modo de falha típico deste catálogo — o **título** é lido sozinho e
+vira a fonte. Ao escrever um, confira que ele sozinho não afirma mais do que a invariante sustenta.
 
 A próxima é a **Fase 6** (Google Calendar), declarada pelo operador como o item de **menor
 prioridade**. O intervalo até lá é o tempo em que este catálogo mais envelhece: reconfira as

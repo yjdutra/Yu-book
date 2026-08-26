@@ -1,6 +1,6 @@
 # Invariantes — servidor e contrato
 
-Referência da skill `invariantes-yu-book`. Cobre `apps/api` e `packages/shared`.
+Referência da skill `invariantes-yu-book`. Cobre `apps/api`, `packages/shared` e `apps/mcp`.
 O front está em `referencias/front.md`.
 
 ## Segurança e escopo
@@ -78,9 +78,12 @@ de alvos muda (`mesmosLinks`, `apps/api/src/modules/notes/notes.service.ts:193`)
 otimização, criar, renomear e restaurar precisam chamar `reconstruirEntradas` (`:178`) para religar
 quem já apontava para aquele título — inclusive quando a nota-alvo nasce **depois** do `[[…]]`.
 
-**INV-19 — Excluir nota desfaz vínculos e restaurar não os refaz.** O soft delete apaga os
-`note_link` nos dois sentidos e zera o `noteId` dos cards. Restaurar traz tags e conteúdo, mas o
-card continua desvinculado (RN-07).
+**INV-19 — Excluir nota desfaz dois vínculos; restaurar refaz um só.** O soft delete apaga os
+`note_link` nos dois sentidos **e** zera o `noteId` dos cards. Restaurar
+(`apps/api/src/modules/notes/notes.service.ts:359-363`) chama `recalcularLinks` e
+`reconstruirEntradas`, então **os `[[…]]` voltam nos dois sentidos**; o `noteId` do card **não**
+volta, e refazer é manual, um card por vez (RN-07). Não junte os dois numa frase só: juntar já
+produziu uma afirmação errada na `description` de `trash_note`, que teve de ser corrigida.
 
 **INV-20 — Tag órfã é apagada sozinha.** Toda operação que desassocia roda `limparTagsOrfas`. Tags
 são sempre `trim().toLowerCase()`. Renomear tag para nome existente **funde** as duas, não dá erro.
@@ -104,3 +107,15 @@ cast porque o Prisma envia número como `bigint`.
 
 **INV-32 — Listagem de notas nunca carrega o corpo inteiro.** O trecho é truncado **no banco** em 600
 caracteres. Trazer `contentMd` para a lista multiplica o tráfego por página.
+
+---
+
+## Servidor MCP
+
+**INV-40 — `formatarQuadro` imprime o id de cada coluna, e é o único lugar que imprime.**
+`apps/mcp/src/formato.ts:151`. `create_card` e `move_card` endereçam por `columnId`, e nenhuma
+outra saída do servidor MCP expõe esse id — as `description` das duas mandam chamar `get_board`
+justamente por isso. Custa 36 caracteres por coluna, com teto de 20 colunas por quadro (~1 KB no
+pior caso), e é o primeiro candidato a "economia de contexto" de quem lê `formato.ts` sem abrir
+`tools/kanban-escrita.ts`. Remover não quebra nada: nada falha, nenhum teste cai, as duas tools de
+escrita só ficam **inalcançáveis**, e as descrições passam a mentir.

@@ -50,8 +50,9 @@ Regras:
 
 - Não invente prazo, card ou nota que não tenha vindo do \`get_dashboard\`. Se o recorte disser
   que há mais itens fora dele, mencione o número em vez de adivinhar quais são.
-- **Não sugira criar, mover ou arquivar nada.** Este servidor é somente leitura — recomendar uma
-  ação que não posso executar daqui só gera trabalho manual.
+- **Você pode criar e mover cards e mandar notas para a lixeira** — mas só quando eu pedir. Neste
+  ritual, no máximo *proponha* a ação e diga qual tool a executa; não chame nenhuma tool de
+  escrita sem eu mandar. Um ritual de revisão que mexe no quadro sozinho deixa de ser confiável.
 - **A fila de links não é urgência.** Nada nela expira, por decisão de projeto. Mencione o tamanho
   se for grande, sem tratar como pendência.
 - Cite o \`id\` de cada card e nota que você mencionar, para eu conseguir abrir depois.
@@ -106,7 +107,8 @@ Regras:
 - Se a busca voltar por semelhança de título em vez de correspondência exata, **diga isso** — quer
   dizer que eu talvez não tenha registrado esse assunto com essas palavras.
 - Se não houver nada, diga que não há. Não construa um resumo a partir do nome do assunto.
-- Não sugira criar nem alterar nada: este servidor é somente leitura.
+- **Não chame tool de escrita aqui.** Retomar contexto é leitura; se algo pedir uma ação, diga
+  qual tool resolve e espere eu pedir.
 `.trim(),
           },
         },

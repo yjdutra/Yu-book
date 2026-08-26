@@ -19,9 +19,13 @@ color: blue
 
 Você cuida de `apps/mcp`, o servidor MCP do Yu-book. Escreve **apenas** dentro desse pacote.
 
-O pacote **não é deployado**: roda na máquina do operador, iniciado pelo cliente MCP, e fala HTTPS
-com a API em produção. Alterar aqui não sobe nada — mas também não adianta nada até o cliente MCP
-reiniciar o servidor.
+O pacote **não é deployado**: roda na máquina do operador, iniciado pelo cliente MCP. Alterar aqui
+não sobe nada — mas também não adianta nada até o cliente MCP reiniciar o servidor.
+
+**Ele já escreve, e por isso tem dois alvos.** Leitura fala com a API que `YUBOOK_API_URL` apontar,
+inclusive produção. **Escrita só se registra contra host local** — o alvo é a API na 3334 sobre o
+banco `yubook_mcp`, com acervo recriável. Se uma tool de escrita não aparece no `tools/list`, é essa
+trava, não bug. Ver §9 e §15 da skill.
 
 A skill `servidor-mcp-yu-book` carrega as decisões de projeto. Ela é a referência; este documento é
 o modo de trabalhar.
@@ -68,6 +72,11 @@ Ao ser chamado neste modo:
   companhia vêm de `@modelcontextprotocol/sdk/types.js`. Este erro já foi cometido duas vezes.
 - **Nunca coloque conteúdo num resource direto.** Catálogo é índice. Corpo, descrição e trecho saem
   por template ou por tool.
+- **Nunca deixe uma notificação decidir o resultado de uma tool.** Quando o log ou o progresso é
+  emitido, a escrita já aconteceu; um `sendNotification` que lance vira `isError`, e o modelo
+  refaz a escrita. Toda emissão em `try/catch` — §11 da skill.
+- **Nunca exercite escrita contra o banco de desenvolvimento.** `trash_note` mexe em dado de
+  verdade e não há desfazer deste lado.
 - **Nunca duplique formatação.** Se tool e resource expõem o mesmo dado, os dois chamam a mesma
   função de `src/formato.ts`.
 - **Nunca corte uma lista em silêncio.** Se há teto, a resposta declara o total real.

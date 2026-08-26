@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro ou função usada pelos dois lados.
+description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, e o dia do prazo entre o front e o MCP, o único que ainda não passa por shared). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro ou função usada pelos dois lados, e ao converter data ou prazo em qualquer pacote.
 ---
 
 # O contrato compartilhado
@@ -47,8 +47,11 @@ contrato.
 
 ## 4. Os espelhamentos frágeis
 
-Quatro lugares onde duas implementações precisam concordar e **divergir não gera erro** — gera
+Cinco lugares onde duas implementações precisam concordar e **divergir não gera erro** — gera
 comportamento errado em silêncio. São o motivo principal desta skill existir.
+
+Os quatro primeiros passam por `packages/shared`, como manda a doutrina. **O quinto não**, e isso
+está declarado ali como dívida, não escondido.
 
 ### 4.1 `normalizarTitulo` ↔ o índice único do Postgres
 
@@ -96,6 +99,28 @@ usa `normalizarTitulo` de `wikilinks.ts`, a mesma do §4.1. Foi decisão explíc
 terceira definição de "mesmo texto" no projeto: `normalizarTag` canoniza para gravar,
 `normalizarTitulo` compara. Não escreva uma `normalizarTagParaBusca`.
 
+### 4.5 O dia do prazo ↔ as 23:59:59 locais que o front grava
+
+**Dívida declarada: este espelhamento deveria morar em `packages/shared` e não mora.**
+
+O front grava o prazo às **23:59:59 do fuso local** (`apps/web/src/components/PainelCard.tsx:26`,
+convenção da Fase 2, documentada em `apps/web/src/lib/tempo.ts:43`). Quem lê precisa converter de
+volta em hora local: `diaDoPrazo` e `diaParaPrazo` (`apps/mcp/src/formato.ts:56,71`) são o par que
+faz isso do lado do MCP.
+
+**O erro que isso previne é `.slice(0, 10)` sobre o ISO.** Em UTC-3, 23:59:59 local vira 02:59 do
+dia seguinte em UTC — fatiar a string relata **o dia errado, um dia à frente, em todo card com
+prazo**. Nada falha; o modelo só passa a informar prazos deslocados. O corte por string continua
+seguro para `createdAt`/`updatedAt`, que são instantes; para prazo, não.
+
+Se divergirem: o MCP e a interface discordam sobre que dia é "o prazo" do mesmo card, e a
+discordância é de exatamente um dia — o tipo de erro que se atribui a outra coisa.
+
+**Por que ainda não está em `shared`:** a conversão é a primeira que `apps/web` e `apps/mcp`
+precisam dividir sem `apps/api` no meio, e a API só trafega ISO. Quem for mexer nos dois lados
+promove para `packages/shared` **antes** de mexer, e apaga esta seção — não a duplique num terceiro
+lugar. Um terceiro leitor de prazo escrito à mão fecha a porta dessa promoção.
+
 ## 5. Verificação
 
 Depois de qualquer mudança em `packages/shared`:
@@ -104,4 +129,6 @@ Depois de qualquer mudança em `packages/shared`:
 pnpm --filter @yu-book/shared build && pnpm typecheck
 ```
 
-Se tocou num dos quatro espelhamentos, rode também `pnpm --filter @yu-book/api test`.
+Se tocou num dos cinco espelhamentos, rode também `pnpm --filter @yu-book/api test`. O §4.5 não
+tem teste que o cubra: confira à mão, com um prazo real, que o dia relatado pelo MCP é o mesmo que
+a interface mostra.

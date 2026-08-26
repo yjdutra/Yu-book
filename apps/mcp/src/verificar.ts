@@ -16,6 +16,17 @@ import { mensagemDeErro } from "./erros.js";
 async function principal(): Promise<void> {
   console.log(`Ambiente: ${env.YUBOOK_API_URL}`);
   console.log(`Conta:    ${env.YUBOOK_EMAIL}`);
+  // A pergunta que este utilitário existe para responder mudou: não é mais só
+  // "estou lendo de onde?", é "estou escrevendo em quê?".
+  console.log(
+    `Escrita:  ${
+      env.escritaLiberada
+        ? env.apiEhLocal
+          ? "habilitada (API local)"
+          : "HABILITADA EM API REMOTA (YUBOOK_ESCRITA_REMOTA=1)"
+        : "desligada — a API não é local, as tools de escrita não se registram"
+    }`,
+  );
   console.log("");
 
   // /health não toca no banco; /health/db toca. Os dois separados dizem se o

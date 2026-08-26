@@ -13,13 +13,155 @@ _Nada pendente._
 
 ---
 
+## [0.7.0] — 2026-08-26
+
+**Etapa 3 do servidor MCP — as tools de escrita.** O servidor deixa de só consultar o segundo
+cérebro e passa a mudá-lo: `create_card`, `move_card`, `trash_note` e `restore_note`. É a **Etapa 3
+das cinco da proposta de MCP** ([`docs/old/proposta-mcp-inicial.md`](docs/old/proposta-mcp-inicial.md)),
+a que a Etapa 2 tinha declarado fora do próprio escopo, e é a **Fase 2 do roteiro de IA aplicada**
+([`docs/applied-ai-read-trip.md`](docs/applied-ai-read-trip.md)). **Não é uma fase de produto** — as
+fases de produto vão de 0 a 5, estão concluídas, e a próxima delas continua sendo a agenda. Três
+numerações diferentes convivem no repositório; nenhuma se converte na outra.
+
+`apps/mcp` vai de `0.3.0` para `0.4.0` — superfície nova, compatível com quem já usava as cinco
+tools de leitura. `apps/api` vai de `0.3.0` para `0.4.0` **sem mudar uma linha do que é deployado**:
+o que ele ganhou foi o primeiro seed do projeto e os scripts do segundo ambiente, ferramenta de
+desenvolvimento. `apps/web` segue em `0.5.0` e `packages/shared` em `0.3.0` — o contrato **não**
+mudou, e é por isso que a regra dos quatro pacotes não se aplica aqui.
+
+**A verificação desta etapa foi de verdade, e é a primeira em três entregas que se pode dizer isso.**
+`pnpm typecheck` verde nos quatro pacotes, os 55 testes de integração da API passando (5 arquivos),
+`pnpm --filter @yu-book/mcp build` ok, e roteiros sequenciais completos rodados contra o ambiente
+local: nota para a lixeira → a busca não acha mais → restaurar → `get_note` confirmando o que volta
+e o que não volta → restaurar de novo não altera nada. **Zero linhas não-JSON no stdout** em todos
+os roteiros, que é a regra que derruba o transporte stdio quando quebra. `get_board` e
+`yubook://board/{id}` continuam devolvendo os mesmos **1385 bytes, caractere a caractere** — a
+duplicação de superfície não virou duplicação de código.
+
+**E a revisão pegou uma afirmação falsa antes de ela sair.** A descrição de `trash_note` dizia que
+os links `[[…]]` não voltam ao restaurar; eles voltam. O erro nasceu **nesta entrega**, não é
+dívida antiga, e está corrigido e reverificado no banco — 1 → 0 → 1 aresta em `note_link` ao
+excluir e restaurar. O que ele custou está em [`docs/historico.md`](docs/historico.md); o que
+importa aqui é que as descrições abaixo descrevem o comportamento real.
+
+O preço está medido: `tools/list` foi de **3480 bytes com 5 tools para 8517 com 9**, e isso é gasto
+em todo turno de conversa. É o custo da granularidade estreita, aceito de propósito. A revisão
+cortou **273 bytes** de `description` e `.describe()` no fonte — texto que não mudava decisão
+nenhuma do modelo — e só `trash_note` cresceu (+42), para desfazer a afirmação falsa. No fio, com o
+JSON dos schemas junto, isso deu **196 bytes a menos** que antes das correções.
+
+### Adicionado
+- **`create_card`** — cria um card no fim de uma coluna, com título, descrição em Markdown, prazo,
+  prioridade e tags. O quadro é deduzido da coluna: não existe parâmetro de quadro. Não cria
+  coluna, quadro, workspace nem checklist. Data **sintaticamente válida e inexistente** — um
+  `2026-13-45` — é recusada dizendo que o campo não é uma data existente, em vez de deixar um
+  `Invalid time value` cru chegar ao modelo.
+- **`move_card`** — move um card para outra coluna ou o reordena dentro da que já está. A posição
+  pedida é **a posição em que o card vai ficar**, dita assim para não exigir subtração mental de
+  quem chama. Card arquivado não se move: a recusa manda desarquivar primeiro.
+- **`trash_note`** — manda a nota para a lixeira. A confirmação **separa o que a volta desfaz do
+  que ela não desfaz**, porque são coisas de natureza oposta: os cards que apontavam para a nota
+  perdem o vínculo e `restore_note` **não** o refaz, enquanto os links `[[…]]` são apagados e
+  **voltam** ao restaurar. Os números vêm de uma leitura feita antes da exclusão — depois do fato
+  não há mais o que contar. A conta de cards diz, no próprio texto, que **card arquivado também
+  perde o vínculo e não entra nela**: a API zera o vínculo de todos, mas só os ativos são
+  contáveis. Chamar `trash_note` numa nota que **já está** na lixeira não é mais um 404 que manda
+  procurar o id onde a busca não enxerga — a tool diz desde quando ela está lá, devolve o id para
+  `restore_note` e não registra passo de algo que não aconteceu.
+- **`restore_note`** — tira a nota da lixeira, com os backlinks recalculados nos dois sentidos.
+  Avisa, na própria descrição, que **não** refaz o vínculo dos cards e que pode falhar por título
+  duplicado, se outra nota tiver tomado o título enquanto esta estava lá.
+- **Notificação de log a cada escrita** (`notifications/message`): é o único registro que chega ao
+  usuário de que uma nota foi para a lixeira — o stderr deste pacote nenhum cliente MCP mostra.
+- **Notificação de progresso**, emitida só quando o cliente manda um `progressToken` no `_meta` da
+  chamada. Sem token, nada é emitido; o log continua nos dois casos.
+- **`annotations` do MCP nas quatro tools novas**, para o cliente saber antes de chamar o que é
+  destrutivo (`trash_note`) e o que é idempotente (`restore_note`).
+- **Ambiente local de escrita**, separado do de desenvolvimento e da produção: banco `yubook_mcp`,
+  API na porta 3334 por `pnpm --filter @yu-book/api dev:mcp`, e `pnpm --filter @yu-book/api db:seed`
+  criando um acervo recriável e o usuário `mcp@yu-book.test`. O seed é idempotente e escreve
+  **pelos services**, não pelo Prisma cru, para que `note_link` exista e as posições nasçam
+  contíguas — a gaveta de links é a única exceção, e está comentada no arquivo. O acervo é
+  desenhado para **exercitar caminho, não para parecer cheio**: **16 cards, dos quais 15 ativos** —
+  `list_boards` diz 15 porque conta só os ativos, e o décimo sexto está arquivado de propósito —,
+  duas notas na lixeira — uma para a restauração feliz, outra que perdeu o
+  título para uma nota ativa e faz a restauração falhar com 409 —, um card com checklist 2/3, três
+  links na gaveta, e a coluna "Fazendo" com **4 cards ativos contra um `wipLimit` de 3**, estourada
+  de propósito, porque o limite existe para avisar e não para bloquear. Instruções no
+  [README](README.md) e em [`apps/mcp/README.md`](apps/mcp/README.md).
+- **`pnpm --filter @yu-book/mcp verificar` passa a dizer se a escrita está ligada** e contra que
+  tipo de host — a pergunta que o utilitário responde deixou de ser só "estou lendo de onde?".
+
+### Alterado
+- **Os dois prompts empacotados deixaram de proibir ação.** Onde diziam "este servidor é somente
+  leitura", agora dizem o que mudou: a revisão do dia pode *propor* uma escrita e nomear a tool que
+  a executa, mas não chama nenhuma sem pedido; retomar contexto segue sendo leitura.
+- **`get_board` passa a imprimir o id de cada coluna**, sob o nome dela. Custa 36 caracteres por
+  coluna e é o que torna as escritas de kanban alcançáveis.
+- **O erro de validação que chega ao modelo agora nomeia o campo e o motivo**, em vez da frase
+  "Dados inválidos", que não dizia nada e levava o modelo a repetir a mesma chamada errada. O erro
+  de título duplicado ganhou explicação própria, incluindo o caso em que o título foi tomado
+  enquanto a nota estava na lixeira. O `NOT_FOUND` ganhou a cláusula da lixeira, pelo mesmo motivo
+  que a ausência dela custava caro: mandar o modelo reconferir o id em `search_notes` é inútil
+  quando o id que ele tem é o de uma nota excluída, que a busca por desenho não enxerga.
+- **As descrições das tools encolheram 273 bytes sem perder informação acionável.** Saiu do
+  `.describe()` de `tags` a explicação da normalização silenciosa do servidor, que o modelo não tem
+  como acionar nem evitar, e portanto não muda decisão nenhuma dele. Texto de tool é orçamento
+  gasto em todo turno.
+- `prisma/**/*` entrou no `tsconfig.test.json` de `apps/api`, para que o seed não escape do
+  `pnpm typecheck` — o único portão automático que existe aqui.
+- `docs/prd-fase-5-refino.md` foi para `docs/old/` com a Fase 5 fechada, e a proposta de MCP saiu de
+  `docs/temp/` para [`docs/old/proposta-mcp-inicial.md`](docs/old/proposta-mcp-inicial.md). Os links
+  de quem apontava para elas foram corrigidos; o conteúdo dos dois, não — documento em `docs/old/`
+  é registro de época. O nome do contêiner do Postgres ficou igual no `README.md` da raiz e no de
+  `apps/mcp` — divergiam no mesmo diff, e um dos dois comandos de setup falhava copiado como está.
+
+### Corrigido
+- **O prazo de um card era relatado um dia à frente.** O front grava o prazo às 23:59:59 do fuso
+  local; o servidor MCP cortava o texto da data em UTC, e em UTC-3 isso cai no dia seguinte. Valia
+  para **todo** card com prazo, em `get_board`, `get_dashboard` e nos dois prompts. Bug preexistente
+  desde a Etapa 1.
+- **Não havia como descobrir o id de uma coluna pelo MCP**, o que teria deixado `create_card` e
+  `move_card` inalcançáveis: nenhuma tool, resource ou prompt imprimia `columnId`. Era bloqueante
+  para esta etapa.
+- **Detalhe de erro de validação era descartado antes de chegar ao modelo** — `issues` vinha da API
+  e era jogado fora. Tolerável enquanto o servidor só lia; inútil agora que ele erra por campo.
+- **Os dois prompts afirmavam que o servidor é somente leitura**, o que desligaria as tools novas
+  justamente nos fluxos empacotados.
+
+### Segurança
+- **A escrita nasce desligada fora de um host local.** As quatro tools novas só se registram quando
+  `YUBOOK_API_URL` aponta para localhost; contra a Railway elas **somem do `tools/list`**, e o motivo
+  vai para o stderr no boot. `YUBOOK_ESCRITA_REMOTA=1` destrava, deliberadamente. Enquanto o servidor
+  só lia, apontar o `.env` para produção era inofensivo — deixou de ser: um pedido mal interpretado
+  pelo modelo cria dado de verdade, e não existe desfazer deste lado.
+- **Exclusão definitiva de nota e exclusão de card não viraram tool**, nem por engano de nome: as
+  duas são irreversíveis e continuam só no aplicativo, com um humano confirmando. `trash_note` foi
+  batizada assim, e não `delete_note`, também por isso.
+
+### Limitações conhecidas
+- **A trava de ambiente protege contra *remoto*, não contra *o banco errado*.** Ela verifica o
+  host, e `localhost:3333` — o banco de **desenvolvimento** — passa por ela sem reclamar. Isso não
+  é hipótese para quem for configurar: é o estado de quem **já** configurou, porque `3333` era o
+  padrão anterior do `.env.example` e nenhum `.env` existente foi migrado. Nesse caso o stderr
+  anuncia `escrita: habilitada (API local)` com toda a confiança, e as tools escrevem no acervo de
+  trabalho de verdade. A porta é a única diferença entre os dois ambientes e nada a verifica.
+  **Confira a porta no `.env` antes de usar escrita.**
+- **A volta dos backlinks ao restaurar é melhor esforço, e falha por caixa.** A API acha as notas
+  que citam a restaurada filtrando o texto por `[[` mais o título, **sensível a maiúscula**, mas
+  casa o alvo ignorando acento e caixa. Medido: `[[Notificações de progresso` reencontra a nota,
+  `[[notificações de progresso` não. Um `[[wikilink]]` escrito com caixa diferente da do título
+  continua funcionando na interface e não volta à tabela de links.
+
+---
+
 ## [0.6.0] — 2026-08-24
 
 **Etapa C da Fase 5 — a nota**: botão de copiar e um quarto modo de edição, "ao vivo". Com ela a
 **Fase 5 está completa** (Etapas A, B e C entregues). Mudou **só `apps/web`** — nenhum contrato,
 migration, endpoint ou primitiva do MCP —, então só ele bumpa, de `0.4.0` para `0.5.0`; `apps/api`,
 `apps/mcp` e `packages/shared` seguem em `0.3.0`. Requisitos em
-[`docs/prd-fase-5-refino.md`](docs/prd-fase-5-refino.md) §5.4 e §5.5 (RF-28 a RF-41).
+[`docs/old/prd-fase-5-refino.md`](docs/old/prd-fase-5-refino.md) §5.4 e §5.5 (RF-28 a RF-41).
 
 É a primeira dependência externa nova do front desde a Fase 3: seis pacotes (`@codemirror/state`,
 `@codemirror/view`, `@codemirror/language`, `@codemirror/commands`, `@codemirror/autocomplete` e
@@ -90,7 +232,7 @@ conferir está em [`docs/historico.md`](docs/historico.md).
 contrato, migration, endpoint ou primitiva do MCP —, então só ele bumpa, de `0.3.0` para `0.4.0`;
 `apps/api`, `apps/mcp` e `packages/shared` seguem em `0.3.0`. A Etapa **C** (copiar nota e editor ao
 vivo) não começou: a Fase 5 **não** está concluída. Requisitos em
-[`docs/prd-fase-5-refino.md`](docs/prd-fase-5-refino.md) §5.3 (RF-18 a RF-27).
+[`docs/old/prd-fase-5-refino.md`](docs/old/prd-fase-5-refino.md) §5.3 (RF-18 a RF-27).
 
 **Esta etapa não tem portão automático que a valide.** `pnpm typecheck` nos quatro pacotes, os 55
 testes de integração da API (regressão — nenhum novo, a Etapa B não toca a API) e o build do front
@@ -144,7 +286,7 @@ implementá-las em sessões separadas as faria divergir. A Etapa **B** (precisã
 
 Os quatro pacotes vão a `0.3.0`. `packages/shared` mudou contrato — `CardSummary` e `cardInputSchema`
 ganharam `tags` —, e a regra do projeto manda bumpar junto quem consome o contrato: `apps/api`,
-`apps/web` e `apps/mcp`. Requisitos em [`docs/prd-fase-5-refino.md`](docs/prd-fase-5-refino.md).
+`apps/web` e `apps/mcp`. Requisitos em [`docs/old/prd-fase-5-refino.md`](docs/old/prd-fase-5-refino.md).
 
 ### Adicionado
 - **Tags de card no kanban** (RF-01 a RF-07): até 8 etiquetas livres por card, com até 24

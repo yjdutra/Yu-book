@@ -9,6 +9,189 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-08-26 — Servidor MCP, Etapa 3: a escrita, e o que decidiu não existir
+
+O servidor passou a mudar dado. São **três numerações vivas no repositório e elas não se
+convertem**: esta é a **Etapa 3 das cinco da proposta de MCP** (`old/proposta-mcp-inicial.md`), que
+a Etapa 2 declarou fora do próprio escopo em `old/prd-mcp-resources-e-prompts.md` NO1; é a **Fase 2
+do roteiro de IA aplicada** (`applied-ai-read-trip.md`); e **não** é fase de produto — as de produto
+vão de 0 a 5, estão fechadas, e a próxima delas segue sendo a agenda. Quem unificar os números
+depois vai errar os três.
+
+**Granularidade estreita, por escolha do operador.** Uma escrita por chamada, com o menor schema
+que resolve o caso. O schema de uma tool não é assinatura de função: é contrato de conversa com o
+modelo, e cada campo a mais é uma liberdade a mais para ele inventar combinação inválida. Duas
+ausências no `create_card` são decisão, não esquecimento — `checklist` ficou fora porque obriga o
+modelo a inventar identificador estável por item, o campo com mais chance de erro e menos valor numa
+criação; `position` ficou fora porque a API ignora posição na criação, o card nasce no fim, e aceitar
+o parâmetro seria prometer o que não se cumpre. O preço da escolha está medido: `tools/list` saiu de
+3480 bytes com 5 tools para 8517 com 9, e isso se paga em todo turno.
+
+**"Arquivar nota" não existe no domínio, e por isso a tool não podia se chamar `archive_note`.** A
+proposta original pedia esse nome. O domínio tem duas remoções com nomes diferentes de propósito:
+card se **arquiva** (`archived`, sai do quadro) e nota vai para a **lixeira** (`deletedAt`, some da
+busca e dos backlinks). Chamar de `archive_note` inventaria um estado que a tabela não tem. E
+`delete_note` seria pior por dois motivos independentes: o modelo lê "delete" como irreversível, e
+ou recusa por medo ou executa sem oferecer a volta; e queimaria o nome que a exclusão definitiva
+precisaria ter, se um dia for exposta. Ficou `trash_note`, com `restore_note` como par explícito.
+
+**A escrita nasce desligada fora de um host local.** As quatro tools só se registram se
+`YUBOOK_API_URL` apontar para localhost; contra a Railway elas somem do `tools/list` e o motivo vai
+para o stderr no boot. `YUBOOK_ESCRITA_REMOTA=1` destrava, e destravar custa uma decisão escrita. O
+motivo é que a premissa mudou: enquanto o servidor só lia, apontar o `.env` para produção era
+inofensivo — a leitura não tem consequência. Com escrita, um pedido mal interpretado cria ou remove
+dado de verdade no segundo cérebro, e não existe desfazer deste lado. Daí também o segundo ambiente:
+banco `yubook_mcp`, API na 3334, seed recriável. O alvo do erro passou a ser descartável.
+
+**O seed escreve pelos services, não pelo Prisma cru.** É o primeiro seed do projeto, e a tentação
+era `prisma.note.create`. Não dá: nota criada pelo service recalcula `note_link` a partir dos
+`[[…]]` (INV-17, tabela derivada) e board criado pelo service já nasce com as três colunas padrão
+e posições contíguas (INV-11). Inserir direto produziria um banco que **parece** certo e mente sobre
+o grafo — exatamente o tipo de ambiente de teste que valida o errado. O usuário, esse nasce por
+`register()`, porque o MCP entra por `POST /auth/login` e o `passwordHash` precisa ser o argon2 de
+verdade; gravar o hash à mão seria espelhar `ARGON_OPTIONS`, e um espelho divergente quebraria o
+login com um erro sem relação aparente com o seed. É o atalho que `tests/apoio.ts` pode tomar (ele
+assina o JWT direto) e este não podia.
+
+**A gaveta de links é a única exceção da regra, e está comentada no arquivo.** Os três links entram
+por Prisma cru porque `links.service.ts` faz `fetch` da página para descobrir o título, com as
+defesas de SSRF de INV-08, e um seed não pode depender de rede. A exceção é segura pelo mesmo
+critério que criou a regra: `link` não tem **nada derivado**, ao contrário de `note_link`, que só
+existe porque o service o calcula. A regra nunca foi "use o service"; é "não escreva à mão o que
+outra coisa deriva".
+
+**O seed cresceu depois da revisão, e o motivo é que ambiente de teste que não alcança um ramo não
+o testa — apenas deixa de reprovar.** Vários caminhos existiam no código sem poder ser
+exercitados. Entraram duas notas na lixeira (uma para a restauração feliz; a outra formando
+colisão de título com uma nota ativa, criada **nessa ordem** porque o índice único é parcial e só
+cobre as ativas), um card arquivado, `wipLimit: 3` na coluna "Fazendo", um card com checklist 2/3 e
+três links. Dois números vão junto e a diferença precisa estar escrita: o seed cria **16 linhas em
+`card`, das quais 15 ativas**, e `list_boards` diz 15 porque `listarBoards` conta `archived:
+false`. Os dois estão certos e a diferença **é** INV-13. E a coluna "Fazendo" fica com 4 cards
+ativos contra `wipLimit: 3` de propósito: o estado que prova INV-15 é o **estourado**, não o
+limite existindo.
+
+**Amostragem (*sampling*) não será usada, e isto é registro, não omissão.** Ela serve para o
+servidor pedir emprestado o modelo de quem o chamou — e aqui quem chega pelo MCP **já tem um modelo
+do outro lado**, que é o que está lendo a tool. Pedir amostragem seria pedir que gerasse um texto
+que ele geraria sozinho, com uma volta a mais no protocolo e dependendo de uma capability que a
+maior parte dos clientes não implementa. O argumento que decide, porém, é de privacidade e vem da
+direção oposta do projeto: a IA **dentro** do Yu-book (`prd-ia-no-yu-book.md`) roda em modelo local
+por exigência (RNF-01), e amostragem faria o corpo da nota atravessar o protocolo para ser
+processado por um modelo que não é o escolhido. Revisitar se o transporte virar HTTP e o servidor
+sair da máquina do operador: amostragem paga a conta em servidor público e multiusuário.
+
+**Raízes (*roots*) não se aplicam** — `apps/mcp` não abre um único arquivo, é cliente HTTP da API.
+Implementar hoje seria código morto. A lição fica guardada para a mesa de trabalho, que vai precisar
+de cópia em disco de vários repositórios.
+
+**Log vale mais que progresso, e o motivo é auditoria.** Estas são as primeiras operações do
+servidor que mudam dado, e todo diagnóstico deste pacote vai para stderr, que nenhum cliente MCP
+mostra: um `notifications/message` por escrita é o único registro que o usuário chega a ver de que
+uma nota foi para a lixeira. Progresso, com tools estreitas contra API local, é quase ornamental e
+entra assim mesmo, porque o mecanismo é o mesmo de que o backfill de embeddings vai precisar (RF-30
+do PRD de IA pede progresso visível e retomada) e construí-lo agora custou zero. O que **não** se
+faz é inventar passo artificial para a barra parecer cheia: progresso falso ensina o usuário a
+ignorá-lo. Junto veio uma regra que não se quebra — **notificação nunca decide o resultado de uma
+tool**: quando o relato é emitido a escrita já aconteceu, e deixar um `sendNotification` lançar
+transformaria criação bem-sucedida em `isError`, com o modelo criando o card de novo.
+
+**A revisão pegou uma afirmação falsa que eu tinha escrito, e a lição não é sobre o fato errado.**
+A descrição de `trash_note` dizia que os links `[[…]]` não voltam ao restaurar. Voltam:
+`restaurar` (`apps/api/src/modules/notes/notes.service.ts`) chama `recalcularLinks` para a saída
+**e** `reconstruirEntradas` para a entrada — provado no banco de teste, 1 → 0 → 1 aresta em
+`note_link` ao excluir e restaurar. A origem do erro é rastreável e é o que interessa guardar:
+generalizei o **título** de INV-19 ("restaurar não os refaz"), que no corpo escopava o "não refaz"
+ao **card**, e não li INV-18, que diz o oposto para os links. Duas consequências valem a linha —
+duas tools do mesmo servidor passaram a se contradizer, e o texto de confirmação contava como perda
+justamente o número que volta.
+
+A lição transferível: **juntar numa frase só o que o desfazer desfaz e o que ele não desfaz foi o
+que produziu o erro.** Não é descuido de redação, é a estrutura da frase convidando à
+generalização. A confirmação de `trash_note` agora separa os dois em linhas distintas, e o
+`invariantes-yu-book` já foi corrigido pelo curador: INV-19 passou a se chamar "Excluir nota
+desfaz dois vínculos; restaurar refaz um só", com a instrução explícita de não juntar os dois numa
+frase só. INV-40 entrou na mesma passagem, para o id de coluna sem o qual as tools de escrita são
+inalcançáveis.
+
+**Limite conhecido descoberto junto:** a volta dos backlinks é **melhor esforço**.
+`reconstruirEntradas` peneira candidatos com `contentMd contains "[[" + titulo`, que é sensível a
+caixa, enquanto casa o alvo por `lower(immutable_unaccent(title))`. Medido:
+`[[Notificações de progresso` acha 1 candidato, `[[notificações de progresso` acha 0. O wikilink
+continua funcionando na interface, que resolve normalizado; o que não volta é a linha em
+`note_link`. Não foi corrigido nesta etapa — é comportamento da API, não do MCP.
+
+**Quatro bugs preexistentes apareceram no caminho, e um era bloqueante.** `formatarQuadro` não
+imprimia o id da coluna, e nenhuma outra superfície do servidor imprimia: sem ele não havia caminho
+para descobrir um `columnId`, e `create_card` e `move_card` nasceriam inalcançáveis. O segundo é um
+off-by-one de um dia no prazo, em todo card que tem um: o front grava às 23:59:59 do fuso local e o
+MCP fatiava o ISO em UTC, o que em UTC-3 cai no dia seguinte — corrigido com `diaDoPrazo` e
+`diaParaPrazo`. O terceiro, `ErroDaApi` descartava os `issues`, e erro de validação chegava ao
+modelo como "Dados inválidos", frase sem informação que o leva a repetir a chamada igual. O quarto:
+os dois prompts afirmavam "este servidor é somente leitura", o que desligaria as tools novas
+justamente nos fluxos empacotados. Os quatro são anteriores a esta etapa; o quinto, o de cima, foi
+**introduzido e pego dentro dela**, e a diferença importa — dívida antiga se herda, afirmação falsa
+sobre o próprio domínio se produz. Vieram junto correções menores da mesma revisão:
+`trash_note` subcontava os cards desvinculados, porque `cardsDaNota` filtra `archived: false` e
+`excluir` zera o `noteId` de todos — card arquivado perdia o vínculo sem entrar na conta;
+`trash_note` numa nota já na lixeira devolvia 404 e ainda emitia passo de progresso de algo que não
+aconteceu; `diaParaPrazo` lançava `RangeError: Invalid time value` cru para o modelo diante de uma
+data sintaticamente válida e inexistente (`2026-13-45`); e um comentário citava "INV do domínio,
+Fase 2", identificador que não existe em lugar nenhum, agora apontando os arquivos.
+
+**Dívida declarada na correção do prazo.** A conversão ficou local em `apps/mcp/src/formato.ts`. A
+doutrina do projeto (skill `contrato-compartilhado`) mandaria levá-la para `packages/shared` junto
+com o que `apps/web/src/components/PainelCard.tsx` faz, porque são duas implementações da mesma
+convenção de "fim do dia local" e é exatamente o tipo de espelho que diverge em silêncio. Não foi
+feito, para conter o escopo desta etapa. Fica registrado como o próximo candidato a contrato.
+
+**Dívida assumida: não há tool para listar a lixeira.** A consequência é concreta — `restore_note`
+só alcança o que a própria conversa acabou de excluir, porque `search_notes` não enxerga nota
+excluída e o id não vem de lugar nenhum depois que a conversa acaba. O operador escolheu o conjunto
+de quatro tools sabendo disso. A saída, se incomodar na prática, é uma `list_trashed_notes` sobre
+`GET /notes?trash=true`.
+
+**O que deliberadamente não virou tool:** excluir card e excluir nota em definitivo (irreversíveis;
+card nem lixeira tem, e o aplicativo já faz as duas com um humano confirmando); criar quadro, coluna
+ou workspace (é estrutura — quadro criado por conversa vira quadro paralelo em silêncio, e excluir
+coluna exige decidir o destino dos cards, INV-14); e editar nota ou card, que é outro problema, com
+concorrência contra o autosave do front e merge de conteúdo.
+
+**Esta etapa foi verificada de verdade, e é a primeira em três que se pode dizer isso.** Além do
+typecheck nos quatro pacotes, dos 55 testes da API e do build do MCP, rodaram roteiros sequenciais
+completos contra o ambiente local: lixeira → busca não acha → restauração → `get_note` confirmando
+o que volta e o que não volta → restauração idempotente. Zero linhas não-JSON no stdout em todos os
+roteiros; progresso presente com `_meta.progressToken` e ausente sem ele, com log nos dois casos;
+contra a Railway, só as cinco tools de leitura aparecem. E `get_board` contra
+`yubook://board/{id}`: 1385 bytes idênticos caractere a caractere, que é a prova de que a superfície
+se duplica e a implementação não.
+
+Com o seed ampliado, quatro caminhos que antes só existiam no código foram **exercitados**:
+`restore_note` na armadilha de título devolveu 409 `TITULO_DUPLICADO`, usando uma mensagem de
+`erros.ts` que existia sem nunca ter rodado; `trash_note` em nota já na lixeira devolveu o aviso com
+o id para desfazer, sem 404; `move_card` em card arquivado recusou com "Card arquivado não se move.
+Desarquive primeiro." (INV-13); e `create_card` com `dueDate: "2026-13-45"` recusou dizendo que não
+é uma data existente. Depois das nove correções, `tools/list` ficou em **8517 bytes** com 9 tools —
+196 a menos que antes delas, com só `trash_note` crescendo, e crescendo para desfazer a afirmação
+falsa.
+
+**Pendências.** A mais importante: **a trava de ambiente protege contra *remoto*, não contra *o
+banco errado*.** Ela olha o host, e `localhost:3333` — o banco de desenvolvimento, o acervo de
+trabalho de verdade — passa por ela sem reclamar, com o stderr anunciando `escrita: habilitada (API
+local)` com toda a confiança. Não é risco hipotético para quem for configurar: é o **estado atual de
+quem já configurou**, porque `3333` era o padrão anterior do `.env.example` e nenhum `.env` existente
+foi migrado. A porta é a única diferença entre os dois ambientes e nada a verifica. A saída não é
+óbvia — checar a porta seria arbitrário, e o sinal honesto seria o servidor perguntar à API em que
+banco ela está —, por isso fica registrada em vez de remendada.
+
+Também aberto: a dívida do `diaDoPrazo` em `packages/shared`, acima; e o limite de caixa em
+`reconstruirEntradas`, que é da API e não do MCP. E `docs/applied-ai-read-trip.md`
+ainda diz "Fases 0 a 4 entregues" e chama a agenda de "Fase 5 de produto", enquanto o README diz 0 a
+5 concluídas e chama a agenda de Fase 6 — o roteiro foi escrito antes de a Fase 5 fechar e precisa
+ser reconciliado com o README na próxima passagem por ele.
+
+---
+
 ## 2026-08-24 — Fase 5, Etapa C: o editor ao vivo, e o que ele custou
 
 A etapa fecha a Fase 5 e a proposta. Saiu em duas metades: os dois commits de ponto de controle
@@ -105,7 +288,7 @@ a ordem A → B já aconteceu. Não foi mexida por estar fora do pedido.
 ## 2026-08-24 — Fase 5, Etapa B: o arraste do kanban, e o índice que não podia oscilar
 
 Entregue a precisão do arraste. Só `apps/web` mudou; contrato, banco, API e MCP ficaram intactos.
-Requisitos em [`prd-fase-5-refino.md`](prd-fase-5-refino.md) §5.3.
+Requisitos em [`old/prd-fase-5-refino.md`](old/prd-fase-5-refino.md) §5.3.
 
 **O índice de inserção virou contagem geométrica, não "o ponto médio do card sob o cursor".** A
 regra do ponto médio, que era a redação original de RF-18, oscila: inserir empurra o card que estava
@@ -171,7 +354,7 @@ INV-30 e INV-33 ganharam notas — o catálogo está em 272 de 300 linhas, perto
 ## 2026-08-24 — Fase 5, Etapa A: tag de card, e o eixo que faltava no quadro
 
 Entregues as tags de card e a busca no cartão de tags da barra lateral. Requisitos em
-[`prd-fase-5-refino.md`](prd-fase-5-refino.md), um PRD novo que cobre as três etapas da Fase 5.
+[`old/prd-fase-5-refino.md`](old/prd-fase-5-refino.md), um PRD novo que cobre as três etapas da Fase 5.
 
 **A Fase 5 deixou de ser o Google Calendar.** O PRD assume a numeração nova: refino do que já
 existe é a Fase 5, e a agenda passa para a Fase 6. Não é reordenação por conveniência — o operador
@@ -330,7 +513,7 @@ concorrer com PRD e histórico na busca de quem procura como o Yu-book funciona.
 ## 2026-08-22 — Servidor MCP, Etapa 1, e o agente `publicador`
 
 Primeira etapa do servidor MCP do Yu-book em `apps/mcp`: quatro tools de leitura sobre stdio.
-Guia em [`temp/proposta- mcp-inicial.md`](temp/proposta-%20mcp-inicial.md).
+Guia em [`old/proposta-mcp-inicial.md`](old/proposta-mcp-inicial.md).
 
 **TypeScript em vez do Python das aulas.** O curso ensina com o SDK Python, mas em TS o servidor
 importa `@yu-book/shared` e os schemas Zod das tools **são** os que a API já valida. Em Python

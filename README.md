@@ -10,9 +10,16 @@ Requisitos por fase em [docs/old/prd-fase-1-notas.md](docs/old/prd-fase-1-notas.
 [docs/old/prd-fase-2-kanban.md](docs/old/prd-fase-2-kanban.md),
 [docs/old/prd-fase-3-links.md](docs/old/prd-fase-3-links.md),
 [docs/old/prd-fase-4-dashboard.md](docs/old/prd-fase-4-dashboard.md) e
-[docs/prd-fase-5-refino.md](docs/prd-fase-5-refino.md).
+[docs/old/prd-fase-5-refino.md](docs/old/prd-fase-5-refino.md).
 
-**Status: Fases 0 a 5 concluídas.** A Fase 5 fechou com as três etapas entregues.
+**Status: Fases 0 a 5 concluídas.** A Fase 5 fechou com as três etapas entregues. A próxima fase de
+produto é a **Fase 6**, a agenda no Google Calendar, hoje o item de menor prioridade.
+
+O **servidor MCP** (`apps/mcp`) tem numeração própria e corre em paralelo: está na **Etapa 3 de 5 da
+proposta de MCP** — as três primitivas do protocolo, agora **com escrita**, sobre stdio. Etapa de MCP
+não é fase de produto, e os dois números não se convertem um no outro. Ver
+[apps/mcp/README.md](apps/mcp/README.md) e o roteiro em
+[docs/applied-ai-read-trip.md](docs/applied-ai-read-trip.md).
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
@@ -73,6 +80,33 @@ pnpm dev                                    # API na 3333, front na 5173
 
 Gere o segredo com `openssl rand -base64 48`. A API recusa subir com `JWT_SECRET` curto —
 falhar no boot é melhor que rodar inseguro.
+
+### O segundo ambiente, para as tools de escrita do MCP
+
+O servidor MCP escreve — cria card, move card, manda nota para a lixeira. Escrever no banco de
+desenvolvimento misturaria dado de teste com o que você usa, e escrever em produção não tem
+desfazer. Por isso existe um **terceiro par banco+API**, paralelo e descartável:
+
+```
+yubook       :5432/yubook      ← API :3333 ← apps/web :5173     desenvolvimento
+yubook_mcp   :5432/yubook_mcp  ← API :3334 ← apps/mcp (stdio)   escrita do MCP
+```
+
+```bash
+docker exec yubook-db createdb -U postgres yubook_mcp   # o nome do seu contêiner
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/yubook_mcp?schema=public" \
+  pnpm --filter @yu-book/api db:deploy
+
+pnpm --filter @yu-book/api db:seed          # acervo de teste + usuário mcp@yu-book.test
+pnpm --filter @yu-book/api dev:mcp          # API na 3334, contra yubook_mcp
+```
+
+Os dois sobem ao mesmo tempo, e `pnpm dev` continua sendo o de sempre. As variáveis prefixadas na
+linha de comando vencem o `.env` — nem `--env-file` nem `process.loadEnvFile()` sobrescrevem o que
+já veio do shell —, então não existe arquivo de ambiente novo para manter.
+
+**As tools de escrita do MCP só se registram contra uma API local.** Contra a Railway elas somem do
+`tools/list`. Ver `apps/mcp/README.md`.
 
 Abra `http://localhost:5173`, crie sua conta (`ALLOW_SIGNUP=true` em dev) e pronto.
 
@@ -423,7 +457,7 @@ auditoria encontrou e corrigiu inclusive uma falha antiga do tema escuro — bra
 ## A Fase 5, entregue
 
 A Fase 5 refinou o que já existia, em três etapas independentes
-([PRD](docs/prd-fase-5-refino.md)). **As três estão entregues:**
+([PRD](docs/old/prd-fase-5-refino.md)). **As três estão entregues:**
 
 - **Etapa A — tags de card:** tags próprias do card, filtro por tag no quadro e busca na lista de
   tags da barra lateral.

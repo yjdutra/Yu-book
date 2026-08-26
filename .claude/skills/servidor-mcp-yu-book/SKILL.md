@@ -1,6 +1,6 @@
 ---
 name: servidor-mcp-yu-book
-description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, identidade por uuid, uma formatação para duas superfícies, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
+description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, identidade por uuid, uma formatação para duas superfícies, as tools de escrita e a trava que as desliga fora de host local, a description como contrato de conversa com o modelo, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
 ---
 
 # O servidor MCP do Yu-book
@@ -67,6 +67,12 @@ interface para o retorno de um handler, procure o tipo no SDK primeiro.
 **Tool e resource sobre o mesmo dado não são duplicação.** `get_board` e `yubook://board/{id}`
 devolvem o mesmo texto de propósito: a superfície é que se duplica, nunca a implementação.
 
+**Tool é a única primitiva que escreve**, e a escrita tem regras próprias — §9 a §11. Resource e
+prompt não mudam dado, e não passam a mudar.
+
+Há uma quarta via, que não é primitiva: a **via de volta** (log e progresso), em que o servidor
+notifica o cliente durante uma chamada. Vive em `src/notificacoes.ts` (§11).
+
 ## 6. Resource: direto ou template
 
 **Conjunto pequeno e limitado é listável; conteúdo que cresce sem limite não é.**
@@ -91,6 +97,11 @@ recurso com duas caras.
 Verificação: ler `yubook://nota/{id}` e chamar `get_note` com o mesmo id devem produzir texto
 **idêntico caractere a caractere**.
 
+**Data de prazo não se formata aqui por conta própria.** `diaDoPrazo`/`diaParaPrazo` espelham a
+convenção do front, que grava o prazo às 23:59:59 **locais** — `.slice(0, 10)` sobre o ISO relata o
+dia seguinte. É um espelhamento frágil declarado: ver §4.5 da skill `contrato-compartilhado` antes
+de escrever qualquer conversão de data.
+
 ## 8. Prompt: instrução, não dado
 
 - **Prompt não busca dado.** Devolve mensagens; quem busca é tool ou resource. Prompt que embute
@@ -101,7 +112,91 @@ Verificação: ler `yubook://nota/{id}` e chamar `get_note` com o mesmo id devem
   urgência.
 - A `description` aparece no menu do `/` — descreve **o resultado**, não a implementação.
 
-## 9. Erro é texto que o modelo vai tentar contornar
+## 9. Escrita: nasce desligada, e o nome carrega o domínio
+
+Quatro tools mudam dado: `create_card`, `move_card` (`src/tools/kanban-escrita.ts`), `trash_note` e
+`restore_note` (`src/tools/notas-escrita.ts`). Vivem em arquivos separados das de leitura de
+propósito — risco diferente, revisão diferente.
+
+**A escrita nasce desligada fora de um host local.** `env.escritaLiberada` (`src/env.ts:53`) decide
+se elas chegam a ser registradas (`src/index.ts:53`); contra outro host somem do `tools/list` e o
+motivo vai para o stderr no boot. `YUBOOK_ESCRITA_REMOTA=1` destrava, e destravar custa uma decisão
+escrita. **Tool de escrita que você acabou de criar e não aparece no `tools/list` quase sempre é
+isto, não um bug de registro.**
+
+**Nome de tool não inventa estado que a tabela não tem.** O domínio tem duas remoções com nomes
+diferentes: card se **arquiva** (`archived`, sai do quadro, renumera a coluna — INV-13); nota vai
+para a **lixeira** (`deletedAt`). Não existe "arquivar nota", e por isso não existe `archive_note`.
+`delete_note` foi recusado por dois motivos independentes: o modelo lê "delete" como irreversível —
+ou recusa por medo, ou executa sem oferecer a volta — e queimaria o nome de que a exclusão
+definitiva precisaria, se um dia for exposta. Argumento inteiro na entrada de 2026-08-26 de
+`docs/historico.md`.
+
+**Dois critérios decidem o que não vira tool**, e valem para a próxima também: operação
+**irreversível** fica no aplicativo, com um humano confirmando (excluir card, excluir nota em
+definitivo); **estrutura** é escolha de dono, não de conversa (criar quadro, coluna ou workspace).
+Editar nota ou card é outro problema, não o mesmo maior: concorre com o autosave do front. O
+inventário e as consequências assumidas estão em `apps/mcp/README.md` (§"O que deliberadamente não
+vira tool").
+
+**Nem amostragem (*sampling*) nem raízes (*roots*)** — a primeira porque quem chega pelo MCP já tem
+um modelo do outro lado e a direção do projeto é modelo local; a segunda porque este servidor não
+abre arquivo nenhum. Não as implemente sem reler o argumento em `apps/mcp/README.md`.
+
+## 10. A `description` de uma tool de escrita é contrato de conversa
+
+Ela não descreve a função: ela **fecha as portas por onde o modelo inventa**. Numa tool de leitura,
+descrição fraca custa uma chamada inútil; numa de escrita, custa dado errado no segundo cérebro.
+
+- **Declare o que a tool NÃO faz.** É a mesma regra da §8 para prompts, e aqui pesa mais.
+  `create_card` precisa dizer que não cria coluna, quadro nem checklist — senão o modelo tenta.
+- **Declare o que parece erro e não é.** Precedente: `move_card` teve de ensinar que número maior
+  que a coluna é **ajustado para o fim, não recusado** (INV-11). Sem isso o modelo lê o sucesso
+  como falha e tenta de novo com outro número.
+- **Separe o que o desfazer desfaz do que não desfaz, e não junte os dois numa frase.** Juntar foi
+  o que produziu uma afirmação errada em `trash_note` e obrigou a corrigi-la: os `[[…]]` **voltam**
+  ao restaurar, o vínculo dos cards **não** (INV-19). Some a isso que o título fica livre enquanto
+  a nota está na lixeira, então a volta pode falhar por duplicata (INV-16).
+- **Diga de onde vem cada id.** `columnId` só existe na saída de `get_board` (INV-40).
+- **Preencha `annotations`** (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`).
+  São dica para o cliente, não garantia: `destructiveHint: true` só em `trash_note`.
+
+**O contrapeso: não descreva o que o modelo não pode agir.** A `description` é cobrada em **todo
+turno**, não por chamada. Transformação silenciosa que o modelo não tem como evitar sai do texto —
+a normalização de tags do servidor (minúsculas, corte em 24, fusão de repetidas) foi retirada por
+isso (`src/tools/kanban-escrita.ts:76`). O critério é a pergunta: *sabendo disto, o modelo faria
+algo diferente?* Se não, é custo puro. E vale o §3 aqui: **meça o `tools/list` antes e depois**, não
+estime — o baseline medido fica na memória do agente `mcp`.
+
+## 11. A via de volta: log e progresso
+
+Tudo em `src/notificacoes.ts`; nenhuma tool emite notificação à mão.
+
+**REGRA QUE NÃO SE QUEBRA: notificação nunca decide o resultado de uma tool.** Quando o relato é
+emitido, a escrita **já aconteceu**. Um `sendNotification` que lance — cliente desconectado,
+transporte fechado, capability ausente — transformaria uma criação bem-sucedida em `isError`, e o
+modelo criaria o card de novo. Toda emissão vive em `try/catch`, com o motivo indo para stderr
+(`src/notificacoes.ts:57,71,89`).
+
+**A capability `logging` se declara no construtor do `McpServer`** (`src/index.ts:44`). Sem ela
+`sendLoggingMessage` não lança nem avisa: apenas não faz nada, e o log das escritas some em
+silêncio. Declarar depois não adianta — o handler de `logging/setLevel` só é registrado ali.
+
+**Log sempre por `server.server.sendLoggingMessage`, nunca por `extra.sendNotification` com
+`notifications/message`.** A segunda forma **lança** sem a capability; a primeira apenas não faz
+nada. Numa tool de escrita a diferença é entre um log perdido e uma escrita relatada como falha.
+
+**Progresso só sai se o cliente mandar `_meta.progressToken`**, e vai pelo `extra`, que é o que
+amarra a notificação à requisição em curso. Emitir sem token é ruído.
+
+Log vale mais que progresso aqui: todo diagnóstico deste pacote vai para stderr, que nenhum cliente
+MCP mostra, então um `notifications/message` por escrita é o único registro que o usuário chega a
+ver. **Não invente passo artificial para a barra parecer cheia** — progresso falso ensina o usuário
+a ignorá-lo. O passo só conta quando é trabalho real: `trash_note` tem dois porque lê a nota antes
+de apagar, para poder contar os vínculos perdidos. E **caminho que não fez nada não registra
+passo**: `trash_note` sai cedo quando a nota já está na lixeira, sem emitir passo nem log.
+
+## 12. Erro é texto que o modelo vai tentar contornar
 
 Toda falha passa por `comErro` ou `comErroDeResource` (`src/erros.ts`), que traduz o código estável
 da API em instrução acionável. Ramifica-se por `code`, nunca por `message`.
@@ -109,7 +204,7 @@ da API em instrução acionável. Ramifica-se por `code`, nunca por `message`.
 Resource **lança** em vez de devolver `isError` — o cliente precisa distinguir "não encontrei" de
 "aqui está, e está vazio".
 
-## 10. Tolerar uma API mais velha que o contrato
+## 13. Tolerar uma API mais velha que o contrato
 
 O servidor MCP e a API têm **ciclos de deploy independentes**. O servidor roda local com o contrato
 recém-compilado; a API em produção pode ser semanas mais antiga.
@@ -117,7 +212,7 @@ recém-compilado; a API em produção pode ser semanas mais antiga.
 Campo novo ausente na resposta é **omitido**, não emitido como `undefined`. Ver o catálogo em
 `src/resources/catalogos.ts`.
 
-## 11. Propagação — o que fazer quando o domínio muda
+## 14. Propagação — o que fazer quando o domínio muda
 
 **Este é o motivo pelo qual existe um agente para este pacote.** Mudança de domínio em `apps/api` ou
 `packages/shared` não quebra o MCP: ela o deixa **desatualizado em silêncio**. Nenhum teste falha,
@@ -134,32 +229,31 @@ Diante de um campo, entidade ou filtro novo no domínio, percorra:
       Se for conteúdo, **não entra** no catálogo.
 - [ ] **Resource template novo?** Só se for conjunto que cresce sem limite e tiver endereço próprio.
 - [ ] **Prompts** — algum fluxo existente fica melhor, ou pior, com o campo novo?
-- [ ] **Orçamento** — o item do catálogo ficou mais caro? Meça, não estime.
+- [ ] **Orçamento** — o item do catálogo ficou mais caro? Meça, não estime. Lembre que
+      `description` de tool é cobrada em todo turno, e o catálogo só quando alguém anexa.
+- [ ] **Tools de escrita** — a mudança altera o que `create_card`, `move_card`, `trash_note` ou
+      `restore_note` **fazem** ou **deixam de fazer**? Se altera, a `description` mente até ser
+      reescrita, e a `description` é o contrato (§10). Regra nova de reversibilidade ou de efeito
+      colateral cai aqui.
+- [ ] **`annotations`** — o risco da operação mudou? `destructiveHint` acompanha o domínio.
+- [ ] **Log e progresso** — a escrita passou a ter um efeito que o usuário precisa ver no
+      `notifications/message`? Passo real novo, ou passo que deixou de existir? (§11)
 - [ ] **`src/verificar.ts`** — vale reportar no diagnóstico?
 
 Se a resposta for "nada muda", **diga isso explicitamente**. Silêncio é indistinguível de
 esquecimento.
 
-## 12. Como verificar
+## 15. Como verificar
 
 O inspetor oficial serve para explorar. Para **provar**, fale JSON-RPC direto no stdin — é o que
-permite medir bytes, comparar saídas e validar invariantes:
+permite medir bytes, comparar saídas e conferir a ausência de uma notificação.
 
-```bash
-printf '%s\n' \
-  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}' \
-  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-  '{"jsonrpc":"2.0","id":3,"method":"resources/list","params":{}}' \
-  '{"jsonrpc":"2.0","id":4,"method":"prompts/list","params":{}}' \
-| node --env-file=apps/mcp/.env apps/mcp/dist/index.js
-```
+Os comandos, a sessão de exemplo, o ambiente local de escrita e as duas provas de progresso estão
+em **`referencias/verificacao.md`**. Abra na hora de verificar.
 
-Sempre confira que **toda linha do stdout é JSON válido** — é a invariante do transporte.
+Três coisas para saber sem abrir nada:
 
-```bash
-pnpm --filter @yu-book/shared build    # se o contrato mudou
-pnpm --filter @yu-book/mcp typecheck
-pnpm --filter @yu-book/mcp build
-pnpm --filter @yu-book/mcp verificar   # confirma ambiente, login e volume
-```
+- **Toda linha do stdout tem de ser JSON válido** — é a invariante do transporte (§1).
+- **Escrita se exercita contra o ambiente local** (banco `yubook_mcp`, API na 3334), nunca contra
+  o seu acervo. `trash_note` mexe em dado de verdade.
+- **Tool de escrita ausente do `tools/list` quase sempre é a trava de ambiente**, não bug (§9).

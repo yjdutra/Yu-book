@@ -1,15 +1,17 @@
 {
   "name": "@yu-book/api",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=.env src/index.ts",
+    "dev:mcp": "DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/yubook_mcp?schema=public\" PORT=3334 tsx watch --env-file=.env src/index.ts",
     "build": "prisma generate && tsc -p tsconfig.json",
     "start": "prisma migrate deploy && node dist/index.js",
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "db:seed": "DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/yubook_mcp?schema=public\" tsx --env-file=.env prisma/seed.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "test": "vitest run"
