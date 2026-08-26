@@ -102,14 +102,14 @@ DOM já reordenou. E não é sempre — é pior: o `SortableContext` desliga os 
 `items` mudam e os **religa no primeiro frame em que a lista se repete**
 (`disableTransforms = … || itemsHaveChanged`, `@dnd-kit/sortable/dist/sortable.esm.js:314`, com
 `previousItemsRef` atualizado num efeito **passivo**, `:322`) — exatamente quando a mão para para
-mirar. Argumento completo em RF-27 de `docs/prd-fase-5-refino.md`.
+mirar. Argumento completo em RF-27 de `docs/old/prd-fase-5-refino.md`.
 
 ---
 
 ## Tags
 
 **INV-34 — Tag de nota e tag de card têm o mesmo nome e são coisas diferentes.** Não são para ser
-unificadas; a tabela completa está na §7.3 de `docs/prd-fase-5-refino.md`.
+unificadas; a tabela completa está na §7.3 de `docs/old/prd-fase-5-refino.md`.
 
 | | Tag de nota | Tag de card |
 |---|---|---|
@@ -178,7 +178,7 @@ perceber, e nenhum portão acusa.
 
 Consequência: **`apps/web/src/lib/caret.ts` não foi removido.** O autocomplete da `<textarea>`
 continua usando `posicaoDoCursor` e `wikilinkEmDigitacao` (`Editor.tsx:5`, `:164-177`). A §12/D-01
-de `docs/prd-fase-5-refino.md` prometeu a remoção; a promessa não se cumpriu e não vale mais.
+de `docs/old/prd-fase-5-refino.md` prometeu a remoção; a promessa não se cumpriu e não vale mais.
 
 **INV-39 — O editor tem dois mapas de atalho, e os dois precisam parar o evento.** Os atalhos
 globais moram num listener de `window` (`apps/web/src/components/Aplicacao.tsx:173-211`), que recebe

@@ -10,7 +10,7 @@ Tudo aqui é feito à mão. **Não existe shadcn, Radix, Headless UI, Material n
 
 **A única exceção é o CodeMirror 6**, e ela é estreita: motor de edição de texto não é biblioteca
 de UI nem de ícones, e o operador autorizou nominalmente essa dependência e nenhuma outra — a
-decisão e seus limites estão na §12/D-01 de `docs/prd-fase-5-refino.md`. Ela não abre precedente:
+decisão e seus limites estão na §12/D-01 de `docs/old/prd-fase-5-refino.md`. Ela não abre precedente:
 componente que já existe aqui continua sendo escrito à mão.
 
 ## 1. A rampa de cor é semântica

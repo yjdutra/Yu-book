@@ -58,7 +58,7 @@ Dívidas já conhecidas, que você deve continuar listando enquanto existirem:
 - **A rampa `ink-*` inteira**, mesmo que um token pareça sem uso: ela é semântica e vale nos dois
   temas.
 - **Código que um comentário `RF-xx`/`RN-xx` justifica** — ele implementa requisito.
-- **`apps/web/src/lib/caret.ts`.** A §12/D-01 de `docs/prd-fase-5-refino.md` prometeu removê-lo na
+- **`apps/web/src/lib/caret.ts`.** A §12/D-01 de `docs/old/prd-fase-5-refino.md` prometeu removê-lo na
   Etapa C e a Etapa C **não removeu**: a `<textarea>` ficou por acessibilidade (INV-38), e o
   autocomplete dela ainda usa `posicaoDoCursor` e `wikilinkEmDigitacao`. Não é promessa de PRD não
   cumprida nem resquício — é decisão. A promessa é que caducou.

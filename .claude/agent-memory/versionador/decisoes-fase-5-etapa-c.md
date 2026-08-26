@@ -6,7 +6,7 @@ metadata:
 ---
 
 A Etapa C da Fase 5 (editor ao vivo) contradisse três coisas que o PRD afirmava, todas já corrigidas
-em `docs/prd-fase-5-refino.md`:
+em `docs/old/prd-fase-5-refino.md`:
 
 - **`caret.ts` NÃO foi removido**, ao contrário do que D-01 e a §17 item 7 prometiam. A `<textarea>`
   ficou nos modos `edicao`/`dividido`/`leitura` e o autocomplete de `[[` deles depende de
