@@ -2,10 +2,27 @@
 
 Servidor MCP do Yu-book. Expõe o segundo cérebro como ferramentas que o Claude pode chamar.
 
-**Estado: Etapa 3 — as três primitivas do protocolo, com escrita, sobre stdio.** A Etapa 4
-(transporte HTTP e identidade) vem depois do curso *MCP: Advanced Topics*.
+**Estado: Etapa 4 de 5 — transporte HTTP e identidade.** As três primitivas do protocolo, com
+escrita, sobre **dois transportes**. A Etapa 5 é a mesa de trabalho multi-repositório.
 
-## Rodando
+## Dois modos de operação, e a diferença é quem é você
+
+O mesmo servidor, a mesma montagem (`src/servidor.ts`), as mesmas nove tools. O que muda é **como o
+servidor sabe de quem é a requisição** — e isso muda tudo o que vem depois.
+
+| | `stdio` | `http` |
+|---|---|---|
+| Quantos processos | um por pessoa, iniciado pelo cliente | um serviço, muitos clientes |
+| Quem é você | o dono do processo | quem apresentou o token |
+| De onde vem a credencial | `YUBOOK_EMAIL`/`YUBOOK_PASSWORD` no `.env` | OAuth 2.1, do navegador |
+| A trava de escrita | a URL da API é local? | o escopo do token |
+| Via de volta (log, progresso) | pelo próprio stdio | SSE, por sessão |
+
+Em stdio a credencial no ambiente **está certa**: um processo, um usuário, e o processo é seu. Em
+HTTP ela seria uma identidade só para todo mundo — por isso o boot **recusa subir** se
+`YUBOOK_EMAIL` estiver definida ali. Ver `.env.example`, que separa as variáveis por transporte.
+
+## Rodando em stdio
 
 ```bash
 cp apps/mcp/.env.example apps/mcp/.env    # ajuste email e senha da sua conta
@@ -34,10 +51,42 @@ printf '%s\n' \
 | node --env-file=apps/mcp/.env apps/mcp/dist/index.js
 ```
 
+## Rodando em HTTP
+
+```bash
+env -u YUBOOK_EMAIL -u YUBOOK_PASSWORD \
+  MCP_TRANSPORTE=http PORT=3335 \
+  MCP_URL_PUBLICA=http://localhost:3335 \
+  MCP_SEGREDO="$(openssl rand -base64 48)" \
+  YUBOOK_API_URL=http://localhost:3334 \
+  node apps/mcp/dist/index.js
+```
+
+O `env -u` não é firula: se as credenciais estiverem exportadas na sua sessão, o boot recusa — e é
+esse o ponto.
+
+**O que o cliente MCP faz sozinho**, sem ninguém registrar nada em lugar nenhum: acha
+`/.well-known/oauth-authorization-server`, se cadastra por *dynamic client registration*, abre o
+navegador em `/authorize`, e volta com um `code` que troca por tokens com PKCE.
+
+**O que você faz:** na página que abre, digita email e senha da sua conta no Yu-book e marca — ou
+não — a caixa de escrita. Marcada, o token vem com `yubook:write` e a sessão registra as nove tools;
+desmarcada, cinco.
+
+O servidor **não guarda estado durável**. Cliente registrado, código de autorização e refresh token
+viajam cifrados dentro do próprio identificador (`src/auth/segredos.ts`), então um redeploy não
+expulsa ninguém e não há mapa crescendo em memória.
+
 ## O ambiente local de escrita
 
-**As tools de escrita só se registram contra uma API local.** Contra qualquer outro host elas somem
-do `tools/list`, e o motivo vai para o stderr no boot. Ver `YUBOOK_ESCRITA_REMOTA` no `.env.example`.
+**Em stdio, as tools de escrita só se registram contra uma API local.** Contra qualquer outro host
+elas somem do `tools/list`, e o motivo vai para o stderr no boot. Ver `YUBOOK_ESCRITA_REMOTA` no
+`.env.example`.
+
+**Em HTTP essa trava não participa** — lá quem decide é o escopo do token, e o desligamento global é
+`MCP_ESCRITA_HABILITADA=0`. São eixos diferentes para transportes diferentes, e não é engano: em
+stdio não há identidade para consultar, então o que sobra é a URL; em HTTP a identidade existe e é
+ela que manda. O diagnóstico de boot diz qual dos dois está valendo.
 
 O alvo é um banco separado do de desenvolvimento e da produção, com acervo recriável:
 
@@ -49,7 +98,7 @@ DATABASE_URL="postgresql://postgres:postgres@localhost:5432/yubook_mcp?schema=pu
 
 pnpm --filter @yu-book/api db:seed     # recria o acervo e o usuário mcp@yu-book.test
 pnpm --filter @yu-book/api dev:mcp     # API na 3334 contra yubook_mcp
-pnpm --filter @yu-book/mcp verificar   # confirma ambiente, escrita, login e volume
+pnpm --filter @yu-book/mcp verificar   # confirma ambiente, escrita, login e volume (stdio)
 ```
 
 O seed é idempotente: rodar duas vezes dá o mesmo estado. Ele escreve **pelos services**, não pelo
@@ -69,7 +118,7 @@ Leitura:
 | `get_board` | Colunas na ordem **com o id de cada uma**, e a face dos cards | Médio |
 | `get_dashboard` | O agregado da tela inicial numa requisição só | Médio |
 
-Escrita — só contra API local:
+Escrita — em stdio só contra API local; em HTTP, com escopo `yubook:write`:
 
 | Tool | Faz | Desfaz com |
 |---|---|---|
@@ -104,9 +153,12 @@ do outro lado** — é ele que está lendo esta tool. Pedir amostragem seria ped
 que ele geraria sozinho, com uma volta a mais no protocolo e dependendo de uma capability que a
 maior parte dos clientes não implementa. E a direção do projeto é a oposta: a IA dentro do Yu-book
 roda em **modelo local, por privacidade** (RNF-01 do PRD de IA), enquanto amostragem faria o corpo
-da nota atravessar o protocolo para ser processado por um modelo que não é o escolhido. Revisitar
-quando o transporte virar HTTP e o servidor sair da máquina do operador — amostragem paga a conta
-em servidor público e multiusuário, que não é o caso.
+da nota atravessar o protocolo para ser processado por um modelo que não é o escolhido.
+
+A decisão foi revisitada quando o transporte virou HTTP, e **continua a mesma**. O argumento que
+caiu foi o de escala — "só paga a conta em servidor público", e agora ele é público. O que sobrou é
+o que sempre foi o principal: quem chega por aqui já tem um modelo do outro lado, e o Yu-book quer o
+processamento de nota num modelo local, não num emprestado.
 
 **Raízes (*roots*) não se aplicam.** Este servidor não abre um único arquivo: ele é cliente HTTP da
 API. Implementar raízes hoje seria código morto. A lição vale para a mesa de trabalho, que precisa
@@ -136,11 +188,24 @@ chaves e aspas repetidas sem dizer nada ao modelo.
 `U+0002` em volta dos termos (INV-10) — existem para que nenhuma nota consiga forjar destaque em
 HTML. Para o modelo são lixo, então viram `**negrito**` antes de sair.
 
-**Login por credencial no ambiente, e não fluxo de autorização.** O refresh token vive num cookie
-`httpOnly` e o `fetch` do Node não guarda cookie; em vez de manter um cookie jar, o servidor
-simplesmente entra de novo quando o token de 15 minutos expira. Enquanto o transporte é stdio e
-tudo roda na sua máquina, isso equivale a ter a senha no gerenciador do navegador. **É o primeiro
-item a mudar** quando entrarem transporte HTTP e autenticação, no Advanced Topics.
+**A identidade é por requisição, e o token do MCP carrega o da API dentro dele.** Este foi o
+primeiro item a mudar quando o transporte virou HTTP, e mudou por inteiro.
+
+Em stdio o servidor entra com email e senha e reentra quando o token de 15 minutos expira — com um
+processo por pessoa, a conta do `.env` **é** a identidade. Em HTTP não há senha nenhuma no servidor:
+o token de acesso que ele emite leva o `accessToken` da API **cifrado** no corpo, e a identidade
+chega a cada chamada por `AsyncLocalStorage`, aberto nos invólucros de erro que envolvem todo
+handler. Uma variável de módulo seria a mesma identidade para todos os clientes.
+
+**Os dois relógios batem juntos, e não é detalhe.** O token do MCP vive `apiExp − 60 s`, derivado do
+vencimento do token da API que ele carrega — nunca um número fixo. Igualá-los em 15 minutos não
+bastaria: o da API nasce no login e o do MCP nasce na troca do código, até um minuto depois, então o
+do MCP morreria por último e o 401 cairia **dentro de uma tool**, onde o cliente não sabe reagir.
+Morrendo antes, ele cai na fronteira HTTP, onde o cliente sabe renovar.
+
+E uma renovação do MCP é **uma** renovação da API, com janela de idempotência: a `apps/api` faz
+detecção de reuso de refresh token, e duas apresentações do mesmo cookie revogariam todas as sessões
+do usuário — inclusive a do navegador dele.
 
 **Em stdio, o stdout é o canal do protocolo.** Um `console.log` esquecido injeta lixo no meio de uma
 mensagem JSON-RPC e o cliente desconecta com um erro que não parece ter relação com o log. Todo

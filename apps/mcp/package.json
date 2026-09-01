@@ -1,24 +1,29 @@
 {
   "name": "@yu-book/mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "watch": "tsx watch --env-file=.env src/index.ts",
     "start": "node dist/index.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "inspector": "npx -y @modelcontextprotocol/inspector node --env-file=.env dist/index.js",
-    "verificar": "node --env-file=.env dist/verificar.js"
+    "verificar": "node --env-file=.env dist/verificar.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@yu-book/shared": "workspace:*",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/express": "^5",
     "@types/node": "^22.10.7",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.10"
   }
 }
