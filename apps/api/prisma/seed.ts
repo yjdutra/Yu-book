@@ -33,6 +33,23 @@ const EMAIL = "mcp@yu-book.test";
 const SENHA = "mcp-local-2026";
 const NOME = "Operador de teste";
 
+/**
+ * A SEGUNDA CONTA EXISTE PARA UMA PROVA, e não para completar o cenário.
+ *
+ * O servidor MCP sob HTTP atende muitos clientes com um processo só, e o que
+ * precisa ser demonstrável é que a identidade de **quem chamou** chega até a
+ * API — não a de uma variável de módulo, que seria a mesma para todos. Com um
+ * usuário só, `get_dashboard` devolveria o mesmo acervo em qualquer sessão e
+ * não provaria nada.
+ *
+ * Daí o acervo desta conta ser pequeno e **deliberadamente sem interseção** com
+ * o da primeira: nome de workspace, títulos de nota e nome de quadro todos
+ * diferentes. Quem olhar duas respostas lado a lado sabe na hora qual é qual.
+ */
+const EMAIL_2 = "outro@yu-book.test";
+const SENHA_2 = "outro-local-2026";
+const NOME_2 = "Segunda conta";
+
 /** Prazos são relativos ao dia da execução — o dashboard só é útil assim. */
 function emDias(dias: number): Date {
   const d = new Date();
@@ -47,8 +64,10 @@ async function principal(): Promise<void> {
   // Idempotência: apagar o usuário leva junto workspaces, boards, cards, notas
   // e links pelo `onDelete: Cascade` do schema. Mesmo mecanismo do `limpar()`
   // dos testes, com outra marca.
-  const removidos = await prisma.user.deleteMany({ where: { email: EMAIL } });
-  if (removidos.count > 0) console.log("Usuário anterior removido.");
+  const removidos = await prisma.user.deleteMany({
+    where: { email: { in: [EMAIL, EMAIL_2] } },
+  });
+  if (removidos.count > 0) console.log(`Usuários anteriores removidos: ${removidos.count}.`);
 
   const sessao = await register({ email: EMAIL, password: SENHA, name: NOME }, "seed");
   const userId = sessao.user.id;
@@ -302,6 +321,48 @@ async function principal(): Promise<void> {
     ] satisfies Prisma.LinkCreateManyInput[],
   });
 
+  /* --------------------------------------------------- a segunda conta ---- */
+
+  // Mesma disciplina do resto do arquivo: nasce por `register()`, e o acervo
+  // pelos services — board criado por service já vem com as três colunas, nota
+  // criada por service já recalcula `note_link`.
+  const sessao2 = await register({ email: EMAIL_2, password: SENHA_2, name: NOME_2 }, "seed");
+  const userId2 = sessao2.user.id;
+
+  const cozinha = await organizacao.criarWorkspace(userId2, {
+    name: "Cozinha",
+    color: "#f59e0b",
+  });
+
+  await notas.criar(userId2, {
+    title: "Fermentação natural",
+    kind: "livre",
+    workspaceId: cozinha.id,
+    tags: ["pão"],
+    contentMd: "Levain de 5 dias. Hidratação 75%.\n",
+  });
+
+  await notas.criar(userId2, {
+    title: "Caderno de temperos",
+    kind: "livre",
+    workspaceId: cozinha.id,
+    tags: ["pão"],
+    contentMd: "Nada em comum com a outra conta — é esse o ponto.\n\n" +
+      "Referência a [[Fermentação natural]].\n",
+  });
+
+  const quadroDaCozinha = await kanban.criarBoard(userId2, {
+    name: "Receitas para testar",
+    workspaceId: cozinha.id,
+  });
+  const primeiraColuna = quadroDaCozinha.columns[0];
+  if (!primeiraColuna) throw new Error("Board criado sem coluna — o service mudou?");
+  await kanban.criarCard(userId2, {
+    columnId: primeiraColuna.id,
+    title: "Focaccia de alecrim",
+    tags: ["pão"],
+  });
+
   /* ------------------------------------------------------------ resumo ---- */
 
   const contagem = await notas.contar(userId);
@@ -311,8 +372,15 @@ async function principal(): Promise<void> {
   console.log(`  notas       ${contagem.total} ativas · ${contagem.trash} na lixeira`);
   console.log(`  quadros     ${quadros.length}`);
   console.log(`  cards       ${quadros.reduce((n, q) => n + q.cardCount, 0)}`);
+  const contagem2 = await notas.contar(userId2);
+  const quadros2 = await kanban.listarBoards(userId2);
+  console.log("");
+  console.log(`  ${EMAIL_2} / ${SENHA_2}`);
+  console.log(`  notas       ${contagem2.total} ativas`);
+  console.log(`  quadros     ${quadros2.length} · cards ${quadros2.reduce((n, q) => n + q.cardCount, 0)}`);
   console.log("");
   console.log(`Pronto. Aponte YUBOOK_EMAIL=${EMAIL} e YUBOOK_PASSWORD=${SENHA} no apps/mcp/.env.`);
+  console.log(`A segunda conta existe para provar isolamento sob HTTP; o stdio não a usa.`);
 }
 
 principal()
