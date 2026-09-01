@@ -15,10 +15,11 @@ Requisitos por fase em [docs/old/prd-fase-1-notas.md](docs/old/prd-fase-1-notas.
 **Status: Fases 0 a 5 concluídas.** A Fase 5 fechou com as três etapas entregues. A próxima fase de
 produto é a **Fase 6**, a agenda no Google Calendar, hoje o item de menor prioridade.
 
-O **servidor MCP** (`apps/mcp`) tem numeração própria e corre em paralelo: está na **Etapa 3 de 5 da
-proposta de MCP** — as três primitivas do protocolo, agora **com escrita**, sobre stdio. Etapa de MCP
-não é fase de produto, e os dois números não se convertem um no outro. Ver
-[apps/mcp/README.md](apps/mcp/README.md) e o roteiro em
+O **servidor MCP** (`apps/mcp`) tem numeração própria e corre em paralelo: está na **Etapa 4 de 5 da
+proposta de MCP** — as três primitivas do protocolo, com escrita, sobre **dois transportes**: o
+`stdio` de sempre e um transporte **HTTP** com identidade por OAuth, em que cada requisição age como
+quem apresentou o token. Etapa de MCP não é fase de produto, e os dois números não se convertem um
+no outro. Ver [apps/mcp/README.md](apps/mcp/README.md) e o roteiro em
 [docs/applied-ai-read-trip.md](docs/applied-ai-read-trip.md).
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.

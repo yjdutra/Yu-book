@@ -13,6 +13,141 @@ _Nada pendente._
 
 ---
 
+## [0.8.0] — 2026-09-01
+
+**Etapa 4 do servidor MCP — transporte HTTP e identidade.** O servidor deixa de ser um processo por
+pessoa e passa a atender muitos clientes, o que quebra a premissa em que toda a Etapa 3 se apoiava:
+com `stdio`, quem está do outro lado é quem iniciou o processo, e a credencial podia morar no
+ambiente; sobre HTTP, **o servidor deixa de saber quem está perguntando**, e credencial em arquivo
+viraria uma identidade só para todo mundo. É a **Etapa 4 das cinco da proposta de MCP**
+([`docs/old/proposta-mcp-inicial.md`](docs/old/proposta-mcp-inicial.md)) e a **Fase 3 do roteiro de
+IA aplicada** ([`docs/applied-ai-read-trip.md`](docs/applied-ai-read-trip.md)). **Não é fase de
+produto** — as de produto vão de 0 a 5, estão fechadas, e a próxima delas continua sendo a agenda.
+Três numerações convivem no repositório e nenhuma se converte na outra.
+
+`apps/mcp` vai de `0.4.0` para `0.5.0` — transporte novo, compatível com quem já usava o stdio.
+`apps/api` vai de `0.4.0` para `0.5.0`, e desta vez **muda o que é deployado**: a janela de graça no
+reuso de refresh token altera o comportamento de `POST /auth/refresh` em produção. `apps/web` segue
+em `0.5.0` e `packages/shared` em `0.3.0` — o contrato não mudou, e a regra dos quatro pacotes não
+se aplica.
+
+**A verificação foi de verdade, e ganhou um portão automático novo.** `pnpm typecheck` sem erros nos
+quatro pacotes (`apps/mcp` agora entra pelo `tsconfig.test.json`), `pnpm --filter @yu-book/mcp test`
+com **3 arquivos e 32 testes** — o primeiro suíte de testes que este pacote tem —,
+`pnpm --filter @yu-book/api test` com 6 arquivos e 58 testes, e `pnpm --filter @yu-book/mcp build`
+ok. Contra servidor de pé: duas contas em duas sessões simultâneas veem **acervos diferentes**; o
+token sobrevive a um reinício do processo, que antes devolvia 401; renovação dupla devolve o mesmo
+par com **uma** rotação no banco; um código de autorização apresentado como refresh token responde
+`invalid_grant`; `MCP_ESCRITA_HABILITADA=0` deixa 5 tools mesmo com escopo de escrita forçado; e o
+POST sem session id não vaza servidor nenhum — 5 conectados, 5 fechados.
+
+### Adicionado
+- **Transporte HTTP** (`MCP_TRANSPORTE="http"`), StreamableHTTP com sessão, ao lado do `stdio` que
+  continua sendo o padrão. **Uma montagem só serve os dois** (`src/servidor.ts`): as mesmas nove
+  tools, os mesmos resources e prompts, as mesmas capabilities. O que muda entre eles é de onde vem
+  a identidade, e só isso.
+- **Servidor de autorização OAuth 2.1 próprio**: registro dinâmico de cliente, PKCE, página de login
+  e consentimento **sem uma linha de JavaScript**, emissão e verificação de token. Ele **emite** o
+  token, não repassa o de um terceiro — quem autoriza digita e-mail e senha do Yu-book, e o que
+  sobrevive à página é a sessão da API, nunca a senha.
+- **Nenhum estado durável no emissor.** Cliente registrado, código de autorização e refresh token
+  viajam **cifrados dentro do próprio identificador** (AES-256-GCM para o segredo, HS256 para a
+  assinatura, tudo em `node:crypto`). Não há tabela, não há Redis, e reiniciar o processo não
+  invalida nada.
+- **Escopos `yubook:read` e `yubook:write`**, decididos na caixa de seleção do consentimento. Quem
+  não marcar a escrita recebe uma sessão com **5 tools**; quem marcar recebe as **9**. Os escopos
+  congelam na criação da sessão.
+- **`MCP_ESCRITA_HABILITADA=0` desliga a escrita globalmente no transporte HTTP, sem deploy de
+  código** — as quatro tools de escrita não se registram em sessão nenhuma, mesmo que o token traga
+  o escopo.
+- **Varredura de sessões ociosas** (`MCP_SESSAO_TTL_MS`, 30 min por padrão) e **teto duro de sessões
+  vivas** (`MCP_SESSOES_MAX`, 100). Existem porque o SDK **não** fecha a sessão quando o cliente
+  some: sem elas, um cliente que cai de rede deixa sessão viva para sempre, sem erro e sem log, e o
+  vazamento vira negação de serviço.
+- **Validação do cabeçalho `Host`** por `MCP_HOSTS_PERMITIDOS`, e **limite de 20 tentativas por 5
+  minutos** no `POST /login`, antes que elas virem login de verdade na API.
+- **Testes automatizados em `apps/mcp`**, com Vitest: 32 casos sobre os envelopes cifrados, o
+  provedor OAuth e o contexto de identidade. `pnpm --filter @yu-book/mcp test` é portão novo, e o
+  `typecheck` do pacote passou a incluir os testes (`tsconfig.test.json`).
+- **`apps/api`: janela de graça de 30 s no reuso de refresh token** (`GRACA_DE_REUSO_MS` em
+  `auth.service.ts`), coberta por três testes de integração novos em `tests/auth-refresh.test.ts`.
+- **Segundo usuário no seed de `apps/api`**, sem o qual o isolamento entre contas não se prova.
+- **`.env.example` com as onze variáveis separadas por transporte**, dizendo em cada uma se ela vale
+  no `stdio`, no `http` ou nos dois, e **diagnóstico de boot por transporte** no stderr. O
+  [`README` de `apps/mcp`](apps/mcp/README.md) foi reescrito em torno dos dois modos.
+
+### Alterado
+- **`POST /auth/refresh` deixou de derrubar todas as sessões do usuário quando um refresh token
+  recém-consumido reaparece dentro de 30 s.** Nessa janela a resposta é 401 e nada é revogado; fora
+  dela, o comportamento antigo continua — reuso é vazamento e a cadeia inteira cai. Altera o
+  invariante **INV-06**. O motivo é o servidor MCP, que não é navegador: a rotação é atômica e o
+  token novo só existe na resposta, então uma resposta perdida fazia o cliente reapresentar o
+  anterior de boa-fé e deslogar o operador de todo lugar, inclusive do navegador dele.
+- **A identidade passou a ser por requisição**, e não por processo: o `accessToken` da API viaja
+  cifrado dentro do token de acesso do MCP, é aberto a cada chamada e amarrado ao handler por
+  `AsyncLocalStorage`. **Nenhuma das 16 chamadas de API mudou de assinatura** — o contexto entra em
+  `comErro`/`comErroDeResource` e sai em `cliente.ts`. Em `stdio` não há contexto e a conta do
+  `.env` continua sendo a identidade certa.
+- **O token do MCP vive `apiExp − 60 s`, derivado do token da API e nunca fixado.** Um tempo de vida
+  constante mentiria sempre que a sessão da API fosse mais curta que ele.
+- **A renovação de token virou idempotente por `jti`:** duas renovações simultâneas, ou uma
+  repetida, custam **uma** chamada à API e devolvem o mesmo par.
+- **O erro do `POST /token` passou a ser classificado:** 401 da API vira `invalid_grant`, que manda
+  o cliente reautorizar; 5xx e falha de rede viram `server_error`, que manda tentar mais tarde.
+  Antes tudo virava 500 e o cliente retentava para sempre sem nunca abrir o navegador.
+- `entrarNaApi` lança `ErroDaApi` em vez de erro genérico, e a página de login passou a falar com
+  gente: só a mensagem do 401 vem da API, o resto vira texto genérico — a tela é pública.
+
+### Corrigido
+- **Um reinício do processo derrubava todos os tokens vivos.** O emissor guardava as sessões da API
+  num mapa em memória; o mapa e a função `criarSessaoDaApi` inteira foram apagados, e o estado que
+  sobrava passou a viajar cifrado no próprio token.
+- **`getClient` devolvia `client_id: ""` para todo cliente registrado**, o que tornava tautológica
+  toda comparação de cliente: um refresh token vazado valeria em qualquer cliente, e a checagem que
+  deveria amarrar o token a quem o pediu não amarrava nada.
+- **Um POST sem session id com corpo que não fosse `initialize` vazava um `McpServer` por
+  tentativa** — nascia, era recusado pelo SDK, e nunca era mapeado nem fechado. A recusa passou a
+  acontecer antes de qualquer construção.
+
+### Removido
+- O mapa de sessões da API em memória e `criarSessaoDaApi`, substituídos pelo envelope cifrado.
+
+### Segurança
+- **Um desvio de autenticação real foi encontrado e fechado nesta entrega.** O envelope do código de
+  autorização era **superconjunto estrutural** do envelope de refresh token, então um código
+  apresentado em `grant_type=refresh_token` abria como refresh válido e devolvia um token **com
+  escopo de escrita** — contornando de uma vez o uso único, o `exp` de 60 s e o PKCE. A correção é
+  um **rótulo de tipo obrigatório** dentro do envelope cifrado: envelope de outro tipo sai como
+  lixo, e não como estrutura compatível.
+- **O `accessToken` da API viaja cifrado (`atk`) dentro do token de acesso do MCP**, e não em claro.
+  Quem interceptar um token do MCP não recebe de brinde uma credencial da API.
+- **O boot recusa subir em `http` se `YUBOOK_EMAIL` estiver definida**, e recusa subir sem um
+  `MCP_SEGREDO` de pelo menos 32 caracteres. Credencial de conta no ambiente de um servidor
+  multiusuário é exatamente o que esta etapa existe para remover.
+- **A URL pública nunca é derivada do cabeçalho `Host`** (`MCP_URL_PUBLICA`): um atacante que manda
+  `Host: evil.com` faria o servidor anunciar o `token_endpoint` dele no metadata de descoberta.
+- **Sessão de outro usuário responde 404, não 403** — confirmar que o id existe já seria informação
+  demais.
+
+### Limitações conhecidas
+- **A proteção contra revogação em massa tem teto de 120 s, não de 30 s.** Quem manda no tempo real
+  é a janela de idempotência do MCP, não a graça da API. Um cliente que guarde um refresh anterior e
+  o reapresente depois disso ainda derruba as sessões do usuário. Fechar exigiria estado no
+  servidor, que é justamente o que o emissor não tem.
+- **`logout` com um refresh token de rotações atrás não revoga nada** — `count = 0`, sem erro.
+  Fechar exige uma coluna `replacedById` no schema da API.
+- **`trust proxy` não está configurado.** Atrás do proxy da Railway, o limite por IP do `/login`
+  vira um balde global. É item do deploy, que ainda não aconteceu.
+- **Nenhum teste exercita o aperto de mão OAuth completo.** Os 32 casos cobrem as peças; os dois
+  últimos defeitos desta entrega apareceram à mão, e é o que dá a medida do buraco.
+- **O escopo não é conferido dentro de cada handler de escrita.** Hoje a trava é só na montagem da
+  sessão, e é ela mais o deploy na Railway que abrem a etapa seguinte.
+- **Uma instância, sempre.** O transporte é com estado por decisão — sem `sessionIdGenerator` o SDK
+  desliga o SSE, e com ele iriam o log das escritas e o progresso. Com duas instâncias, o POST de
+  uma chamada e o GET do SSE podem cair em máquinas diferentes.
+
+---
+
 ## [0.7.0] — 2026-08-26
 
 **Etapa 3 do servidor MCP — as tools de escrita.** O servidor deixa de só consultar o segundo

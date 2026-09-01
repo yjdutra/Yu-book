@@ -53,15 +53,17 @@ Duas decisões definem esse servidor e valem para tudo que vier: ele é **client
 não do banco, o que faz herdar toda a autorização em vez de reimplementá-la; e ele trata o
 **orçamento de contexto** como problema de primeira ordem — buscar é barato, ler é caro e explícito.
 
-**Estado atual: lê e escreve.** A escrita entrou com a Fase 2 **deste roteiro** — a Etapa 3 das
-cinco da proposta de MCP — e nasce desligada fora de host local.
+**Estado atual: lê e escreve, sobre dois transportes.** A escrita entrou com a Fase 2 **deste
+roteiro** — a Etapa 3 das cinco da proposta de MCP — e nasce desligada fora de host local. O
+transporte HTTP com identidade própria entrou com a Fase 3, em 2026-09-01: sobre HTTP quem decide a
+escrita é o escopo do token, e cada requisição age como quem o apresentou.
 
 ---
 
 ## Para onde vamos
 
 **Os números abaixo são deste roteiro e só dele.** Não são as fases de produto (0 a 5, fechadas)
-nem as etapas do servidor MCP (cinco, a 3 entregue). Nenhuma das três numerações se converte na
+nem as etapas do servidor MCP (cinco, a 4 entregue). Nenhuma das três numerações se converte na
 outra.
 
 As fases abaixo correm **em paralelo aos cursos**, e a ordem dos cursos foi escolhida para destravar
@@ -70,7 +72,7 @@ cada uma na hora certa.
 | Curso | O que destrava |
 |---|---|
 | Cursos curtos de inglês | nada — janela livre para trabalho de produto |
-| MCP: Advanced Topics — **concluído em 2026-08-26**, as 11 lições | transporte HTTP e autenticação de verdade; a Fase 3 deste roteiro está destravada |
+| MCP: Advanced Topics — **concluído em 2026-08-26**, as 11 lições | transporte HTTP e autenticação de verdade; virou a Fase 3 deste roteiro, entregue em 2026-09-01 |
 | Work with API | a mesa de trabalho |
 
 A Parte I do curso já rendeu duas decisões que **não** viram código, e por isso ficam aqui: a
@@ -143,17 +145,19 @@ texto.
 Os argumentos completos estão em [`../apps/mcp/README.md`](../apps/mcp/README.md) e na entrada de
 2026-08-26 de [`historico.md`](historico.md).
 
-### Fase 3 — MCP: transporte e identidade — a próxima
+### Fase 3 — MCP: transporte e identidade — entregue em 2026-09-01
 
-É o conteúdo do Advanced Topics, **concluído em 2026-08-26**, e é o degrau que muda tudo. O
-pré-requisito está cumprido: esta fase deixou de esperar por curso e passou a esperar por execução.
+É o conteúdo do Advanced Topics, **concluído em 2026-08-26**, e é o degrau que muda tudo. Saiu como
+a **Etapa 4 das cinco da proposta de MCP**.
 
-Hoje o transporte é **stdio**: um processo por usuário, na própria máquina, com a identidade no
-ambiente local. Por isso a autenticação pôde ser simples — e está correta assim.
+Até aqui o transporte era **stdio**: um processo por usuário, na própria máquina, com a identidade
+no ambiente local. Por isso a autenticação pôde ser simples — e ali continua correta assim.
 
 Com transporte **HTTP**, um servidor atende muitos clientes, e a premissa quebra: **o servidor deixa
 de saber quem está perguntando.** Credencial em arquivo passa a agir como uma identidade só para
-todo mundo.
+todo mundo. A resposta foi um servidor de autorização OAuth 2.1 próprio, sem estado durável, com a
+identidade viajando cifrada dentro do token e sendo aberta a cada requisição. O que ele custou e o
+que ficou em aberto está na entrada de 2026-09-01 de [`historico.md`](historico.md).
 
 É por isso que transporte e autenticação são a mesma lição: **mudar o transporte é o que cria o
 problema de identidade.**

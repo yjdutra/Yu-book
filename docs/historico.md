@@ -9,6 +9,96 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-01 — Servidor MCP, Etapa 4: o transporte que cria o problema de identidade
+
+Esta é a **Etapa 4 das cinco da proposta de MCP** (`old/proposta-mcp-inicial.md`) e a **Fase 3 do
+roteiro de IA aplicada** (`applied-ai-read-trip.md`). Não é fase de produto. As três numerações
+continuam sem se converter uma na outra — a entrada de 2026-08-26 explica de onde vem cada uma.
+
+**A lição da etapa é que transporte e autenticação são a mesma coisa.** Em `stdio` a credencial no
+`.env` **está certa**: um processo por pessoa, iniciado por ela, e o processo é dela. Sobre HTTP o
+mesmo arquivo vira uma identidade só para todo mundo. Não foi a autenticação que ficou fraca; foi o
+transporte que retirou a premissa que a sustentava. Por isso o `env.ts` **recusa o boot** em `http`
+com `YUBOOK_EMAIL` definida: subir errado aqui é pior que não subir.
+
+**Emitir token próprio, e não repassar o de um terceiro.** A alternativa era delegar a um provedor
+externo e aceitar o token dele. Foi descartada porque o Yu-book já tem contas, já tem `POST
+/auth/login` e já tem toda a autorização por usuário na API — o servidor MCP é cliente da API, não
+do banco, e essa decisão é de duas etapas atrás. Introduzir um segundo emissor de identidade criaria
+uma conta que o Yu-book não conhece e a obrigação de mapear uma na outra. O preço aceito: um
+servidor de autorização OAuth 2.1 escrito à mão, com registro dinâmico, PKCE e página de
+consentimento — a superfície de ataque mais delicada do repositório, e a razão de os testes novos
+terem nascido aqui e não nas tools.
+
+**Nenhum estado durável no emissor, por escolha.** Cliente registrado, código de autorização e
+refresh token viajam cifrados dentro do próprio identificador (AES-256-GCM mais HS256, tudo em
+`node:crypto`). A alternativa era uma tabela no Postgres da API. Foi descartada porque obrigaria o
+servidor MCP a falar com o banco, quebrando a decisão de ele ser cliente da API; e porque um mapa em
+memória — que foi o que existiu durante metade da sessão — tem o defeito pior de todos: **reiniciar
+o processo derrubava todos os tokens vivos**, e um deploy silenciosamente deslogava todo mundo. O
+que se paga em troca está declarado abaixo, no teto de 120 s.
+
+**O rótulo de tipo no envelope, e o desvio que ele fechou.** O envelope do código de autorização era
+**superconjunto estrutural** do envelope de refresh token: os campos que o refresh exigia estavam
+todos lá. Um código apresentado em `grant_type=refresh_token` abria como refresh, e devolvia token
+com escopo de escrita — contornando de uma vez o uso único, o `exp` de 60 s e o PKCE. Isso é um
+desvio de autenticação real, escrito por nós, encontrado por revisão. A correção não foi conferir
+campo a campo, que a próxima estrutura parecida furaria de novo: foi carimbar o **tipo** dentro do
+conteúdo cifrado e devolver `null` para qualquer envelope de outro tipo. Vale a lição: em envelope
+opaco, compatibilidade estrutural é uma porta, não uma coincidência.
+
+**A janela de graça de 30 s no `refresh` da API, e o que ela custa.** A rotação de refresh token é
+atômica e o token novo só existe na resposta. Se a resposta se perde, ou o processo reinicia entre o
+commit e a entrega, o cliente reapresenta o anterior de boa-fé — e a regra antiga concluía vazamento
+e revogava **todas** as sessões do usuário, inclusive a do navegador, que não fez nada. A janela
+cega exatamente a corrida que a rotação existe para pegar: se alguém roubar um refresh e usá-lo
+primeiro, a apresentação do legítimo chega segundos depois e agora vira 401 mudo em vez de derrubar
+a cadeia roubada. A troca foi decidida com o número na mão — 30 s de cegueira contra deslogar o
+operador de todo lugar por uma resposta perdida. Fora da janela, nada mudou. Isto **altera o
+INV-06**, já reescrito no catálogo.
+
+**A identidade entrou sem tocar em nenhuma assinatura.** As 16 chamadas de API do servidor não
+recebem portador por parâmetro, e passá-lo teria sido uma mudança em cascata em tool, resource e
+prompt, com o risco de esquecer uma — e uma esquecida é uma chamada com a identidade errada, que
+nenhum tipo pega. A saída foi `AsyncLocalStorage` aberto em `comErro`/`comErroDeResource`, os dois
+lugares por onde 100% dos handlers passam, e lido em `cliente.ts`. Variável de módulo não serviria:
+duas sessões concorrentes sobrescreveriam o portador uma da outra. Em `stdio` não há contexto e o
+cliente cai na conta do ambiente, que ali é a identidade certa.
+
+**A trava de escrita tem eixos diferentes nos dois transportes, e não é engano.** Em `stdio` quem
+decide é a URL da API ser local (`YUBOOK_ESCRITA_REMOTA` destrava), porque não existe identidade a
+consultar. Em HTTP quem decide é o **escopo do token**, marcado no consentimento — e
+`MCP_ESCRITA_HABILITADA=0` é o desligamento global que sobra para quando o servidor estiver
+hospedado contra a API de produção. Unificar os dois eixos exigiria inventar um deles onde ele não
+faz sentido.
+
+**A sessão é com estado, e isso custa escala horizontal.** `sessionIdGenerator` definido é o que
+mantém o SSE aberto; sem ele o SDK desliga a via de volta, e com ela vão o log das escritas — a
+única trilha de auditoria que chega ao usuário — e o progresso. Preferiu-se o certo ao genérico: com
+duas instâncias isto quebra, porque o POST de uma chamada e o GET do SSE podem cair em máquinas
+diferentes. Uma instância, sempre, e se um dia houver duas é em `http.ts` que se olha. A sessão
+também precisou de varredura de ociosas e teto duro porque **o SDK não fecha sessão quando o cliente
+some**: o vazamento é calado, e sem teto vira negação de serviço.
+
+**Dois defeitos apareceram à mão, no fim, e é o que dá a medida do buraco de teste.** `getClient`
+devolvia `client_id: ""` para todo cliente, o que tornava tautológica toda comparação de cliente; e
+um POST sem session id com corpo que não fosse `initialize` vazava um `McpServer` por tentativa. Os
+32 testes novos cobrem as peças — envelopes, provedor, contexto de identidade —, mas **nenhum
+exercita o aperto de mão OAuth completo**, e foi exatamente ali que os dois estavam. A dívida fica
+registrada com esse nome.
+
+Pendências assumidas, todas no changelog: o teto real da proteção contra revogação em massa é de
+**120 s** e não de 30 — quem manda é a janela de idempotência do MCP, não a graça da API, e fechar
+isso exigiria o estado durável que se decidiu não ter; `logout` com refresh de rotações atrás não
+revoga nada e exige uma coluna `replacedById` no schema; e `trust proxy` não está configurado, o que
+na Railway transforma o limite por IP do `/login` num balde global.
+
+**O que ficou de fora, de propósito, é a Etapa 5 do que falta aqui:** conferir o escopo **dentro** de
+cada handler de escrita — hoje a trava é só na montagem da sessão, e um handler novo entra sem ela
+sem que nada reclame — e o deploy na Railway.
+
+---
+
 ## 2026-08-26 — Servidor MCP, Etapa 3: a escrita, e o que decidiu não existir
 
 O servidor passou a mudar dado. São **três numerações vivas no repositório e elas não se
