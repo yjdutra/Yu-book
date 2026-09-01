@@ -1,7 +1,7 @@
 # MCP: Advanced Topics — anotações de curso
 
 **Curso:** Model Context Protocol: Advanced Topics (Claude Academy) · **Anotações:** yjdutra
-**Progresso:** 6 de 11 lições (parte I fechada; parte II não iniciada)
+**Progresso:** 11 de 11 lições — **curso concluído em 2026-08-26**
 **Projeto que acompanha:** Yu-book — servidor MCP em [`apps/mcp`](../../apps/mcp)
 
 > **Como ler este arquivo.** O corpo é a anotação do curso, revisada só na forma: títulos,
@@ -64,18 +64,18 @@ Três fatos que resolvem a maior parte da confusão:
 
 | # | Lição | Estado |
 |---|---|---|
-| 7 | Tipos de mensagens JSON | ⬜ |
-| 8 | O transporte STDIO | ⬜ |
-| 9 | O transporte StreamableHTTP | ⬜ |
-| 10 | HTTP transmissível em profundidade | ⬜ |
-| 11 | Estado e o transporte StreamableHTTP | ⬜ |
+| 7 | Tipos de mensagens JSON | ✅ |
+| 8 | O transporte stdio | ✅ |
+| 9 | O transporte StreamableHTTP | ✅ |
+| 10 | StreamableHTTP em profundidade | ✅ |
+| 11 | Estado e o transporte StreamableHTTP | ✅ |
 
 ### Encerramento
 
 | Item | Estado |
 |---|---|
-| Avaliação dos conceitos do MCP (questionário) | ⬜ |
-| Crachá de conclusão | ⬜ |
+| Avaliação dos conceitos do MCP (questionário) | ✅ |
+| Crachá de conclusão | ✅ |
 
 ---
 
@@ -911,320 +911,375 @@ if __name__ == "__main__":
 
 # Parte II — Transportes e comunicações
 
-*Não iniciada. Lições 7 a 11.*
-
-- [ ] **Lição 7** — Tipos de mensagens JSON
-- [ ] **Lição 8** — O transporte STDIO
-- [ ] **Lição 9** — O transporte StreamableHTTP
-- [ ] **Lição 10** — HTTP transmissível em profundidade
-- [ ] **Lição 11** — Estado e o transporte StreamableHTTP
-
-> **→ Ponte para o Yu-book.** Esta é a parte que o roteiro chama de **"o degrau que muda tudo"**
-> (Fase 3 — MCP: transporte e identidade). Hoje o `apps/mcp` roda em stdio, um processo por usuário,
-> com `YUBOOK_EMAIL` e `YUBOOK_PASSWORD` no `.env`. Com HTTP, um servidor atende muitos clientes e
-> **o servidor deixa de saber quem está perguntando**. O comentário em
-> [`apps/mcp/src/cliente.ts:60-61`](../../apps/mcp/src/cliente.ts#L60-L61) já antecipa isso:
-> *"Quando o transporte virar HTTP e a autenticação sair do `.env` (Advanced Topics), isto é o
-> primeiro a mudar."* Anotar, ao longo destas cinco lições, tudo que responda: **de onde vem a
-> identidade quando ela não vem mais do ambiente do processo?**
+O eixo desta parte é uma frase: **o transporte não é detalhe de encanamento, é o que decide quais
+mensagens do protocolo continuam possíveis.** A Parte I mostrou o MCP inteiro, com a via de volta
+funcionando; a Parte II mostra o que se perde quando essa via passa a atravessar a internet.
 
 ---
 
-# Lição 7: Tipos de mensagens JSON
+## Lição 7 — Tipos de mensagens JSON
 
-MCP (Model Context Protocol) usa mensagens JSON para lidar com a comunicação entre clientes e servidores. Entender esses tipos de mensagens é crucial para trabalhar com o MCP, especialmente ao lidar com diferentes métodos de transporte, como o transporte HTTP transmitível.
+O MCP usa mensagens JSON para a comunicação entre clientes e servidores. Entender esses tipos é
+essencial, sobretudo ao lidar com transportes diferentes.
 
-Formato da mensagem
-Toda a comunicação MCP acontece através de mensagens JSON. Cada tipo de mensagem tem uma finalidade específica: chamar uma ferramenta, listar recursos disponíveis ou enviar notificações sobre eventos do sistema.
+### Formato da mensagem
 
+Toda a comunicação do MCP acontece por mensagens JSON, e cada tipo tem uma finalidade específica:
+chamar uma ferramenta, listar recursos disponíveis, notificar um evento.
 
+Exemplo típico: quando Claude precisa chamar uma ferramenta de um servidor MCP, o cliente envia uma
+mensagem `Call Tool Request`. O servidor processa, executa a ferramenta e responde com um
+`Call Tool Result` contendo a saída.
 
-Aqui está um exemplo típico: quando Claude precisa chamar uma ferramenta fornecida por um servidor MCP, o cliente envia uma mensagem "Call Tool Request". O servidor processa essa solicitação, executa a ferramenta e responde com uma mensagem "Resultado da ferramenta de chamada" contendo a saída.
+### A especificação
 
+A lista completa de tipos de mensagem vive no **repositório oficial de especificação do MCP**, no
+GitHub. Ela é separada dos repositórios de SDK (Python, TypeScript…) e é a fonte de verdade de como
+o MCP deve funcionar.
 
+Os tipos são escritos em TypeScript **por conveniência** — não porque sejam executados como código,
+mas porque o TypeScript descreve estrutura de dados de forma clara.
 
-Especificação MCP
-A lista completa de tipos de mensagens é definida no repositório oficial de especificações do MCP no GitHub. Esta especificação é separada dos vários repositórios de SDK (como Python ou TypeScript SDKs) e serve como fonte confiável de como o MCP deve funcionar.
+### As duas categorias
 
-Os tipos de mensagens são escritos em TypeScript por conveniência - não porque sejam executados como código TypeScript, mas porque o TypeScript fornece uma maneira clara de descrever estruturas e tipos de dados.
+**Solicitação → resultado.** Vêm sempre em par: você envia uma solicitação e espera um resultado.
 
-Categorias de mensagens
-As mensagens MCP se dividem em duas categorias principais:
+- `Call Tool Request` → `Call Tool Result`
+- `List Prompts Request` → `List Prompts Result`
+- `Read Resource Request` → `Read Resource Result`
+- `Initialize Request` → `Initialize Result`
 
+**Notificação.** Mensagens de mão única, que informam um evento e não esperam resposta.
 
+- `Progress Notification` — andamento de operações longas
+- `Logging Message Notification` — mensagens de registro
+- `Tool List Changed Notification` — quando as ferramentas disponíveis mudam
+- `Resource Updated Notification` — quando um recurso é modificado
 
-Mensagens de solicitação-resultado
-Essas mensagens sempre vêm em pares. Você envia uma solicitação e espera receber um resultado:
+### Mensagens do cliente e mensagens do servidor
 
-Solicitação de ferramenta de chamada → Resultado da ferramenta de chamada
-Solicitação de prompts de lista → Resultado de prompts de lista
-Ler solicitação de recurso → Ler resultado do recurso
-Inicializar solicitação → Inicializar resultado
-Mensagens de notificação
-Estas são mensagens unidirecionais que informam sobre eventos, mas não exigem resposta:
+A especificação organiza as mensagens **por quem as envia**. O cliente tem solicitações e
+notificações que envia ao servidor; o servidor tem solicitações e notificações que envia ao cliente.
 
-Notificação de progresso - Atualizações sobre operações de longa duração
-Notificação de mensagem de registro - Mensagens de registro do sistema
-Notificação de alteração da lista de ferramentas - Quando as ferramentas disponíveis mudam
-Notificação de recurso atualizado - Quando os recursos são modificados
-Mensagens do cliente vs servidor
-A especificação MCP organiza as mensagens por quem as envia:
+### Por que isso importa
 
-As mensagens do cliente incluem solicitações que os clientes enviam aos servidores (como chamadas de ferramentas) e notificações que os clientes podem enviar.
+Entender que **o servidor também envia mensagens ao cliente** é o que torna a escolha de transporte
+uma decisão de verdade: alguns transportes limitam quais tipos de mensagem podem fluir em cada
+direção.
 
-As mensagens do servidor incluem solicitações que os servidores enviam aos clientes e notificações que os servidores transmitem.
+A ideia central: **o MCP é um protocolo bidirecional** — os dois lados podem iniciar comunicação.
 
-Por que isso importa
-Entender que os servidores podem enviar mensagens aos clientes é particularmente importante ao trabalhar com diferentes métodos de transporte. Alguns transportes, como o transporte HTTP transmitível, têm limitações sobre quais tipos de mensagens podem fluir em quais direções.
-
-O principal insight é que o MCP foi projetado como um protocolo bidirecional: tanto clientes quanto servidores podem iniciar a comunicação. Isso se torna crucial quando você precisa escolher o método de transporte certo para seu caso de uso específico.
-
---- Notas pessoais, finalmente entendi ---
-
-Exemplo para sanar de vez duvida de ciclo de comunicação:
-Fluxo de trabalho:
-Solicitei no prompt do meu agente Claude Code as notas de julho e que agrupe com base nos conteúdos;
-
-Perfeito. Você manda a instrução humana no terminal.
-
-O modelo Claude (na nuvem) lê o prompt, entende o que você quer e percebe que precisa de dados externos.
-
-Aqui entra o detalhe: Não é o "Client MCP" que decide ou verifica como fazer o trabalho. Quem decide chamar a ferramenta é o modelo Claude (nuvem) com base nas descrições (tools) que o cliente MCP apresentou a ele no início da sessão.
-2.1. O modelo decide invocar a ferramenta (ex: get_notes) passando o filtro de data correspondente a julho.
-
-O Claude Code (que hospeda o cliente MCP) envia a mensagem tools/call via stdin/stdout para o apps/mcp (o Servidor MCP na sua máquina).
-
-Lembrete das suas notas: O apps/mcp não tem IA, não fala com o modelo e não sabe qual modelo está do outro lado. Ele apenas recebe o comando JSON-RPC.
-3.1. O apps/mcp executa a lógica: ele faz um fetch na sua API em produção (apps/api), que por sua vez busca os dados no Postgres. O apps/mcp empacota a resposta em texto e devolve para o cliente MCP.
-
-Com o texto das notas de julho em mãos, o modelo Claude (na nuvem) processa o conteúdo, faz o agrupamento temático que você pediu e exibe formatado para você no terminal.
-
-Quando e como as informações (tools) são carregadas?
-Diferente de algumas skills dinâmicas que só são injetadas no prompt quando uma palavra-chave específica aciona um gatilho (trigger), as definições das ferramentas MCP são carregadas logo no handshake inicial da sessão.O fluxo de carga acontece assim:Abertura da Sessão (O Handshake): Quando você abre o Claude Code no terminal (/home/yuri/Documentos/Yu-book), ele lê o arquivo de configuração (onde os servidores MCP estão declarados).Subprocesso Iniciado: O Claude Code dispara o apps/mcp (node dist/index.js) em segundo plano via stdin/stdout.  Descoberta de Capacidades (tools/list): Antes de você digitar qualquer comando ou prompt, o cliente MCP (que está na memória do Claude Code) pergunta ao servidor MCP: "O que você sabe fazer?" O servidor responde com uma lista estruturada de todas as ferramentas disponíveis (como o get_notes), incluindo o nome de cada uma, o que ela faz e quais são os parâmetros esperados.Injeção no Contexto do Modelo: O Claude Code pega essa lista que veio do servidor local e injeta o catálogo de ferramentas no system prompt enviado para o modelo Claude na nuvem.
-
---
-
-# Lição 8 O transporte STDIO
-
-Os clientes e servidores MCP se comunicam trocando mensagens JSON, mas como essas mensagens são realmente transmitidas? O canal de comunicação utilizado é chamado de transporte, e existem várias maneiras de implementar isso - desde solicitações HTTP a WebSockets até mesmo escrever JSON em um cartão postal (embora este último não seja recomendado para uso em produção).
-
-O Transporte Stdio
-Quando você desenvolve um servidor ou cliente MCP pela primeira vez, o transporte mais comumente usado é o transporte stdio. Essa abordagem é simples: o cliente inicia o servidor MCP como um subprocesso e se comunica por meio de fluxos de entrada e saída padrão.
-
-Diagrama do transporte stdio: um cliente MCP envia mensagens para um servidor MCP através do stdin do servidor, e o servidor envia mensagens de volta através do stdout; qualquer um dos lados pode enviar uma mensagem a qualquer momento e só funciona quando ambos são executados na mesma máquina
-
-Veja como funciona:
-
-O cliente envia mensagens ao servidor usando o servidor stdin
-O servidor responde escrevendo para stdout
-Tanto o servidor quanto o cliente podem enviar uma mensagem a qualquer momento
-Funciona apenas quando o cliente e o servidor são executados na mesma máquina
-Vendo Stdio em ação
-Na verdade, você pode testar um servidor MCP diretamente do seu terminal sem gravar um cliente separado. Quando você executa um servidor comuv run server.py , ele escuta stdin e grava respostas em stdout. Isso significa que você pode colar mensagens JSON diretamente no seu terminal e ver as respostas do servidor imediatamente.
-
-A saída do terminal mostra a troca completa de mensagens, incluindo exemplos de mensagens para inicialização e chamadas de ferramentas.
-
-Sequência de conexão MCP
-Cada conexão MCP deve começar com um handshake específico de três mensagens:
-
-Diagrama de sequência do handshake MCP: o cliente envia uma solicitação de inicialização ao servidor, o servidor responde com um resultado de inicialização e, em seguida, o cliente envia uma notificação inicializada para a qual nenhum resultado retorna
-
-Inicializar solicitação - O cliente envia isso primeiro
-Inicializar resultado - O servidor responde com recursos
-Notificação inicializada - Cliente confirma (nenhuma resposta esperada)
-Somente após esse handshake você pode enviar outras solicitações, como chamadas de ferramentas ou listagens de prompts.
-
-Tipos de mensagens e fluxo
-O MCP suporta vários tipos de mensagens que fluem em ambas as direções:
-
-Gráfico de tipos de mensagens MCP entre cliente e servidor: pares de solicitação/resultado iniciados pelo cliente, como Call Tool Request → Call Tool Result, pares iniciados pelo servidor, como Create Message Request e List Roots Request, além de notificações unidirecionais de cada lado que não exigem uma resposta
-
-O principal insight é que algumas mensagens exigem respostas (solicitações → resultados), enquanto outras não (notificações). Tanto o cliente quanto o servidor podem iniciar a comunicação a qualquer momento.
-
-Quatro Cenários de Comunicação
-Com qualquer transporte, você precisa lidar com quatro padrões de comunicação diferentes:
-
-Diagrama intitulado "Como podemos implementar cada um deles com stdio?" listando quatro padrões - solicitação inicial de cliente para servidor, resposta de servidor para cliente, solicitação inicial de servidor para cliente e resposta de cliente para servidor - ao lado de um cliente MCP conectado ao stdin e stdout de um servidor MCP
-
-Solicitação do cliente → servidor: O cliente grava no stdin
-Servidor → Resposta do cliente: O servidor grava no stdout
-Servidor → Solicitação do cliente: O servidor grava no stdout
-Resposta do cliente → servidor: O cliente grava no stdin
-A beleza do transporte stdio é a sua simplicidade - qualquer uma das partes pode iniciar a comunicação a qualquer momento usando esses dois canais.
-
-Por que isso importa
-Entender o transporte stdio é crucial porque ele representa o caso "ideal" em que a comunicação bidirecional é perfeita. Quando migrarmos para outros transportes, como HTTP, encontraremos limitações em que o servidor nem sempre pode iniciar solicitações ao cliente. O transporte stdio serve como base para entender como é a comunicação completa do MCP antes de enfrentarmos as restrições de outros métodos de transporte.
-
-Para desenvolvimento e testes, o transporte stdio é perfeito. Para implantações de produção em que o cliente e o servidor precisam ser executados em máquinas diferentes, você precisará considerar outras opções de transporte com suas próprias compensações.
+> **→ Ponte para o Yu-book.** O `apps/mcp` já usa as duas categorias: `tools/call` é o par
+> solicitação → resultado, e `notifications/progress` e `notifications/message`, entregues pelas
+> tools de escrita, são notificações de mão única. A verificação "toda linha do stdout é JSON
+> válido" existe porque **essas mensagens compartilham o canal** — e é ela que a Fase 3 precisa
+> substituir quando o canal deixar de ser stdout.
 
 ---
 
-# Lição 9: O transporte StreamableHTTP
+## Notas pessoais — o ciclo de comunicação, enfim
 
-O transporte HTTP transmitível permite que os clientes MCP se conectem a servidores hospedados remotamente por meio de conexões HTTP. Ao contrário do transporte de E/S padrão que requer cliente e servidor na mesma máquina, esse transporte abre possibilidades para servidores MCP públicos que qualquer pessoa pode acessar.
+> Esta seção é do autor das anotações, não do curso.
 
+**O pedido:** *"me traga as notas de julho e agrupe pelo conteúdo"*, digitado no terminal do Claude Code.
 
+1. **Você manda a instrução humana no terminal.**
+2. **O modelo Claude, na nuvem, lê o prompt**, entende o que você quer e percebe que precisa de dados externos.
+   O detalhe que faltava: **não é o cliente MCP que decide como fazer o trabalho.** Quem decide chamar a
+   ferramenta é o **modelo**, com base nas descrições das tools que o cliente MCP apresentou a ele no
+   início da sessão. O modelo decide invocar `get_notes` passando o filtro de data de julho.
+3. **O Claude Code, que hospeda o cliente MCP, envia `tools/call`** por stdin/stdout para o `apps/mcp`,
+   o servidor MCP na sua máquina.
+   O `apps/mcp` **não tem IA, não fala com o modelo e não sabe qual modelo está do outro lado.** Ele só
+   recebe o comando JSON-RPC. Executa a lógica: faz `fetch` na `apps/api`, que busca no Postgres,
+   empacota a resposta em texto e devolve ao cliente MCP.
+4. **O modelo, na nuvem, recebe o texto das notas**, faz o agrupamento temático e exibe o resultado
+   formatado no terminal.
 
-No entanto, há uma ressalva importante: algumas configurações podem limitar significativamente a funcionalidade do seu servidor MCP. Se seu aplicativo funciona perfeitamente com transporte de E/S padrão localmente, mas quebra quando implantado com transporte HTTP, esse provavelmente é o culpado.
+### Quando e como as tools são carregadas
 
+Diferente de uma skill dinâmica, que só entra no prompt quando uma palavra-chave aciona o gatilho, as
+definições das ferramentas MCP são carregadas **no handshake inicial da sessão**:
 
-
-Configurações que importam
-Duas configurações principais controlam como o transporte HTTP transmitível se comporta:
-
-stateless_http- Controla o gerenciamento do estado da conexão
-json_response- Controla o tratamento do formato de resposta
-Por padrão, ambas as configurações são , masfalse certos cenários de implantação podem forçá-lo a defini-las comotrue . Quando habilitadas, essas configurações podem quebrar funcionalidades essenciais, como notificações de progresso, registro e solicitações iniciadas pelo servidor.
-
-O desafio da comunicação HTTP
-Para entender por que essas limitações existem, precisamos revisar como funciona a comunicação HTTP. Em HTTP padrão:
-
-
-
-Os clientes podem facilmente iniciar solicitações aos servidores (o servidor possui um URL conhecido)
-Os servidores podem responder facilmente a essas solicitações
-Os servidores não podem iniciar facilmente solicitações aos clientes (os clientes não possuem URLs conhecidos)
-Os padrões de resposta do cliente de volta ao servidor tornam-se problemáticos
-
-
-Tipos de mensagens MCP afetados
-Essa limitação de HTTP afeta padrões específicos de comunicação do MCP. Os seguintes tipos de mensagens tornam-se difíceis de implementar com HTTP simples:
-
-Solicitações iniciadas pelo servidor: criar solicitações de mensagem, listar solicitações de raiz
-Notificações: Notificações de progresso, Notificações de registro, Notificações inicializadas, Notificações canceladas
-Esses são exatamente os recursos que quebram quando você habilita as configurações HTTP restritivas. As barras de progresso desaparecem, o registro para de funcionar e as solicitações de amostragem iniciadas pelo servidor falham.
-
-A solução HTTP transmitível
-O transporte HTTP transmitível fornece uma solução inteligente para contornar as limitações do HTTP, mas vem com compensações. Quando você é forçado a usar or , você está essencialmente dizendo ao transporte para operar dentro das restrições do HTTP, em vez de contornar elas.stateless_http=Truejson_response=True
-
-
-
-Compreender essas limitações ajuda você a tomar decisões informadas sobre:
-
-Qual transporte usar para diferentes cenários de implantação
-Como projetar seu servidor MCP para lidar graciosamente com restrições HTTP
-Quando aceitar funcionalidade reduzida para os benefícios da hospedagem remota
-O segredo é saber que essas restrições existem e planejar a arquitetura do seu servidor MCP adequadamente. Se o seu aplicativo depende muito de solicitações iniciadas pelo servidor ou notificações em tempo real, talvez seja necessário reconsiderar sua escolha de transporte ou implementar padrões de comunicação alternativos.
+1. **Abertura da sessão.** O Claude Code lê o arquivo de configuração onde os servidores MCP estão declarados.
+2. **Subprocesso iniciado.** Ele dispara o `apps/mcp` (`node dist/index.js`) em segundo plano, por stdin/stdout.
+3. **Descoberta de capacidades (`tools/list`).** Antes de você digitar qualquer coisa, o cliente MCP
+   pergunta ao servidor *"o que você sabe fazer?"*, e recebe a lista estruturada: nome de cada tool,
+   o que faz e quais parâmetros espera.
+4. **Injeção no contexto do modelo.** O Claude Code pega essa lista e injeta o catálogo de ferramentas
+   no *system prompt* enviado ao modelo, na nuvem.
 
 ---
 
-# Aula 10: HTTP transmitível em profundidade
-StreamableHTTP é a solução do MCP para um problema fundamental: algumas funcionalidades do MCP exigem que o servidor faça solicitações ao cliente, mas o HTTP torna isso desafiador. Vamos explorar como o StreamableHTTP funciona em torno dessa limitação e quando você pode precisar quebrar essa solução alternativa.
+## Lição 8 — O transporte stdio
 
-O problema central
-Alguns recursos do MCP, como amostragem, notificações e registro, dependem do servidor iniciar solicitações ao cliente. No entanto, o HTTP foi projetado para que os clientes façam solicitações aos servidores, e não o contrário. O StreamableHTTP resolve isso com uma solução alternativa inteligente usando Eventos Enviados pelo Servidor (SSE).
+Cliente e servidor MCP trocam mensagens JSON — mas **como** essas mensagens trafegam? O canal se chama
+**transporte**, e há várias formas de implementá-lo: HTTP, WebSockets, até escrever JSON num cartão
+postal (este último não recomendado para produção).
 
-Como funciona o StreamableHTTP
-A mágica acontece por meio de um processo de várias etapas que estabelece conexões persistentes entre cliente e servidor.
+### Como funciona
 
+Quando se desenvolve um servidor ou cliente MCP pela primeira vez, o transporte mais comum é o
+**stdio**: o cliente inicia o servidor MCP como subprocesso e conversa por entrada e saída padrão.
 
+> *Diagrama: o cliente envia mensagens pelo `stdin` do servidor, e o servidor responde pelo `stdout`;
+> qualquer um dos lados pode enviar a qualquer momento, e só funciona com os dois na mesma máquina.*
 
-Configuração inicial da conexão
-O processo começa como qualquer conexão MCP:
+- O cliente envia mensagens usando o `stdin` do servidor
+- O servidor responde escrevendo no `stdout`
+- **Os dois podem enviar mensagem a qualquer momento**
+- **Só funciona com cliente e servidor na mesma máquina**
 
-O cliente envia umInitialize Request para o servidor
-O servidor responde com umInitialize Result que inclui um cabeçalho especialmcp-session-id
-O cliente envia umInitialized Notification com o ID da sessão
-Este ID de sessão é crucial: ele identifica exclusivamente o cliente e deve ser incluído em todas as solicitações futuras.
+### Vendo stdio em ação
 
-A solução alternativa para SSE
-Após a inicialização, o cliente pode fazer uma solicitação GET para estabelecer uma conexão Servidor-Eventos Enviados. Isso cria uma resposta HTTP de longa duração que o servidor pode usar para transmitir mensagens de volta ao cliente a qualquer momento.
+Dá para testar um servidor MCP direto do terminal, sem escrever cliente nenhum. Rodando o servidor
+com `uv run server.py`, ele escuta `stdin` e escreve respostas em `stdout` — então basta colar
+mensagens JSON no terminal e ver as respostas na hora.
 
+### A sequência de conexão
 
+Toda conexão MCP começa com um **handshake de três mensagens**:
 
-Esta conexão SSE é a chave para permitir a comunicação servidor-cliente. O servidor agora pode enviar solicitações, notificações e outras mensagens através deste canal persistente.
+> *Diagrama: o cliente envia `Initialize Request`, o servidor responde com `Initialize Result`, e o
+> cliente envia `Initialized Notification`, para a qual não volta resultado nenhum.*
 
-Chamadas de ferramentas e conexões SSE duplas
-Quando o cliente faz uma chamada de ferramenta, as coisas ficam mais complexas. O sistema cria duas conexões SSE separadas:
+1. **`Initialize Request`** — o cliente envia primeiro
+2. **`Initialize Result`** — o servidor responde com as capabilities
+3. **`Initialized Notification`** — o cliente confirma (nenhuma resposta esperada)
 
+**Só depois desse handshake** é possível enviar outras solicitações, como chamadas de ferramenta ou
+listagens de prompt.
 
+### Os quatro cenários de comunicação
 
-Conexão SSE primária: usada para solicitações iniciadas pelo servidor e permanece aberta indefinidamente
-Conexão SSE específica da ferramenta: criada para cada chamada de ferramenta e fecha automaticamente quando o resultado da ferramenta é enviado
-Roteamento de mensagens
-Diferentes tipos de mensagens são roteadas através de diferentes conexões:
+Com qualquer transporte é preciso resolver quatro padrões:
 
-Notificações de progresso: Enviadas através da conexão SSE primária
-Mensagens de registro e resultados da ferramenta: Enviados através da conexão SSE específica da ferramenta
+| Padrão | Como o stdio resolve |
+|---|---|
+| Solicitação do cliente → servidor | o cliente escreve no `stdin` |
+| Resposta do servidor → cliente | o servidor escreve no `stdout` |
+| Solicitação do servidor → cliente | o servidor escreve no `stdout` |
+| Resposta do cliente → servidor | o cliente escreve no `stdin` |
 
+A beleza do stdio é a simplicidade: **qualquer um dos lados inicia comunicação a qualquer momento,
+usando dois canais.**
 
-Sinalizadores de configuração que quebram a solução alternativa
-StreamableHTTP inclui duas opções de configuração importantes:
+### Por que isso importa
 
-stateless_http
-json_response
-Defini-losTrue pode quebrar o mecanismo de solução alternativa do SSE. Talvez você queira habilitar esses sinalizadores em determinados cenários, mas isso limita toda a funcionalidade do MCP que depende da comunicação entre servidor e cliente.
+O stdio é o caso **ideal**, em que a comunicação bidirecional é perfeita. Ao migrar para outros
+transportes, como HTTP, aparecem limitações em que **o servidor nem sempre consegue iniciar
+solicitações ao cliente**. O stdio serve de base para entender como é o MCP completo, antes de
+enfrentar as restrições dos outros.
 
-Principais conclusões
-O StreamableHTTP é mais complexo do que outros transportes MCP porque precisa contornar as limitações do HTTP. A solução alternativa baseada em SSE permite funcionalidade MCP completa via HTTP, mas entender o modelo de conexão dupla é crucial para depuração e otimização.
+Para desenvolvimento e teste, stdio é perfeito. Para produção com cliente e servidor em máquinas
+diferentes, é preciso considerar outras opções — e as compensações de cada uma.
 
-Ao criar aplicativos MCP com StreamableHTTP, lembre-se de que IDs de sessão são necessários para todas as solicitações após a inicialização, e o sistema gerencia automaticamente várias conexões SSE para lidar com diferentes tipos de comunicação entre servidor e cliente.
+> **→ Ponte para o Yu-book.** É exatamente o transporte de hoje, e o que o `apps/mcp` faz é o
+> handshake das três mensagens seguido de `tools/list` — o roteiro JSON-RPC "na unha" do
+> `apps/mcp/README.md` é literalmente esta lição. E "só funciona na mesma máquina" é a razão de o
+> `.env` com email e senha ser aceitável: o processo é seu, na sua máquina.
 
 ---
 
-## Aula 11: Estado e o transporte StreamableHTTP
-Os sinalizadores and nos servidores MCP controlam aspectos fundamentais de como seu servidor se comporta. Entender quando e por que usá-los é crucial, especialmente se você estiver planejando dimensionar seu servidor ou implantá-lo em produção.stateless_httpjson_response
+## Lição 9 — O transporte StreamableHTTP
 
-Quando você precisa de HTTP sem estado
-Imagine que você constrói um servidor MCP que se torna popular. Inicialmente, você pode ter apenas alguns clientes se conectando a uma única instância de servidor:
+O StreamableHTTP permite que clientes MCP se conectem a servidores **hospedados remotamente**, por
+HTTP. Diferente do stdio, que exige cliente e servidor na mesma máquina, ele abre a possibilidade de
+servidores MCP públicos, que qualquer pessoa acessa.
 
+Há uma ressalva importante: **algumas configurações limitam severamente a funcionalidade do
+servidor.** Se a sua aplicação funciona perfeitamente com stdio local e quebra ao ser publicada com
+HTTP, provavelmente é isso.
 
+### As duas configurações que importam
 
-À medida que seu servidor cresce, você pode ter milhares de clientes tentando se conectar. Executar uma única instância de servidor não será dimensionado para lidar com todo esse tráfego:
+| Sinalizador | Controla |
+|---|---|
+| `stateless_http` | o gerenciamento de estado da conexão |
+| `json_response` | o formato da resposta |
 
+Por padrão **as duas são `false`**, mas certos cenários de implantação forçam `true`. Quando ligadas,
+elas quebram funcionalidades essenciais: **notificações de progresso, registro e solicitações
+iniciadas pelo servidor**.
 
+### O desafio do HTTP
 
-A solução típica é o dimensionamento horizontal - executando várias instâncias de servidor atrás de um balanceador de carga:
+Para entender por que essas limitações existem, vale revisar o HTTP:
 
+- Clientes iniciam solicitações a servidores com facilidade — **o servidor tem URL conhecida**
+- Servidores respondem a essas solicitações com facilidade
+- **Servidores não iniciam solicitações a clientes com facilidade** — clientes não têm URL conhecida
+- O padrão "resposta do cliente de volta ao servidor" fica problemático
 
+### Os tipos de mensagem afetados
 
-Mas é aqui que as coisas ficam complicadas. Lembre-se de que os clientes MCP precisam de duas conexões separadas:
+Essa limitação atinge padrões específicos do MCP, que ficam difíceis com HTTP simples:
 
-Uma conexão GET SSE para receber solicitações de servidor para cliente
-Solicitações POST para chamar ferramentas e receber respostas
+- **Solicitações iniciadas pelo servidor:** `Create Message Request` (amostragem), `List Roots Request`
+- **Notificações:** progresso, registro, `initialized`, cancelamento
 
+São exatamente os recursos que quebram quando se ligam os sinalizadores restritivos. **As barras de
+progresso somem, o registro para de funcionar e a amostragem falha.**
 
-Com um balanceador de carga, essas solicitações podem ser roteadas para diferentes instâncias do servidor. Se sua ferramenta precisar usar Claude (por meio de amostragem), o servidor que manipula a solicitação POST precisará coordenar com o servidor que manipula a conexão GET SSE. Isso cria um problema complexo de coordenação entre servidores.
+### A solução
 
+O StreamableHTTP contorna as limitações do HTTP, mas com compensações. Ligar `stateless_http=True`
+ou `json_response=True` é, no fundo, **dizer ao transporte para operar dentro das restrições do
+HTTP em vez de contorná-las**.
 
+Entender isso ajuda a decidir: qual transporte usar em cada cenário, como projetar o servidor para
+degradar com elegância, e quando aceitar funcionalidade reduzida em troca de hospedagem remota.
 
-Como o HTTP sem estado resolve isso
-A configuraçãostateless_http=True elimina esse problema de coordenação, mas com compensações significativas:
+> **→ Ponte para o Yu-book.** As quatro tools de escrita emitem log e progresso, e a `trash_note`
+> chega a reportar dois passos. Com `stateless_http=True` **isso tudo cala** — e cala em silêncio,
+> não com erro. É a primeira decisão concreta da Fase 3, e não é técnica: é escolher entre escalar
+> e manter a via de volta.
 
+---
 
+## Lição 10 — StreamableHTTP em profundidade
 
-Quando o HTTP sem estado está habilitado:
+O StreamableHTTP é a solução do MCP para um problema fundamental: **alguns recursos exigem que o
+servidor faça solicitações ao cliente, e o HTTP torna isso difícil.**
 
-Os clientes não obtêm IDs de sessão - o servidor não consegue rastrear clientes individuais
-Nenhuma solicitação de servidor para cliente - o caminho GET SSE fica indisponível
-Sem amostragem - não é possível usar Claude ou outros modelos de IA
-Nenhum relatório de progresso - não é possível enviar atualizações de progresso durante operações longas
-Sem assinaturas - não é possível notificar os clientes sobre atualizações de recursos
-No entanto, há um benefício: a inicialização do cliente não é mais necessária. Os clientes podem fazer solicitações diretamente, sem o processo inicial de handshake.
+### O problema central
 
+Amostragem, notificações e registro dependem de o servidor iniciar a conversa. Mas o HTTP foi
+desenhado para o cliente pedir e o servidor responder, nunca o contrário. O StreamableHTTP resolve
+com uma solução alternativa engenhosa: **Server-Sent Events (SSE)**.
 
+### A conexão inicial
 
-Compreendendo a resposta JSON
-O sinjson_response=Truealizador é mais simples: ele apenas desabilita o streaming para respostas de solicitações POST. Em vez de obter várias mensagens SSE à medida que uma ferramenta é executada, você obtém apenas o resultado final como JSON simples.
+Começa como qualquer conexão MCP, com **uma adição decisiva**:
 
-Com streaming desativado:
+1. O cliente envia `Initialize Request`
+2. O servidor responde com `Initialize Result` **incluindo um cabeçalho `mcp-session-id`**
+3. O cliente envia `Initialized Notification` com o id da sessão
 
-Nenhuma mensagem de progresso intermediário
-Nenhuma instrução de log durante a execução
-Apenas o resultado final da ferramenta
-Quando usar essas bandeiras
-Use HTTP sem estado quando:
+**Esse id de sessão é crucial:** ele identifica o cliente de forma única e **precisa ir em todas as
+solicitações seguintes**.
 
-Você precisa de escala horizontal com balanceadores de carga
-Você não precisa de comunicação entre servidor e cliente
-Suas ferramentas não exigem amostragem de modelos de IA
-Você deseja minimizar a sobrecarga de conexão
-Use a resposta JSON quando:
+### A solução alternativa do SSE
 
-Você não precisa de respostas de streaming
-Você prefere respostas HTTP mais simples e sem streaming
-Você está se integrando com sistemas que esperam JSON simples
-Desenvolvimento vs Produção
-Se você estiver desenvolvendo localmente com transporte de E/S padrão, mas planejando implantar com transporte HTTP, teste com o mesmo transporte que você usará na produção. As diferenças de comportamento entre os modos com e sem estado podem ser significativas, e é melhor detectar quaisquer problemas durante o desenvolvimento do que após a implantação.
+Depois da inicialização, o cliente faz uma requisição **GET** para estabelecer uma conexão SSE. Isso
+cria uma resposta HTTP de longa duração que o servidor pode usar para **transmitir mensagens de
+volta ao cliente a qualquer momento**.
 
-Esses sinalizadores mudam fundamentalmente a forma como seu servidor MCP opera, portanto, escolha-os com base em seus requisitos específicos de escala e funcionalidade.
+É essa conexão que devolve ao servidor a capacidade de falar primeiro.
+
+### Chamada de ferramenta e as duas conexões SSE
+
+Quando o cliente chama uma ferramenta, aparecem **duas conexões SSE separadas**:
+
+| Conexão | Papel | Duração |
+|---|---|---|
+| **SSE primária** | solicitações iniciadas pelo servidor | fica aberta indefinidamente |
+| **SSE da chamada** | criada para cada chamada de ferramenta | fecha ao enviar o resultado |
+
+E o roteamento das mensagens segue essa divisão:
+
+- **Notificações de progresso** → conexão SSE **primária**
+- **Mensagens de registro e resultado da ferramenta** → conexão SSE **da chamada**
+
+### Os sinalizadores que quebram a solução
+
+`stateless_http` e `json_response`, postos em `True`, **quebram o mecanismo do SSE**. Pode-se querer
+ligá-los em certos cenários, mas isso limita toda a funcionalidade do MCP que depende de
+comunicação servidor → cliente.
+
+### Conclusão
+
+O StreamableHTTP é mais complexo que os outros transportes porque **precisa contornar o HTTP**. O
+modelo de conexão dupla é o que permite MCP completo por HTTP, e entendê-lo é essencial para depurar.
+
+Duas coisas para lembrar: **o id de sessão é obrigatório em toda solicitação depois da
+inicialização**, e o sistema gerencia várias conexões SSE automaticamente.
+
+> **→ Ponte para o Yu-book.** Aqui está a resposta para a pergunta que a Parte II deveria responder:
+> **de onde vem a identidade quando ela não vem mais do ambiente do processo?** Do
+> `mcp-session-id`, emitido pelo servidor no `Initialize Result`. Só que isso identifica a
+> **sessão**, não a **pessoa** — e a diferença entre as duas é o assunto inteiro da Fase 3.
+
+---
+
+## Lição 11 — Estado e o transporte StreamableHTTP
+
+Os sinalizadores `stateless_http` e `json_response` controlam aspectos fundamentais do comportamento
+do servidor. Saber quando e por que usá-los é crucial, sobretudo ao dimensionar ou publicar em
+produção.
+
+### Quando o HTTP sem estado é necessário
+
+Imagine que o seu servidor MCP fica popular. No começo, poucos clientes numa instância só. Com o
+crescimento, milhares de clientes — e uma instância não dá conta.
+
+A solução típica é **escala horizontal**: várias instâncias atrás de um balanceador de carga.
+
+**E é aqui que complica.** O cliente MCP precisa de **duas conexões separadas**:
+
+- uma conexão **GET SSE**, para receber as mensagens de servidor → cliente
+- requisições **POST**, para chamar ferramentas e receber respostas
+
+Com um balanceador, essas requisições podem cair em **instâncias diferentes**. Se a ferramenta
+precisar usar Claude por amostragem, a instância que atendeu o POST teria de coordenar com a
+instância que segura o GET SSE. **Isso é um problema de coordenação entre servidores.**
+
+### Como o `stateless_http` resolve — e o que custa
+
+`stateless_http=True` elimina a coordenação, com compensações significativas:
+
+| O que se perde | Consequência |
+|---|---|
+| Id de sessão | o servidor não consegue rastrear clientes individuais |
+| Solicitação servidor → cliente | o caminho GET SSE fica indisponível |
+| Amostragem | não dá para usar Claude nem outro modelo |
+| Relatório de progresso | nada de atualizações durante operações longas |
+| Assinaturas | não dá para notificar sobre atualização de recurso |
+
+Há um benefício: **a inicialização deixa de ser necessária.** Os clientes fazem requisições
+diretamente, sem handshake.
+
+### O `json_response`
+
+Este é mais simples: **desliga o streaming das respostas de POST.** Em vez de várias mensagens SSE
+enquanto a ferramenta roda, vem só o resultado final, em JSON simples.
+
+Com streaming desligado: **sem progresso intermediário, sem registro durante a execução, só o
+resultado final.**
+
+### Quando usar cada um
+
+**Use `stateless_http` quando:**
+- precisa de escala horizontal com balanceador
+- não precisa de comunicação servidor → cliente
+- suas ferramentas não usam amostragem
+- quer minimizar a sobrecarga de conexão
+
+**Use `json_response` quando:**
+- não precisa de resposta em streaming
+- prefere respostas HTTP simples
+- integra com sistemas que esperam JSON puro
+
+### Desenvolvimento contra produção
+
+Se você desenvolve localmente com stdio mas planeja publicar com HTTP, **teste com o mesmo
+transporte que vai usar em produção**. A diferença de comportamento entre os modos com e sem estado
+é significativa, e é melhor descobrir o problema durante o desenvolvimento do que depois.
+
+> **→ Ponte para o Yu-book.** Esta lição é a decisão inteira da Fase 3, posta como um trade-off:
+> **com estado**, o servidor sabe quem está falando e a via de volta funciona, mas não escala
+> horizontalmente sem coordenação; **sem estado**, escala, e cala. Para um segundo cérebro
+> single-user o dilema é mais fácil do que parece — não há milhares de clientes. Mas a última frase
+> da lição é um aviso direto ao estado atual do projeto: **desenvolver em stdio e publicar em HTTP
+> sem testar no mesmo transporte é onde isto costuma quebrar.**
+
+---
+
+## Encerramento
+
+- [x] Avaliação dos conceitos do MCP (questionário)
+- [x] Crachá de conclusão
+
+**Curso concluído.** O que ele destrava está registrado em
+[`applied-ai-read-trip.md`](../applied-ai-read-trip.md): a Fase 3 do roteiro — transporte e
+identidade — deixou de esperar por curso e passou a esperar por execução.
