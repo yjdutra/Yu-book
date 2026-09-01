@@ -1,6 +1,6 @@
 ---
 name: invariantes-yu-book
-description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, defesas de SSRF, escopo por usuário, a precisão do arraste do kanban, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — e o id de coluna que o servidor MCP imprime num lugar só, sem o qual as tools de escrita ficam inalcançáveis. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
+description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, defesas de SSRF, escopo por usuário, a precisão do arraste do kanban, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna que o servidor MCP imprime num lugar só, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição e o mapa de sessões que vaza calado. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
 ---
 
 # Invariantes do Yu-book
@@ -33,7 +33,7 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-03 | Posse do kanban resolve por cadeia, na mesma query |
 | INV-04 | Escrita condicional em vez de checar-depois-agir |
 | INV-05 | `TOKEN_EXPIRED` e `UNAUTHORIZED` são códigos distintos de propósito |
-| INV-06 | Refresh token com rotação, detecção de reuso e consumo atômico |
+| INV-06 | Refresh token: rotação e consumo atômico; reuso com janela de graça de 30 s |
 | INV-07 | Login paga custo constante |
 | INV-08 | Defesas de SSRF na leitura de título |
 | INV-10 | Destaque de busca usa caracteres de controle, não HTML |
@@ -52,6 +52,10 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-31 | Duas armadilhas de planner no SQL |
 | INV-32 | Listagem de notas nunca carrega o corpo inteiro |
 | INV-40 | `formatarQuadro` imprime o id de cada coluna, e é o único lugar que imprime |
+| INV-41 | Envelope cifrado carrega rótulo de tipo, obrigatório nas duas pontas |
+| INV-42 | A vida do token do MCP é derivada do vencimento do da API, nunca fixada |
+| INV-43 | A identidade de quem chamou anda em `AsyncLocalStorage`, não na sessão |
+| INV-44 | O par sessão/`McpServer` vaza em silêncio: cinco guardas, nenhuma supérflua |
 
 ### Índice — front
 
@@ -84,9 +88,10 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 4. Classifique: **violação de invariante** bloqueia; divergência de convenção e observação, não.
 5. **Diga o que você não pôde verificar.** Não existe teste de front neste projeto, e nenhum portão
    carrega uma `EditorView` nem executa um arraste. INV-29, INV-30, INV-33, INV-35, INV-36, INV-38 e
-   INV-39 só se confirmam à mão. **INV-40 também**: nenhum portão fala JSON-RPC, e o `pnpm test` não
-   alcança `apps/mcp`. Se o diff as toca, nomeie-as e diga que faltam — uma revisão que omite isso
-   passa por verde o que ninguém executou.
+   INV-39 só se confirmam à mão. **INV-40 também**: `apps/mcp` ganhou suíte na Etapa 4
+   (`pnpm --filter @yu-book/mcp test`), mas nenhum portão fala JSON-RPC — ela cobre identidade,
+   envelopes e provedor OAuth (INV-41 a INV-44), não a superfície das tools. Se o diff as toca,
+   nomeie-as e diga que faltam — uma revisão que omite isso passa por verde o que ninguém executou.
 
 Se encontrar uma invariante que o catálogo não cobre, emita-a no bloco `## Para a memória` — o
 curador decide se ela entra aqui.
@@ -105,6 +110,14 @@ Ela também **corrigiu INV-19**, que descrevia como irreversível algo que resta
 `[[…]]` voltam, o vínculo do card não. O título antigo já tinha induzido uma afirmação errada numa
 `description` de tool. Esse é o modo de falha típico deste catálogo — o **título** é lido sozinho e
 vira a fonte. Ao escrever um, confira que ele sozinho não afirma mais do que a invariante sustenta.
+
+A **Etapa 4 do servidor MCP** (2026-09-01) deu a ele um segundo transporte e identidade própria, e
+trouxe INV-41 a INV-44 — as quatro em `apps/mcp`, as três primeiras cobertas por teste. Ela também
+**estreitou INV-06**, que afirmava detecção de reuso incondicional: a janela de graça de 30 s existe
+por causa deste servidor MCP, e o custo dela está declarado no comentário do código. Vale a lição
+geral do INV-41: **cifra igual mais forma compatível não separa nada.** Um envelope que se abre com
+a mesma chave e cabe no formato do outro *é* o outro, e o compilador não vê diferença nenhuma até
+alguém pedir o rótulo.
 
 A próxima é a **Fase 6** (Google Calendar), declarada pelo operador como o item de **menor
 prioridade**. O intervalo até lá é o tempo em que este catálogo mais envelhece: reconfira as

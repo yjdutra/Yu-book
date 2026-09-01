@@ -25,10 +25,16 @@ corrida entre checagem e efeito.
 o refresh no front; o segundo derruba a sessão. Fundir os dois cria laço de login.
 `apps/api/src/lib/authenticate.ts`.
 
-**INV-06 — Refresh token roda com rotação, detecção de reuso e consumo atômico.** Cada refresh
-revoga o apresentado; um token revogado que reaparece derruba **todas** as sessões do usuário; a
-atomicidade vem de `updateMany({ where: { id, revokedAt: null } })` com checagem de `count`.
-`apps/api/src/modules/auth/auth.service.ts`.
+**INV-06 — Refresh token roda com rotação e consumo atômico; a detecção de reuso tem janela de
+graça.** Cada refresh revoga o apresentado, e a atomicidade vem de
+`updateMany({ where: { id, revokedAt: null } })` com checagem de `count`
+(`apps/api/src/modules/auth/auth.service.ts:151`). A detecção de reuso **não é incondicional**:
+`GRACA_DE_REUSO_MS = 30_000` (`:20`) faz o token reapresentado dentro de 30 s da revogação devolver
+401 **sem** derrubar a cadeia (`:134`); fora da janela, o reuso continua revogando todas as sessões
+do usuário (`:140`). A janela existe por causa do servidor MCP, que não é navegador e não retenta
+por conta própria. **O custo está declarado no comentário e não é pequeno:** ela cega exatamente a
+corrida que a rotação existe para pegar — quem roubar um refresh e usá-lo primeiro sobrevive à
+janela, e o legítimo toma 401 mudo. Coberto por `apps/api/tests/auth-refresh.test.ts`.
 
 **INV-07 — Login paga custo constante.** Email inexistente ainda calcula um argon2 descartável, para
 que o tempo de resposta não revele quais emails existem.
@@ -119,3 +125,50 @@ justamente por isso. Custa 36 caracteres por coluna, com teto de 20 colunas por 
 pior caso), e é o primeiro candidato a "economia de contexto" de quem lê `formato.ts` sem abrir
 `tools/kanban-escrita.ts`. Remover não quebra nada: nada falha, nenhum teste cai, as duas tools de
 escrita só ficam **inalcançáveis**, e as descrições passam a mentir.
+
+**INV-41 — Envelope cifrado carrega rótulo de tipo, e o rótulo é obrigatório nas duas pontas.**
+`selar(dados, tipo)` e `abrir(envelope, tipo)` (`apps/mcp/src/auth/segredos.ts:68` e `:85`) exigem
+um `TipoDeEnvelope` (`:59`), e `abrir` devolve `null` quando o rótulo não bate (`:100`). Parece
+cerimônia removível — todos os envelopes usam a mesma chave, então todos se abrem de qualquer
+jeito. **Era exatamente esse o buraco:** sem rótulo, o que separava um envelope de outro era só a
+*forma* do conteúdo, e `Codigo` é superconjunto estrutural de `Refresh`. Um código de autorização
+apresentado em `grant_type=refresh_token` abria como refresh válido e devolvia token com escopo de
+escrita, contornando de uma vez o uso único, o `exp` de 60 s e o PKCE. Confirmado contra o servidor
+de pé, antes e depois. O parâmetro é obrigatório para o compilador cobrar a decisão em cada sítio
+novo, em vez de deixar o padrão ser o inseguro.
+
+**INV-42 — A vida do token do MCP é derivada do vencimento do token da API, nunca fixada.**
+`emitirTokens` calcula `apiExp − MARGEM_S` (`apps/mcp/src/auth/provedor.ts:225`, com `MARGEM_S = 60`
+em `:59`) e recusa abaixo de `PISO_S = 120` (`:69`). **Igualar os dois TTLs em 900 s não resolve**:
+o token da API nasce no login e o do MCP na troca do código, até 60 s depois, então com a mesma
+duração o do MCP morre por último — e aí o 401 cai **dentro de uma tool**, onde o modelo tenta
+contornar sozinho, em vez de cair na fronteira HTTP, onde o cliente sabe renovar. O tripwire está
+em `verificarToken` (`apps/mcp/src/auth/segredos.ts:191`): a checagem `axp <= agora` é inalcançável
+por construção e existe justamente para acusar quem trocar a derivação por um número fixo.
+
+**INV-43 — A identidade de quem chamou anda em `AsyncLocalStorage`, não num portador de sessão.**
+O contexto é aberto em `comErro`/`comErroDeResource` a partir de `extra.authInfo`
+(`apps/mcp/src/erros.ts:75`) e lido em `credencialDaChamada` (`apps/mcp/src/cliente.ts:102`, sobre o
+store de `:42`). **Guardar o token na sessão MCP quebra em silêncio:** a sessão vive 30 min e o
+token 14, e duas requisições concorrentes da mesma sessão sobrescreveriam o portador uma da outra —
+uma chamada operando como outra conta, sem erro. `apps/mcp/tests/identidade.test.ts` falha se
+alguém trocar de volta. A variável de módulo `accessToken` (`cliente.ts:53`) continua existindo e é
+alcançável **só pelo ramo stdio**: sob HTTP, chamada sem contexto é recusada com `SEM_IDENTIDADE`
+(`cliente.ts:106`), e o retry de 401 está guardado pela ausência de store (`cliente.ts:166`).
+
+**INV-44 — O par sessão/`McpServer` vaza em silêncio, e são cinco guardas, não uma.**
+`apps/mcp/src/http.ts`. Cada sessão tem seu próprio `McpServer`, porque um servidor conecta a **um**
+transporte. **Sessão que entra e nunca sai não dá erro nem log**: só ocupa memória até o processo
+morrer semanas depois, com um sintoma que não aponta para cá. Daí a redundância, e nenhuma das
+cinco é supérflua.
+
+Para o par que **entrou** no mapa, `esquecer` (`:71`) é o único lugar que o tira e fecha o servidor
+junto — três caminhos chegam nele: `onclose` (`:154`), que cobre só o `DELETE` (verificado no SDK
+1.30, `close()` do transporte não é chamado em mais nada), `varrerOciosas` (`:93`) para o cliente
+que some da rede, e `abrirEspaco` (`:105`) como teto duro.
+
+Para o par que **nasce e nunca é mapeado** — invisível a todas as três acima —, duas guardas
+irmãs: `mcp-session-id` desconhecido é recusado com 404 **antes** de qualquer construção (`:263`), e
+o `finally` de `novaSessao` fecha o par quando `registrada` continua falso (`:174`), que é o caso do
+`initialize` recusado pelo SDK e o do corpo malformado. Sem elas, um cliente com defeito vazaria um
+par por tentativa, sem erro e sem log — e qualquer um pode repetir um id velho.

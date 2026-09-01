@@ -20,10 +20,15 @@ Sempre confira que **toda linha do stdout é JSON válido** — é a invariante 
 
 ```bash
 pnpm --filter @yu-book/shared build    # se o contrato mudou
-pnpm --filter @yu-book/mcp typecheck
+pnpm --filter @yu-book/mcp typecheck   # roda sobre tsconfig.test.json: cobre src/ e tests/
+pnpm --filter @yu-book/mcp test        # quarto portão; não precisa de banco nem de API no ar
 pnpm --filter @yu-book/mcp build
 pnpm --filter @yu-book/mcp verificar   # confirma ambiente, escrita, login e volume
 ```
+
+**O que a suíte cobre e o que não cobre.** Ela prova identidade, envelopes e provedor OAuth —
+INV-41 a INV-44. Ela **não fala JSON-RPC** e não vê tool nenhuma: nada abaixo desta linha é
+substituído por ela.
 
 ### Escrita: verifique contra o ambiente local, nunca contra o seu acervo
 
@@ -49,5 +54,24 @@ parece certo e mente sobre o grafo — e aí a verificação valida contra uma f
   "arguments":{"noteId":"<uuid>"},"_meta":{"progressToken":1}}}'
 ```
 
-Se as tools de escrita **não aparecem** no `tools/list`, confira `YUBOOK_API_URL` antes de procurar
-bug: contra host não-local elas não são registradas (§9), e o motivo está no stderr do boot.
+Se as tools de escrita **não aparecem** no `tools/list`, confira qual trava está agindo antes de
+procurar bug — são duas, e a de cada transporte é diferente (§9). Em **stdio**, é `YUBOOK_API_URL`
+contra host não-local. Em **http**, é o escopo do token de quem chamou ou `MCP_ESCRITA_HABILITADA=0`
+— e a trava por host local não participa. Nos dois casos o motivo está no stderr do boot.
+
+### O fluxo HTTP, à mão
+
+O transporte http exige `MCP_TRANSPORTE=http`, `MCP_SEGREDO` e `MCP_URL_PUBLICA`, e **recusa subir**
+se `YUBOOK_EMAIL` estiver no ambiente. Comece pela descoberta, que é por onde o cliente MCP começa:
+
+```bash
+curl -s localhost:3335/.well-known/oauth-protected-resource/mcp | jq
+curl -s -i localhost:3335/mcp -X POST -H 'Content-Type: application/json' -d '{}'   # 401 + WWW-Authenticate
+curl -s localhost:3335/health | jq   # `sessoes` prova que o mapa esvazia (INV-44)
+```
+
+Uma prova de sessão vale mais que a inspeção do mapa: abra uma sessão, mate o cliente sem `DELETE`,
+e confirme pelo `/health` que a varredura a recolhe — o `onclose` sozinho **não** recolhe.
+
+O passo a passo completo do fluxo OAuth está em `apps/mcp/README.md`. Rodar o arsenal de provas em
+sequência esbarra no limite de login da `apps/api`; o sintoma está na memória do agente `mcp`.

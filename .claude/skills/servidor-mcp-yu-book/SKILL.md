@@ -1,23 +1,59 @@
 ---
 name: servidor-mcp-yu-book
-description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, identidade por uuid, uma formatação para duas superfícies, as tools de escrita e a trava que as desliga fora de host local, a description como contrato de conversa com o modelo, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
+description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os dois transportes (stdio e StreamableHTTP) com uma montagem só, de onde vem a identidade em cada um e por que a escrita é liberada por eixos diferentes (URL local no stdio, escopo do token em HTTP), o servidor de autorização OAuth 2.1 próprio sem estado durável, cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, uma formatação para duas superfícies, a description como contrato de conversa com o modelo, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, antes de tocar em transporte, sessão ou autenticação, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
 ---
 
 # O servidor MCP do Yu-book
 
-`apps/mcp` expõe o Yu-book como servidor MCP. **Não é deployado**: roda na máquina do operador,
-iniciado pelo cliente MCP, e fala HTTPS com a API.
+`apps/mcp` expõe o Yu-book como servidor MCP. Ainda **não é deployado**, e é sempre cliente HTTP da
+API — nunca do banco.
 
 Boa parte das decisões aqui é **o contrário do que um exemplo genérico de MCP faria**. Isso é
 deliberado. Não "corrija" para o padrão sem ler o porquê.
 
+## 0. Dois transportes, e a diferença é quem é você
+
+Desde a Etapa 4 há **dois**, com uma montagem só: `criarServidor` (`src/servidor.ts`) registra as
+mesmas nove tools, resources e prompts para ambos — dois caminhos de registro divergiriam calados.
+
+| | `stdio` | `http` (StreamableHTTP, com sessão) |
+|---|---|---|
+| Quantos processos | um por pessoa | um serviço, muitos clientes |
+| Quem é você | o dono do processo | quem apresentou o token |
+| De onde vem a credencial | `YUBOOK_EMAIL`/`YUBOOK_PASSWORD` no `.env` | OAuth 2.1, do navegador |
+| O que libera a escrita | a URL da API ser local | o escopo do token |
+
+**A pergunta que decide quase tudo aqui é "de quem é esta requisição?".** Em stdio ela não existe: o
+processo é seu, e a conta no ambiente **é** a identidade. Sob HTTP um processo atende muitos
+clientes, e credencial no ambiente seria uma identidade só para todo mundo — por isso o `env.ts`
+**recusa subir** em HTTP se `YUBOOK_EMAIL` existir, e o `cliente.ts` recusa de novo a chamada que
+chegar sem contexto. Duas trancas para a mesma porta, de propósito.
+
+**A identidade viaja por requisição, em `AsyncLocalStorage`** — aberto em `comErro` e
+`comErroDeResource` (`src/erros.ts`), que já envolvem todo handler que existe, e lido em
+`src/cliente.ts`. Nenhuma assinatura de tool mudou. Portador guardado na sessão seria o erro:
+INV-43 tem o porquê.
+
+**Este servidor emite token; não repassa token de terceiro.** É servidor de autorização completo —
+registro dinâmico, PKCE, login e consentimento próprios (`src/auth/`) —, e o token que emite carrega
+o `accessToken` da API **cifrado dentro**: corpo de JWT é base64, não cifra, e em claro o cliente
+ganharia uma credencial que fala direto com a `apps/api`, contornando todo escopo daqui.
+
+Duas frases resumem o que custou caro nesta etapa, e o argumento inteiro de cada uma está no
+catálogo: **cifra igual mais forma compatível não separa nada** (INV-41, um desvio de autenticação
+real) e **os dois relógios se derivam, não se igualam** (INV-42). O mapa de sessões vaza calado
+(INV-44). Leia as quatro antes de tocar em `src/auth/` ou `src/http.ts`; o mecanismo do fluxo OAuth
+está em **`referencias/identidade-http.md`**.
+
 ## 1. A regra de sobrevivência: stdout é o protocolo
 
-O transporte é stdio. **O stdout é o canal JSON-RPC.** Um `console.log` esquecido injeta lixo no meio
-de uma mensagem e o cliente desconecta com um erro que não parece ter relação com log.
+**Em stdio o stdout é o canal JSON-RPC.** Um `console.log` esquecido injeta lixo no meio de uma
+mensagem e o cliente desconecta com um erro que não parece ter relação com log. Sob HTTP o stdout é
+só stdout — mas **o mesmo código roda nos dois**, então a regra mais restritiva vence: todo
+diagnóstico vai para **stderr**, sempre. Assim não há um caminho seguro e outro traiçoeiro.
 
-Todo diagnóstico vai para **stderr**, sem exceção. `src/verificar.ts` é a única exceção legítima —
-é utilitário de linha de comando, não faz parte do servidor.
+`src/verificar.ts` é a única exceção legítima — é utilitário de linha de comando, não faz parte do
+servidor.
 
 ## 2. Cliente da API, nunca do banco
 
@@ -30,6 +66,10 @@ reimplementar esse escopo fora dos services — e erro ali não dá exceção, v
 
 Efeito colateral que se aproveita: trocar entre ambiente local e produção é trocar
 `YUBOOK_API_URL` no `.env`. Nenhuma linha de código.
+
+Sob HTTP muda só **de quem** é o `Bearer`: `src/auth/sessao-api.ts` faz login, refresh e logout
+contra as mesmas rotas do front, mandando o cookie `yb_refresh` à mão. **A `apps/api` não muda uma
+linha** para servir o MCP.
 
 ## 3. Orçamento de contexto
 
@@ -118,19 +158,26 @@ Quatro tools mudam dado: `create_card`, `move_card` (`src/tools/kanban-escrita.t
 `restore_note` (`src/tools/notas-escrita.ts`). Vivem em arquivos separados das de leitura de
 propósito — risco diferente, revisão diferente.
 
-**A escrita nasce desligada fora de um host local.** `env.escritaLiberada` (`src/env.ts:53`) decide
-se elas chegam a ser registradas (`src/index.ts:53`); contra outro host somem do `tools/list` e o
-motivo vai para o stderr no boot. `YUBOOK_ESCRITA_REMOTA=1` destrava, e destravar custa uma decisão
-escrita. **Tool de escrita que você acabou de criar e não aparece no `tools/list` quase sempre é
-isto, não um bug de registro.**
+**O que libera a escrita é outro em cada transporte, e são eixos diferentes de propósito.** Quem
+recebe a decisão pronta é `criarServidor({ escrita })` — as quatro ou são registradas na montagem
+ou não existem naquela sessão, e não há como registrá-las no meio. Quem a toma:
+
+- **stdio — a URL da API.** `env.escritaLiberada` é verdadeiro só contra host local, e
+  `YUBOOK_ESCRITA_REMOTA=1` destrava a um custo de decisão escrita. Faz sentido ali porque não há
+  identidade: o único risco é escrever em produção sem querer.
+- **http — o escopo do token**, `yubook:write`, concedido na caixa do consentimento, mais o
+  desligamento global `MCP_ESCRITA_HABILITADA`. **A trava por host local não participa deste
+  caminho**, e isso não é engano: ali a pergunta é *quem autorizou o quê*, não *contra qual banco*.
+  `OpcoesDoServidor`, em `src/servidor.ts`, documenta a decisão no código.
+
+Os dois vão para o stderr no boot, em mensagens que ramificam por transporte (`src/index.ts`).
+**Tool de escrita recém-criada que não aparece no `tools/list` quase sempre é uma das duas travas.**
 
 **Nome de tool não inventa estado que a tabela não tem.** O domínio tem duas remoções com nomes
 diferentes: card se **arquiva** (`archived`, sai do quadro, renumera a coluna — INV-13); nota vai
 para a **lixeira** (`deletedAt`). Não existe "arquivar nota", e por isso não existe `archive_note`.
-`delete_note` foi recusado por dois motivos independentes: o modelo lê "delete" como irreversível —
-ou recusa por medo, ou executa sem oferecer a volta — e queimaria o nome de que a exclusão
-definitiva precisaria, se um dia for exposta. Argumento inteiro na entrada de 2026-08-26 de
-`docs/historico.md`.
+`delete_note` foi recusado por dois motivos independentes — argumento inteiro na entrada de
+2026-08-26 de `docs/historico.md`.
 
 **Dois critérios decidem o que não vira tool**, e valem para a próxima também: operação
 **irreversível** fica no aplicativo, com um humano confirmando (excluir card, excluir nota em
@@ -178,7 +225,7 @@ transporte fechado, capability ausente — transformaria uma criação bem-suced
 modelo criaria o card de novo. Toda emissão vive em `try/catch`, com o motivo indo para stderr
 (`src/notificacoes.ts:57,71,89`).
 
-**A capability `logging` se declara no construtor do `McpServer`** (`src/index.ts:44`). Sem ela
+**A capability `logging` se declara no construtor do `McpServer`** (`src/servidor.ts:51`). Sem ela
 `sendLoggingMessage` não lança nem avisa: apenas não faz nada, e o log das escritas some em
 silêncio. Declarar depois não adianta — o handler de `logging/setLevel` só é registrado ali.
 
@@ -218,9 +265,6 @@ Campo novo ausente na resposta é **omitido**, não emitido como `undefined`. Ve
 `packages/shared` não quebra o MCP: ela o deixa **desatualizado em silêncio**. Nenhum teste falha,
 nenhum typecheck reclama — a tool simplesmente para de contar a verdade inteira.
 
-Precedente real: `updatedAt` existia na tabela `card` desde sempre e nunca chegava à superfície. Só
-apareceu quando um prompt precisou dele.
-
 Diante de um campo, entidade ou filtro novo no domínio, percorra:
 
 - [ ] **`src/formato.ts`** — o campo novo deve aparecer no texto de nota, card, quadro ou dashboard?
@@ -238,6 +282,8 @@ Diante de um campo, entidade ou filtro novo no domínio, percorra:
 - [ ] **`annotations`** — o risco da operação mudou? `destructiveHint` acompanha o domínio.
 - [ ] **Log e progresso** — a escrita passou a ter um efeito que o usuário precisa ver no
       `notifications/message`? Passo real novo, ou passo que deixou de existir? (§11)
+- [ ] **Transporte** — a mudança vale nos dois? Regra que dependa de **quem** está chamando só tem
+      resposta em HTTP; em stdio há uma conta só. Escopo novo entra no consentimento (§0).
 - [ ] **`src/verificar.ts`** — vale reportar no diagnóstico?
 
 Se a resposta for "nada muda", **diga isso explicitamente**. Silêncio é indistinguível de
@@ -245,15 +291,9 @@ esquecimento.
 
 ## 15. Como verificar
 
-O inspetor oficial serve para explorar. Para **provar**, fale JSON-RPC direto no stdin — é o que
-permite medir bytes, comparar saídas e conferir a ausência de uma notificação.
+`pnpm --filter @yu-book/mcp test` é o **quarto portão** do projeto e não precisa de banco nem de API
+no ar. Ele cobre identidade, envelopes e provedor OAuth — **não** fala JSON-RPC e não vê tool
+nenhuma. Para provar a superfície, fale JSON-RPC direto no stdin; o inspetor serve para explorar.
 
 Os comandos, a sessão de exemplo, o ambiente local de escrita e as duas provas de progresso estão
 em **`referencias/verificacao.md`**. Abra na hora de verificar.
-
-Três coisas para saber sem abrir nada:
-
-- **Toda linha do stdout tem de ser JSON válido** — é a invariante do transporte (§1).
-- **Escrita se exercita contra o ambiente local** (banco `yubook_mcp`, API na 3334), nunca contra
-  o seu acervo. `trash_note` mexe em dado de verdade.
-- **Tool de escrita ausente do `tools/list` quase sempre é a trava de ambiente**, não bug (§9).

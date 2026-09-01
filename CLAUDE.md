@@ -6,7 +6,7 @@ Segundo cérebro pessoal, single-user. Monorepo pnpm com quatro pacotes:
 |---|---|---|
 | `apps/api` | Fastify 5 + Prisma 6 + Postgres 16 | API REST |
 | `apps/web` | React 19 + Vite 6 + Tailwind v4 | SPA desktop-only |
-| `apps/mcp` | SDK MCP + stdio | Servidor MCP, cliente da própria API |
+| `apps/mcp` | SDK MCP + stdio/HTTP | Servidor MCP, cliente da própria API |
 | `packages/shared` | Zod 3 | Schemas e helpers que os outros três consomem |
 
 Proposta inicial em `docs/old/PROPOSTA-inicial.md` (registro de época, não se atualiza).
@@ -19,9 +19,10 @@ está registrada em `docs/historico.md`, e no caso do editor nenhum portão cheg
 `EditorView`. A próxima é a Fase 6 (Google Calendar), hoje o item de menor prioridade.
 
 **Três numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
-vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 3 (escrita) foi
-entregue em 2026-08-26; o **roteiro de IA aplicada** tem fases próprias. "Etapa 3" não é "Fase 3".
-Não unifique nem renumere — a entrada de 2026-08-26 em `docs/historico.md` diz de onde vem cada uma.
+vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
+identidade) foi entregue em 2026-09-01; o **roteiro de IA aplicada** tem fases próprias. "Etapa 4"
+não é "Fase 4". Não unifique nem renumere — a entrada de 2026-08-26 em `docs/historico.md` diz de
+onde vem cada uma.
 
 **O `RF-xx` do comentário resolve para o PRD da fase daquele código — os números colidem entre
 fases.** `RF-19` é o tema claro em `apps/web/src/lib/tema.ts` e é a colisão pelo ponteiro em
@@ -52,6 +53,7 @@ fases.** `RF-19` é o tema claro em `apps/web/src/lib/tema.ts` e é a colisão p
 pnpm --filter @yu-book/shared build    # antes de typecheckar os apps
 pnpm typecheck                          # portão obrigatório
 pnpm --filter @yu-book/api test         # exige Postgres no ar (DATABASE_URL do .env)
+pnpm --filter @yu-book/mcp test         # não precisa de banco nem de API no ar
 ```
 
 São os únicos portões automáticos que existem. Rode-os e relate a saída real.
@@ -70,5 +72,8 @@ São os únicos portões automáticos que existem. Rode-os e relate a saída rea
 
 Agentes especialistas em `.claude/agents/`. Só o `curador` escreve em `.claude/`; só o
 `publicador` faz commit e deploy, e nunca dá push sem alguém pedir — aqui push para `master` é
-deploy em produção. `apps/mcp` não é deployado: roda na máquina do operador. Ele **escreve** desde a Etapa 3, e a
-escrita só se registra contra API local — a skill `servidor-mcp-yu-book` tem o porquê e o alvo.
+deploy em produção. `apps/mcp` ainda não é deployado, mas tem **dois transportes**: stdio, que roda
+na máquina do operador, e StreamableHTTP, em que ele é servidor OAuth 2.1 próprio e a identidade vem
+de quem chamou. Ele **escreve** desde a Etapa 3, e **o que libera a escrita muda com o transporte**:
+em stdio, a API ser local; em HTTP, o escopo do token mais `MCP_ESCRITA_HABILITADA` — e ali a trava
+por host local não participa. A skill `servidor-mcp-yu-book` tem os dois eixos.
