@@ -13,6 +13,12 @@ import { env } from "../../env.js";
 /** Parâmetros OWASP para argon2id. */
 const ARGON_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
 
+/**
+ * Quanto tempo um refresh token recém-consumido pode reaparecer sem que isso
+ * seja tratado como vazamento. Ver o comentário em `refresh()`.
+ */
+const GRACA_DE_REUSO_MS = 30_000;
+
 export interface Session {
   user: PublicUser;
   accessToken: string;
@@ -105,9 +111,32 @@ export async function refresh(presentedToken: string, userAgent?: string): Promi
 
   if (!stored) throw unauthorized("Sessão inválida");
 
-  // Token já revogado reaparecendo = ele vazou e está sendo reusado.
-  // Derruba todas as sessões: quem for legítimo faz login de novo.
   if (stored.revokedAt) {
+    // Janela de graça antes de concluir que o token vazou.
+    //
+    // O motivo é o servidor MCP, que não é navegador. Ele **não** retenta por
+    // conta própria — quem retenta é o cliente MCP do outro lado, contra o
+    // `/token` dele. A rotação da API é atômica e o cookie novo só existe na
+    // resposta: se ela se perder no caminho, ou o processo reiniciar entre o
+    // commit e a entrega, o cliente ainda tem o cookie anterior e o reapresenta
+    // de boa-fé. Sem esta janela, isso derruba **todas** as sessões do usuário
+    // — inclusive a do navegador dele, que não fez nada.
+    //
+    // O QUE ESTA JANELA CUSTA, declarado: ela cega exatamente a corrida que a
+    // rotação existe para pegar. Se alguém roubar um refresh e usá-lo primeiro,
+    // a apresentação do legítimo chega segundos depois — e agora vira 401 mudo
+    // em vez de revogar a cadeia roubada. O legítimo é obrigado a autorizar de
+    // novo (o usuário percebe), mas o ladrão sobrevive à janela.
+    //
+    // A troca foi decidida com esse número na mão: 30 s de cegueira contra não
+    // deslogar o operador de todo lugar por uma resposta perdida. Reuso fora da
+    // janela continua caindo no ramo de baixo.
+    if (Date.now() - stored.revokedAt.getTime() < GRACA_DE_REUSO_MS) {
+      throw unauthorized("Sessão expirada");
+    }
+
+    // Token revogado há tempo reaparecendo = ele vazou e está sendo reusado.
+    // Derruba todas as sessões: quem for legítimo faz login de novo.
     await prisma.refreshToken.updateMany({
       where: { userId: stored.userId, revokedAt: null },
       data: { revokedAt: new Date() },
