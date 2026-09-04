@@ -26,8 +26,11 @@ pnpm --filter @yu-book/mcp build
 pnpm --filter @yu-book/mcp verificar   # confirma ambiente, escrita, login e volume
 ```
 
-**O que a suíte cobre e o que não cobre.** Ela prova identidade, envelopes e provedor OAuth —
-INV-41 a INV-44. Ela **não fala JSON-RPC** e não vê tool nenhuma: nada abaixo desta linha é
+**O que a suíte cobre e o que não cobre.** Ela prova identidade, envelopes e provedor OAuth
+(INV-41 a INV-44) e, pelo arnês em memória de `tests/arnes.ts`, **fala JSON-RPC**: `escrita.test.ts`
+confere quem é anunciado no `tools/list` e que toda tool de escrita recusa um token sem
+`yubook:write` (INV-45). O que ela **não** vê é o texto que as tools imprimem — o `fetch` é
+substituído —, então INV-40 e a formatação continuam só à mão, e nada abaixo desta linha é
 substituído por ela.
 
 ### Escrita: verifique contra o ambiente local, nunca contra o seu acervo

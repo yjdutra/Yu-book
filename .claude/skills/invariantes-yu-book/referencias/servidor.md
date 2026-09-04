@@ -172,3 +172,24 @@ irmãs: `mcp-session-id` desconhecido é recusado com 404 **antes** de qualquer 
 o `finally` de `novaSessao` fecha o par quando `registrada` continua falso (`:174`), que é o caso do
 `initialize` recusado pelo SDK e o do corpo malformado. Sem elas, um cliente com defeito vazaria um
 par por tentativa, sem erro e sem log — e qualquer um pode repetir um id velho.
+
+**INV-45 — A trava de escrita tem duas camadas, e a de baixo não é `return true` no stdio.**
+`podeEscrever` (`apps/mcp/src/autorizacao.ts:56`) roda dentro de `comErroDeEscrita`
+(`apps/mcp/src/erros.ts:134`), no ponto da chamada, depois de o registro condicional já ter decidido
+a superfície. Parece redundante — se a tool não está no `tools/list`, quem a chamaria? **Quem a
+chamaria é o defeito que esta camada existe para conter:** uma tool de escrita declarada no módulo
+de leitura fica registrada **sempre**, para um token só de leitura e contra a API de produção, e
+nada reclama — nem o compilador, nem o typecheck, nem a execução. Por isso o ramo stdio pergunta se
+a API é local (`env.escritaLiberada`) em vez de liberar: assim a tool mal registrada continua
+recusando contra API remota, que é o desastre que `YUBOOK_ESCRITA_REMOTA` existe para evitar.
+Coberta por `apps/mcp/tests/escrita.test.ts`, que **deriva** o conjunto de escrita da diferença
+entre dois `tools/list` em vez de listá-lo à mão.
+
+**INV-46 — Escopo que muda com a sessão viva encerra a sessão, e o encerramento é simétrico.**
+`apps/mcp/src/http.ts:300`: se `escritaPermitida` do token atual diverge do `escrita` com que a
+sessão foi montada, o par é fechado e a resposta é 404. **O furo é real, não hipotético:**
+`exchangeRefreshToken` (`apps/mcp/src/auth/provedor.ts:367`) aceita `scope` e filtra o concedido,
+então um cliente renova pedindo só leitura e segue no mesmo `mcp-session-id` com as nove tools
+anunciadas. Ganhar o escopo encerra tanto quanto perder, de propósito: o catálogo que o modelo vê
+nunca anuncia tool que vai recusar nem esconde tool que já pode usar. Quem garante que a escrita não
+acontece nesse intervalo é INV-45; esta invariante garante que a **superfície** não mente.

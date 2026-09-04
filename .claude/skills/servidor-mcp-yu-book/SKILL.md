@@ -5,8 +5,8 @@ description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os d
 
 # O servidor MCP do Yu-book
 
-`apps/mcp` expõe o Yu-book como servidor MCP. Ainda **não é deployado**, e é sempre cliente HTTP da
-API — nunca do banco.
+`apps/mcp` expõe o Yu-book como servidor MCP, é sempre cliente HTTP da API — nunca do banco — e
+**é deployado** (quarto serviço na Railway, em HTTP): hospedado, essa API é a de **produção**.
 
 Boa parte das decisões aqui é **o contrário do que um exemplo genérico de MCP faria**. Isso é
 deliberado. Não "corrija" para o padrão sem ler o porquê.
@@ -42,7 +42,8 @@ ganharia uma credencial que fala direto com a `apps/api`, contornando todo escop
 Duas frases resumem o que custou caro nesta etapa, e o argumento inteiro de cada uma está no
 catálogo: **cifra igual mais forma compatível não separa nada** (INV-41, um desvio de autenticação
 real) e **os dois relógios se derivam, não se igualam** (INV-42). O mapa de sessões vaza calado
-(INV-44). Leia as quatro antes de tocar em `src/auth/` ou `src/http.ts`; o mecanismo do fluxo OAuth
+(INV-44), e escopo que encolhe encerra a sessão (INV-46). Leia as cinco antes de tocar em
+`src/auth/` ou `src/http.ts`; o mecanismo do fluxo OAuth
 está em **`referencias/identidade-http.md`**.
 
 ## 1. A regra de sobrevivência: stdout é o protocolo
@@ -64,12 +65,11 @@ Custa uma requisição a mais e herda de graça: escopo por `userId` vindo só d
 cadeia no kanban, 404 no lugar de 403, códigos de erro estáveis. Acessar o banco direto exigiria
 reimplementar esse escopo fora dos services — e erro ali não dá exceção, vaza dado em silêncio.
 
-Efeito colateral que se aproveita: trocar entre ambiente local e produção é trocar
-`YUBOOK_API_URL` no `.env`. Nenhuma linha de código.
+Efeito colateral: apontar para outro ambiente é trocar `YUBOOK_API_URL` — no `.env` local, na
+variável do serviço quando hospedado —, sem uma linha de código.
 
 Sob HTTP muda só **de quem** é o `Bearer`: `src/auth/sessao-api.ts` faz login, refresh e logout
-contra as mesmas rotas do front, mandando o cookie `yb_refresh` à mão. **A `apps/api` não muda uma
-linha** para servir o MCP.
+contra as mesmas rotas do front, com o cookie `yb_refresh` à mão. **A `apps/api` não muda uma linha.**
 
 ## 3. Orçamento de contexto
 
@@ -93,8 +93,8 @@ mais cara que a rede.
 o equivalente à mão** — o SDK exige uma assinatura de índice que um tipo caseiro não tem, e o
 typecheck recusa com um erro longo e pouco óbvio.
 
-Este erro já foi cometido duas vezes, com semanas de intervalo. Se você está prestes a declarar uma
-interface para o retorno de um handler, procure o tipo no SDK primeiro.
+Já cometido duas vezes, com semanas de intervalo: antes de declarar interface para o retorno de um
+handler, procure o tipo no SDK.
 
 ## 5. As três primitivas — a diferença é quem aciona
 
@@ -110,8 +110,8 @@ devolvem o mesmo texto de propósito: a superfície é que se duplica, nunca a i
 **Tool é a única primitiva que escreve**, e a escrita tem regras próprias — §9 a §11. Resource e
 prompt não mudam dado, e não passam a mudar.
 
-Há uma quarta via, que não é primitiva: a **via de volta** (log e progresso), em que o servidor
-notifica o cliente durante uma chamada. Vive em `src/notificacoes.ts` (§11).
+Há uma quarta via, que não é primitiva: a **via de volta** (log e progresso), em
+`src/notificacoes.ts` (§11).
 
 ## 6. Resource: direto ou template
 
@@ -173,6 +173,10 @@ ou não existem naquela sessão, e não há como registrá-las no meio. Quem a t
 Os dois vão para o stderr no boot, em mensagens que ramificam por transporte (`src/index.ts`).
 **Tool de escrita recém-criada que não aparece no `tools/list` quase sempre é uma das duas travas.**
 
+**A trava tem duas camadas, e tool nova entra nas duas**: o módulo condicional, que é o que o
+cliente enxerga, e `comErroDeEscrita` (`src/erros.ts:134`), que repergunta no ponto da chamada e
+vale nos **dois** transportes. O argumento está no cabeçalho de `src/autorizacao.ts` (INV-45).
+
 **Nome de tool não inventa estado que a tabela não tem.** O domínio tem duas remoções com nomes
 diferentes: card se **arquiva** (`archived`, sai do quadro, renumera a coluna — INV-13); nota vai
 para a **lixeira** (`deletedAt`). Não existe "arquivar nota", e por isso não existe `archive_note`.
@@ -212,8 +216,7 @@ descrição fraca custa uma chamada inútil; numa de escrita, custa dado errado 
 turno**, não por chamada. Transformação silenciosa que o modelo não tem como evitar sai do texto —
 a normalização de tags do servidor (minúsculas, corte em 24, fusão de repetidas) foi retirada por
 isso (`src/tools/kanban-escrita.ts:76`). O critério é a pergunta: *sabendo disto, o modelo faria
-algo diferente?* Se não, é custo puro. E vale o §3 aqui: **meça o `tools/list` antes e depois**, não
-estime — o baseline medido fica na memória do agente `mcp`.
+algo diferente?* Se não, é custo puro. Vale o §3: **meça o `tools/list`**, não estime.
 
 ## 11. A via de volta: log e progresso
 
@@ -240,8 +243,8 @@ Log vale mais que progresso aqui: todo diagnóstico deste pacote vai para stderr
 MCP mostra, então um `notifications/message` por escrita é o único registro que o usuário chega a
 ver. **Não invente passo artificial para a barra parecer cheia** — progresso falso ensina o usuário
 a ignorá-lo. O passo só conta quando é trabalho real: `trash_note` tem dois porque lê a nota antes
-de apagar, para poder contar os vínculos perdidos. E **caminho que não fez nada não registra
-passo**: `trash_note` sai cedo quando a nota já está na lixeira, sem emitir passo nem log.
+de apagar, para contar os vínculos perdidos, e **não registra passo nenhum** quando sai cedo por a
+nota já estar na lixeira.
 
 ## 12. Erro é texto que o modelo vai tentar contornar
 
@@ -253,8 +256,8 @@ Resource **lança** em vez de devolver `isError` — o cliente precisa distingui
 
 ## 13. Tolerar uma API mais velha que o contrato
 
-O servidor MCP e a API têm **ciclos de deploy independentes**. O servidor roda local com o contrato
-recém-compilado; a API em produção pode ser semanas mais antiga.
+O servidor MCP e a API têm **ciclos de deploy independentes** — dois serviços, dois Watch Paths —,
+então o MCP fala com uma API que pode ser semanas mais velha que o contrato que ele compilou.
 
 Campo novo ausente na resposta é **omitido**, não emitido como `undefined`. Ver o catálogo em
 `src/resources/catalogos.ts`.
@@ -292,8 +295,6 @@ esquecimento.
 ## 15. Como verificar
 
 `pnpm --filter @yu-book/mcp test` é o **quarto portão** do projeto e não precisa de banco nem de API
-no ar. Ele cobre identidade, envelopes e provedor OAuth — **não** fala JSON-RPC e não vê tool
-nenhuma. Para provar a superfície, fale JSON-RPC direto no stdin; o inspetor serve para explorar.
-
-Os comandos, a sessão de exemplo, o ambiente local de escrita e as duas provas de progresso estão
-em **`referencias/verificacao.md`**. Abra na hora de verificar.
+no ar. Desde o arnês em memória (`tests/arnes.ts`) ele fala JSON-RPC e vê a **superfície** de tools
+— mas não o texto que elas imprimem, e INV-40 segue sem portão. O que ele cobre, os comandos, o
+ambiente local de escrita e as duas provas de progresso estão em **`referencias/verificacao.md`**.

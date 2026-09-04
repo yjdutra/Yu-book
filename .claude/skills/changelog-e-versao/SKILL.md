@@ -74,6 +74,11 @@ Regras:
   todos consomem o contrato — `apps/api`, `apps/web` e também `apps/mcp`, que declara
   `@yu-book/shared` e importa os tipos direto.
 - Uma fase entregue é **um** bump minor, não um por commit.
+- **`apps/mcp` guarda a própria versão em dois lugares** e os dois têm que bater: o `version` do
+  `package.json` e o passado ao construtor do `McpServer` (`apps/mcp/src/servidor.ts:45`). O
+  segundo é o que o servidor anuncia no `initialize`, e bumpar só o primeiro não quebra build nem
+  teste: o servidor passa a mentir a versão para todo cliente, calado. Confira com
+  `grep -n version apps/mcp/package.json apps/mcp/src/servidor.ts`. Os outros três não têm par.
 
 ### 3.1 O heading do changelog não é a versão dos pacotes
 

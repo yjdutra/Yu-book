@@ -2,7 +2,7 @@
 
 Referência da skill `servidor-mcp-yu-book` (§0). Abra ao tocar em `src/auth/` ou `src/http.ts`.
 Para decidir **se** algo deve existir, o que vale é o corpo da skill; aqui está **como** o que
-existe funciona. As garantias que não podem quebrar estão em INV-41 a INV-44.
+existe funciona. As garantias que não podem quebrar estão em INV-41 a INV-44 e em INV-46.
 
 ## O fio inteiro da identidade
 

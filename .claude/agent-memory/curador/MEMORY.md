@@ -5,12 +5,10 @@
 ## O que já nos mordeu
 
 - Ref errada **de origem**, não só deslocada, e `INV-xx` citado errado. Abra a linha, sempre.
-- **Arquivo de agente apodrece calado**: já cobrou bug corrigido, já anunciou transporte único
-  depois do segundo. Fase nova: `grep` no `.claude/` inteiro.
-- **Eixo novo raramente contradiz a regra: estreita a cláusula.** "O stdout é o protocolo" seguiu
-  verdadeiro e deixou de ser universal. Cace o estreito, não só o falso.
-- **Entrega em curso é chão móvel**: arquivo mudou e desmentiu parágrafo meu recém-escrito. Releia
-  o que você mesmo escreveu na sessão.
+- **Arquivo de agente apodrece calado, e a paráfrase apodrece junto.** A lista de sítios que outro
+  agente entrega cobre a frase literal; "roda local" dizia o mesmo. Grepe o fato, não a frase.
+- **Eixo novo raramente contradiz a regra: estreita a cláusula.** "Sem portão" seguiu verdadeiro
+  por outro motivo. Cace o estreito, não só o falso.
 
 ## Decisões em vigor
 
@@ -28,6 +26,7 @@
   ponteiro. Só depois extraia o que se lê *depois* de escrever — nunca a doutrina.
 - **Não renumere seção de skill: o número é referência cruzada.** Doutrina nova entra como §0; os
   §N citados fora da skill continuam de pé.
-- Não vira registro: fato sem `arquivo:linha` que o audite, e fato com prazo.
+- Não vira registro: fato sem `arquivo:linha`, e fato com prazo. Valor que se liga no painel sem
+  deploy vira instrução de conferir, nunca estado registrado.
 - Fato já escrito em `docs/historico.md` ou no `CLAUDE.md` não se copia: vai ao operador.
 - Agente que relata defeito nas próprias instruções me passa tarefa: eu edito, não ele.

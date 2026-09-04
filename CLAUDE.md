@@ -72,8 +72,10 @@ São os únicos portões automáticos que existem. Rode-os e relate a saída rea
 
 Agentes especialistas em `.claude/agents/`. Só o `curador` escreve em `.claude/`; só o
 `publicador` faz commit e deploy, e nunca dá push sem alguém pedir — aqui push para `master` é
-deploy em produção. `apps/mcp` ainda não é deployado, mas tem **dois transportes**: stdio, que roda
-na máquina do operador, e StreamableHTTP, em que ele é servidor OAuth 2.1 próprio e a identidade vem
-de quem chamou. Ele **escreve** desde a Etapa 3, e **o que libera a escrita muda com o transporte**:
-em stdio, a API ser local; em HTTP, o escopo do token mais `MCP_ESCRITA_HABILITADA` — e ali a trava
-por host local não participa. A skill `servidor-mcp-yu-book` tem os dois eixos.
+deploy em produção, e **`apps/mcp` também é deployado**: quarto serviço na Railway, por
+`apps/mcp/railway.json`. Ele tem **dois transportes**: stdio, que roda na máquina do operador, e
+StreamableHTTP, que é o do serviço hospedado — ali ele é servidor OAuth 2.1 próprio e a identidade
+vem de quem chamou. Ele **escreve** desde a Etapa 3, e **o que libera a escrita muda com o
+transporte**: em stdio, a API ser local; em HTTP, o escopo do token mais `MCP_ESCRITA_HABILITADA`.
+A trava por host local não participa do caminho HTTP, e hospedado ela não protege nada: o serviço
+aponta para a API de produção. A skill `servidor-mcp-yu-book` tem os dois eixos.

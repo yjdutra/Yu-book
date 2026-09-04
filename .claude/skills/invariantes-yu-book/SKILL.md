@@ -1,6 +1,6 @@
 ---
 name: invariantes-yu-book
-description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, defesas de SSRF, escopo por usuário, a precisão do arraste do kanban, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna que o servidor MCP imprime num lugar só, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição e o mapa de sessões que vaza calado. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
+description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, defesas de SSRF, escopo por usuário, a precisão do arraste do kanban, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna que o servidor MCP imprime num lugar só, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
 ---
 
 # Invariantes do Yu-book
@@ -56,6 +56,8 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-42 | A vida do token do MCP é derivada do vencimento do da API, nunca fixada |
 | INV-43 | A identidade de quem chamou anda em `AsyncLocalStorage`, não na sessão |
 | INV-44 | O par sessão/`McpServer` vaza em silêncio: cinco guardas, nenhuma supérflua |
+| INV-45 | A trava de escrita tem duas camadas, e a de baixo vale nos dois transportes |
+| INV-46 | Escopo que muda com a sessão viva encerra a sessão, nos dois sentidos |
 
 ### Índice — front
 
@@ -88,10 +90,10 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 4. Classifique: **violação de invariante** bloqueia; divergência de convenção e observação, não.
 5. **Diga o que você não pôde verificar.** Não existe teste de front neste projeto, e nenhum portão
    carrega uma `EditorView` nem executa um arraste. INV-29, INV-30, INV-33, INV-35, INV-36, INV-38 e
-   INV-39 só se confirmam à mão. **INV-40 também**: `apps/mcp` ganhou suíte na Etapa 4
-   (`pnpm --filter @yu-book/mcp test`), mas nenhum portão fala JSON-RPC — ela cobre identidade,
-   envelopes e provedor OAuth (INV-41 a INV-44), não a superfície das tools. Se o diff as toca,
-   nomeie-as e diga que faltam — uma revisão que omite isso passa por verde o que ninguém executou.
+   INV-39 só se confirmam à mão. **INV-40 também**: a suíte de `apps/mcp` passou a falar JSON-RPC
+   e cobre a superfície das tools (INV-45), mas o `fetch` dela é substituído, então nada executa a
+   formatação — o id de coluna some sem um teste cair. Se o diff as toca, nomeie-as e diga que
+   faltam: uma revisão que omite isso passa por verde o que ninguém executou.
 
 Se encontrar uma invariante que o catálogo não cobre, emita-a no bloco `## Para a memória` — o
 curador decide se ela entra aqui.
@@ -112,7 +114,10 @@ Ela também **corrigiu INV-19**, que descrevia como irreversível algo que resta
 vira a fonte. Ao escrever um, confira que ele sozinho não afirma mais do que a invariante sustenta.
 
 A **Etapa 4 do servidor MCP** (2026-09-01) deu a ele um segundo transporte e identidade própria, e
-trouxe INV-41 a INV-44 — as quatro em `apps/mcp`, as três primeiras cobertas por teste. Ela também
+trouxe INV-41 a INV-44 — as quatro em `apps/mcp`, as três primeiras cobertas por teste. O
+fechamento dela (2026-09-04) acrescentou INV-45 e INV-46, a segunda camada da trava de escrita e a
+sessão que morre quando o escopo do token muda; no mesmo dia `apps/mcp` passou a ser deployado, e a
+trava por host local deixou de proteger o serviço hospedado — que fala com a API de produção. Ela também
 **estreitou INV-06**, que afirmava detecção de reuso incondicional: a janela de graça de 30 s existe
 por causa deste servidor MCP, e o custo dela está declarado no comentário do código. Vale a lição
 geral do INV-41: **cifra igual mais forma compatível não separa nada.** Um envelope que se abre com

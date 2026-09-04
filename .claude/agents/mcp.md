@@ -20,8 +20,10 @@ color: blue
 
 Você cuida de `apps/mcp`, o servidor MCP do Yu-book. Escreve **apenas** dentro desse pacote.
 
-O pacote **ainda não é deployado**. Em stdio roda na máquina do operador, iniciado pelo cliente MCP:
-alterar aqui não sobe nada, e também não adianta nada até o cliente reiniciar o servidor.
+O pacote **é deployado** desde 2026-09-04: quarto serviço na Railway, em HTTP, por
+`apps/mcp/railway.json`. Mexer aqui sobe alguma coisa quando o `publicador` empurra — não sobe mais
+nada só na sua máquina. Em stdio ele continua rodando local, iniciado pelo cliente MCP, e ali
+alteração nenhuma vale até o cliente reiniciar o servidor.
 
 **Ele tem dois transportes, e a pergunta que separa tudo é "de quem é esta requisição?".** Em stdio
 a conta do `.env` é a identidade; sob HTTP ela vem do token OAuth de quem chamou, e o servidor
@@ -116,8 +118,11 @@ pnpm --filter @yu-book/mcp test        # quarto portão do projeto; não precisa
 pnpm --filter @yu-book/mcp build
 ```
 
-A suíte cobre identidade, envelopes e provedor OAuth — **não** fala JSON-RPC e não vê tool nenhuma.
-Verde aqui não é verde na superfície: o que prova tool continua sendo o JSON-RPC à mão.
+A suíte cobre identidade, envelopes e provedor OAuth e, pelo arnês em memória
+(`apps/mcp/tests/arnes.ts`), **fala JSON-RPC**: confere quem é anunciado no `tools/list` e que toda
+tool de escrita recusa um token sem `yubook:write`. O `fetch` dela é substituído, então ela **não**
+vê o texto que as tools imprimem — formatação e id de coluna (INV-40) continuam sendo prova à mão.
+Verde aqui não é verde no que o modelo lê.
 
 Rode e **relate a saída real**. Não afirme que passou sem ter rodado.
 

@@ -89,26 +89,48 @@ verifique, e reconstrua a árvore copiando de volta.
 
 ## O que um push realmente dispara
 
-Três serviços na Railway a partir deste mesmo repositório: Postgres, API e web. Cada um com
+Quatro serviços na Railway a partir deste mesmo repositório: Postgres, API, web e MCP. Cada um com
 **Watch Paths**, que decidem o que reconstrói:
 
 | Serviço | Reconstrói quando muda |
 |---|---|
 | API | `apps/api/**`, `packages/shared/**`, `pnpm-lock.yaml` |
 | web | `apps/web/**`, `packages/shared/**`, `pnpm-lock.yaml` |
+| MCP | `apps/mcp/**`, `packages/shared/**`, `pnpm-lock.yaml` |
 
 Consequências que você precisa antecipar e avisar **antes** do push:
 
-- **Mexer em `packages/shared` ou no `pnpm-lock.yaml` reconstrói os dois serviços.** Instalar uma
+- **Mexer em `packages/shared` ou no `pnpm-lock.yaml` reconstrói os três serviços.** Instalar uma
   dependência em qualquer pacote do monorepo altera o lock e cai nesse caso — inclusive uma
-  dependência de `apps/mcp`, que não é deployado.
+  dependência só de `apps/mcp`.
 - **A API roda `prisma migrate deploy` no boot.** Migration nova é aplicada em produção no momento
   do deploy, sem etapa de confirmação. Migration quebrada derruba o serviço, não um pipeline.
 - **`VITE_API_URL` do front é lido em tempo de build.** Trocar a variável não muda nada até haver
   um novo deploy do web.
-- **Root Directory dos dois serviços fica vazio** (a raiz do monorepo). Apontar para `apps/api`
-  quebra a resolução de `@yu-book/shared`.
-- `apps/mcp` **não é deployado**. Ele roda na máquina do operador, iniciado pelo cliente MCP.
+- **Root Directory dos três serviços fica vazio** (a raiz do monorepo). Apontar para `apps/api` ou
+  `apps/mcp` quebra a resolução de `@yu-book/shared`.
+- **`apps/mcp` também é deployado**, e mexer nele agora sobe alguma coisa. O serviço roda em
+  **HTTP**; o stdio continua existindo só na máquina do operador.
+
+### O serviço do MCP, que é o mais novo e o que menos avisa quando erra
+
+`apps/mcp/railway.json` declara o build e o `startCommand`. Duas variáveis vão **dentro do
+`startCommand`**, e nenhuma das duas pode virar variável de serviço no painel:
+
+- `NODE_ENV=production` — é a mesma armadilha da API: como variável de serviço ela some com as
+  devDeps no install e o build morre em `tsc: not found`.
+- `MCP_TRANSPORTE=http` — sem ela o processo sobe em **stdio** dentro de um serviço HTTP. Ele não
+  falha: fica mudo, o healthcheck não responde, e o log não diz o motivo.
+
+`healthcheckPath` é `/health`, e a rota está registrada **antes** do `hostHeaderValidation`
+(`apps/mcp/src/http.ts:219` e `:237`) de propósito: o healthcheck da Railway chega com um `Host` que
+não é o domínio público e tomaria 403. Com `restartPolicyType: ON_FAILURE`, isso vira laço de
+reinício. Se alguém "arrumar a ordem" das rotas, o serviço para de subir.
+
+**Se a escrita do MCP hospedado está ligada, o repositório não sabe.** `MCP_ESCRITA_HABILITADA` é
+variável do painel; ligá-la ou desligá-la não é deploy de código. Subiu em `0` (só leitura) por
+decisão do operador. Confirme no painel antes de afirmar qualquer coisa sobre isso — e lembre que
+hospedado o MCP aponta para a **API de produção**, então a trava por host local não protege ali.
 
 ## Depois de publicar
 
@@ -122,6 +144,12 @@ curl -s https://yu-bookapi-production.up.railway.app/health/db
 Esperado: `{"status":"ok"}` e `{"status":"ok","database":"up"}`. Se houve migration, confirme no log
 da Railway que ela foi aplicada. Se `/health/db` responder `degraded`, o serviço subiu e o banco
 não — avise imediatamente.
+
+Se o push reconstruiu o MCP, confirme o `/health` dele também: responde
+`{"status":"ok","transporte":"http","sessoes":N}` (`apps/mcp/src/http.ts:219`). **`transporte` é a
+asserção que importa** — se vier outra coisa, ou se não vier resposta, o `MCP_TRANSPORTE=http` saiu
+do `startCommand`. O domínio público do serviço não está no repositório: pegue no painel, não
+adivinhe a partir do da API.
 
 **Rollback é redeploy do deployment anterior pelo painel da Railway**, não `git revert` seguido de
 push: revert refaz o build inteiro e demora mais que voltar um artefato pronto. Para migration já
