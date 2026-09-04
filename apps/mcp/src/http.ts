@@ -194,6 +194,24 @@ async function novaSessao(
 
 export function criarAplicacaoHttp(): Express {
   const app = express();
+
+  /**
+   * UM salto de proxy, e não `true`.
+   *
+   * `express-rate-limit` chaveia por `req.ip`, e é ele que segura as 20
+   * tentativas por 5 minutos do `POST /login`. Atrás do proxy da Railway, sem
+   * isto, `req.ip` é o do proxy para **todo mundo**: o limite por IP vira um
+   * balde global, e a v8 do pacote ainda emite
+   * `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` ao ver o header. Vale também para os
+   * limitadores que o `mcpAuthRouter` monta sozinho.
+   *
+   * `true` confiaria na cadeia inteira de `X-Forwarded-For`, que o cliente pode
+   * forjar para trocar de balde a cada tentativa — exatamente o que o limite
+   * existe para impedir. `1` confia num salto, que é o que a Railway põe na
+   * frente. Se um dia houver outro proxy no caminho, este número muda junto.
+   */
+  app.set("trust proxy", 1);
+
   app.use(express.json());
 
   // A Railway derruba o serviço se o healthcheck falhar, e a política de
