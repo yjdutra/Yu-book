@@ -9,6 +9,90 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-04 — MCP: a segunda camada da trava de escrita, e o pacote sai da máquina do operador
+
+Fecha as duas limitações da entrega anterior que ainda eram código. Continua sendo a **Etapa 4 das
+cinco da proposta de MCP** e a **Fase 3 do roteiro de IA aplicada** — a Etapa 5 não começou. O que
+mudou de categoria foi outra coisa: `apps/mcp` deixou de ser um pacote que só roda na máquina do
+operador.
+
+**Defesa única falha calada, e esta fase já provou isso três vezes.** O envelope sem rótulo de tipo
+e o `client_id` vazio passaram por revisão e por 32 testes. A trava de escrita era a terceira
+candidata: existia só no registro, em `criarServidor({ escrita })`, e o registro decide uma vez por
+sessão. Duas falhas concretas passavam por ele. A primeira é a tool nova no módulo errado — uma
+quinta tool de escrita registrada dentro de `registrarToolsDeNotas` em vez de
+`registrarEscritaDeNotas` fica registrada **sempre**, e nada reclama: nem o compilador, nem os
+testes, nem a execução. A segunda é o escopo que encolhe com a sessão viva, abaixo. A alternativa
+era confiar no registro e escrever isso como convenção no README; foi descartada porque convenção
+não derruba build, e o custo da checagem no ponto da chamada é uma palavra por handler.
+
+**O guarda é total nos dois transportes, e no stdio ele não é `return true`.** Foi a decisão menos
+óbvia da sessão. A leitura fácil é que a segunda camada existe por causa do HTTP — é lá que há token
+e escopo — e que no stdio não há nada a conferir. Errado: no stdio há a pergunta que importa ali,
+que é *estou escrevendo onde eu acho que estou*. Uma tool de escrita registrada sem condição, contra
+uma API remota, é exatamente o desastre que `YUBOOK_ESCRITA_REMOTA` existe para evitar, e é a falha
+1 acontecendo em produção. Por isso `podeEscrever` ramifica por transporte em vez de sair cedo.
+
+**A ordem dentro de `comErroDeEscrita`: o guarda antes de `relatar(...)`.** Não é detalhe de estilo.
+O log das tools de escrita é a única trilha de auditoria que chega ao usuário, e um registro de
+escrita que não aconteceu é pior que nenhum registro. A recusa também precisa dizer ao modelo que
+**nada foi alterado** e que repetir não resolve — sem isso ele tenta de novo, e uma escrita que
+"falhou" duas vezes pode ter acontecido duas vezes.
+
+**O furo do rebaixamento de escopo era real, e o achado veio de olhar o provedor com a sessão em
+mente.** `exchangeRefreshToken` aceita `scope` no pedido e filtra o concedido — comportamento
+correto de OAuth. Mas os escopos congelam na criação da sessão MCP, e o `mcp-session-id` sobrevive à
+renovação: um cliente podia renovar pedindo só leitura e seguir usando a mesma sessão com as nove
+tools registradas. A correção é encerrar a sessão quando a superfície e o token divergem, e ela é
+**simétrica de propósito** — perder ou ganhar `yubook:write` encerra igual. Manter viva a sessão que
+ganhou escopo pareceria generosidade, mas produziria um `tools/list` que esconde uma tool já
+autorizada, e o catálogo que mente é o problema nos dois sentidos. O 404 é honesto porque a sessão
+acabou de verdade: quem responde "desconhecida" acabou de torná-la desconhecida.
+
+**O arnês de teste em memória, e por que ele não usa o `Client` do SDK.** Os testes anteriores
+construíam os objetos que a integração deveria fornecer — provavam as peças, não a superfície —, e é
+por isso que os dois últimos defeitos da entrega anterior apareceram à mão. O arnês fala JSON-RPC de
+verdade contra o servidor por `InMemoryTransport`. O `Client` do SDK foi descartado por um motivo
+específico: ele não envia `authInfo` por mensagem, e é exatamente isso que precisa ser controlado
+para chamar uma tool de escrita com um token de leitura. `InMemoryTransport.send(msg, { authInfo })`
+envia, e o próprio SDK documenta o parâmetro como para cenários de autenticação. O preço foi
+escrever a correspondência de resposta por `id` num mapa — o mínimo que um cliente JSON-RPC precisa
+ter.
+
+**A lista de tools de escrita é derivada, não escrita à mão.** Sobe o servidor com e sem escrita e
+subtrai os dois `tools/list`; os argumentos mínimos saem do `inputSchema`, porque o SDK valida antes
+de chamar o handler. A alternativa — um array com os quatro nomes — teria o defeito de esquecer a
+quinta tool, que é a falha 1 de novo, agora no teste. O teste que garante isso é o "o conjunto
+derivado não é vazio": sem ele, uma derivação quebrada passaria como suíte verde de zero casos.
+
+**`trust proxy` é `1`, e não `true`.** `true` confia na cadeia inteira de `X-Forwarded-For`, e o
+cliente escreve esse header: trocaria de balde a cada tentativa, que é o que o limite de 20 logins
+por 5 minutos existe para impedir. `1` confia num salto, que é o que a Railway põe na frente. Se
+outro proxy entrar no caminho, o número muda junto — o valor é a topologia, não uma configuração
+genérica.
+
+**Ficou como dívida:** a `apps/api` usa `trustProxy: true` do Fastify, com o defeito que o `1` acaba
+de corrigir no MCP. Foi deixada de fora deliberadamente, para não misturar mudança de
+comportamento em produção da API com o primeiro deploy do MCP — este push já muda o que roda em
+produção o suficiente.
+
+**`NODE_ENV` e `MCP_TRANSPORTE` no `startCommand`, não como variáveis de serviço.** O primeiro
+porque `NODE_ENV=production` de serviço some com as devDeps e quebra o build (`tsc: not found`) —
+lição que a API já tinha pago. O segundo é decisão nova: `MCP_TRANSPORTE` como variável de painel é
+esquecível, e esquecê-la sobe o processo em `stdio`, onde ele fica mudo, sem porta, sem erro, e o
+healthcheck falha sem dizer por quê. No comando é impossível esquecer.
+
+**O primeiro deploy sobe com `MCP_ESCRITA_HABILITADA=0`** — decisão do operador. Hospedado, a trava
+por host local não protege mais nada: o alvo é a API de produção, e um pedido mal interpretado pelo
+modelo cria dado de verdade no segundo cérebro. Primeiro voo só de leitura; ligar depois é uma
+variável no painel, sem deploy de código, e é para isso que o desligamento global existe.
+
+**Pendência:** o aperto de mão OAuth completo com navegador continua sem teste automatizado. O arnês
+novo cobre a superfície JSON-RPC e não chega ao fluxo de autorização — que é onde nasceram os dois
+defeitos de autenticação desta fase.
+
+---
+
 ## 2026-09-01 — Servidor MCP, Etapa 4: o transporte que cria o problema de identidade
 
 Esta é a **Etapa 4 das cinco da proposta de MCP** (`old/proposta-mcp-inicial.md`) e a **Fase 3 do

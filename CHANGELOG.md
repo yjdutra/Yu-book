@@ -13,6 +13,98 @@ _Nada pendente._
 
 ---
 
+## [0.9.0] — 2026-09-04
+
+**O acabamento da Etapa 4 do MCP: a segunda camada da trava de escrita e o primeiro deploy do
+pacote.** Fecha as **duas limitações declaradas na `0.8.0` que ainda eram código** — o escopo não
+conferido dentro dos handlers de escrita, e o `trust proxy` ausente. **Não é a Etapa 5** (mesa de
+trabalho multi-repositório), que continua não entregue: continua sendo a **Etapa 4 das cinco da
+proposta de MCP** ([`docs/old/proposta-mcp-inicial.md`](docs/old/proposta-mcp-inicial.md)) e a
+**Fase 3 do roteiro de IA aplicada** ([`docs/applied-ai-read-trip.md`](docs/applied-ai-read-trip.md)).
+O que muda de verdade é outra coisa: `apps/mcp` **deixa de ser um pacote que só roda na máquina do
+operador** e passa a ser hospedado.
+
+`apps/mcp` vai de `0.5.0` para `0.6.0`. **`apps/api` não foi tocado** e segue em `0.5.0`, como
+`apps/web`; `packages/shared` segue em `0.3.0` — o contrato não mudou, e a regra dos quatro pacotes
+não se aplica. É por mover só `apps/mcp`, e a `0.8.0` ter movido `apps/mcp` **e** `apps/api`, que
+esta é uma entrada nova e não um acréscimo àquela.
+
+`pnpm typecheck` sem erros nos quatro pacotes, `pnpm --filter @yu-book/mcp test` com **4 arquivos e
+38 testes** (eram 32), `pnpm --filter @yu-book/api test` com 6 arquivos e 58 testes, e
+`pnpm --filter @yu-book/mcp build` ok. Contra servidor de pé, com o `startCommand` exato do
+`railway.json`: o processo sobe, `/health` responde com `Host` desconhecido — que é como o
+healthcheck da Railway chega —, um `Host` forjado em `/mcp` toma 403, um downgrade de escopo derruba
+a sessão (404, sessões vivas 1 → 0) e a reinicialização devolve **5 tools**, `MCP_ESCRITA_HABILITADA=0`
+com a caixa marcada concede só `yubook:read`, e o stdio contra API remota registra 5 tools. **Duas
+provas negativas**: um handler sem o invólucro e uma tool de escrita registrada no módulo errado —
+cada uma derruba um teste diferente.
+
+**O primeiro deploy sobe com `MCP_ESCRITA_HABILITADA=0`**, decisão do operador: primeiro voo só de
+leitura. Ligar depois é uma variável no painel, sem deploy de código.
+
+### Adicionado
+- **Segunda camada da trava de escrita, no ponto da chamada** (`src/autorizacao.ts`, novo). Até aqui
+  a trava era só na montagem da sessão — o que o cliente vê no `tools/list` —, e ela falha calada:
+  uma tool de escrita registrada no módulo errado fica registrada **sempre**, para um token de
+  leitura e contra a API de produção, sem que compilador, teste ou execução reclamem. O guarda é
+  **total nos dois transportes**: em `stdio` pergunta se a API é local (`env.escritaLiberada`), em
+  `http` pergunta pelo desligamento global e pelo `yubook:write` do token. Não é `return true` no
+  stdio — é justamente o que faz uma tool registrada sem condição continuar recusando contra uma API
+  remota.
+- **`comErroDeEscrita` em `src/erros.ts`**, irmão de `comErro`, envolvendo as quatro tools que mudam
+  dado. **A ordem é parte da correção**: o guarda roda antes de `relatar(...)` e antes de qualquer
+  chamada de API — uma recusa não pode emitir log de uma escrita que não aconteceu, porque esse log
+  é a única trilha de auditoria que chega ao usuário. A recusa volta como `isError`, dizendo ao
+  modelo que **nada foi alterado** e que repetir não resolve, com o motivo certo para cada eixo.
+- **`apps/mcp/railway.json`** — o pacote passa a ser deployável, o que nunca foi. `NODE_ENV=production`
+  e `MCP_TRANSPORTE=http` vão no `startCommand`, **não** como variáveis de serviço: o primeiro
+  porque `NODE_ENV` de serviço quebra o build, o segundo porque sem ele o processo sobe em `stdio` e
+  fica mudo. `healthcheckPath: "/health"`.
+- **Seção de hospedagem no [`README` de `apps/mcp`](apps/mcp/README.md)** e no `.env.example`: quais
+  cinco variáveis vão no painel, quais duas são proibidas e por quê, e a ordem de criar o serviço
+  antes de preencher as que dependem do domínio.
+- **`tests/escrita.test.ts` e `tests/arnes.ts`** — o **primeiro cliente JSON-RPC em memória do
+  repositório**, sobre `InMemoryTransport` com `authInfo` por mensagem, que é o que permite chamar
+  uma tool de escrita com um token de leitura. Os testes anteriores construíam os objetos que a
+  integração deveria fornecer, e por isso provavam as peças e não a superfície. A lista de tools de
+  escrita é **derivada**, não escrita à mão: sobe o servidor com e sem escrita e subtrai os
+  `tools/list`; os argumentos mínimos saem do `inputSchema`, porque o SDK valida antes do handler.
+  Tool de escrita nova entra coberta sem ninguém lembrar de listá-la.
+
+### Alterado
+- **A sessão HTTP passou a guardar a superfície com que foi montada.** Se o token deixa de bater —
+  ganhando **ou** perdendo `yubook:write` —, a sessão é encerrada de verdade e o pedido leva 404. A
+  simetria é de propósito: o catálogo que o modelo vê nunca anuncia uma tool que vai recusar, e
+  nunca esconde uma que já pode ser usada.
+- Os escopos `yubook:read` e `yubook:write` saíram de `src/auth/provedor.ts` para `src/autorizacao.ts`,
+  junto de `escritaPermitida`. A regra da escrita sob HTTP passou a existir num lugar só.
+
+### Segurança
+- **Um cliente podia rebaixar o próprio token e continuar escrevendo.** `exchangeRefreshToken` aceita
+  `scope` no pedido e filtra o concedido, então dava para renovar pedindo só leitura e seguir usando
+  o mesmo `mcp-session-id` com as **nove** tools registradas. Agora a sessão é encerrada quando a
+  superfície e o token divergem, e o guarda no ponto da chamada recusa mesmo que algo escape disso.
+- **`app.set("trust proxy", 1)`.** Sem isto, atrás do proxy da Railway o `req.ip` é o do proxy para
+  todo mundo: o limite de **20 tentativas por 5 minutos** no `POST /login` vira um balde global, e o
+  `express-rate-limit` v8 ainda emite `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` ao ver o header. **`1` e
+  não `true`** — `true` confia na cadeia inteira de `X-Forwarded-For`, que o cliente forja para
+  trocar de balde a cada tentativa, que é exatamente o que o limite existe para impedir.
+
+### Limitações conhecidas
+- **A `apps/api` usa `trustProxy: true` do Fastify**, e portanto confia na cadeia inteira de
+  `X-Forwarded-For` — o defeito que o `1` do MCP corrige. É dívida anotada e deliberadamente fora
+  desta entrega, para não misturar mudança de produção da API com o primeiro deploy do MCP.
+- **`logout` com um refresh token de rotações atrás não revoga nada** — `count = 0`, sem erro.
+  Fechar exige uma coluna `replacedById` no schema da API.
+- **A proteção contra revogação em massa tem teto de 120 s, não de 30 s.** Quem manda no tempo real
+  é a janela de idempotência do MCP, não a graça da API.
+- **Nenhum teste exercita o aperto de mão OAuth completo com navegador.** O arnês novo cobre a
+  superfície JSON-RPC; o fluxo de autorização continua verificado à mão.
+- **Uma instância, sempre.** O transporte é com estado por decisão, e o POST de uma chamada e o GET
+  do SSE precisam cair na mesma máquina.
+
+---
+
 ## [0.8.0] — 2026-09-01
 
 **Etapa 4 do servidor MCP — transporte HTTP e identidade.** O servidor deixa de ser um processo por

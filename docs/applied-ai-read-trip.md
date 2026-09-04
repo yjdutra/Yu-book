@@ -53,10 +53,12 @@ Duas decisões definem esse servidor e valem para tudo que vier: ele é **client
 não do banco, o que faz herdar toda a autorização em vez de reimplementá-la; e ele trata o
 **orçamento de contexto** como problema de primeira ordem — buscar é barato, ler é caro e explícito.
 
-**Estado atual: lê e escreve, sobre dois transportes.** A escrita entrou com a Fase 2 **deste
-roteiro** — a Etapa 3 das cinco da proposta de MCP — e nasce desligada fora de host local. O
-transporte HTTP com identidade própria entrou com a Fase 3, em 2026-09-01: sobre HTTP quem decide a
-escrita é o escopo do token, e cada requisição age como quem o apresentou.
+**Estado atual: lê e escreve, sobre dois transportes, e é hospedável.** A escrita entrou com a Fase
+2 **deste roteiro** — a Etapa 3 das cinco da proposta de MCP — e nasce desligada fora de host local.
+O transporte HTTP com identidade própria entrou com a Fase 3, em 2026-09-01: sobre HTTP quem decide
+a escrita é o escopo do token, e cada requisição age como quem o apresentou. Em 2026-09-04 a Fase 3
+ganhou o acabamento que faltava — a checagem de escopo no ponto da chamada e o `railway.json` —, e o
+servidor **deixou de ser um processo que só roda na máquina do operador**.
 
 ---
 
@@ -161,6 +163,14 @@ que ficou em aberto está na entrada de 2026-09-01 de [`historico.md`](historico
 
 É por isso que transporte e autenticação são a mesma lição: **mudar o transporte é o que cria o
 problema de identidade.**
+
+**O acabamento veio em 2026-09-04**, e as duas peças dele dizem a mesma coisa por caminhos
+diferentes. A checagem de escopo passou a existir **também no ponto da chamada**, e não só no
+registro das tools — porque o registro decide uma vez por sessão e o escopo do token pode encolher
+depois dela. E o `railway.json` fez o servidor sair da máquina do operador, o que apaga a última
+premissa herdada do stdio: hospedado, a trava por host local não protege nada, e quem segura a
+escrita é o escopo do token mais um desligamento global. O primeiro deploy sobe com a escrita
+desligada.
 
 Esta fase é pré-requisito de tudo que envolva mais de uma pessoa — inclusive de qualquer versão do
 Yu-book, ou de outro sistema, exposta para um time.

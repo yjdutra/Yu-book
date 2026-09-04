@@ -18,8 +18,9 @@ produto é a **Fase 6**, a agenda no Google Calendar, hoje o item de menor prior
 O **servidor MCP** (`apps/mcp`) tem numeração própria e corre em paralelo: está na **Etapa 4 de 5 da
 proposta de MCP** — as três primitivas do protocolo, com escrita, sobre **dois transportes**: o
 `stdio` de sempre e um transporte **HTTP** com identidade por OAuth, em que cada requisição age como
-quem apresentou o token. Etapa de MCP não é fase de produto, e os dois números não se convertem um
-no outro. Ver [apps/mcp/README.md](apps/mcp/README.md) e o roteiro em
+quem apresentou o token. Desde 2026-09-04 ele **é hospedável**: tem `railway.json`, e o primeiro
+deploy sobe com a escrita desligada (`MCP_ESCRITA_HABILITADA=0`), por decisão do operador. Etapa de
+MCP não é fase de produto, e os dois números não se convertem um no outro. Ver [apps/mcp/README.md](apps/mcp/README.md) e o roteiro em
 [docs/applied-ai-read-trip.md](docs/applied-ai-read-trip.md).
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
@@ -53,7 +54,7 @@ Próximo: **Fase 6** — agenda no Google Calendar, hoje o item de menor priorid
 yu-book/
 ├─ apps/api/        Fastify + Prisma + Postgres
 ├─ apps/web/        React + Vite + Tailwind
-├─ apps/mcp/        servidor MCP — roda local, não é deployado
+├─ apps/mcp/        servidor MCP — stdio local ou HTTP hospedado
 └─ packages/shared/ schemas Zod e tipos usados pelos dois
 ```
 
@@ -106,8 +107,9 @@ Os dois sobem ao mesmo tempo, e `pnpm dev` continua sendo o de sempre. As variá
 linha de comando vencem o `.env` — nem `--env-file` nem `process.loadEnvFile()` sobrescrevem o que
 já veio do shell —, então não existe arquivo de ambiente novo para manter.
 
-**As tools de escrita do MCP só se registram contra uma API local.** Contra a Railway elas somem do
-`tools/list`. Ver `apps/mcp/README.md`.
+**Em stdio, as tools de escrita do MCP só se registram contra uma API local.** Contra a Railway
+elas somem do `tools/list`. **No transporte HTTP a regra é outra** — quem decide é o escopo do token
+mais `MCP_ESCRITA_HABILITADA`, e a trava por host local não participa. Ver `apps/mcp/README.md`.
 
 Abra `http://localhost:5173`, crie sua conta (`ALLOW_SIGNUP=true` em dev) e pronto.
 
@@ -205,6 +207,10 @@ recálculo de link não perde backlink, inclusive no caso em que a nota-alvo é 
 
 Três serviços no mesmo projeto, todos apontando para **este mesmo repositório**: **Postgres**,
 **API** e **web**.
+
+O **servidor MCP é um quarto serviço, opcional**, com `railway.json` próprio e regras de variável
+que não se parecem com as destes três — duas delas o boot **recusa**. O passo a passo dele mora em
+[apps/mcp/README.md](apps/mcp/README.md), na seção "Hospedado na Railway", e não é repetido aqui.
 
 > **A ordem importa.** A API precisa saber o domínio do front (`CORS_ORIGIN`) e o front precisa
 > saber o domínio da API (`VITE_API_URL`). Como os domínios só existem depois que os serviços são
