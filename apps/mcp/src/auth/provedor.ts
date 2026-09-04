@@ -19,7 +19,7 @@ import { randomUUID } from "node:crypto";
 import { ErroDaApi } from "../cliente.js";
 import { ESCOPO_ESCRITA, ESCOPO_LEITURA } from "../autorizacao.js";
 import { env } from "../env.js";
-import { CABECALHOS_DA_PAGINA, paginaDeLogin } from "./pagina.js";
+import { cabecalhosDaPagina, paginaDeLogin } from "./pagina.js";
 import { abrir, assinarToken, selar, verificarToken } from "./segredos.js";
 import { renovarNaApi, sairDaApi, type CredencialDaApi } from "./sessao-api.js";
 
@@ -321,7 +321,7 @@ export const provedor: OAuthServerProvider = {
     };
 
     res
-      .set(CABECALHOS_DA_PAGINA)
+      .set(cabecalhosDaPagina(params.redirectUri))
       .send(
         paginaDeLogin({
           pedido: selar(pedido, "pedido"),

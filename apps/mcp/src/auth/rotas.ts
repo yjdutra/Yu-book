@@ -2,7 +2,7 @@ import { rateLimit } from "express-rate-limit";
 import express from "express";
 import type { Router } from "express";
 import { ErroDaApi } from "../cliente.js";
-import { CABECALHOS_DA_PAGINA, paginaDeLogin } from "./pagina.js";
+import { cabecalhosDaPagina, paginaDeLogin } from "./pagina.js";
 import { abrirPedido, emitirCodigo, registroDeClientes } from "./provedor.js";
 import { entrarNaApi } from "./sessao-api.js";
 
@@ -62,7 +62,7 @@ export function rotasDeLogin(): Router {
     if (!pedido) {
       // Sem pedido válido não há para onde redirecionar — responder na página
       // é o único caminho honesto.
-      res.status(400).set(CABECALHOS_DA_PAGINA).send(
+      res.status(400).set(cabecalhosDaPagina()).send(
         paginaDeLogin({
           pedido: "",
           nomeDoCliente: "Cliente desconhecido",
@@ -76,7 +76,7 @@ export function rotasDeLogin(): Router {
     const nomeDoCliente = cliente?.client_name ?? "Um cliente MCP";
 
     if (typeof email !== "string" || typeof senha !== "string") {
-      res.status(400).set(CABECALHOS_DA_PAGINA).send(
+      res.status(400).set(cabecalhosDaPagina(pedido.redirectUri)).send(
         paginaDeLogin({ pedido: envelope as string, nomeDoCliente, erro: "Informe email e senha." }),
       );
       return;
@@ -96,7 +96,7 @@ export function rotasDeLogin(): Router {
       // O cliente ficaria com um erro que ele não pode resolver, e o usuário
       // perderia a chance de digitar de novo.
       console.error("[yu-book-mcp] falha no login:", erro);
-      res.status(401).set(CABECALHOS_DA_PAGINA).send(
+      res.status(401).set(cabecalhosDaPagina(pedido.redirectUri)).send(
         paginaDeLogin({ pedido: envelope as string, nomeDoCliente, erro: motivoParaGente(erro) }),
       );
     }

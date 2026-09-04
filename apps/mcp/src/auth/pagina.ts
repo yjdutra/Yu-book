@@ -102,10 +102,42 @@ export function paginaDeLogin({ pedido, nomeDoCliente, erro }: DadosDaPagina): s
 }
 
 /** Cabeçalhos da página de senha. Sem script, sem cache, sem embutir em iframe. */
-export const CABECALHOS_DA_PAGINA = {
-  "Content-Type": "text/html; charset=utf-8",
-  "Cache-Control": "no-store",
-  "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'",
-  "X-Frame-Options": "DENY",
-  "Referrer-Policy": "no-referrer",
-} as const;
+/**
+ * Os cabeçalhos da página de login e consentimento.
+ *
+ * `form-action` PRECISA INCLUIR A ORIGEM DO `redirect_uri`, e isto custou um
+ * deploy para descobrir.
+ *
+ * O submit deste formulário termina, quando dá certo, num `302` para o
+ * `redirect_uri` do cliente — que é outra origem por definição, normalmente um
+ * `http://localhost:<porta>` que o cliente MCP abriu. **O navegador aplica
+ * `form-action` também ao destino do redirecionamento que resulta de um
+ * submit**, não só ao alvo do `action`. Com `'self'` sozinho, o POST sai, o
+ * servidor responde o `302`, e o Chrome bloqueia o salto: a página parece não
+ * fazer nada, sem erro visível fora do console.
+ *
+ * Nenhuma prova programática pega isto — `fetch` não passa por CSP. Só apareceu
+ * num navegador de verdade, tentando conectar um cliente MCP real.
+ *
+ * A origem entra sozinha, e não é ampliação frouxa: é exatamente para onde este
+ * pedido de autorização já vai redirecionar, e o `redirect_uri` foi validado
+ * contra os registrados pelo handler do SDK antes de chegar aqui.
+ */
+export function cabecalhosDaPagina(redirectUri?: string): Record<string, string> {
+  let destino = "";
+  try {
+    if (redirectUri) destino = ` ${new URL(redirectUri).origin}`;
+  } catch {
+    // `redirect_uri` que não é URL não vira permissão. Sem pedido válido não há
+    // para onde redirecionar de qualquer forma.
+  }
+
+  return {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Content-Security-Policy":
+      `default-src 'none'; style-src 'unsafe-inline'; form-action 'self'${destino}`,
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+  };
+}
