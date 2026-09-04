@@ -77,6 +77,36 @@ O servidor **não guarda estado durável**. Cliente registrado, código de autor
 viajam cifrados dentro do próprio identificador (`src/auth/segredos.ts`), então um redeploy não
 expulsa ninguém e não há mapa crescendo em memória.
 
+## Hospedado na Railway
+
+`railway.json` fica em [`apps/mcp/railway.json`](railway.json), como os dos outros dois serviços.
+**Root Directory vazio** — apontar para `apps/mcp` quebra a resolução de `@yu-book/shared`. Watch
+Paths: `apps/mcp/**`, `packages/shared/**`, `pnpm-lock.yaml`.
+
+`NODE_ENV=production` e `MCP_TRANSPORTE=http` vão no `startCommand`, **não** como variáveis do
+serviço. O primeiro porque `NODE_ENV` de serviço quebra o build (`tsc: not found`, as devDeps somem);
+o segundo porque sem ele o processo sobe em stdio e fica mudo — no comando, é impossível esquecer.
+
+As variáveis do painel, e **só** estas:
+
+| | |
+|---|---|
+| `MCP_SEGREDO` | `openssl rand -base64 48`. Quem tiver isto forja qualquer token |
+| `MCP_URL_PUBLICA` | o domínio que a Railway deu, sem barra final |
+| `MCP_HOSTS_PERMITIDOS` | o mesmo domínio, só o hostname. **Sem ela não há defesa de DNS rebinding** |
+| `YUBOOK_API_URL` | a API de produção |
+| `MCP_ESCRITA_HABILITADA` | `0` ou `1` — o único desligamento global da escrita neste transporte |
+
+`YUBOOK_EMAIL` e `YUBOOK_PASSWORD` são **proibidas**: o boot recusa subir com elas, e é essa recusa
+que garante que ninguém opere como o dono do `.env`. `PORT` a Railway injeta.
+
+As duas primeiras só existem depois de o serviço existir e o domínio ser gerado — então a ordem é
+criar o serviço, pegar o domínio, preencher, e redeployar.
+
+**Hospedado, a trava por host local não protege mais nada:** o alvo é a API de produção, e o que
+decide a escrita é o escopo do token mais `MCP_ESCRITA_HABILITADA`. Um pedido mal interpretado pelo
+modelo cria dado de verdade no segundo cérebro, e não existe desfazer deste lado.
+
 ## O ambiente local de escrita
 
 **Em stdio, as tools de escrita só se registram contra uma API local.** Contra qualquer outro host
