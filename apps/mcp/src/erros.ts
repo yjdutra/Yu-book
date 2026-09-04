@@ -1,4 +1,5 @@
 import type { CallToolResult, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+import { motivoDaRecusa, podeEscrever } from "./autorizacao.js";
 import { comIdentidadeDaApi, ErroDaApi } from "./cliente.js";
 import { env } from "./env.js";
 import type { Extra } from "./notificacoes.js";
@@ -108,6 +109,38 @@ export function comErro<A>(
       console.error("[yu-book-mcp]", erro);
       return { content: [{ type: "text", text: mensagemDeErro(erro) }], isError: true };
     }
+  };
+}
+
+/**
+ * O invólucro das tools que **mudam dado**, e a segunda camada da trava.
+ *
+ * A primeira camada é o registro: `criarServidor({ escrita })` decide, uma vez
+ * por sessão, se estas tools entram no `tools/list`. Esta aqui pergunta de
+ * novo, na chamada — porque a primeira falha calada, e esta fase já mostrou
+ * duas vezes que defesa única não basta. Ver `autorizacao.ts` para as duas
+ * falhas concretas que só esta camada pega.
+ *
+ * A ORDEM É PARTE DA CORREÇÃO: o guarda roda antes de `relatar(...)` e antes de
+ * qualquer chamada de API. Uma recusa não pode emitir log de uma escrita que
+ * não aconteceu — o log das tools de escrita é a única trilha de auditoria que
+ * chega ao usuário, e um registro de escrita falsa é pior que nenhum.
+ *
+ * A recusa volta como `isError`, com texto que diz ao modelo que **nada foi
+ * alterado** e que repetir não resolve. É a primeira coisa que ele tenta
+ * descobrir depois de um erro numa tool que muda dado; sem isso ele tenta de
+ * novo, e uma escrita que "falhou" duas vezes pode ter acontecido duas vezes.
+ */
+export function comErroDeEscrita<A>(
+  handler: (args: A, extra: Extra) => Promise<CallToolResult>,
+): (args: A, extra: Extra) => Promise<CallToolResult> {
+  const protegido = comErro(handler);
+  return async (args: A, extra: Extra) => {
+    if (!podeEscrever(extra)) {
+      console.error("[yu-book-mcp] escrita recusada: o pedido não tem autorização para ela");
+      return { content: [{ type: "text", text: motivoDaRecusa() }], isError: true };
+    }
+    return protegido(args, extra);
   };
 }
 

@@ -17,6 +17,7 @@ import type {
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { randomUUID } from "node:crypto";
 import { ErroDaApi } from "../cliente.js";
+import { ESCOPO_ESCRITA, ESCOPO_LEITURA } from "../autorizacao.js";
 import { env } from "../env.js";
 import { CABECALHOS_DA_PAGINA, paginaDeLogin } from "./pagina.js";
 import { abrir, assinarToken, selar, verificarToken } from "./segredos.js";
@@ -34,9 +35,6 @@ import { renovarNaApi, sairDaApi, type CredencialDaApi } from "./sessao-api.js";
  * Todo o estado durável vive **dentro** dos identificadores, cifrado — ver
  * `segredos.ts`. O que fica em memória é o que pode ser perdido sem custo.
  */
-
-export const ESCOPO_LEITURA = "yubook:read";
-export const ESCOPO_ESCRITA = "yubook:write";
 
 const VIDA_DO_CODIGO_MS = 60_000;
 

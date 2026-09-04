@@ -9,7 +9,8 @@ import express from "express";
 import type { Express, Request, Response } from "express";
 import { env } from "./env.js";
 import { rotasDeLogin } from "./auth/rotas.js";
-import { ESCOPO_ESCRITA, ESCOPO_LEITURA, provedor } from "./auth/provedor.js";
+import { provedor } from "./auth/provedor.js";
+import { ESCOPO_ESCRITA, ESCOPO_LEITURA, escritaPermitida } from "./autorizacao.js";
 import { criarServidor } from "./servidor.js";
 
 /**
@@ -63,6 +64,13 @@ interface Sessao {
    * senta na sessão de outra pessoa.
    */
   userId: string;
+  /**
+   * Com qual superfície esta sessão foi montada. As tools de escrita ou foram
+   * registradas ou não, e não há como registrá-las no meio de uma sessão —
+   * então isto precisa continuar batendo com o que o token traz, ou a sessão
+   * passa a anunciar um catálogo que mente.
+   */
+  escrita: boolean;
   ultimoUso: number;
 }
 
@@ -141,7 +149,13 @@ async function novaSessao(
 
     onsessioninitialized: (sessionId) => {
       registrada = true;
-      sessoes.set(sessionId, { transporte: transport, servidor, userId, ultimoUso: Date.now() });
+      sessoes.set(sessionId, {
+        transporte: transport,
+        servidor,
+        userId,
+        escrita,
+        ultimoUso: Date.now(),
+      });
       console.error(`[yu-book-mcp] sessão nova: ${sessionId} · ativas: ${sessoes.size}`);
     },
 
@@ -250,6 +264,36 @@ export function criarAplicacaoHttp(): Express {
         });
         return;
       }
+
+      // A SUPERFÍCIE TEM QUE CONTINUAR BATENDO COM O TOKEN.
+      //
+      // `exchangeRefreshToken` aceita `scope` e filtra o concedido, então um
+      // cliente pode renovar pedindo só leitura e seguir usando este mesmo
+      // `mcp-session-id`. As tools de escrita continuariam no `tools/list` de
+      // uma sessão que o token não autoriza mais.
+      //
+      // Simétrico de propósito: perder **ou** ganhar o escopo encerra. O
+      // catálogo que o modelo vê nunca anuncia uma tool que vai recusar, e
+      // nunca esconde uma que já pode ser usada — a mesma disciplina da
+      // `description` como contrato de conversa.
+      //
+      // A sessão acaba de verdade, e por isso o 404 é honesto: quem responde
+      // "desconhecida" acabou de torná-la desconhecida.
+      if (existente.escrita !== escritaPermitida(req.auth?.scopes ?? [])) {
+        console.error(`[yu-book-mcp] escopo mudou, encerrando sessão: ${sessionId as string}`);
+        void existente.transporte.close().catch(() => {});
+        esquecer(sessionId as string);
+        res.status(404).json({
+          jsonrpc: "2.0",
+          error: {
+            code: -32001,
+            message: "A autorização mudou. Inicialize de novo para receber as tools corretas.",
+          },
+          id: null,
+        });
+        return;
+      }
+
       existente.ultimoUso = Date.now();
       await existente.transporte.handleRequest(req, res, req.body);
       return;
@@ -274,7 +318,7 @@ export function criarAplicacaoHttp(): Express {
     if (req.method === "POST") {
       // Os escopos congelam na criação: as tools de escrita ou são registradas
       // ou não, e não há como registrá-las no meio de uma sessão.
-      const escrita = env.escritaHabilitada && (req.auth?.scopes ?? []).includes(ESCOPO_ESCRITA);
+      const escrita = escritaPermitida(req.auth?.scopes ?? []);
       await novaSessao(req, res, req.body, identidade, escrita);
       return;
     }

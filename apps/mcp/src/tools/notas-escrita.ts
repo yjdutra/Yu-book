@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { NoteDetail } from "@yu-book/shared";
 import { api } from "../cliente.js";
-import { comErro } from "../erros.js";
+import { comErroDeEscrita } from "../erros.js";
 import { formatarNotaBreve } from "../formato.js";
 import { relatar } from "../notificacoes.js";
 
@@ -48,7 +48,7 @@ export function registrarEscritaDeNotas(server: McpServer): void {
           .describe("Id da nota, como devolvido por `search_notes` ou `get_note`."),
       },
     },
-    comErro(async ({ noteId }, extra) => {
+    comErroDeEscrita(async ({ noteId }, extra) => {
       const relato = relatar(server, extra, "trash_note", 2);
 
       // A leitura prévia paga por si: depois do DELETE o dado não existe mais
@@ -136,7 +136,7 @@ export function registrarEscritaDeNotas(server: McpServer): void {
         noteId: z.string().uuid().describe("Id da nota na lixeira."),
       },
     },
-    comErro(async ({ noteId }, extra) => {
+    comErroDeEscrita(async ({ noteId }, extra) => {
       const relato = relatar(server, extra, "restore_note", 1);
 
       const nota = await api.post<NoteDetail>(`/notes/${noteId}/restore`);

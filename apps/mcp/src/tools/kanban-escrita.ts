@@ -8,7 +8,7 @@ import {
 } from "@yu-book/shared";
 import type { CardDetail } from "@yu-book/shared";
 import { api } from "../cliente.js";
-import { comErro } from "../erros.js";
+import { comErroDeEscrita } from "../erros.js";
 import { diaParaPrazo, formatarCardDetalhe } from "../formato.js";
 import { relatar } from "../notificacoes.js";
 
@@ -84,7 +84,7 @@ export function registrarEscritaDeKanban(server: McpServer): void {
           .describe("Vincula o card a uma nota ativa. O id vem de `search_notes` ou `get_note`."),
       },
     },
-    comErro(async ({ columnId, title, descriptionMd, dueDate, priority, tags, noteId }, extra) => {
+    comErroDeEscrita(async ({ columnId, title, descriptionMd, dueDate, priority, tags, noteId }, extra) => {
       const relato = relatar(server, extra, "create_card", 1);
 
       const card = await api.post<CardDetail>("/cards", {
@@ -145,7 +145,7 @@ export function registrarEscritaDeKanban(server: McpServer): void {
           .describe("Posição final na coluna de destino, de 0 em diante. Número alto = no fim."),
       },
     },
-    comErro(async ({ cardId, columnId, position }, extra) => {
+    comErroDeEscrita(async ({ cardId, columnId, position }, extra) => {
       const relato = relatar(server, extra, "move_card", 1);
 
       const card = await api.patch<CardDetail>(`/cards/${cardId}/move`, { columnId, position });
