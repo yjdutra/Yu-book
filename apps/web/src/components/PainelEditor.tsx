@@ -13,11 +13,12 @@ import {
 } from "../lib/notas";
 import { useAutosave } from "../lib/useAutosave";
 import type { EstadoSalvamento } from "../lib/useAutosave";
+import { useFormatarNota } from "../lib/ia";
 import { useModoNota } from "../lib/modoNota";
 import { Editor } from "./Editor";
 import type { FocoDoCorpo } from "./Editor";
 import { SeletorModo } from "./ModoNota";
-import { IconeCopiar } from "./Icones";
+import { IconeCopiar, IconeFormatar } from "./Icones";
 import { RotuloTipo } from "./RotuloTipo";
 
 /** Campos extras de aula (RF-45). Ficam em `meta`, sem migration por campo. */
@@ -109,8 +110,25 @@ export function PainelEditor({
   const timerCopiaRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const carregadaRef = useRef<string | null>(null);
 
+  /** RF-11: o texto de antes da formatação, enquanto o desfazer vale. */
+  const [desfazer, setDesfazer] = useState<string | null>(null);
+  const [erroFormatar, setErroFormatar] = useState<string | null>(null);
+  const timerDesfazerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const formatar = useFormatarNota();
+
+  /**
+   * O rascunho de agora, para a resposta da formatação poder comparar com o que
+   * está na tela (RF-15). A variável do fechamento seria a de quando o pedido
+   * saiu, que é exatamente o que não serve aqui.
+   */
+  const rascunhoRef = useRef(rascunho);
+  useEffect(() => {
+    rascunhoRef.current = rascunho;
+  }, [rascunho]);
+
   useEffect(() => () => {
     if (timerCopiaRef.current) clearTimeout(timerCopiaRef.current);
+    if (timerDesfazerRef.current) clearTimeout(timerDesfazerRef.current);
   }, []);
 
   // Carrega o rascunho ao trocar de nota. Sem a guarda por id, cada refetch
@@ -212,6 +230,56 @@ export function PainelEditor({
     }
   };
 
+  /**
+   * RF-10: formata o corpo por IA e aplica no rascunho.
+   *
+   * Aplicar em `rascunho` e deixar o autosave gravar é o que faz isto custar
+   * **uma** requisição: só o corpo muda, então a cirurgia de cache de
+   * `useAtualizarNota` não invalida nada (INV-23). E o RF-13 sai de graça —
+   * título, tags e workspace nem são enviados, então não podem ser alterados.
+   *
+   * O desfazer mora aqui, e não na casca como o da gaveta de links: sair da
+   * nota desmonta este painel e cancela a chance de desfazer. É a escolha
+   * certa — o CA-05 exige devolver o texto *daquela* nota, e escrever texto
+   * antigo numa nota que você não está mais vendo seria pior que perder o
+   * desfazer.
+   */
+  const aoFormatar = async () => {
+    if (formatar.isPending) return;
+    const antes = rascunho.contentMd;
+    setErroFormatar(null);
+
+    try {
+      const resultado = await formatar.mutateAsync({ id: notaId, contentMd: antes });
+
+      // RF-15: editou enquanto ia e voltava? Recusa, em vez de engolir o que
+      // você acabou de escrever.
+      if (rascunhoRef.current.contentMd !== antes) {
+        setErroFormatar(
+          "Você editou a nota enquanto ela era formatada — o resultado foi descartado.",
+        );
+        return;
+      }
+
+      setRascunho((r) => ({ ...r, contentMd: resultado.contentMd }));
+      if (timerDesfazerRef.current) clearTimeout(timerDesfazerRef.current);
+      setDesfazer(antes);
+      timerDesfazerRef.current = setTimeout(() => setDesfazer(null), 8000);
+    } catch (erro) {
+      setErroFormatar(
+        erro instanceof ApiError ? erro.message : "Não foi possível formatar a nota.",
+      );
+    }
+  };
+
+  const aoDesfazerFormatacao = () => {
+    if (desfazer === null) return;
+    // Volta pelo mesmo caminho: o autosave grava a volta, como grava a ida.
+    setRascunho((r) => ({ ...r, contentMd: desfazer }));
+    setDesfazer(null);
+    if (timerDesfazerRef.current) clearTimeout(timerDesfazerRef.current);
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="shrink-0 border-b border-ink-800 px-6 pb-3 pt-4">
@@ -237,6 +305,34 @@ export function PainelEditor({
 
           <div className="flex shrink-0 items-center gap-2 pt-1">
             <SeletorModo modo={modo} onModo={setModo} />
+
+            {/* RF-10: sem atalho de teclado, pelo mesmo motivo do botão de
+                copiar — e porque atalho dentro do editor exige entrar nos dois
+                mapas (a textarea e o keymap do CodeMirror) ou não existe direito. */}
+            <button
+              type="button"
+              onClick={() => void aoFormatar()}
+              disabled={formatar.isPending}
+              title="Formatar a nota com IA"
+              aria-label="Formatar a nota com IA"
+              className="rounded px-1.5 py-1 text-ink-400 transition-colors hover:text-ink-200
+                         disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <IconeFormatar
+                className={`size-3.5 ${formatar.isPending ? "animate-pulse" : ""}`}
+              />
+            </button>
+            {/* Chamada de modelo leva segundos. Sem sinal visível, o botão
+                apagado parece travado — e o `aria-live` abaixo só fala com
+                leitor de tela. Texto, no idioma do `IndicadorSalvamento`. */}
+            {/* RNF-09: o próprio texto visível é a região anunciada. A faixa de
+                desfazer abaixo já é `role="status"`, então um `sr-only` aqui
+                faria o leitor de tela dizer "nota formatada" duas vezes. */}
+            {formatar.isPending && (
+              <span role="status" className="animate-pulse text-xs text-ink-400">
+                formatando…
+              </span>
+            )}
 
             {/* RF-28: sem atalho de teclado de propósito — `Ctrl+Shift+C` é
                 "inspecionar elemento" no Chrome e no Firefox, e `preventDefault`
@@ -279,6 +375,35 @@ export function PainelEditor({
             </button>
           </div>
         </div>
+
+        {/* RF-11: some sozinho em 8 s. É informação, não erro — `status`. */}
+        {desfazer !== null && (
+          <p role="status" className="mt-1 flex items-center gap-2 text-xs text-ink-400">
+            Nota formatada.
+            <button
+              type="button"
+              onClick={aoDesfazerFormatacao}
+              className="rounded px-1 text-accent-400 hover:text-accent-500"
+            >
+              desfazer
+            </button>
+          </p>
+        )}
+
+        {/* RF-16: erro de IA fica na tela até você fechar, como o de cópia. */}
+        {erroFormatar && (
+          <p role="alert" className="mt-1 flex items-center gap-2 text-xs text-red-300">
+            {erroFormatar}
+            <button
+              type="button"
+              onClick={() => setErroFormatar(null)}
+              aria-label="Fechar aviso de formatação"
+              className="rounded px-1 text-red-300"
+            >
+              ×
+            </button>
+          </p>
+        )}
 
         {erroTitulo && (
           <p role="alert" className="mt-1 text-xs text-red-300">

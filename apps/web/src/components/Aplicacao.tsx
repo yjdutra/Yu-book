@@ -43,6 +43,14 @@ const BoardsPage = lazy(() =>
 );
 
 /**
+ * Os ajustes também são sob demanda: o catálogo de modelos do provedor não
+ * precisa estar no bundle que abre a tela de notas.
+ */
+const AjustesPage = lazy(() =>
+  import("../pages/AjustesPage").then((m) => ({ default: m.AjustesPage })),
+);
+
+/**
  * A gaveta também é sob demanda: ela usa o `dnd-kit` para reordenar favoritos,
  * e essa biblioteca não precisa estar no bundle que abre a tela de notas.
  */
@@ -275,6 +283,14 @@ export function Aplicacao() {
             }
           />
         ))}
+        <Route
+          path="/ajustes"
+          element={
+            <Suspense fallback={<CarregandoTela />}>
+              <AjustesPage />
+            </Suspense>
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

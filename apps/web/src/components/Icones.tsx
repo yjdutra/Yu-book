@@ -111,6 +111,28 @@ export function IconeCopiar(p: IconeProps) {
   );
 }
 
+/** Engrenagem — a entrada de ajustes na navegação. */
+export function IconeAjustes(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="8" cy="8" r="2.2" />
+      <path d="M8 1.8v1.6M8 12.6v1.6M2.2 8h1.6M12.2 8h1.6M3.9 3.9l1.1 1.1M11 11l1.1 1.1M12.1 3.9 11 5M5 11l-1.1 1.1" />
+    </Icone>
+  );
+}
+
+/** Varinha com faíscas — o botão de formatar a nota por IA (RF-10). */
+export function IconeFormatar(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M3 13 10.4 5.6" />
+      <path d="M9.4 4.6 11.4 6.6" />
+      <path d="M12.2 2v2.4M11 3.2h2.4" />
+      <path d="M13.4 8.6v1.8M12.5 9.5h1.8" />
+    </Icone>
+  );
+}
+
 export function IconeInfo(p: IconeProps) {
   return (
     <Icone {...p}>

@@ -15,6 +15,7 @@ import {
   IconeEstrela,
   IconeInfo,
   IconeInicio,
+  IconeAjustes,
   IconeLink,
   IconeLixeira,
   IconeNotas,
@@ -140,6 +141,7 @@ export function Navegacao({
 
   const emNotas = pathname.startsWith("/n");
   const noInicio = pathname === "/";
+  const emAjustes = pathname.startsWith("/ajustes");
 
   /**
    * Filtro de nota escolhido fora da tela de notas leva de volta para elas —
@@ -299,6 +301,10 @@ export function Navegacao({
         >
           <IconeLixeira />
           Lixeira
+        </Item>
+        <Item ativo={emAjustes} onClick={() => navigate("/ajustes")}>
+          <IconeAjustes />
+          Ajustes
         </Item>
         <div className="mt-2 flex items-center gap-1 px-2">
           <span className="min-w-0 flex-1 truncate text-xs text-ink-400">{user?.name}</span>
