@@ -14,6 +14,18 @@ export const ERROR_CODES = [
   /** RF-16: a coluna tem cards e a chamada não disse o que fazer com eles. */
   "COLUNA_COM_CARDS",
   "RATE_LIMITED",
+  /** RF-06: sem chave configurada, ou o provedor não respondeu. */
+  "PROVEDOR_INDISPONIVEL",
+  /** RF-07: o teto de tempo da chamada ao provedor estourou. */
+  "PROVEDOR_DEMOROU",
+  /** RF-06: o provedor recusou por crédito — é a cota dele, não o teto daqui. */
+  "COTA_EXCEDIDA",
+  /** O teto diário do Yu-book cortou, antes de qualquer chamada sair. */
+  "TETO_DIARIO_ATINGIDO",
+  /** A tarefa de IA não tem modelo padrão escolhido. */
+  "MODELO_NAO_ESCOLHIDO",
+  /** RN-06: o modelo alterou um [[wikilink]] — a resposta foi descartada. */
+  "RESPOSTA_INVALIDA",
   "INTERNAL_ERROR",
 ] as const;
 

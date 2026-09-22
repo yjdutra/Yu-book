@@ -8,3 +8,4 @@ export * from "./links.js";
 export * from "./dashboard.js";
 export * from "./busca.js";
 export * from "./wikilinks.js";
+export * from "./ia.js";
