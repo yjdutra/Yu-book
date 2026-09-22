@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, e o dia do prazo entre o front e o MCP, o único que ainda não passa por shared). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro ou função usada pelos dois lados, e ao converter data ou prazo em qualquer pacote.
+description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, e o dia do prazo entre o front e o MCP — o único que ainda não passa por shared, e que hoje relata o dia errado no MCP hospedado). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro ou função usada pelos dois lados, e ao converter data ou prazo em qualquer pacote.
 ---
 
 # O contrato compartilhado
@@ -50,8 +50,8 @@ contrato.
 Cinco lugares onde duas implementações precisam concordar e **divergir não gera erro** — gera
 comportamento errado em silêncio. São o motivo principal desta skill existir.
 
-Os quatro primeiros passam por `packages/shared`, como manda a doutrina. **O quinto não**, e isso
-está declarado ali como dívida, não escondido.
+Os quatro primeiros passam por `packages/shared`, como manda a doutrina. **O quinto não** — e não é
+mais só dívida: ele está **errado em produção**, no MCP hospedado. Ver §4.5.
 
 ### 4.1 `normalizarTitulo` ↔ o índice único do Postgres
 
@@ -101,25 +101,47 @@ terceira definição de "mesmo texto" no projeto: `normalizarTag` canoniza para 
 
 ### 4.5 O dia do prazo ↔ as 23:59:59 locais que o front grava
 
-**Dívida declarada: este espelhamento deveria morar em `packages/shared` e não mora.**
+**Dívida declarada, e hoje ela está cobrando: este espelhamento deveria morar em `packages/shared`,
+não mora, e o MCP hospedado está errado por causa disso.**
 
-O front grava o prazo às **23:59:59 do fuso local** (`apps/web/src/components/PainelCard.tsx:26`,
-convenção da Fase 2, documentada em `apps/web/src/lib/tempo.ts:43`). Quem lê precisa converter de
-volta em hora local: `diaDoPrazo` e `diaParaPrazo` (`apps/mcp/src/formato.ts:56,71`) são o par que
-faz isso do lado do MCP.
+O front grava o prazo às **23:59:59 do fuso local** (`paraData`,
+`apps/web/src/components/PainelCard.tsx:26`, convenção da Fase 2, documentada em
+`apps/web/src/lib/tempo.ts:43`) e lê de volta em `paraCampoData` (`PainelCard.tsx:15`). Do lado do
+MCP o par é `diaDoPrazo` e `diaParaPrazo` (`apps/mcp/src/formato.ts:56,71`). São quatro funções
+escritas à mão para uma conversão só.
 
 **O erro que isso previne é `.slice(0, 10)` sobre o ISO.** Em UTC-3, 23:59:59 local vira 02:59 do
 dia seguinte em UTC — fatiar a string relata **o dia errado, um dia à frente, em todo card com
 prazo**. Nada falha; o modelo só passa a informar prazos deslocados. O corte por string continua
 seguro para `createdAt`/`updatedAt`, que são instantes; para prazo, não.
 
-Se divergirem: o MCP e a interface discordam sobre que dia é "o prazo" do mesmo card, e a
-discordância é de exatamente um dia — o tipo de erro que se atribui a outra coisa.
+#### O defeito vivo: "hora local" é a do **processo**, não a do usuário
 
-**Por que ainda não está em `shared`:** a conversão é a primeira que `apps/web` e `apps/mcp`
-precisam dividir sem `apps/api` no meio, e a API só trafega ISO. Quem for mexer nos dois lados
-promove para `packages/shared` **antes** de mexer, e apaga esta seção — não a duplique num terceiro
-lugar. Um terceiro leitor de prazo escrito à mão fecha a porta dessa promoção.
+`diaDoPrazo` usa `getMonth()`/`getDate()` e `diaParaPrazo` monta `new Date("AAAA-MM-DDT23:59:59")`
+— as duas leem o fuso **do processo**. Em stdio isso acerta por acidente, porque o processo roda na
+máquina do operador. **Hospedado, erra:** `apps/mcp/railway.json` não define `TZ` e a Railway roda
+em UTC. Medido: um prazo gravado pelo front como `2026-09-22T02:59:59Z` é `2026-09-21` em
+`America/Sao_Paulo` e `2026-09-22` em UTC — o MCP hospedado relata **todo prazo um dia à frente** do
+que a interface mostra, e `diaParaPrazo` grava o prazo **três horas cedo** (23:59:59 UTC = 20:59:59
+local). É exatamente o erro de um dia que a seção existe para evitar, entrando por outra porta.
+
+Pôr `TZ=America/Sao_Paulo` no `railway.json` apaga o sintoma e **não** é o conserto: troca o fuso do
+processo por outro fuso do processo, que continua não sendo o do usuário.
+
+#### O conserto, que agora tem peça
+
+A Etapa A da frente de IA trouxe as duas coisas que faltavam:
+
+- `diaLocal(instante, fuso)` (`packages/shared/src/ia.ts:39`), que formata por `Intl` com `timeZone`
+  — sem tabela de horário de verão nossa;
+- o fuso do usuário **no domínio pela primeira vez**: `ai_preference.timezone`
+  (`apps/api/prisma/schema.prisma:351`), com padrão `FUSO_PADRAO` (`packages/shared/src/ia.ts:24`).
+
+Quem for mexer nos dois lados promove a conversão para `packages/shared` usando `diaLocal` e o fuso
+vindo da API — **não** o do processo —, e apaga esta seção. Não duplique a conversão num terceiro
+lugar: um terceiro leitor de prazo escrito à mão fecha a porta dessa promoção. Note que `diaLocal`
+hoje é chamada **só pelo servidor**, de propósito (o comentário em `ia.ts:26-38` diz por quê); usar
+a mesma função é o que impede uma segunda definição de "o dia do usuário".
 
 ## 5. Verificação
 
@@ -130,5 +152,7 @@ pnpm --filter @yu-book/shared build && pnpm typecheck
 ```
 
 Se tocou num dos cinco espelhamentos, rode também `pnpm --filter @yu-book/api test`. O §4.5 não
-tem teste que o cubra: confira à mão, com um prazo real, que o dia relatado pelo MCP é o mesmo que
-a interface mostra.
+tem teste que o cubra — e rodar à mão na sua máquina **não** reproduz o defeito, porque o fuso do
+seu processo é o certo. Para conferir o caminho hospedado é preciso forçar o fuso:
+`TZ=UTC node -e "…"` sobre `diaDoPrazo`, ou olhar o prazo que o serviço da Railway relata para um
+card cujo prazo você conhece.

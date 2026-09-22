@@ -1,6 +1,6 @@
 ---
 name: invariantes-yu-book
-description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, defesas de SSRF, escopo por usuário, a precisão do arraste do kanban, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna que o servidor MCP imprime num lugar só, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
+description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, as defesas de saída decididas pela origem do alvo (SSRF só onde a URL vem do usuário), escopo por usuário, a precisão do arraste do kanban, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna que o servidor MCP imprime num lugar só, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda, e a frente de IA — teto de gasto conferido antes da conexão, cascata de custo de três degraus, guarda de wikilink por conjunto e o dia local gravado em vez de calculado. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
 ---
 
 # Invariantes do Yu-book
@@ -35,7 +35,7 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-05 | `TOKEN_EXPIRED` e `UNAUTHORIZED` são códigos distintos de propósito |
 | INV-06 | Refresh token: rotação e consumo atômico; reuso com janela de graça de 30 s |
 | INV-07 | Login paga custo constante |
-| INV-08 | Defesas de SSRF na leitura de título |
+| INV-08 | A origem do alvo decide a defesa de saída: três pontos, duas classes |
 | INV-10 | Destaque de busca usa caracteres de controle, não HTML |
 | INV-11 | Posições são contíguas, sempre |
 | INV-12 | Card não atravessa board |
@@ -58,6 +58,11 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-44 | O par sessão/`McpServer` vaza em silêncio: cinco guardas, nenhuma supérflua |
 | INV-45 | A trava de escrita tem duas camadas, e a de baixo vale nos dois transportes |
 | INV-46 | Escopo que muda com a sessão viva encerra a sessão, nos dois sentidos |
+| INV-47 | O teto de IA corta antes de qualquer conexão sair |
+| INV-48 | Três degraus de custo, e o terceiro grava zero sem mover o teto |
+| INV-49 | A guarda de wikilink compara conjunto, não lista ordenada |
+| INV-50 | `ai_usage.local_day` é gravado, não calculado na consulta |
+| INV-51 | `AiUsage.noteId` é `SetNull`, e o registro de gasto sobrevive à nota |
 
 ### Índice — front
 
@@ -124,13 +129,24 @@ geral do INV-41: **cifra igual mais forma compatível não separa nada.** Um env
 a mesma chave e cabe no formato do outro *é* o outro, e o compilador não vê diferença nenhuma até
 alguém pedir o rótulo.
 
-A próxima é a **Fase 6** (Google Calendar), declarada pelo operador como o item de **menor
-prioridade**. O intervalo até lá é o tempo em que este catálogo mais envelhece: reconfira as
-referências antes de confiar nelas. Quando a fase vier, três invariantes ficam na linha de tiro:
+A **Etapa A da frente de IA** (2026-09-22) trouxe INV-47 a INV-51 — todas em `apps/api`, todas
+cobertas por `apps/api/tests/assistente.test.ts`, que levou a suíte de 58 para 97 testes. É a
+**Fase 5 do roteiro de IA**, não a Fase 5 de produto. Ela **reescreveu INV-08**, que dizia "o único
+ponto em que o servidor abre conexão para fora" — afirmação que já era falsa antes desta entrega:
+`youtube.service.ts` era o segundo desde a Fase 3. A lição não é sobre SSRF: **invariante que conta
+coisas envelhece por aritmética, e em silêncio.** Ninguém reconfere um censo ao acrescentar um
+arquivo. O que se registra é o **eixo** que decide o comportamento — aqui, de onde vem o alvo —
+porque eixo se confere item a item, e censo não.
 
-- **INV-08.** Hoje o `titulo.service.ts` é o **único** ponto em que o servidor abre conexão para
-  fora. A agenda cria um segundo, e a frase "único ponto" precisa ser reconferida junto — não
-  reescrita por conveniência.
+A frente de IA continua: chat ancorado e busca semântica ainda não têm código (§5.3 e §5.4 de
+`docs/prd-ia-no-yu-book.md`). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
+**menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece:
+reconfira as referências antes de confiar nelas. Quando a fase vier, três invariantes ficam na
+linha de tiro:
+
+- **INV-08.** A agenda abre o quarto ponto de saída, e ele nasce com classe a decidir: host do
+  Google fixado pelo ambiente cai na segunda classe, mas id de calendário vindo do cliente entra no
+  **caminho** da URL. Classifique antes de escrever, pela regra do próprio INV-08.
 - **INV-01 a INV-04.** Credencial de terceiro por usuário é dado novo sob escopo: id de calendário
   vindo do cliente cai na mesma regra do `userId`, e a escrita continua sendo condicional.
 - **INV-21.** `Event` já existe em `schema.prisma` sem rota nem service. A regra de cascata que a

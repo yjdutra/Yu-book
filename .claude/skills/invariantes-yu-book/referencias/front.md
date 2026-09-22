@@ -181,7 +181,7 @@ continua usando `posicaoDoCursor` e `wikilinkEmDigitacao` (`Editor.tsx:5`, `:164
 de `docs/old/prd-fase-5-refino.md` prometeu a remoção; a promessa não se cumpriu e não vale mais.
 
 **INV-39 — O editor tem dois mapas de atalho, e os dois precisam parar o evento.** Os atalhos
-globais moram num listener de `window` (`apps/web/src/components/Aplicacao.tsx:173-211`), que recebe
+globais moram num listener de `window` (`apps/web/src/components/Aplicacao.tsx:182-221`), que recebe
 o evento **mesmo depois de `preventDefault`**. Só `stopPropagation` o barra. Na `<textarea>` isso é
 imperativo (`Editor.tsx:240`); no modo ao vivo é declarativo, `stopPropagation: true` em cada tecla
 do `keymap` sob `Prec.high` para vencer o `defaultKeymap` (`apps/web/src/lib/editorMd.ts:161-178`).

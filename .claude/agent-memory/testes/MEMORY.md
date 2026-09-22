@@ -18,6 +18,10 @@
   em `apps/mcp/tests/provedor.test.ts:220` — a rejeição sem dono aparece como falha de **outro**
   teste, então o teste que falha não é o teste quebrado.
 
+- O limite de taxa é por IP, e `app.inject` usa o mesmo endereço em toda injeção: dois testes de
+  rotas com balde próprio dividem o balde e um derruba o outro com 429. Passe `ip`
+  (`apps/api/tests/apoio.ts:48`).
+
 - O SDK MCP valida os argumentos **antes** de chamar o handler, então guarda dentro do handler
   nunca é alcançado por chamada malformada: um teste que chame com `{}` prova a coisa errada.
   `argumentosMinimos` deriva os argumentos do `inputSchema` (`apps/mcp/tests/escrita.test.ts:65`).

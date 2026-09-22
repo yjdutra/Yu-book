@@ -39,11 +39,29 @@ janela, e o legítimo toma 401 mudo. Coberto por `apps/api/tests/auth-refresh.te
 **INV-07 — Login paga custo constante.** Email inexistente ainda calcula um argon2 descartável, para
 que o tempo de resposta não revele quais emails existem.
 
-**INV-08 — Defesas de SSRF na leitura de título.** É o único ponto em que o servidor abre conexão
-para endereço vindo de fora. `apps/api/src/modules/links/titulo.service.ts`: orçamento total de
-2000 ms (`:14`), máximo de 512 KB e só HTML (`:15`), máximo de 3 saltos (`:16`), `redirect: "manual"`
-com **revalidação de IP a cada salto** (`:170`), e `destinoPermitido` (`:74`) exigindo que todos os
-registros A/AAAA sejam públicos. Falhar aqui **nunca** impede o link de ser salvo.
+**INV-08 — O que separa as defesas de saída é a origem do alvo, não a contagem de pontos.** O
+servidor abre conexão para fora em **três** lugares, divididos em duas classes. O eixo está escrito
+em `apps/api/src/modules/assistente/openrouter.service.ts:5-11`.
+
+*Alvo vindo do usuário* — só `apps/api/src/modules/links/titulo.service.ts`, que lê o título de uma
+URL colada. É a única superfície de SSRF, e paga por isso: orçamento total de 2000 ms (`:14`),
+máximo de 512 KB e só HTML (`:15`), máximo de 3 saltos (`:16`), `destinoPermitido` (`:74`) exigindo
+que **todos** os registros A/AAAA sejam públicos, e `redirect: "manual"` (`:175`) com revalidação do
+IP a cada salto (`:170`) — redirecionar para 127.0.0.1 é recusado como se fosse o alvo original.
+Falhar aqui **nunca** impede o link de ser salvo.
+
+*Alvo vindo do ambiente* — `links/youtube.service.ts:14-15` (oEmbed e Data API) e
+`assistente/openrouter.service.ts:74` (base em `OPENROUTER_BASE_URL`, caminho literal do nosso
+código). Nenhuma parte da URL é escolhida por quem chama: **não há superfície de SSRF**, e por isso
+nada passa por `destinoPermitido`. O texto que o usuário digita para filtrar o catálogo de modelos é
+aplicado **depois, em memória** (`assistente/modelos.service.ts:116`), nunca concatenado na URL — é
+essa linha que mantém o ponto nesta classe. Aqui falhar **sobe** com código estável, em vez de virar
+`null`: o usuário clicou num botão e precisa saber que não aconteceu.
+
+**Ponto de saída novo se classifica antes de ser escrito.** Se qualquer pedaço da URL — host,
+caminho ou parâmetro que o alvo transforme em host — vier do usuário, ele cai inteiro na primeira
+classe; não existe meia defesa. Contar pontos de saída nunca foi a invariante, e a contagem já
+esteve errada aqui.
 
 **INV-10 — Destaque de busca usa caracteres de controle, não HTML.** `HL_START` e `HL_END` são
 os caracteres de controle `U+0001` e `U+0002` (`packages/shared/src/busca.ts:9-10`), para que
@@ -115,6 +133,47 @@ cast porque o Prisma envia número como `bigint`.
 caracteres. Trazer `contentMd` para a lista multiplica o tráfego por página.
 
 ---
+
+## A frente de IA
+
+**INV-47 — O teto diário corta antes de qualquer conexão sair, e o que prova isso é o dublê vazio.**
+`garantirTeto` (`apps/api/src/modules/assistente/custo.service.ts:94`) roda **antes** do `fetch`, com
+uma estimativa arredondada para cima (`estimarCustoMicros`, `:52`); em `formatar.service.ts:123-125`
+ele está acima do `pedirDoProvedor`. A ordem é a invariante inteira: conferir depois também devolve
+402, e a chamada já foi paga. O que a sustenta é a asserção de que o dublê **não recebeu nada**
+(`apps/api/tests/assistente.test.ts:633`, lista de requisições vazia): um teste que só confira o
+status 402 não distingue os dois mundos. A mesma técnica prova que `saude` sem chave não abre
+conexão nenhuma (`:118`, CA-02).
+
+**INV-48 — A cascata de custo tem três degraus, o degrau escolhido é gravado, e o terceiro grava
+zero.** `custoDaResposta` (`custo.service.ts:137`): `provedor` (o `cost` da resposta), `estimado`
+(tokens × preço do catálogo) e `desconhecido` (nem custo nem token). Zero **não move o teto** — um
+provedor que parasse de informar tornaria o teto decorativo em silêncio. Por isso `desconhecido` é
+contado (`resumoDoDia`, `:76`) e sai na tela como `callsWithoutCostToday`
+(`packages/shared/src/ia.ts:153-156`). Apagar a contagem, ou fundir os degraus num campo só, remove
+o único sinal de que o teto parou de valer.
+
+**INV-49 — A guarda de wikilink compara conjunto de alvos normalizados, não lista ordenada.**
+`mesmosWikilinks` (`apps/api/src/modules/assistente/formatar.service.ts:78`) monta dois `Set` de
+`normalizarTitulo` sobre `extrairWikilinks`. `note_link` é um conjunto (INV-17): ordem e repetição
+não existem nela, e `[[Alpha]]` e `[[alpha]]` apontam para a mesma nota. Comparar por índice
+recusaria uma formatação só por ela ter reagrupado itens — que é exatamente o que formatar faz — e a
+chamada **já foi paga** quando esta função roda. Prompt é pedido; esta função é a garantia.
+
+**INV-50 — `ai_usage.local_day` é gravado, não calculado na consulta.** A janela do teto é o dia do
+**usuário**: `diaLocal(instante, fuso)` (`packages/shared/src/ia.ts:39`) com o fuso de
+`ai_preference.timezone` (`apps/api/prisma/schema.prisma:351`), nunca `getDate()` do processo nem
+`.slice(0, 10)` do ISO — a API roda em UTC na Railway e o operador não. `garantirTeto` devolve o
+`localDay` que a linha de uso vai gravar (`custo.service.ts:99`), para que o dia do corte e o do
+registro sejam o mesmo, ainda que a chamada atravesse a meia-noite. A coluna é `local_day`
+(`schema.prisma:431`), com índice `(userId, localDay)` (`:441`). Trocar a gravação por um `WHERE`
+sobre `createdAt` zera o teto três horas cedo, todo dia, sem erro nenhum.
+
+**INV-51 — `AiUsage.noteId` é `SetNull`.** `apps/api/prisma/schema.prisma:439`, como em
+`Event.noteId`. Apagar a nota **não** apaga o registro de gasto: com `Cascade`, o teto diário viraria
+contornável por exclusão de nota, e a trilha de auditoria sumiria junto com o que a explica. Coberto
+em `apps/api/tests/assistente.test.ts:341`. O registro é escrito **inclusive quando a chamada falha**
+(`custo.service.ts:183`), porque falhar também pode ter custado.
 
 ## Servidor MCP
 

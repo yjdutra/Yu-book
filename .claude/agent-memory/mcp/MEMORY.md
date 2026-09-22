@@ -18,7 +18,11 @@
 
 ## Decisões em vigor
 
-- Baseline de orçamento medido em 2026-08-26: `tools/list` = 3480 bytes com 5 tools (só leitura) e
-  8713 bytes com 9 (Etapa 3). É cobrado em todo turno. Meça contra este número, não estime.
-- Sob HTTP a sessão vê cinco ou nove tools conforme o escopo do token: os dois números acima
-  continuam valendo, mas agora dependem de quem chamou.
+- Baseline de orçamento medido em 2026-09-22, sobre `dist/`: `tools/list` = 3480 B com 5 tools (só
+  leitura) e 8551 B com 9; `resources/list` 929, `resources/templates/list` 553, `prompts/list` 757.
+  Tudo cobrado em todo turno. Meça contra estes números, não estime.
+- Sob HTTP a sessão vê cinco ou nove tools conforme o escopo do token: os números dependem de
+  quem chamou.
+- Como medir: as mensagens `initialize`/`initialized`/`*/list` por `printf` no stdin de
+  `node --env-file=.env dist/index.js`, e `Buffer.byteLength(JSON.stringify(linha))` na resposta
+  inteira (envelope JSON-RPC incluído) — não só no `result`.

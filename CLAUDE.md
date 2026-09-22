@@ -11,18 +11,24 @@ Segundo cérebro pessoal, single-user. Monorepo pnpm com quatro pacotes:
 
 Proposta inicial em `docs/old/PROPOSTA-inicial.md` (registro de época, não se atualiza).
 Requisitos por fase em `docs/old/prd-fase-*.md` e, da Fase 5 em diante, em `docs/prd-fase-*.md` —
-os comentários do código citam os identificadores `RF-xx`, `RN-xx`, `RNF-xx` e `CA-xx` de lá.
+os comentários do código citam os identificadores `RF-xx`, `RN-xx`, `RNF-xx` e `CA-xx` de lá. A
+frente de IA tem PRD próprio, `docs/prd-ia-no-yu-book.md`: é dele que saem os `RF-xx` de
+`apps/api/src/modules/assistente/`, de `packages/shared/src/ia.ts` e da tela `/ajustes`.
 **Fases 0 a 5 entregues.** A 5 foi refino do que já existe
 (`docs/old/prd-fase-5-refino.md`): tags de card, precisão do arraste, e o editor Markdown ao vivo com
 CodeMirror 6. As três etapas dela foram fechadas **sem conferência de interface à mão** — a dívida
 está registrada em `docs/historico.md`, e no caso do editor nenhum portão chega a instanciar uma
-`EditorView`. A próxima é a Fase 6 (Google Calendar), hoje o item de menor prioridade.
+`EditorView`. Desde 2026-09-22 a **frente de IA** tem código, não só documento: a Etapa A entregou o
+provedor OpenRouter, teto de gasto diário, a tela `/ajustes` e o botão de formatar nota. A Fase 6 de
+produto (Google Calendar) segue sendo o item de menor prioridade.
 
-**Três numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
+**Quatro numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
-identidade) foi entregue em 2026-09-01; o **roteiro de IA aplicada** tem fases próprias. "Etapa 4"
-não é "Fase 4". Não unifique nem renumere — a entrada de 2026-08-26 em `docs/historico.md` diz de
-onde vem cada uma.
+identidade) foi entregue em 2026-09-01; o **roteiro de IA aplicada** tem fases próprias, e a 5 dele é
+a frente de IA; dentro dessa frente, o **PRD de IA** tem as suas, de 1 a 4, entregues em etapas com
+letra — a Etapa A cobriu as fases 1 e 2 dele. "Etapa 4" não é "Fase 4", e o mesmo número significa
+coisas diferentes em cada eixo. Não unifique nem renumere — a entrada de 2026-08-26 em
+`docs/historico.md` diz de onde vem cada uma.
 
 **O `RF-xx` do comentário resolve para o PRD da fase daquele código — os números colidem entre
 fases.** `RF-19` é o tema claro em `apps/web/src/lib/tema.ts` e é a colisão pelo ponteiro em

@@ -1,6 +1,6 @@
 ---
 name: convencoes-yu-book
-description: Convenções de código do Yu-book — nomenclatura em português no domínio e inglês na fronteira da API, imports ESM com extensão .js, estilo de comentário citando RF-xx, tipagem estrita e a ausência deliberada de linter. Use antes de escrever ou revisar qualquer código em apps/api, apps/web ou packages/shared, e sempre que precisar decidir como nomear algo neste repositório.
+description: Convenções de código do Yu-book — nomenclatura em português no domínio e inglês na fronteira da API, imports ESM com extensão .js, estilo de comentário citando RF-xx, tipagem estrita, a injeção para teste que não pode usar valor padrão de parâmetro, e a ausência deliberada de linter. Use antes de escrever ou revisar qualquer código em apps/api, apps/web ou packages/shared, e sempre que precisar decidir como nomear algo neste repositório.
 ---
 
 # Convenções do Yu-book
@@ -59,6 +59,16 @@ Update parcial é sempre spread condicional, para distinguir "não enviado" de `
 ...(input.title !== undefined && { title: input.title })
 ```
 
+**Valor padrão de parâmetro reassume o ambiente.** `f(x = env.ALGO)` chamado com `undefined` cai no
+padrão — então `f(chaveQueNaoExiste)` responde como se houvesse chave, e o teste de "sem chave"
+passa testando outra coisa. Mordeu duas vezes na mesma entrega da frente de IA. Quando a **ausência**
+é um caso de teste, o parâmetro é obrigatório (`temChave`,
+`apps/api/src/modules/assistente/openrouter.service.ts:47`) ou a injeção vem por objeto com checagem
+de `in`, que distingue "não informei" de "informei que não há" (`saude`,
+`apps/api/src/modules/assistente/assistente.service.ts:22-27`). O valor padrão continua certo quando
+o que se injeta é uma **função** e a ausência não é caso de teste — `buscarTitulo(…, permitido =
+destinoPermitido)` (`apps/api/src/modules/links/titulo.service.ts:151`).
+
 ## 4. Comentário
 
 Comentário explica **por quê**, nunca o quê. Em português. Cita o identificador do requisito quando
@@ -70,6 +80,11 @@ existe — `RF-14`, `RN-03`, `RNF-08`, `CA-16`, `S-04`.
 está: fases 1 a 4 em `docs/old/prd-fase-*.md`, Fase 5 em diante em `docs/prd-fase-*.md`. Quem
 escreve **não** renumera nem inventa prefixo de fase para desambiguar — o código inteiro já cita
 assim, e mudar metade dele é pior que a ambiguidade.
+
+**Nem todo PRD é de fase.** O `RF-xx` de `apps/api/src/modules/assistente/`, de
+`packages/shared/src/ia.ts` e da tela `/ajustes` resolve para `docs/prd-ia-no-yu-book.md`, que tem
+**fases próprias de 1 a 4** dentro dele (§5.1 a §5.4) e foi entregue em etapas com letra. "Fase 2"
+num comentário do módulo de IA é *Formatar nota*, não a Fase 2 de produto.
 
 ```ts
 // RF-15. Ctrl+L puro é a barra de endereço do navegador — daí o Shift.
