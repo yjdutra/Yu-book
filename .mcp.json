@@ -2,7 +2,14 @@
   "mcpServers": {
     "yu-book": {
       "command": "node",
-      "args": ["--env-file=apps/mcp/.env", "apps/mcp/dist/index.js"]
+      "args": [
+        "--env-file=apps/mcp/.env",
+        "apps/mcp/dist/index.js"
+      ]
+    },
+    "yu-book-prod": {
+      "type": "http",
+      "url": "https://yu-book-production.up.railway.app/mcp"
     }
   }
 }
