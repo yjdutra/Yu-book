@@ -7,7 +7,8 @@
 
 ## O que já nos mordeu
 
-- [Árvore de commit intermediário](fluxo-arvore-intermediaria.md) — `git checkout HEAD --` é bloqueado; use `cp` + `git show HEAD:x > x`.
+- [Conferir deploy do MCP](deploy-mcp-como-conferir.md) — `/health` responde `ok` durante todo o rebuild; prove pelo comportamento do diff.
+- [Árvore de commit intermediário](fluxo-arvore-intermediaria.md) — sem `checkout`, `stash` nem `add -p`: use `cp` + `git apply -R --recount` do hunk isolado.
 
 ## Decisões em vigor
 
