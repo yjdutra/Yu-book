@@ -23,6 +23,17 @@ const envSchema = z.object({
   /// (via oEmbed, que não pede chave) — só a duração fica de fora.
   YOUTUBE_API_KEY: z.string().optional(),
 
+  /// Opcional. Sem ela a API sobe normal e só as funções de IA ficam
+  /// indisponíveis, com o motivo na tela (RF-05, RNF-03, CA-02).
+  OPENROUTER_API_KEY: z.string().optional(),
+  /// O host do provedor. Existe como variável por um motivo só: é o que deixa a
+  /// suíte apontar para um dublê local em vez de gastar dinheiro de verdade.
+  /// Em produção ninguém define — o padrão é o endereço real.
+  OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
+  /// Atribuição no painel do OpenRouter (header `HTTP-Referer`). Sem ela a
+  /// chamada funciona igual.
+  OPENROUTER_APP_URL: z.string().url().optional(),
+
   /// Feche depois de criar sua conta. Signup aberto na internet = lixo no banco.
   ALLOW_SIGNUP: z
     .enum(["true", "false"])

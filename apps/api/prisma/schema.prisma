@@ -43,6 +43,21 @@ enum LinkKind {
   depois
 }
 
+/// Tarefas de IA que consomem modelo. `chat` entra junto porque acrescentar
+/// valor a enum do Postgres é migration à parte.
+enum AiTask {
+  formatar
+  chat
+}
+
+/// De onde veio o custo registrado. `desconhecido` é o degrau perigoso: grava
+/// zero, não move o teto, e por isso precisa ser contado e mostrado na tela.
+enum AiCostSource {
+  provedor
+  estimado
+  desconhecido
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
@@ -59,6 +74,11 @@ model User {
   events        Event[]
   links         Link[]
   refreshTokens RefreshToken[]
+
+  aiPreference AiPreference?
+  aiFavorites  AiModelFavorite[]
+  aiTaskModels AiTaskModel[]
+  aiUsages     AiUsage[]
 
   @@map("user")
 }
@@ -131,6 +151,7 @@ model Note {
   linksIn   NoteLink[] @relation("linksIn")
   cards     Card[]
   events    Event[]
+  aiUsages  AiUsage[]
 
   @@index([userId, kind])
   @@index([userId, deletedAt, updatedAt(sort: Desc)])
@@ -310,4 +331,114 @@ model Event {
 
   @@index([userId, startsAt])
   @@map("event")
+}
+
+/// Preferências de IA. Primeira tabela de configuração por usuário do projeto:
+/// uma linha por conta, criada só quando a pessoa muda alguma coisa. A leitura
+/// devolve os padrões de `packages/shared` sem gravar — um `GET` que escreve é
+/// surpresa. De um jeito ou de outro, nunca 404 por falta de configuração.
+///
+/// Sem `@default` de propósito: o padrão já existe em `packages/shared`
+/// (`TETO_DIARIO_PADRAO_MICROS`, `FUSO_PADRAO`) e o service é quem escreve. Um
+/// padrão aqui seria uma segunda fonte, e as duas divergiriam sem nada reclamar.
+model AiPreference {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @map("user_id") @db.Uuid
+  /// Teto do dia em µUSD — milionésimo de dólar. 200000 = US$ 0,20.
+  dailyCapMicros Int    @map("daily_cap_micros")
+  /// Onde o dia do teto começa. A API roda em UTC na Railway e o operador não:
+  /// sem isto o teto zeraria três horas antes da meia-noite, todo dia, calado.
+  timezone       String
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("ai_preference")
+}
+
+/// Modelo favoritado, com uma **cópia** do catálogo do provedor.
+///
+/// Cópia e não referência por duas razões: a estimativa de custo não pode
+/// buscar as centenas de modelos do provedor dentro da requisição, e a tela
+/// precisa listar favoritos com o provedor fora do ar. `snapshotAt` registra
+/// quando a cópia foi tirada — preço de modelo muda.
+model AiModelFavorite {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  /// Slug do provedor (`anthropic/claude-x`). É a chave de negócio, e tem
+  /// barra — por isso `POST /ai/favorites` recebe o id no corpo, não no caminho.
+  modelId          String   @map("model_id")
+  name             String
+  contextLength    Int      @map("context_length")
+  /// µUSD por milhão de tokens, como `AiModel` do shared. "Gratuito" não é
+  /// coluna: é derivado destes dois, para não haver um terceiro lugar decidindo.
+  promptMicros     Int      @map("prompt_micros")
+  completionMicros Int      @map("completion_micros")
+  /// A bandeira de que as etapas seguintes dependem: um modelo que não sabe
+  /// chamar ferramenta conversa bem e não consegue consultar o acervo.
+  supportsTools    Boolean  @map("supports_tools")
+  snapshotAt       DateTime @default(now()) @map("snapshot_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, modelId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("ai_model_favorite")
+}
+
+/// O modelo padrão de cada tarefa. Uma linha por par, sem id próprio — é
+/// tabela de associação, como `NoteTag`.
+model AiTaskModel {
+  userId    String   @map("user_id") @db.Uuid
+  task      AiTask
+  modelId   String   @map("model_id")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, task])
+  @@map("ai_task_model")
+}
+
+/// Uma linha por chamada ao provedor, inclusive as que falharam. É o que
+/// alimenta o teto diário e o painel de custo.
+model AiUsage {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  task   AiTask
+  /// O modelo pedido.
+  modelId String @map("model_id")
+  /// O que o provedor de fato usou — pode diferir do pedido por roteamento.
+  /// Sem isto a estimativa de custo usaria o preço do modelo errado.
+  modelUsed    String? @map("model_used")
+  /// Id da resposta do provedor. Entra agora porque é o que permite reconciliar
+  /// o custo depois sem migration nova; a reconciliação em si é outra entrega.
+  generationId String? @map("generation_id")
+
+  promptTokens     Int          @default(0) @map("prompt_tokens")
+  completionTokens Int          @default(0) @map("completion_tokens")
+  costMicros       Int          @default(0) @map("cost_micros")
+  costSource       AiCostSource @map("cost_source")
+  durationMs       Int          @map("duration_ms")
+  ok               Boolean
+  errorCode        String?      @map("error_code")
+
+  /// O dia **do usuário** (AAAA-MM-DD), não o dia UTC, e gravado em vez de
+  /// calculado na consulta: a janela do teto tem que ser a mesma que a tela
+  /// mostra, e o fuso do processo não é o do operador.
+  localDay String  @map("local_day")
+  /// `SetNull` como em `Event.noteId`: apagar a nota não apaga o registro de
+  /// gasto, ou o teto diário viraria resetável por exclusão de nota.
+  noteId   String? @map("note_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note Note? @relation(fields: [noteId], references: [id], onDelete: SetNull)
+
+  @@index([userId, localDay])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("ai_usage")
 }
