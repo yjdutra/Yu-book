@@ -13,6 +13,112 @@ _Nada pendente._
 
 ---
 
+## [0.10.0] — 2026-09-22
+
+**Etapa A da frente de IA aplicada: o Yu-book deixa de ser só _servidor_ MCP e passa a ser
+_cliente_ de um modelo.** É a **Fase 5 do roteiro de IA aplicada**
+([`docs/applied-ai-read-trip.md`](docs/applied-ai-read-trip.md)), detalhada em
+[`docs/prd-ia-no-yu-book.md`](docs/prd-ia-no-yu-book.md). **Não é fase de produto** — as de produto
+vão de 0 a 5, seguem fechadas, e a 6 (Google Calendar) não começou — e **não é etapa do MCP**, que
+continua na 4 de 5. Três numerações, nenhuma conversível na outra.
+
+Os quatro pacotes se movem: `apps/api` e `apps/web` de `0.5.0` para `0.6.0`, `packages/shared` de
+`0.3.0` para `0.4.0`, `apps/mcp` de `0.6.0` para `0.7.0`. **O MCP não muda em nada observável** —
+nenhuma das nove tools, quatro resources, dois templates e dois prompts foi tocada, e
+`POST /ai/notes/:id/format` deliberadamente **não** vira tool —, mas `ERROR_CODES` ganhou seis
+membros e `apps/mcp/src/cliente.ts` consome `ApiErrorBody`. A regra dos quatro pacotes existe para
+que a versão de um pacote diga **contra qual contrato ele foi construído**, e o contrato mudou.
+
+**O Ollama saiu do escopo, e com ele caem o RNF-01 e a RN-01 do PRD.** A API roda na Railway, sem
+GPU: um recurso apoiado em modelo local não existiria em produção, que é onde o app é usado. O
+provedor é um só, OpenRouter, e **o corpo da nota sai da máquina em toda tarefa de IA**. A mitigação
+é dizer isso **na tela de ajustes** e mandar `provider: { data_collection: "deny" }` na requisição.
+Caem também o **NO5** (o PRD proibia painel de gastos; a entrega tem teto diário e custo visível, a
+pedido do operador) e, como decisão sem código nesta etapa, o **NO2**. Os porquês em
+[`docs/historico.md`](docs/historico.md).
+
+Portões: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo nos quatro pacotes,
+`pnpm --filter @yu-book/api test` com **7 arquivos e 97 testes** (eram 6 e 58),
+`pnpm --filter @yu-book/mcp test` com 5 arquivos e 43 testes, `pnpm --filter @yu-book/web build` ok
+e busca por `sk-or-v1` e `openrouter.ai` no bundle compilado: **zero ocorrências** (CA-01, M2).
+
+**Não verificado à mão, e `apps/web` não tem runner de teste.** Foram conferidos na tela: provedor
+conectado, catálogo buscável, nota formatada com três `[[wikilinks]]` intactos e o gasto do dia
+subindo. **Não** foram: o desfazer em 8 s, a recusa quando se edita durante a formatação, a ausência
+de colateral em título, tags e workspace, e a recusa por teto atingido. Duas dessas dependem de
+gastar dinheiro de verdade — com modelo gratuito o custo é zero, então o teto corretamente nunca
+barra e o gasto do dia não sobe. **Há ainda uma corrida declarada no teto**: o limite de 10/min da
+rota, com orçamento de 60 s por chamada, deixa até dez pedidos passarem pela leitura do gasto antes
+de qualquer linha de uso existir. Um usuário, uma tela — aceita, não resolvida.
+
+### Adicionado
+- **Tela de ajustes em `/ajustes`**, com entrada própria na navegação e carga sob demanda por
+  `lazy()`: o catálogo de modelos do provedor não precisa estar no bundle que abre a tela de notas.
+  Reúne, numa requisição só, o estado do provedor, o catálogo buscável, os favoritos, o modelo de
+  cada tarefa, o teto diário e o gasto de hoje.
+- **Botão de formatar a nota por IA** no editor, ao lado do de copiar (RF-10), com **desfazer
+  disponível por 8 segundos** (RF-11, RF-12). O resultado é aplicado no rascunho e gravado pelo
+  autosave — a ida e a volta passam pelo mesmo caminho, e por isso custam **uma** requisição cada.
+  O RF-13 sai de graça: título, tags e workspace nem são enviados, então não podem ser alterados.
+  Editar a nota enquanto ela é formatada **descarta** o resultado em vez de engolir o que você
+  acabou de escrever (RF-15); falha de provedor deixa a nota intacta, com erro em `role="alert"`
+  (RF-16).
+- **Módulo `assistente` em `apps/api`** (RF-01), nas duas camadas do projeto, com sete rotas:
+  `GET /ai/health`, `GET /ai/models`, `GET` e `PATCH /ai/settings`, `POST /ai/favorites`,
+  `DELETE /ai/favorites/:id`, `PATCH /ai/tasks/:task` e `POST /ai/notes/:id/format`. `GET /ai/health`
+  responde **sem executar inferência** (RF-08); `GET /ai/models` serve o catálogo do provedor com
+  cache de 1 h e marca a resposta como `stale` quando ela veio do cache porque o provedor não
+  respondeu.
+- **Teto de gasto diário, com a fronteira do dia no fuso do usuário.** `ai_usage.local_day` é
+  gravado, não calculado na consulta, e o fuso vive em `ai_preference`: a API roda em UTC e o
+  operador vive em UTC−3, então sem isso o teto zeraria três horas cedo todo dia, calado. Teto
+  padrão de US$ 0,20/dia, ajustável até US$ 100.
+- **A origem do custo de cada chamada fica gravada e aparece na tela** — `provedor`, `estimado` ou
+  `desconhecido`. O terceiro degrau grava zero, e zero não move o teto; por isso as chamadas sem
+  custo informado do dia são **contadas e mostradas**. Teto que mente é pior que teto nenhum.
+- **Favoritar modelo guarda uma cópia do catálogo**, não uma referência: a estimativa de custo não
+  pode buscar as centenas de modelos do provedor dentro da requisição, e a lista de favoritos
+  precisa abrir com o provedor fora do ar. `snapshot_at` registra quando a cópia foi tirada.
+- **Migration `20260922180759_ia_etapa_a`**: quatro tabelas (`ai_preference`, `ai_model_favorite`,
+  `ai_task_model`, `ai_usage`) e dois enums (`AiTask`, `AiCostSource`). **São as primeiras tabelas
+  de configuração por usuário do projeto**; até aqui todo dado era conteúdo.
+- **`packages/shared/src/ia.ts`**: `diaLocal(instante, fuso)`, os conversores µUSD ↔ dólar,
+  `ehFusoValido`, os tetos e o limite de corpo enviado ao modelo, cinco schemas Zod e os tipos de
+  resposta. Mais `AI_TASKS` e `AI_COST_SOURCES` em `enums.ts` e **seis códigos de erro** em
+  `ERROR_CODES`: `PROVEDOR_INDISPONIVEL`, `PROVEDOR_DEMOROU`, `COTA_EXCEDIDA`,
+  `TETO_DIARIO_ATINGIDO`, `MODELO_NAO_ESCOLHIDO` e `RESPOSTA_INVALIDA`.
+- **`OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL` e `OPENROUTER_APP_URL`** validadas no boot pelo
+  mesmo `env.ts` (RF-05). Todas opcionais: **sem chave a API sobe igual** e só as funções de IA
+  ficam indisponíveis, com o motivo na tela (RNF-03, CA-02).
+- Dois ícones novos desenhados à mão em `Icones.tsx`, como manda a casa.
+
+### Alterado
+- **`POST /ai/notes/:id/format` tem limite próprio de 10 requisições por minuto.** O limite global é
+  de 300/min por IP e não protege contra dez chamadas de vinte segundos cada.
+- **A guarda de wikilink é código, não prompt** (RN-06): a resposta do modelo é recusada se o
+  **conjunto de alvos `[[…]]`** mudar. É conjunto, e não lista ordenada — comparar por índice
+  recusaria uma formatação só por ela ter reordenado itens, depois de a chamada já ter sido paga.
+- **Custo em µUSD inteiro** em todo lugar — banco, contrato e API. Não há `Decimal` no schema, e
+  `JSON.stringify` lança em `bigint`; a conversão para dólar acontece num lugar só,
+  em `packages/shared`.
+- **A preferência de IA não é criada na leitura.** `GET /ai/settings` devolve os padrões do
+  `packages/shared` sem gravar nada — um `GET` que escreve é surpresa; quem cria a linha é o
+  `PATCH`.
+
+### Corrigido
+- **`desfavoritar` era checar-depois-agir** e violava a INV-04: a posse passa a ser conferida na
+  mesma operação que apaga.
+
+### Segurança
+- **`GET /ai/health` não devolve mais o rótulo do provedor quando ele é o prefixo da própria
+  chave**, que é o padrão do OpenRouter. Esconder o campo no JSX não bastava: o corpo da resposta
+  chega ao navegador, à aba de rede e a qualquer cache no caminho. A redação passou para o service.
+- **Nenhuma chave de provedor alcança o navegador** (RNF-02, O5): toda chamada a modelo parte do
+  servidor (RF-04, RN-02), e a busca por `sk-or-v1` e `openrouter.ai` no artefato compilado não
+  encontra nada.
+
+---
+
 ## [0.9.0] — 2026-09-04
 
 **O acabamento da Etapa 4 do MCP: a segunda camada da trava de escrita e o primeiro deploy do

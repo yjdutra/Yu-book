@@ -66,7 +66,7 @@ servidor **deixou de ser um processo que só roda na máquina do operador**.
 
 **Os números abaixo são deste roteiro e só dele.** Não são as fases de produto (0 a 5, fechadas)
 nem as etapas do servidor MCP (cinco, a 4 entregue). Nenhuma das três numerações se converte na
-outra.
+outra — e a Fase 5 daqui tem **etapas internas**, de A a D, que também não são nenhuma das outras.
 
 As fases abaixo correm **em paralelo aos cursos**, e a ordem dos cursos foi escolhida para destravar
 cada uma na hora certa.
@@ -185,22 +185,27 @@ pessoa.
 É a demonstração do princípio no topo deste documento. Se a integração tivesse sido feita ponto a
 ponto, o resultado seria acoplamento e nenhuma reutilização.
 
-### Fase 5 — IA dentro do Yu-book
+### Fase 5 — IA dentro do Yu-book — Etapa A entregue em 2026-09-22
 
 A direção oposta à do MCP: aqui o Yu-book deixa de ser só servidor e passa a ser **cliente** de um
 modelo. Resolve o caso que o MCP não alcança e nunca vai alcançar — quem está com o Yu-book aberto
 no navegador não tem um cliente MCP por perto.
 
-Quatro fases próprias: o provedor (Ollama local e OpenRouter, roteando por tarefa), o botão de
-formatar nota, o chat ancorado em notas e quadros anexados, e a busca semântica — que resgata a
+Quatro etapas próprias: o provedor e o botão de formatar nota (**Etapa A, entregue**), a marca de
+conteúdo gerado, o chat ancorado em notas e quadros anexados, e a busca semântica — que resgata a
 Fase 6 da proposta original.
 
-O que a distingue de tudo o mais neste roteiro: **privacidade**. Tarefa sobre conteúdo de nota roda
-em modelo local, e a nota não sai da máquina.
+**A privacidade que distinguia esta frente foi perdida na Etapa A, e de propósito.** O desenho
+original dizia que tarefa sobre conteúdo de nota rodaria em modelo local e que a nota não sairia da
+máquina. O Ollama saiu do escopo: a API roda na Railway, **sem GPU**, e um recurso apoiado em modelo
+local não existiria em produção, que é onde o app é usado. O provedor passou a ser um só, de nuvem,
+e **o corpo da nota sai da máquina em toda tarefa de IA**. A RN-01 e o RNF-01 do PRD caem com isso;
+o que resta é dizê-lo na tela e pedir ao provedor que não guarde o texto para treino. O porquê
+inteiro está na entrada de 2026-09-22 de [`historico.md`](historico.md).
 
 Detalhada em [`prd-ia-no-yu-book.md`](prd-ia-no-yu-book.md). Dependia da Fase 2 deste roteiro, já
-entregue: pode começar, **em paralelo à mesa de trabalho** — a mesa é trabalho de fim de semana,
-esta frente é de dia de semana.
+entregue, e corre **em paralelo à mesa de trabalho** — a mesa é trabalho de fim de semana, esta
+frente é de dia de semana.
 
 ### Fase 6 — Produto, o que ficou pendente
 

@@ -1,6 +1,17 @@
 # PRD — IA dentro do Yu-book
 
-**Versão:** v0.1 (draft) · **Autor:** yjdutra · **Data:** 2026-08-24 · **Status:** rascunho
+**Versão:** v0.1 (draft) · **Autor:** yjdutra · **Data:** 2026-08-24 · **Status:** Etapa A entregue
+em 2026-09-22
+
+> **A Etapa A revogou seis afirmações deste documento.** Elas ficam abaixo, marcadas onde estão, em
+> vez de reescritas — o que se pensava em 2026-08-24 é parte do registro. São: **RN-01** e
+> **RNF-01** (privacidade por modelo local), **RF-02** (interface de provedor com duas
+> implementações), **RF-08** (o caminho `/assistente/saude`), **NO5** (nada de teto de custo) e
+> **NO2** (nada de nota gerada por IA). O motivo de cada uma está na entrada de 2026-09-22 de
+> [`historico.md`](historico.md); o efeito observável, no [`CHANGELOG.md`](../CHANGELOG.md).
+>
+> A queda do modelo local leva junto o objetivo **O2** e as métricas **M1**, **M3** e **M4**, que o
+> pressupunham. Ficam abaixo pelo mesmo motivo: o documento vale como o que se pensava na data.
 
 > Quarta frente do roteiro em [`applied-ai-read-trip.md`](applied-ai-read-trip.md). Começa **depois**
 > da Fase 2 do MCP (curso Advanced Topics + tools de escrita) e corre **em paralelo** à mesa de
@@ -34,8 +45,8 @@ A busca semântica, aliás, não é ideia nova: estava na proposta original do p
 ## 2. Objetivos
 
 - **O1** — O usuário resolve tarefas de conteúdo sem sair do Yu-book e sem precisar de cliente MCP.
-- **O2** — Tarefa que envolve o conteúdo de uma nota roda **em modelo local**, e a nota não sai da
-  máquina.
+- **O2** — ~~Tarefa que envolve o conteúdo de uma nota roda **em modelo local**, e a nota não sai
+  da máquina.~~ Revogado em 2026-09-22, com a RN-01 e o RNF-01.
 - **O3** — O chat responde sobre notas e quadros que o usuário **escolheu anexar**, citando a origem.
 - **O4** — O usuário encontra uma nota descrevendo o assunto com as próprias palavras, sem acertar os
   termos que escreveu na época.
@@ -46,7 +57,8 @@ A busca semântica, aliás, não é ideia nova: estava na proposta original do p
 - **M1** — Provedores configurados: **0 hoje → 2** (Ollama e OpenRouter), com roteamento por tarefa.
 - **M2** — Chaves de provedor presentes no bundle do front: **0**, verificável por busca no artefato
   compilado.
-- **M3** — Tarefas de conteúdo de nota executadas em modelo local: **100%** na Fase 1 e na Fase 2.
+- **M3** — ~~Tarefas de conteúdo de nota executadas em modelo local: **100%**.~~ Revogada em
+  2026-09-22: é **0%**, e por decisão. Ver o O2.
 - **M4** — Tempo até o primeiro caractere no chat (streaming): **≤ 3 s** com Ollama local, medido no
   acervo atual.
 - **M5** — Conversas persistidas recuperáveis após recarregar a página: **100%**.
@@ -60,13 +72,18 @@ A busca semântica, aliás, não é ideia nova: estava na proposta original do p
 - **NO1** — Não construir um chat de propósito geral. O chat responde sobre o que foi **anexado**;
   sem contexto anexado ele é um assistente pior que qualquer aba do navegador, e não é para isso que
   existe.
-- **NO2** — Não gerar nota do zero por IA. O Yu-book guarda o que **você** pensou; texto sintético
-  misturado ao acervo destrói a confiança na busca e nos backlinks.
+- **NO2** — **Revisto em 2026-09-22, sem código ainda.** Nota gerada por IA passa a ser permitida
+  **desde que marcada no dado** — o que o NO2 protegia (texto sintético indistinguível no acervo)
+  é atendido pela marca, não pela proibição. A marca é da **Etapa C**; até ela existir, não se gera
+  nota. Texto original: não gerar nota do zero por IA, porque o Yu-book guarda o que **você**
+  pensou.
 - **NO3** — Não expor nenhuma dessas funções pelo servidor MCP. Quem usa o MCP já tem um modelo do
   outro lado — oferecer um segundo seria redundância de verdade.
 - **NO4** — Não treinar, afinar nem hospedar modelo. Ollama e OpenRouter são consumidos como estão.
-- **NO5** — Não implementar controle de custo por orçamento, alerta de cota ou painel de gastos. Fica
-  registrado o custo por chamada; teto entra se doer.
+- **NO5** — **Revogado em 2026-09-22**, a pedido do operador. Com provedor local no desenho, custo
+  era hipótese; sem ele, toda formatação é dinheiro. A Etapa A entregou **teto diário**, gasto do
+  dia visível e a contagem das chamadas sem custo informado. Texto original: não implementar
+  controle de custo por orçamento, alerta de cota ou painel de gastos; teto entra se doer.
 - **NO6** — Não substituir a busca full-text existente. A semântica **complementa**; a busca por
   palavra continua sendo o caminho padrão.
 - **NO7** — Não tornar a IA obrigatória. Com provedor fora do ar, todo o resto do Yu-book funciona
@@ -96,7 +113,10 @@ Um usuário, um papel. Sem hierarquia, como no resto do projeto.
 - **RF-01** — Existe um módulo `assistente` em `apps/api`, com as duas camadas do projeto:
   `assistente.routes.ts` faz `schema.parse` → chama service → devolve; `assistente.service.ts`
   concentra a regra e a conversa com o provedor.
-- **RF-02** — O módulo expõe **uma interface de provedor** com duas implementações: **Ollama**
+- **RF-02** — ~~Revogado em 2026-09-22~~, junto com o Ollama: com uma implementação só, a interface
+  seria cerimônia que ninguém exercita. O que ficou no lugar é a injeção de transporte do RF-09 e
+  `OPENROUTER_BASE_URL`. O texto original: o módulo expõe **uma interface de provedor** com duas
+  implementações: **Ollama**
   (local) e **OpenRouter** (nuvem). Trocar de provedor não altera o código que chama.
 - **RF-03** — O roteamento é **por tarefa**, não por preferência global: tarefa que carrega conteúdo
   de nota vai para Ollama; tarefa que exige modelo maior vai para OpenRouter. A tabela de roteamento
@@ -110,7 +130,10 @@ Um usuário, um papel. Sem hierarquia, como no resto do projeto.
   de `packages/shared`. No mínimo: provedor indisponível, tempo esgotado e cota excedida.
 - **RF-07** — Toda chamada tem **teto de tempo** e é cancelável. Provedor lento não prende requisição
   da API.
-- **RF-08** — O endpoint `GET /assistente/saude` informa quais provedores respondem, sem executar
+- **RF-08** — O caminho **entregue é `GET /ai/health`**, não `/assistente/saude`: o RNF-08 deste
+  mesmo documento manda a fronteira da API em inglês, e os nove grupos de rota existentes são todos
+  em inglês — regra vence exemplo. O requisito em si vale: o endpoint informa quais provedores
+  respondem, sem executar
   inferência.
 - **RF-09** — A implementação de provedor aceita **injeção da função de transporte**, para que os
   testes de integração exercitem o módulo sem chamar modelo de verdade — mesmo padrão do parâmetro
@@ -175,8 +198,11 @@ Um usuário, um papel. Sem hierarquia, como no resto do projeto.
 
 ## 6. Requisitos não-funcionais
 
-- **RNF-01 Privacidade** — Conteúdo de nota só sai da máquina quando o usuário escolher
-  explicitamente um provedor de nuvem para aquela tarefa. O padrão para tarefa sobre nota é local.
+- **RNF-01 Privacidade** — **Revogado em 2026-09-22.** A API roda na Railway, sem GPU: o Ollama
+  saiu do escopo e **o conteúdo da nota sai da máquina em toda tarefa de IA**. O que resta é dizê-lo
+  na tela de ajustes e mandar `provider: { data_collection: "deny" }` na requisição. O texto
+  original: conteúdo de nota só sai da máquina quando o usuário escolher explicitamente um provedor
+  de nuvem para aquela tarefa, e o padrão para tarefa sobre nota é local.
 - **RNF-02 Segredo** — Nenhuma chave de provedor no bundle do front, no `localStorage` ou em resposta
   de API. Verificável por busca no artefato compilado.
 - **RNF-03 Degradação** — Provedor fora do ar não impede escrever, buscar, arrastar card ou qualquer
@@ -239,8 +265,9 @@ card ↔ nota já faz.
 
 ## 9. Regras de negócio
 
-- **RN-01 Local por padrão para conteúdo.** Tarefa que carrega o corpo de uma nota roda em modelo
-  local. Enviar para nuvem é escolha explícita, por tarefa.
+- **RN-01 Local por padrão para conteúdo.** **Revogada em 2026-09-22**, com o RNF-01 e pelo mesmo
+  motivo: não há modelo local em produção. Toda tarefa de conteúdo vai para a nuvem, e o usuário é
+  avisado disso na tela antes de usar.
 - **RN-02 A chamada sai do servidor.** O front nunca fala com provedor. É a mesma lição do
   `VITE_API_URL`: o que o front conhece, o bundle publica.
 - **RN-03 IA não escreve nota sozinha.** Toda alteração de conteúdo por modelo é iniciada pelo

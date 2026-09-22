@@ -9,6 +9,140 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-22 — IA aplicada, Etapa A: o Yu-book vira cliente de um modelo, e o Ollama não sobrevive à Railway
+
+Primeira etapa da **Fase 5 do roteiro de IA aplicada** (`applied-ai-read-trip.md`, PRD em
+`prd-ia-no-yu-book.md`). O servidor MCP fez o Yu-book ser **servidor**: ele se expõe para que uma
+inteligência de fora o use. Aqui ele vai na direção oposta e passa a ser **cliente** — quem está com
+o navegador aberto não tem um cliente MCP por perto. Não é fase de produto e não é etapa do MCP.
+
+**O Ollama saiu do escopo, e a decisão derruba dois requisitos do PRD.** O PRD foi escrito supondo
+dois provedores, com o local sendo o padrão para tudo que carrega o corpo de uma nota: é a RN-01, é
+o RNF-01, é o O2 e é metade da justificativa da RF-02. A API roda na Railway, **sem GPU**. Um
+recurso apoiado em modelo local rodaria na máquina do operador e **não existiria em produção**, que
+é onde o app é usado — e a alternativa seria hospedar inferência, que é o NO4 do próprio PRD. Entre
+manter a promessa de privacidade e ter a função, escolhemos a função e escrevemos a perda. A
+consequência é literal e não tem atenuante: **o corpo da nota sai da máquina em toda tarefa de IA,
+sempre**. A mitigação é dupla e nenhuma das duas é técnica o bastante para substituir a promessa
+perdida — dizer isso **na tela de ajustes**, em vez de só no PRD, e mandar
+`provider: { data_collection: "deny" }` na requisição (conferido contra o provedor: não exclui
+modelo gratuito do roteamento). O aviso na tela é a parte que importa: a decisão é do usuário e ele
+só decide o que sabe. Isso também é o motivo de `MAX_CONTEUDO_IA` existir separado do `MAX_CONTEUDO`
+de 1 MB da nota — o que sai da máquina tem que ter tamanho conhecido.
+
+**Sem dois provedores, a interface de provedor da RF-02 não foi escrita.** A RF-02 pedia uma
+interface com duas implementações **porque havia duas**; com uma, ela é cerimônia que ninguém
+exercita, e abstração sem segundo caso é abstração desenhada para o caso errado. O que ficou no
+lugar é o que realmente dá flexibilidade: a injeção de transporte da RF-09 e `OPENROUTER_BASE_URL`.
+Quando houver o segundo provedor, a interface nasce medindo as duas implementações de verdade.
+
+**O NO5 cai por pedido do operador, e a razão dele é melhor que a do PRD.** O PRD dizia "não
+implementar teto, alerta de cota nem painel de gastos; fica registrado o custo por chamada, teto
+entra se doer". Com provedor local no desenho, custo era hipótese; sem ele, toda formatação de nota
+é dinheiro. Teto diário e gasto visível entram agora, antes de doer.
+
+**O NO2 foi revisto, e ele não é código nesta etapa.** Nota gerada por IA passa a ser permitida,
+desde que **marcada no dado** — o motivo original do NO2 (texto sintético indistinguível no acervo
+destrói a confiança na busca e no grafo de backlinks) é atendido pela marca, não pela proibição. A
+marca é da etapa C. Fica registrado aqui para que a etapa C não precise reabrir a discussão, e para
+que ninguém gere nota antes de a marca existir.
+
+**Rotas em inglês com prefixo `/ai`, contrariando o exemplo do próprio PRD.** O RF-08 escreve
+`GET /assistente/saude` literal. O RNF-08 do mesmo documento repete a regra da casa — domínio em
+português, fronteira da API em inglês — e os nove grupos de rota que já existem são todos em inglês.
+É lapso de rascunho, e **regra vence exemplo**. O diretório, os arquivos e as funções seguem em
+português; só o caminho é inglês. O prefixo `/ai` e não `/assistant` pela mesma razão que o resto é
+curto.
+
+**A fronteira do dia é do usuário, e é gravada em vez de calculada.** `ai_usage.local_day` guarda o
+dia `AAAA-MM-DD` que valia para a pessoa no momento da chamada, e o fuso mora em `ai_preference`. A
+API roda em UTC na Railway e o operador vive em UTC−3: sem isso o teto zeraria às 21h, três horas
+cedo, **todo dia e calado** — o pior tipo de defeito de teto, porque ele libera gasto em vez de
+barrar. Gravar em vez de calcular na consulta é o que garante que a janela do teto seja a mesma que
+a tela mostra, mesmo que a pessoa mude de fuso depois. A primitiva é `diaLocal` em `packages/shared`,
+e ela é chamada **só pelo servidor** de propósito: o servidor devolve o dia pronto e o front nunca
+recalcula, então não há segunda implementação para divergir — o catálogo de espelhamentos frágeis já
+tem entradas demais.
+
+**Custo em µUSD inteiro, em todo lugar.** Não há `Decimal` no schema e `JSON.stringify` lança em
+`bigint`; ponto flutuante para dinheiro somado ao longo de um dia é erro acumulado. Milionésimo de
+dólar em `Int` resolve os três. O preço de catálogo é guardado **por milhão de tokens** pelo mesmo
+motivo: o provedor entrega USD por token como string decimal, e por milhão tudo continua inteiro. A
+conversão para dólar existe num lugar só, em `packages/shared` — escrita duas vezes, ela vira um
+teto de US$ 0,20 que o servidor lê como US$ 200.000.
+
+**A preferência não é criada na leitura.** `GET /ai/settings` devolve os padrões do `packages/shared`
+sem gravar linha nenhuma; quem cria é o `PATCH`. A alternativa — criar no primeiro `GET` — era mais
+simples de escrever e foi descartada porque um `GET` que escreve surpreende quem depura, e porque o
+padrão passaria a viver em dois lugares. É também a razão de `AiPreference` não ter `@default` no
+Prisma: o padrão já existe em `TETO_DIARIO_PADRAO_MICROS` e `FUSO_PADRAO`, e um segundo divergiria
+sem nada reclamar. De um jeito ou de outro, a rota nunca devolve 404 por falta de configuração.
+
+**A cascata de custo tem três degraus, e o degrau fica gravado.** `provedor` quando ele informa,
+`estimado` quando dá para calcular pelo preço do catálogo, `desconhecido` quando não veio nem custo
+nem token. O terceiro é o perigoso: grava zero, e **zero não move o teto**. Um provedor que parasse
+de informar custo tornaria o teto decorativo em silêncio — quem olhasse a tela veria gasto zero e
+concluiria que não gastou. Por isso as chamadas sem custo informado do dia são contadas e
+**mostradas na tela**. Teto que mente é pior que teto nenhum, e a única defesa contra um teto que
+mente é ele admitir que não sabe.
+
+**A guarda de wikilink é código, não prompt, e foi corrigida na revisão.** A RN-06 diz que nenhum
+prompt que edite conteúdo pode alterar `[[…]]`, porque `note_link` é tabela derivada e reescrever o
+texto quebraria o grafo. Pedir isso ao modelo é pedir, não garantir: a resposta é conferida antes de
+ser aplicada. A correção da revisão foi o que a conferência compara — era lista ordenada de alvos,
+passou a ser **conjunto de alvos normalizados**. `note_link` é um conjunto; comparar por índice
+recusaria uma formatação legítima só por ela ter reordenado itens de uma lista, **depois de a
+chamada já ter sido paga**. Recusa cara e errada é o pior dos dois mundos.
+
+**Uma violação da INV-04 e um vazamento, os dois encontrados antes do fim.** `desfavoritar` era
+checar-depois-agir; a posse passou para a mesma operação que apaga. O vazamento foi mais
+interessante: `GET /ai/health` devolvia o rótulo do provedor, que **por padrão é o prefixo da
+própria chave**. A primeira correção foi esconder o campo no JSX, e ela não bastava — o corpo da
+resposta chega ao navegador, à aba de rede e a qualquer cache no caminho. Esconder no cliente nunca
+é redação; a redação pertence ao service.
+
+**O alçapão do valor padrão mordeu duas vezes na mesma sessão.** `function f(x = env.ALGO)` chamada
+com `undefined` explícito **reassume o ambiente** — em JavaScript o padrão se aplica ao argumento
+ausente e ao `undefined` passado de propósito, e os dois casos são indistinguíveis de dentro. O
+efeito prático: o teste de "sem chave configurada" passou a testar outra coisa no dia em que a suíte
+ganhou uma chave de mentira, e continuou verde. `saude` passou a receber um objeto e a usar
+`"chave" in opcoes`, que distingue "não informei" de "informei que não há". Vale para qualquer
+função do projeto que tenha `env` como valor padrão de parâmetro.
+
+**Propagação ao MCP: conferida e nula.** As nove tools, os quatro resources diretos, os dois
+templates e os dois prompts foram percorridos — nenhum muda, porque nota, card, board, coluna, link,
+tag e workspace **não ganharam campo**. Os seis códigos de erro novos são inalcançáveis pelo MCP: só
+saem de `/ai/*`. `tools/list` medido em 3480 bytes com cinco tools e 8551 com nove, inalterado.
+`POST /ai/notes/:id/format` **não vira tool**, e o motivo não é o NO3: seria inferência dobrada —
+um modelo chamando outro —, cobrada do teto diário do operador, para entregar ao primeiro um texto
+que ele não tem onde gravar. `apps/mcp` bumpa mesmo sem mudar comportamento, porque `ERROR_CODES`
+mudou e `cliente.ts` consome `ApiErrorBody`: a versão de um pacote diz contra qual contrato ele foi
+construído.
+
+**Defeito pré-existente iluminado, e deliberadamente não consertado aqui.** `diaDoPrazo` em
+`apps/mcp/src/formato.ts:56` usa `getMonth()`/`getDate()`, que são o fuso **do processo**. O MCP
+hospedado roda em UTC: ele relata **todo prazo um dia à frente**, e `diaParaPrazo` grava o prazo
+três horas cedo. Medido nesta sessão, fora do escopo desta entrega. O que esta entrega trouxe é a
+primitiva do conserto — `diaLocal` em `packages/shared` e o fuso do usuário no domínio, que antes
+não existia em lugar nenhum. É a última linha do catálogo de espelhamentos frágeis que ainda não
+passa por `shared`, e agora dá para fechá-la.
+
+**Dívida de conferência, na mesma forma da Fase 5 e pelo mesmo motivo: `apps/web` não tem runner de
+teste.** Foram conferidos à mão: provedor conectado, catálogo buscável, nota formatada com três
+`[[wikilinks]]` intactos e o gasto do dia subindo. **Não** foram: o desfazer em 8 s (CA-05), a
+recusa ao editar durante a formatação (RF-15), a ausência de colateral em título, tags e workspace
+(RF-13) e a recusa por teto atingido. As duas últimas dependem de gastar dinheiro de verdade — com
+modelo gratuito o custo é zero, o teto corretamente nunca barra e o gasto do dia não sobe, então os
+dois caminhos não são exercitáveis à mão numa conta sem crédito.
+
+**Corrida no teto, declarada e aceita.** O limite de 10/min da rota, com orçamento de 60 s por
+chamada, deixa até dez pedidos passarem pela leitura do gasto antes de a primeira linha de uso
+existir. O conserto seria transação com `SELECT ... FOR UPDATE` ou uma coluna de reserva; foi
+descartado por ora porque o sistema tem **um usuário e uma tela**, e o estouro máximo é dez chamadas
+de uma tarefa só. Fica escrito porque a segunda tarefa (chat, com streaming) muda essa conta.
+
+---
+
 ## 2026-09-04 — MCP: a segunda camada da trava de escrita, e o pacote sai da máquina do operador
 
 Fecha as duas limitações da entrega anterior que ainda eram código. Continua sendo a **Etapa 4 das

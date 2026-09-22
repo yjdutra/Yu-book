@@ -23,6 +23,14 @@ deploy sobe com a escrita desligada (`MCP_ESCRITA_HABILITADA=0`), por decisão d
 MCP não é fase de produto, e os dois números não se convertem um no outro. Ver [apps/mcp/README.md](apps/mcp/README.md) e o roteiro em
 [docs/applied-ai-read-trip.md](docs/applied-ai-read-trip.md).
 
+A **frente de IA aplicada** — o caminho oposto ao do MCP, em que o Yu-book é **cliente** de um
+modelo — entregou a **Etapa A em 2026-09-22**: tela de ajustes em `/ajustes`, catálogo de modelos,
+favoritos, modelo por tarefa, teto de gasto diário e o **botão de formatar a nota**, com desfazer
+por 8 segundos. É a **Fase 5 daquele roteiro**, uma terceira numeração que também não se converte
+nas outras duas; PRD em [docs/prd-ia-no-yu-book.md](docs/prd-ia-no-yu-book.md). **O provedor é de
+nuvem e só ele**: o Ollama saiu do escopo porque a API roda na Railway, sem GPU — veja
+[Formatar nota por IA](#formatar-nota-por-ia-e-o-teto-de-gasto) antes de usar.
+
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
   links `[[wiki]]` com backlinks, busca full-text por `Ctrl+K` e lixeira.
@@ -259,6 +267,9 @@ NIXPACKS_NODE_VERSION=22
 - `NODE_ENV=production` é o que liga a flag `Secure` no cookie de refresh — sem ela, o navegador
   recusa um cookie `SameSite=none` e você fica num laço de login.
 - `ALLOW_SIGNUP=true` só até você criar sua conta (passo 5).
+- **`OPENROUTER_API_KEY` é opcional.** Sem ela a API sobe igual e só as funções de IA ficam
+  indisponíveis, com o motivo na tela de ajustes. Com ela, o conteúdo da nota que você mandar
+  formatar **sai da máquina**.
 
 ### 4. Variáveis do web
 
@@ -449,6 +460,24 @@ para a lixeira desfaz o vínculo e mantém o card.
 - **Nome de board é único por workspace** e nome de coluna é único por board — duas colunas "Feito"
   no mesmo board é erro de digitação, não intenção.
 - **Card não atravessa boards.** Mover para uma coluna de outro board é recusado.
+
+### Formatar nota por IA e o teto de gasto
+
+O editor tem um botão de **formatar** ao lado do de copiar. Ele manda o corpo da nota para um modelo
+e aplica o resultado direto, com **desfazer disponível por 8 segundos**. Só o corpo muda: título,
+tags e workspace nem são enviados. Editar a nota enquanto ela é formatada **descarta** o resultado,
+em vez de engolir o que você acabou de escrever.
+
+- **O conteúdo da nota sai da sua máquina.** O provedor é de nuvem — o Ollama saiu do escopo porque
+  a API roda na Railway, sem GPU. O servidor pede ao provedor que não guarde o texto para treino,
+  mas o texto é enviado. O aviso está na tela de ajustes, e é para ser lido.
+- **`[[wikilinks]]` são intocáveis.** A resposta do modelo é conferida antes de ser aplicada: se o
+  conjunto de alvos mudar, ela é recusada. Não é instrução no prompt, é código.
+- **Ajustes em `/ajustes`**: estado do provedor, catálogo buscável, favoritos, o modelo padrão de
+  cada tarefa, o teto diário (US$ 0,20 por padrão) e o gasto de hoje.
+- **O dia do teto é o seu**, no fuso configurado nos ajustes — não o dia UTC do servidor.
+- **Chamada sem custo informado pelo provedor aparece contada na tela.** Ela grava zero e não move
+  o teto; esconder isso faria o teto mentir.
 
 ## Sobre as cores
 
