@@ -37,6 +37,15 @@ interface Requisicao {
   url: string;
   token: string;
   body?: unknown;
+  /**
+   * Endereço de origem da chamada.
+   *
+   * O limite de taxa é por IP, e `app.inject` usa o mesmo endereço em toda
+   * injeção — então testes de uma rota com limite próprio compartilham o mesmo
+   * balde e um derruba o outro. Quem simula sessões diferentes passa IPs
+   * diferentes, que é o que aconteceria de verdade.
+   */
+  ip?: string;
 }
 
 export async function chamar(app: FastifyInstance, req: Requisicao) {
@@ -44,6 +53,7 @@ export async function chamar(app: FastifyInstance, req: Requisicao) {
     method: req.method,
     url: req.url,
     headers: { authorization: `Bearer ${req.token}` },
+    ...(req.ip !== undefined && { remoteAddress: req.ip }),
     ...(req.body !== undefined && { payload: req.body as object }),
   });
 
