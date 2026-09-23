@@ -13,6 +13,73 @@ _Nada pendente._
 
 ---
 
+## [0.12.0] — 2026-09-23
+
+**O operador favoritou modelos gratuitos, eles recusaram, e a trava era nossa.** Medido com a chave
+dele, no mesmo modelo: com `provider: { data_collection: "deny" }` o roteamento devolve **404** —
+"No endpoints found matching your data policy (Free model training)"; **sem** o bloco, **200**, custo
+zero. A conta dele no provedor já permitia endpoints que treinam. Nós é que fixávamos a política em
+**toda** chamada de inferência, e **endpoints gratuitos treinam com os dados**: exigir que não
+treinem é exigir um endpoint que não existe. A tela ainda afirmava "o servidor pede ao provedor que
+não guarde o texto para treino" como se fosse propriedade do produto, quando era escolha nossa
+escondida no código — e contrária ao que o operador decidiu no começo desta frente. Agora a escolha
+é dele, com a consequência escrita nos dois estados — é o que restou do RNF-01, revogado em
+2026-09-22 junto com o Ollama.
+
+**O Gemma gratuito continua fora de alcance e não é este o motivo:** ele responde **429 com e sem** a
+política, saturação do endpoint gratuito. Nada aqui o conserta.
+
+Nenhuma das quatro numerações avança. Continua sendo a **Etapa A da frente de IA**, que é a Fase 5 do
+roteiro de IA aplicada; as fases de produto seguem em 0 a 5 fechadas, e o MCP na Etapa 4 de 5.
+
+Os quatro pacotes se movem: `apps/api` e `apps/web` de `0.7.0` para `0.8.0`, `packages/shared` de
+`0.5.0` para `0.6.0`, `apps/mcp` de `0.8.0` para `0.9.0` — no `package.json` **e** no construtor do
+`McpServer`, que é o que ele anuncia no `initialize`. **O MCP não foi tocado** — nenhuma das nove
+tools, quatro resources, dois templates e dois prompts mudou, e ele não importa nada de
+`packages/shared/src/ia.ts` —, mas `AiSettings` e `aiSettingsPatchSchema` mudaram no pacote que ele
+declara como dependência, e ele vai ao ar hoje construído contra o `0.6.0`. É o mesmo critério das
+duas entradas anteriores: a versão de um pacote diz **contra qual contrato ele foi construído**.
+`ERROR_CODES` não ganhou membro novo.
+
+Portões, medidos nesta árvore: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo nos
+quatro pacotes, `pnpm --filter @yu-book/api test` com **7 arquivos e 109 testes** (eram 106),
+`pnpm --filter @yu-book/mcp test` com 5 arquivos e 43 testes, `pnpm --filter @yu-book/web build` ok e
+`prisma migrate status` com o banco em dia.
+
+**A interface não foi verificada à mão, e é a sexta entrega seguida nessa condição** — Etapas A, B e
+C da Fase 5, a Etapa A da frente de IA, a correção do catálogo de ontem e agora esta. O interruptor e
+os dois textos de consequência estão **implementados e não verificados**: `apps/web` não tem runner
+de teste e nenhum portão executa uma linha de `AjustesPage.tsx`. O que os testes cobrem é o que vai
+no corpo da requisição — com a política restritiva o pedido carrega `data_collection: "deny"`; com o
+treino permitido ele **não carrega bloco de provedor nenhum**; e quem nunca configurou começa
+proibindo. Para isso o dublê de provedor passou a guardar os corpos recebidos: antes dava para
+afirmar que uma chamada saiu, não o que ela pediu.
+
+### Adicionado
+- **Interruptor "permitir que o provedor treine com o conteúdo", em `/ajustes`**, desligado por
+  padrão. Ligado, os modelos gratuitos passam a funcionar e o provedor pode guardar o conteúdo das
+  notas; desligado, o servidor pede que ele não guarde e os gratuitos ficam indisponíveis. **A tela
+  diz a consequência nos dois estados** — antes prometia a proteção sem dizer o que ela custa.
+- **Migration `20260923142258_politica_de_dados`**: coluna `allow_training` em `ai_preference`,
+  obrigatória e sem padrão no banco. Ela entra **com** `DEFAULT false` e o padrão é removido em
+  seguida, em dois comandos — `prisma migrate deploy` roda no **boot** em produção, e coluna
+  obrigatória sem padrão falha se a tabela tiver linha: a falha derrubaria o serviço, não um
+  pipeline. A linha que já existe em produção fica com `false`, então **ninguém passa a permitir
+  treino por efeito da atualização**.
+
+### Alterado
+- **A requisição de inferência monta o bloco `provider` a partir da preferência.** Com a política
+  restritiva vai `{ data_collection: "deny" }`, como antes; com o treino permitido **não vai bloco
+  nenhum**, e é deixar o roteamento livre que abre os gratuitos.
+- **O aviso do topo de `/ajustes` parou de prometer proteção.** Ele diz agora só o que vale em
+  qualquer estado — o conteúdo da nota sai da sua máquina — e remete à escolha logo abaixo.
+- **`AiSettings` ganhou `allowTraining`** e `aiSettingsPatchSchema` passa a aceitar o campo. Ele é
+  **obrigatório** no tipo de saída: quem montar uma `AiSettings` à mão precisa informá-lo.
+- **O padrão da política mora em `packages/shared`**, em `TREINO_PERMITIDO_PADRAO`, e não no
+  `@default` da coluna. Duas fontes para o mesmo padrão divergiriam em silêncio.
+
+---
+
 ## [0.11.0] — 2026-09-23
 
 **A Etapa A foi para produção e quebrou na primeira tentativa de uso.** O operador favoritou uma

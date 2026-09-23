@@ -200,7 +200,9 @@ original dizia que tarefa sobre conteúdo de nota rodaria em modelo local e que 
 máquina. O Ollama saiu do escopo: a API roda na Railway, **sem GPU**, e um recurso apoiado em modelo
 local não existiria em produção, que é onde o app é usado. O provedor passou a ser um só, de nuvem,
 e **o corpo da nota sai da máquina em toda tarefa de IA**. A RN-01 e o RNF-01 do PRD caem com isso;
-o que resta é dizê-lo na tela e pedir ao provedor que não guarde o texto para treino. O porquê
+o que resta é dizê-lo na tela e pedir ao provedor que não guarde o texto para treino — pedido que,
+desde 2026-09-23, é **escolha do usuário** e não regra fixa: mantê-lo torna os modelos gratuitos
+inalcançáveis. O porquê
 inteiro está na entrada de 2026-09-22 de [`historico.md`](historico.md).
 
 Detalhada em [`prd-ia-no-yu-book.md`](prd-ia-no-yu-book.md). Dependia da Fase 2 deste roteiro, já

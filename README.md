@@ -30,9 +30,11 @@ por 8 segundos. É a **Fase 5 daquele roteiro**, uma terceira numeração que ta
 nas outras duas; PRD em [docs/prd-ia-no-yu-book.md](docs/prd-ia-no-yu-book.md). **O provedor é de
 nuvem e só ele**: o Ollama saiu do escopo porque a API roda na Railway, sem GPU — veja
 [Formatar nota por IA](#formatar-nota-por-ia-e-o-teto-de-gasto) antes de usar. Em **2026-09-23** o
-catálogo foi refeito: variantes que o provedor recusa na chamada saíram, e entraram filtro de
-custo, ordenação e os índices de qualidade. Como nas Etapas B e C da Fase 5, **a interface não foi
-verificada à mão** — é a quinta entrega seguida nessa condição.
+catálogo foi refeito — variantes que o provedor recusa na chamada saíram, e entraram filtro de
+custo, ordenação e os índices de qualidade — e, no mesmo dia, **a política de dados virou escolha do
+usuário**: fixá-la em `data_collection: "deny"` era o que tornava os modelos gratuitos
+inalcançáveis. Como nas Etapas B e C da Fase 5, **a interface não foi verificada à mão** — é a sexta
+entrega seguida nessa condição.
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
@@ -472,8 +474,12 @@ tags e workspace nem são enviados. Editar a nota enquanto ela é formatada **de
 em vez de engolir o que você acabou de escrever.
 
 - **O conteúdo da nota sai da sua máquina.** O provedor é de nuvem — o Ollama saiu do escopo porque
-  a API roda na Railway, sem GPU. O servidor pede ao provedor que não guarde o texto para treino,
-  mas o texto é enviado. O aviso está na tela de ajustes, e é para ser lido.
+  a API roda na Railway, sem GPU. O aviso está na tela de ajustes, e é para ser lido.
+- **O que o provedor faz com esse conteúdo é escolha sua**, num interruptor em `/ajustes`,
+  **desligado por padrão**: desligado, o servidor pede que ele não guarde o texto para treino. O
+  preço de deixar assim é que **os modelos gratuitos ficam indisponíveis** — os endpoints deles
+  treinam com os dados, e exigir que não treinem faz o roteamento não achar endpoint nenhum, o 404
+  medido em 2026-09-23.
 - **`[[wikilinks]]` são intocáveis.** A resposta do modelo é conferida antes de ser aplicada: se o
   conjunto de alvos mudar, ela é recusada. Não é instrução no prompt, é código.
 - **Ajustes em `/ajustes`**: estado do provedor, catálogo buscável, favoritos, o modelo padrão de

@@ -200,7 +200,10 @@ Um usuário, um papel. Sem hierarquia, como no resto do projeto.
 
 - **RNF-01 Privacidade** — **Revogado em 2026-09-22.** A API roda na Railway, sem GPU: o Ollama
   saiu do escopo e **o conteúdo da nota sai da máquina em toda tarefa de IA**. O que resta é dizê-lo
-  na tela de ajustes e mandar `provider: { data_collection: "deny" }` na requisição. O texto
+  na tela de ajustes e mandar `provider: { data_collection: "deny" }` na requisição. **Emendado em
+  2026-09-23:** esse pedido deixou de ser fixo e virou escolha do usuário em `/ajustes`, desligada
+  por padrão — fixá-lo em `deny` torna os modelos gratuitos inalcançáveis, porque os endpoints deles
+  treinam com os dados e o roteamento não acha nenhum que atenda. O texto
   original: conteúdo de nota só sai da máquina quando o usuário escolher explicitamente um provedor
   de nuvem para aquela tarefa, e o padrão para tarefa sobre nota é local.
 - **RNF-02 Segredo** — Nenhuma chave de provedor no bundle do front, no `localStorage` ou em resposta

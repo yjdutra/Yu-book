@@ -9,6 +9,68 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-23 — A política de dados era nossa e estava fixa no código; e a migration que teria derrubado o boot
+
+Segunda sessão do dia. A de manhã tirou do catálogo os modelos que a chamada recusa; esta descobriu
+que **um dos motivos de recusa era nosso**.
+
+**O sintoma parecia ser mais um modelo quebrado.** O operador favoritou gratuitos (NVIDIA, Google) e
+eles falharam. Medi com a chave dele, no mesmo modelo, variando **uma** coisa: com
+`provider: { data_collection: "deny" }` vem **404**, "No endpoints found matching your data policy
+(Free model training)"; sem o bloco, **200** e custo zero. A conta dele já permitia endpoints que
+treinam — está ligado no painel do provedor. A trava era o nosso pedido: endpoints gratuitos treinam
+com os dados, então exigir que não treinem é **exigir um endpoint que não existe**. Vale anotar o
+formato do engano, porque ele se repete: pela segunda vez em dois dias o 404 veio do que **nós**
+mandamos, não de o provedor estar fora do ar.
+
+**A decisão é que a política é escolha do usuário, não propriedade do produto.** Ela estava fixa numa
+linha de `formatar.service.ts`, e a tela de ajustes a anunciava — "o servidor pede ao provedor que
+não guarde o texto para treino" — como se fosse garantia oferecida. Era escolha nossa, escondida, e
+contrária ao que o operador disse no começo desta frente: que não se importa que o conteúdo dele seja
+usado para treino. O que se oferecia como cuidado estava, na prática, tirando dele metade do catálogo
+sem avisar.
+
+**Descartei simplesmente remover o `deny`**, que seria a leitura literal do que ele pediu e o diff
+menor. Recusada porque apaga uma proteção real para quem não pediu nada: o padrão passaria a ser
+"treina" por omissão, e a tela ficaria sem verdade nenhuma a dizer. O interruptor nasce **desligado**,
+e o custo disso está escrito na tela: quem deixar como está não alcança os gratuitos. **A consequência
+aparece nos dois estados de propósito** — dizer só "protegemos você" foi exatamente o defeito.
+
+**Com o treino permitido não mandamos bloco nenhum**, em vez de mandar um valor permissivo explícito.
+Foi o que a medição cobriu: o 200 veio da **ausência** do bloco. Mandar `data_collection: "allow"`
+seria afirmar um comportamento do roteamento que eu não medi, e o bloco `provider` é justamente o que
+restringe o roteamento — deixá-lo fora é o que abre os gratuitos.
+
+**O Gemma é outro caso e fica em aberto.** Ele devolve **429 com e sem** a política: é saturação do
+endpoint gratuito, não recusa por dados. Nada nesta entrega o alcança, e vai continuar falhando para
+quem tentar.
+
+**A migration teria derrubado o boot em produção, e só não derrubou o local por acaso.** A coluna é
+obrigatória e **sem `@default`** — o padrão mora em `packages/shared`, e duas fontes para o mesmo
+padrão divergem em silêncio. O Prisma gerou `ADD COLUMN … NOT NULL` sem default e avisou no próprio
+arquivo: *"This is not possible if the table is not empty"*. Aqui passou porque a minha `ai_preference`
+está vazia; **em produção não havia como saber**, e `prisma migrate deploy` roda no **boot** — a
+falha não apareceria em pipeline nenhum, apareceria como serviço que não sobe, depois do push.
+
+Refiz em dois passos — `ADD COLUMN … NOT NULL DEFAULT false` e `ALTER COLUMN … DROP DEFAULT` — e
+**provei em vez de presumir**: criei uma linha, derrubei a coluna, rodei o SQL da migration com a
+tabela cheia, e a linha existente ficou com `false`. O estado final do banco continua igual ao
+`schema.prisma`. O motivo está em comentário **dentro do SQL**, que é onde a próxima pessoa vai olhar
+quando quiser "simplificar" isto para um comando só.
+
+**O dublê de provedor só sabia dizer que uma chamada saiu, não o que ela pediu**, e é por isso que
+a política fixa atravessou a Etapa A inteira sem um teste que
+pudesse contradizê-la. Ele passou a guardar os
+corpos recebidos, e o teste que vale é o de **ausência**: com o treino permitido, o pedido não tem
+bloco `provider`. Conferi que ele morde — refixar `deny` derruba esse teste e só ele.
+
+**Continua valendo o que se repete há seis entregas:** a interface não foi verificada à mão. O
+interruptor, os dois textos de consequência e o novo parágrafo do topo de `/ajustes` estão
+implementados e **não verificados** — `apps/web` não tem runner de teste. A sexta seguida é a
+informação; o caso isolado já não é.
+
+---
+
 ## 2026-09-23 — O catálogo oferecia modelos que a chamada não aceita, e a mensagem de erro não deixava descobrir isso
 
 A Etapa A subiu ontem e **quebrou na primeira tentativa de uso**: o operador favoritou uma variante
