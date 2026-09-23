@@ -1,6 +1,6 @@
 ---
 name: invariantes-yu-book
-description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, as defesas de saída decididas pela origem do alvo (SSRF só onde a URL vem do usuário), escopo por usuário, a precisão do arraste do kanban, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna que o servidor MCP imprime num lugar só, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda, e a frente de IA — teto de gasto conferido antes da conexão, cascata de custo de três degraus, guarda de wikilink por conjunto e o dia local gravado em vez de calculado. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
+description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, as defesas de saída decididas pela origem do alvo (SSRF só onde a URL vem do usuário), escopo por usuário, a precisão do arraste do kanban, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna impresso num lugar só — hoje em packages/shared —, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda, e a frente de IA — teto de gasto conferido antes de cada conexão e a cada passo do laço de ferramenta, cascata de custo de três degraus, guarda de wikilink por conjunto, o dia local gravado em vez de calculado e a fronteira do chat com o modelo fechada pelo compilador nos dois sentidos —, e a montagem condicional de painel no front, que nunca entrega aberto: false, e o enum cuja escolha só existe se a tela o percorrer. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
 ---
 
 # Invariantes do Yu-book
@@ -63,6 +63,7 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-49 | A guarda de wikilink compara conjunto, não lista ordenada |
 | INV-50 | `ai_usage.local_day` é gravado, não calculado na consulta |
 | INV-51 | `AiUsage.noteId` é `SetNull`, e o registro de gasto sobrevive à nota |
+| INV-52 | A fronteira do chat com o modelo é fechada pelo compilador, nos dois sentidos |
 
 ### Índice — front
 
@@ -84,6 +85,8 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-37 | O documento do editor ao vivo é a string de Markdown |
 | INV-38 | Os quatro modos não se unificam: a `<textarea>` é a mitigação de acessibilidade |
 | INV-39 | O editor tem dois mapas de atalho, e os dois param o evento |
+| INV-53 | Painel montado dentro de `&&` nunca recebe `aberto: false` — ele desmonta |
+| INV-54 | Membro de enum que exige escolha do usuário só existe se a tela o percorrer |
 
 ---
 
@@ -93,12 +96,14 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 2. Abra o arquivo de referência da área e selecione as invariantes que cobrem esses arquivos.
 3. Para cada uma, verifique se o diff a preserva, e cite `INV-xx` mais `arquivo:linha` ao apontar.
 4. Classifique: **violação de invariante** bloqueia; divergência de convenção e observação, não.
-5. **Diga o que você não pôde verificar.** Não existe teste de front neste projeto, e nenhum portão
-   carrega uma `EditorView` nem executa um arraste. INV-29, INV-30, INV-33, INV-35, INV-36, INV-38 e
-   INV-39 só se confirmam à mão. **INV-40 também**: a suíte de `apps/mcp` passou a falar JSON-RPC
-   e cobre a superfície das tools (INV-45), mas o `fetch` dela é substituído, então nada executa a
-   formatação — o id de coluna some sem um teste cair. Se o diff as toca, nomeie-as e diga que
+5. **Diga o que você não pôde verificar.** O eixo é `apps/web`: **não existe teste de front neste
+   projeto**, nenhum portão carrega uma `EditorView`, executa um arraste ou monta um painel. Toda
+   invariante do `referencias/front.md` cai aqui — INV-29, INV-30, INV-33, INV-35, INV-36, INV-38,
+   INV-39, INV-53 e INV-54 são as que mais custam quando quebram. **INV-54 é meio-coberta**: o
+   `Record` total cai no typecheck; o `.map` e a prosa da tela, não. Se o diff as toca, nomeie-as e diga que
    faltam: uma revisão que omite isso passa por verde o que ninguém executou.
+   **INV-40 deixou de estar nesta lista** em 2026-09-23: `apps/mcp/tests/fuso.test.ts:112` executa
+   `formatarQuadro` de verdade e assere o id da coluna. Não o cite mais como descoberto.
 
 Se encontrar uma invariante que o catálogo não cobre, emita-a no bloco `## Para a memória` — o
 curador decide se ela entra aqui.
@@ -138,8 +143,22 @@ coisas envelhece por aritmética, e em silêncio.** Ninguém reconfere um censo 
 arquivo. O que se registra é o **eixo** que decide o comportamento — aqui, de onde vem o alvo —
 porque eixo se confere item a item, e censo não.
 
-A frente de IA continua: chat ancorado e busca semântica ainda não têm código (§5.3 e §5.4 de
-`docs/prd-ia-no-yu-book.md`). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
+A **Etapa B da frente de IA** (2026-09-23) entregou o chat ancorado (§5.3 de
+`docs/prd-ia-no-yu-book.md`, a **Fase 3 do PRD de IA**) e trouxe INV-52 e INV-53. Ela **estreitou
+INV-47**: "antes de qualquer conexão" virou "antes de **cada** conexão", porque uma mensagem do chat
+é até cinco chamadas ao provedor — a unidade que o teto cobra mudou sem o texto da invariante mudar.
+E produziu a falha de referência mais cara deste catálogo: **INV-40 apontava para um arquivo
+apagado.** `apps/mcp/src/formato.ts` virou `packages/shared/src/formato.ts` e a invariante seguiu
+citando o caminho antigo — nenhum typecheck, teste ou revisão acusa uma referência de skill que
+morreu. **Arquivo que muda de pacote quebra toda invariante que o cita, e quebra calado**: ao mover
+código entre pacotes, grepe o `.claude/` pelo caminho antigo antes de fechar a entrega. A mesma
+entrega deu portão a INV-40 pela primeira vez, de carona num teste de fuso — portão ganho de carona
+se perde de carona. O que ela **não** teve foi tela conferida à mão, e quem achou o buraco foi o
+operador usando o chat: tarefa nova no enum, sem coluna em `/ajustes` (INV-54). Nenhum portão
+deste repositório podia achá-la — **não é defeito que teste de API veja, é a interface não
+oferecendo um controle.**
+
+O que ainda não tem código: **busca semântica** (§5.4). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
 **menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece:
 reconfira as referências antes de confiar nelas. Quando a fase vier, três invariantes ficam na
 linha de tiro:

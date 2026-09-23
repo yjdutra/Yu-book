@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, e o dia do prazo entre o front e o MCP — o único que ainda não passa por shared, e que hoje relata o dia errado no MCP hospedado). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro ou função usada pelos dois lados, e ao converter data ou prazo em qualquer pacote.
+description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das nove ferramentas, uma definição só com dois consumidores, MCP e chat, sem portão sobre o texto). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
 ---
 
 # O contrato compartilhado
@@ -28,6 +28,15 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
 3. `pnpm --filter @yu-book/shared build` — o pacote aponta para `./dist`, então os apps só veem o
    que foi compilado. **Typecheck dos apps sem esse build falha ou usa código velho.**
 4. Só então `pnpm typecheck`.
+5. Se o módulo novo **constrói valor em escopo de módulo** — objeto, array, `z.object(...)`,
+   qualquer coisa que não seja só `type`/`interface` —, confira o bundle do front antes de fechar.
+
+**`"sideEffects": false` no `package.json` de `shared` não é enfeite, e não se remove.** Sem ele o
+bundler não pode presumir que importar `@yu-book/shared` é inócuo, e **todo** módulo do pacote entra
+no bundle do front, inclusive os que nenhum componente importa — o custo cai na primeira pintura,
+que é o que o usuário espera. Foi medido nesta forma: um módulo de metadado que o front não usa
+entrou inteiro no bundle, e zerou com a flag. O ponteiro é fácil de perder porque `package.json` não
+aceita comentário: a linha existe e não diz por quê. É esta seção que diz.
 
 ## 3. Códigos de erro
 
@@ -47,11 +56,14 @@ contrato.
 
 ## 4. Os espelhamentos frágeis
 
-Cinco lugares onde duas implementações precisam concordar e **divergir não gera erro** — gera
+Lugares onde duas implementações precisam concordar e **divergir não gera erro** — gera
 comportamento errado em silêncio. São o motivo principal desta skill existir.
 
-Os quatro primeiros passam por `packages/shared`, como manda a doutrina. **O quinto não** — e não é
-mais só dívida: ele está **errado em produção**, no MCP hospedado. Ver §4.5.
+**Não conte os itens desta seção: ela cresce e encolhe.** O que se confere é o eixo — *existe uma
+segunda implementação desta regra, escrita à mão, e há um portão que acusa se as duas divergirem?*
+Quando a resposta é "não" para a segunda pergunta, o item entra aqui. Quando a regra passa a morar
+só em `packages/shared`, o item sai. §4.1 a §4.4 já passam por `shared`; §4.5 é o que **ainda não**
+passou inteiro; §4.6 é o caso invertido — uma definição só, dois consumidores, e nenhum portão.
 
 ### 4.1 `normalizarTitulo` ↔ o índice único do Postgres
 
@@ -99,49 +111,73 @@ usa `normalizarTitulo` de `wikilinks.ts`, a mesma do §4.1. Foi decisão explíc
 terceira definição de "mesmo texto" no projeto: `normalizarTag` canoniza para gravar,
 `normalizarTitulo` compara. Não escreva uma `normalizarTagParaBusca`.
 
-### 4.5 O dia do prazo ↔ as 23:59:59 locais que o front grava
+### 4.5 O dia do prazo ↔ as 23:59:59 que o front grava pelo fuso do navegador
 
-**Dívida declarada, e hoje ela está cobrando: este espelhamento deveria morar em `packages/shared`,
-não mora, e o MCP hospedado está errado por causa disso.**
+**Metade desta dívida fechou na Etapa B, e a metade que sobrou trocou de lado: era "MCP × front",
+agora é "`shared` × front".**
 
-O front grava o prazo às **23:59:59 do fuso local** (`paraData`,
-`apps/web/src/components/PainelCard.tsx:26`, convenção da Fase 2, documentada em
-`apps/web/src/lib/tempo.ts:43`) e lê de volta em `paraCampoData` (`PainelCard.tsx:15`). Do lado do
-MCP o par é `diaDoPrazo` e `diaParaPrazo` (`apps/mcp/src/formato.ts:56,71`). São quatro funções
-escritas à mão para uma conversão só.
+O erro que o espelhamento previne continua o mesmo: **`.slice(0, 10)` sobre o ISO**. O prazo é
+gravado às 23:59:59 de um fuso local; em UTC−3 isso vira 02:59 do dia seguinte em UTC, e fatiar a
+string relata **o dia errado, um dia à frente, em todo card com prazo**. Nada falha. O corte por
+string continua seguro para `createdAt`/`updatedAt`, que são instantes; para prazo, não.
 
-**O erro que isso previne é `.slice(0, 10)` sobre o ISO.** Em UTC-3, 23:59:59 local vira 02:59 do
-dia seguinte em UTC — fatiar a string relata **o dia errado, um dia à frente, em todo card com
-prazo**. Nada falha; o modelo só passa a informar prazos deslocados. O corte por string continua
-seguro para `createdAt`/`updatedAt`, que são instantes; para prazo, não.
+**O lado do servidor fechou.** A conversão mora em `packages/shared/src/formato.ts`: `diaDoPrazo`
+(`:65`) e `diaParaPrazo` (`:112`), as duas sobre `diaLocal` (`packages/shared/src/ia.ts:39`), que
+formata por `Intl` com `timeZone`. **O parâmetro `fuso` não tem valor padrão, e é a peça
+principal** — um padrão traria de volta exatamente o defeito que a Etapa B consertou, o fuso do
+*processo* passando por fuso do usuário. Quem chama declara de qual fuso está falando: o MCP
+pergunta à API (`apps/mcp/src/fuso.ts:42`) e o chat recebe o `fuso` no contexto da ferramenta
+(`apps/api/src/modules/assistente/ferramentas.service.ts:56-59`). As quatro funções escritas à mão
+viraram duas, num lugar só.
 
-#### O defeito vivo: "hora local" é a do **processo**, não a do usuário
+**O lado do front não fechou.** `paraCampoData` (`apps/web/src/components/PainelCard.tsx:15`) e
+`paraData` (`:24`) continuam usando `getMonth()`/`getDate()` e um `new Date("…T23:59:59")` cru —
+isto é, o fuso do **navegador**, não `ai_preference.timezone`. Enquanto os dois coincidem, ninguém
+vê nada. Quando divergem — operador viajando, navegador com outro fuso, ou o usuário mudando o fuso
+em `/ajustes` sem mudar o do sistema —, a interface e tudo o que passa por `shared` (MCP, chat)
+passam a discordar sobre qual é o dia do prazo, **e o banco guarda o que o navegador decidiu**.
 
-`diaDoPrazo` usa `getMonth()`/`getDate()` e `diaParaPrazo` monta `new Date("AAAA-MM-DDT23:59:59")`
-— as duas leem o fuso **do processo**. Em stdio isso acerta por acidente, porque o processo roda na
-máquina do operador. **Hospedado, erra:** `apps/mcp/railway.json` não define `TZ` e a Railway roda
-em UTC. Medido: um prazo gravado pelo front como `2026-09-22T02:59:59Z` é `2026-09-21` em
-`America/Sao_Paulo` e `2026-09-22` em UTC — o MCP hospedado relata **todo prazo um dia à frente** do
-que a interface mostra, e `diaParaPrazo` grava o prazo **três horas cedo** (23:59:59 UTC = 20:59:59
-local). É exatamente o erro de um dia que a seção existe para evitar, entrando por outra porta.
+Quem for mexer nesses dois: promova-os para `diaDoPrazo`/`diaParaPrazo` com o fuso vindo da API e
+apague esta seção. **Não escreva uma terceira conversão de prazo** — foi o terceiro leitor escrito à
+mão que segurou esta promoção por uma fase inteira.
 
-Pôr `TZ=America/Sao_Paulo` no `railway.json` apaga o sintoma e **não** é o conserto: troca o fuso do
-processo por outro fuso do processo, que continua não sendo o do usuário.
+**`TZ` no ambiente não é conserto e agora nem é sintoma.** Pôr `TZ=America/Sao_Paulo` em
+`apps/mcp/railway.json` trocaria um fuso de processo por outro fuso de processo, que continua não
+sendo o do usuário — e depois da Etapa B a variável seria **inerte**: nenhuma data do texto do
+servidor MCP lê mais o fuso do processo. Não a acrescente para "explicar" um prazo estranho.
 
-#### O conserto, que agora tem peça
+### 4.6 Uma definição, dois consumidores — e nenhum portão sobre o texto
 
-A Etapa A da frente de IA trouxe as duas coisas que faltavam:
+O caso invertido: aqui **não** há duas implementações. O metadado das nove ações do acervo — nome,
+título, `descricao` e schema de entrada — mora só em `packages/shared/src/ferramentas.ts`, e é
+exatamente o que a doutrina manda. O risco mudou de forma, não de tamanho.
 
-- `diaLocal(instante, fuso)` (`packages/shared/src/ia.ts:39`), que formata por `Intl` com `timeZone`
-  — sem tabela de horário de verão nossa;
-- o fuso do usuário **no domínio pela primeira vez**: `ai_preference.timezone`
-  (`apps/api/prisma/schema.prisma:351`), com padrão `FUSO_PADRAO` (`packages/shared/src/ia.ts:24`).
+**Dois consumidores, dois contratos diferentes, um arquivo:**
 
-Quem for mexer nos dois lados promove a conversão para `packages/shared` usando `diaLocal` e o fuso
-vindo da API — **não** o do processo —, e apaga esta seção. Não duplique a conversão num terceiro
-lugar: um terceiro leitor de prazo escrito à mão fecha a porta dessa promoção. Note que `diaLocal`
-hoje é chamada **só pelo servidor**, de propósito (o comentário em `ia.ts:26-38` diz por quê); usar
-a mesma função é o que impede uma segunda definição de "o dia do usuário".
+- `apps/mcp` publica esse metadado em `tools/list` (`src/tools/kanban.ts:18`, `notas.ts`,
+  `kanban-escrita.ts`, `notas-escrita.ts`) — a `descricao` é o contrato de conversa do servidor MCP
+  com qualquer modelo que se conecte;
+- `apps/api` o oferece ao provedor no campo `tools` de **todo turno** do chat
+  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:158`) — ali a `descricao`
+  é contrato **e** custo por turno.
+
+Editar uma `descricao` para melhorar o chat muda o que o MCP publica, e encarece ou barateia todo
+turno. **Nenhum teste fica vermelho.** `apps/mcp/tests/escrita.test.ts` confere **quais** tools são
+anunciadas — derivadas, não listadas à mão —, nunca o texto nem o tamanho delas. Não há portão
+sobre o `tools/list` em bytes.
+
+**Segundo caso, mesmo eixo: `packages/shared/src/formato.ts`.** Os formatadores também têm uma
+definição e dois consumidores — tools e resources do MCP, executores do chat (§7 da skill
+`servidor-mcp-yu-book`) — e ali o texto não é só contrato: é o **resultado** sobre o qual o modelo
+decide continuar ou desistir. `formatarBusca` diz, no caso vazio, que a busca é por palavra sobre
+título e corpo e manda tentar o substantivo sozinho (`:172-173`); o argumento e o episódio que o
+motivou estão no comentário ao lado (`:163-171`). Mudar uma dessas frases muda as duas superfícies,
+e nenhum teste fica vermelho.
+
+Então, ao tocar em `ferramentas.ts`: diga no relato que as duas superfícies mudaram, e **meça** o
+`tools/list` se o texto cresceu (a receita e a baseline estão na memória do agente `mcp`). O
+critério de conteúdo é o da §10 da skill `servidor-mcp-yu-book`: *sabendo disto, o modelo faria algo
+diferente?* Se não, é custo puro — cobrado agora em dois lugares.
 
 ## 5. Verificação
 
@@ -151,8 +187,13 @@ Depois de qualquer mudança em `packages/shared`:
 pnpm --filter @yu-book/shared build && pnpm typecheck
 ```
 
-Se tocou num dos cinco espelhamentos, rode também `pnpm --filter @yu-book/api test`. O §4.5 não
-tem teste que o cubra — e rodar à mão na sua máquina **não** reproduz o defeito, porque o fuso do
-seu processo é o certo. Para conferir o caminho hospedado é preciso forçar o fuso:
-`TZ=UTC node -e "…"` sobre `diaDoPrazo`, ou olhar o prazo que o serviço da Railway relata para um
-card cujo prazo você conhece.
+Se tocou num dos espelhamentos do §4, rode também `pnpm --filter @yu-book/api test` e
+`pnpm --filter @yu-book/mcp test`. **Nenhum dos dois cobre o §4.5 do lado do front nem o §4.6.**
+
+- **§4.5.** O portão que existe é `apps/mcp/tests/fuso.test.ts`, e ele prova o lado do servidor —
+  que a conversão usa o fuso **pedido à API**, não o do processo. O lado do front não tem portão
+  nenhum e rodar na sua máquina não revela nada, porque o fuso do navegador é o certo aí. Para ver
+  a divergência é preciso pôr um fuso diferente em `/ajustes` e comparar o prazo que a interface
+  mostra com o que `get_card` relata.
+- **§4.6.** Editar uma `descricao` não deixa nenhum teste vermelho, nos dois pacotes. Meça o
+  `tools/list` à mão.

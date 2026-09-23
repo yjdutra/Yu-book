@@ -4,28 +4,28 @@
 
 ## O que já nos mordeu
 
-- Ref errada **de origem**, não só deslocada, e `INV-xx` citado errado. Abra a linha.
+- Ref erra **de origem**, não só de linha, e o arquivo muda de pacote: confira o caminho antes.
 - **Arquivo de agente apodrece calado, e a paráfrase junto.** Grepe o fato, não a frase.
-- **Registro que conta ("o único ponto") envelhece por aritmética, calado.** Registre o **eixo**
-  que decide, nunca o censo — nem a previsão de quem vai quebrá-lo (INV-08 caiu por outra frente).
+- **O código alcança o registro:** comentário tardio no sítio desbanca o item; só reler revela.
+- **Registro que conta envelhece por aritmética, calado.** Registre o eixo, não o censo — e
+  seção de eixo com **um exemplo só** é lida como o exemplo: o ponteiro de outra skill
+  mente até chegar o segundo caso.
 - Eixo novo raramente contradiz a regra: **estreita a cláusula**. Cace o estreito, não só o falso.
+- Invariante categórica que o código da casa viola acusa inocente: nomeie a exceção com
+  `arquivo:linha` e diga que não é precedente.
 
 ## Decisões em vigor
 
 - **Skill registra o que o código faz, nunca o que a fase pretende.** Do PRD só argumento pronto.
-- Cruza arquivo → catálogo; sítio único com o comentário ao lado → fica na linha. **Alvo de
-  auditoria em outro arquivo cruza.**
-- **Prescrição e invariante que se tocam separam-se por natureza**: "como se faz" à skill, estado
-  auditável ao catálogo.
-- Espelhamento frágil → `contrato-compartilhado` §4, mesmo sem passar por `shared`; a dívida e o
-  defeito que ela cobra ficam no §4.5.
-- **Ponteiro de rota entre skills não é duplicação; cópia do argumento é.**
-- **Número medido é memória de agente, não skill** — reproduza antes de gravar, e grave a receita.
-- Eixo de numeração novo vai ao `CLAUDE.md`: sem ele o `RF-xx` resolve no PRD errado, e skill
-  nenhuma carrega a tempo.
-- **Skill estourando 300: procure a cópia antes de extrair.** Argumento que subiu ao catálogo vira
-  ponteiro; extraia só o que se lê *depois* de escrever — nunca a doutrina.
-- **Não renumere seção de skill: o número é referência cruzada.** Doutrina nova entra como §0.
-- Não vira registro: fato sem `arquivo:linha`, fato com prazo, e valor que liga no painel sem
-  deploy — esse vira instrução de conferir.
-- Fato já escrito em `docs/historico.md` ou no `CLAUDE.md` não se copia: vai ao operador.
+- Cruza arquivo → catálogo; sítio único com comentário ao lado → fica na linha. Alvo em outro
+  arquivo cruza; arquivo fora do escopo de escrita do agente também.
+- **Ponteiro não é duplicação; cópia do argumento é** — entre skills e entre skill e código.
+- **Número medido é memória de agente, não skill.** Grave a receita, não o número; e a receita
+  barata costuma ser outra.
+- **Skill no limite: comprima o que acabou de escrever antes de cortar doutrina velha**, e procure
+  a cópia antes de extrair. Extraia só o que se lê *depois* de escrever.
+- **Não renumere seção: o número é referência cruzada.** Doutrina nova vira §0 ou subseção; item
+  novo entra no fim da série.
+- Não vira registro: fato sem `arquivo:linha`, fato com prazo, valor que liga no painel sem deploy,
+  e medida que varia por rodada. Fato já em `docs/historico.md` ou no `CLAUDE.md` não se copia —
+  mas **ponteiro datado cabe**, se quem precisa dele não lê aqueles arquivos.

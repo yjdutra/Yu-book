@@ -192,3 +192,50 @@ A armadilha vizinha:
 - **`Ctrl+Shift+B` e `Ctrl+Shift+L` são da navegação.** O mapa da `<textarea>` casa por
   `e.key.toLowerCase()`, então sem o teste de `e.shiftKey` (`Editor.tsx:225`) `Ctrl+Shift+B`
   navega **e** aplica negrito.
+
+## Painéis: montagem condicional contra prop viva
+
+**INV-53 — Painel montado por `{estado && <X aberto … />}` nunca recebe `aberto: false`.** Ele
+**desmonta**. As duas formas convivem em `apps/web/src/components/Aplicacao.tsx` e a diferença não
+aparece em nenhuma assinatura: `Paleta` recebe a prop viva (`aberta={paletaAberta}`, `:376`) e
+continua montada o tempo todo, enquanto `GavetaLinks` (`:354`) e `PainelChat` (`:369`) são montados
+dentro de um `&&` com `aberto` **literal**.
+
+A consequência é toda na limpeza. Num painel do segundo grupo, `useEffect(() => { if (!aberto) … })`
+**nunca roda o corpo de fechamento** — `aberto` é sempre `true` enquanto o efeito existe. Só a
+função de limpeza roda, no desmonte: `useEffect(() => () => abortarRef.current?.abort(), [])`
+(`PainelChat.tsx:250`, com o argumento no comentário `:243-249`). No chat, a forma errada deixaria o
+`fetch` aberto e o laço do servidor seguindo até cinco passos depois de o usuário fechar — gasto de
+IA por um painel que não está mais na tela.
+
+**A forma errada compila nos dois grupos, e nenhum portão executa qualquer um deles.** Antes de
+escrever a limpeza de um painel novo, abra `Aplicacao.tsx` e veja em qual grupo ele foi montado; a
+regra não está visível de dentro do componente. O `if (!aberto) return null` do topo
+(`PainelChat.tsx:410`, `Paleta.tsx:53`) é o que engana: ele existe para o grupo da prop viva e
+parece indicar que `false` chega.
+
+## Enums que a interface precisa percorrer
+
+**INV-54 — Membro de enum que exige escolha do usuário só existe se a tela o percorrer.** A tela de
+ajustes deriva uma coluna por tarefa de `AI_TASKS` (`apps/web/src/pages/AjustesPage.tsx:414`,
+`:423`) e tira os rótulos de um `Record<AiTask, …>` **total** (`:41`). As duas metades fazem
+trabalho diferente: o `Record` faz o **compilador** cobrar a tarefa nova — é o portão que o front
+compra no lugar do teste que não existe — e o `.map` faz a coluna nascer sozinha.
+
+A Etapa B mostrou o custo de citar em vez de percorrer. `chat` entrou em
+`packages/shared/src/enums.ts:26`, no enum `AiTask` do Prisma, na rota e no service; a tela ficou
+com `const TAREFA: AiTask = "formatar"`, que compila para sempre. O servidor **exige** escolha por
+tarefa (`modeloParaTarefa`, `apps/api/src/modules/assistente/preferencias.service.ts:194`), então o
+chat recusava toda mensagem com `MODELO_NAO_ESCOLHIDO`, pedindo uma escolha que não tinha onde ser
+feita: entidade no banco, rota aceitando, funcionalidade inalcançável, typecheck e suíte da API
+verdes. Por isso a mensagem de erro **nomeia a tarefa** (`:197-206`) — sem o nome, quem está na tela
+vendo um modelo marcado conclui que o erro é falso.
+
+**Não vale para todo enum: vale para o enum cujo membro pede configuração.** `LINK_KINDS` é citado à
+mão de propósito em `apps/web/src/components/ZonasDeSoltura.tsx:122-123` — cada zona tem texto e
+ícone próprios, e ali o enum só discrimina. Enum que rotula ou discrimina pode ser citado (é também
+o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:216` já mantém total); enum cujo
+membro exige um valor que **só a interface** coleta, não.
+
+O que ainda cita: o rodapé da mesma tela nomeia `formatar` e `chat` em prosa (`AjustesPage.tsx:468-470`), e acesso
+a chave conhecida não é erro de tipo. Tarefa nova ganha coluna sozinha e **não** ganha frase.

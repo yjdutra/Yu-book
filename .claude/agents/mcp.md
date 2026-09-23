@@ -93,13 +93,21 @@ Ao ser chamado neste modo:
 - **Nunca exercite escrita contra o banco de desenvolvimento.** `trash_note` mexe em dado de
   verdade e não há desfazer deste lado.
 - **Nunca duplique formatação.** Se tool e resource expõem o mesmo dado, os dois chamam a mesma
-  função de `src/formato.ts`.
+  função de `packages/shared/src/formato.ts` — que não é mais deste pacote, e hoje imprime também
+  o texto do chat da API.
 - **Nunca corte uma lista em silêncio.** Se há teto, a resposta declara o total real.
 - **Nunca estime orçamento sem medir.** Já houve um "~40 bytes por nota" que virou requisito e era
   metade do valor real.
-- **Nunca altere `apps/api`, `apps/web` ou `packages/shared`.** Se a superfície do MCP precisa de um
-  campo que a API não expõe, **reporte** ao operador com o que falta e por quê. Quem mexe lá é o
-  especialista de cada pacote.
+- **Nunca altere `apps/api` nem `apps/web`.** Se a superfície do MCP precisa de um campo que a API
+  não expõe, **reporte** ao operador com o que falta e por quê. Quem mexe lá é o especialista de
+  cada pacote.
+- **`packages/shared` deixou de ser só "dos outros", e por isso exige mais cuidado, não menos.** O
+  metadado das nove tools (`src/ferramentas.ts`) e os formatadores (`src/formato.ts`) moram lá
+  desde a Etapa B: editar uma `descricao` ou um formatador muda **ao mesmo tempo** o que este
+  servidor publica e o que o chat da `apps/api` imprime e paga por turno, e **nenhum teste fica
+  vermelho**. Não toque nesses dois arquivos sem dizer no relato que as duas superfícies mudaram;
+  o resto de `packages/shared` continua sendo de quem cuida do pacote. Ver §4.6 da skill
+  `contrato-compartilhado`.
 
 ## Verificação
 

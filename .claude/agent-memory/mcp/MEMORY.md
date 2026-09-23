@@ -21,6 +21,9 @@
 - Baseline de orçamento medido em 2026-09-22, sobre `dist/`: `tools/list` = 3480 B com 5 tools (só
   leitura) e 8551 B com 9; `resources/list` 929, `resources/templates/list` 553, `prompts/list` 757.
   Tudo cobrado em todo turno. Meça contra estes números, não estime.
+- **O texto que produz esses bytes saiu do pacote**: nome, título, `descricao` e schema das nove
+  moram em `packages/shared/src/ferramentas.ts` desde 2026-09-23. A baseline se move por edição
+  feita **fora** de `apps/mcp`, e nenhum portão acusa (§4.6 de `contrato-compartilhado`).
 - Sob HTTP a sessão vê cinco ou nove tools conforme o escopo do token: os números dependem de
   quem chamou.
 - Como medir: as mensagens `initialize`/`initialized`/`*/list` por `printf` no stdin de

@@ -7,4 +7,19 @@
 
 ## O que já nos mordeu
 
+- **Portão verde não diz que a tela oferece o controle.** A Etapa B pôs `chat` em `AI_TASKS` e
+  `/ajustes` ficou com `formatar` fixo: o chat exigia escolha sem onde escolher, com typecheck e a
+  suíte da API inteiros verdes (2026-09-23; virou INV-54). Achou o operador, usando. Ao fechar,
+  nomeie o caminho de tela que ninguém percorreu.
+- Módulo de `packages/shared` que **constrói valor em escopo de módulo** entra no bundle do front
+  mesmo sem ninguém importar. Medido em 2026-09-23: `ferramentas.ts` punha ~6,3 KB crus na primeira
+  pintura, contra 0 de `formato.ts`. Fechou com `"sideEffects": false` em
+  `packages/shared/package.json:6` — linha que o JSON não pode explicar, e cuja remoção não acusa.
+
 ## Decisões em vigor
+
+- **Conferir vazamento de `shared` para o bundle é mais barato que medir tamanho**:
+  `pnpm --filter @yu-book/web build` e depois `grep -rl "<frase literal do módulo>" apps/web/dist/assets/`.
+  Feito em 2026-09-23 com uma `descricao` de `ferramentas.ts`: ausente de todo o `dist`.
+- Tamanho de bundle e contagem de teste viram registro; **tempo de build não vira** — varia por
+  rodada e por máquina, e um número desses envelhece sem ninguém notar.

@@ -19,7 +19,16 @@ conveniência.
 
 **INV-04 — Escrita condicional em vez de checar-depois-agir.** Mutação usa
 `updateMany`/`deleteMany` com o escopo no `where` e testa `count === 0` para lançar 404. Elimina a
-corrida entre checagem e efeito.
+corrida entre checagem e efeito. O argumento inteiro está em `conversas.service.ts:111-116`, que
+adotou a forma atômica de propósito: a forma checar-depois-agir deixa a posse como **disciplina de
+quem escreve a próxima função**; a atômica a deixa no tipo da consulta.
+
+**Duas exceções antigas, nomeadas — não são precedente.** `atualizarWorkspace`
+(`apps/api/src/modules/organizacao/organizacao.service.ts:83`) faz `findFirst` antes do `update`
+por id, e `excluir` (`apps/api/src/modules/links/links.service.ts:148`) faz `doUsuario` antes do
+`delete`. As duas **escopam** certo e pagam a corrida; são dívida declarada aqui, não licença.
+Numa revisão: código novo nessa forma é violação, e estas duas não se citam como apoio. Quem for
+convertê-las, converta-as — não copie a forma delas para um terceiro sítio.
 
 **INV-05 — `TOKEN_EXPIRED` e `UNAUTHORIZED` são códigos distintos de propósito.** O primeiro dispara
 o refresh no front; o segundo derruba a sessão. Fundir os dois cria laço de login.
@@ -145,6 +154,17 @@ ele está acima do `pedirDoProvedor`. A ordem é a invariante inteira: conferir 
 status 402 não distingue os dois mundos. A mesma técnica prova que `saude` sem chave não abre
 conexão nenhuma (`:118`, CA-02).
 
+**"Qualquer conexão" é por passo, não por mensagem — a Etapa B mudou a unidade.** Uma mensagem do
+chat é até `MAX_PASSOS_DO_LACO = 5` (`packages/shared/src/chat.ts:24`) chamadas ao provedor, e o
+`garantirTeto` de dentro do laço (`chat.service.ts:390`) **não** é redundância do que roda antes
+dele (`:249`): o histórico cresce a cada passo, então o passo 4 custa mais que o passo 1, e um teto
+conferido uma vez pagaria os outros quatro sem olhar. Hoistar a conferência para fora do laço é a
+mudança que parece limpeza e derruba **só** o teste do corte no meio
+(`apps/api/tests/chat.test.ts:381`) — o do gasto por linha continua verde. O fim declarado do laço
+é a segunda metade da mesma defesa: sem ele, modelo em ciclo (buscar, não achar, buscar de novo)
+gasta um teto inteiro numa pergunta só (`chat.test.ts:336`). Quem acrescentar uma terceira
+superfície de IA responde primeiro qual é a unidade que ela paga.
+
 **INV-48 — A cascata de custo tem três degraus, o degrau escolhido é gravado, e o terceiro grava
 zero.** `custoDaResposta` (`custo.service.ts:137`): `provedor` (o `cost` da resposta), `estimado`
 (tokens × preço do catálogo) e `desconhecido` (nem custo nem token). Zero **não move o teto** — um
@@ -175,15 +195,37 @@ contornável por exclusão de nota, e a trilha de auditoria sumiria junto com o 
 em `apps/api/tests/assistente.test.ts:341`. O registro é escrito **inclusive quando a chamada falha**
 (`custo.service.ts:183`), porque falhar também pode ter custado.
 
+**INV-52 — A fronteira do chat com o modelo é fechada pelo compilador, nos dois sentidos.** No
+sentido de ida, `EXECUTORES` é `Record<NomeDeFerramenta, Executor | undefined>`
+(`apps/api/src/modules/assistente/ferramentas.service.ts:82`) — **não** um `Partial`, e o
+`| undefined` é a invariante: as quatro ações de escrita estão lá escritas como `undefined`
+(`:134-137`), e uma ação nova em `packages/shared/src/ferramentas.ts` **não compila** sem alguém
+decidir. É a técnica do rótulo do INV-41: o tipo cobra a decisão em cada sítio novo, em vez de
+deixar o padrão ser o permissivo. O chat da Etapa B não tem executor de escrita, e são duas
+condições para uma ação aparecer ao modelo — `catalogoParaProvedor` filtra por `EXECUTORES[nome]`
+(`:158`) **além** de partir de `FERRAMENTAS_DE_LEITURA`. Trocar o tipo por `Partial` ou por um mapa
+solto não quebra nada hoje e apaga as duas. No sentido de volta, `argumentos` chega `unknown` e
+passa por `conferir` (`:67-79`), que revalida com o **mesmo** schema que o provedor recebeu: o
+modelo é terceiro que devolve JSON conforme um schema que pode ignorar, e o `parse` também é o que
+aplica os padrões declarados. Cast no lugar do `parse` compila.
+
 ## Servidor MCP
 
 **INV-40 — `formatarQuadro` imprime o id de cada coluna, e é o único lugar que imprime.**
-`apps/mcp/src/formato.ts:151`. `create_card` e `move_card` endereçam por `columnId`, e nenhuma
-outra saída do servidor MCP expõe esse id — as `description` das duas mandam chamar `get_board`
-justamente por isso. Custa 36 caracteres por coluna, com teto de 20 colunas por quadro (~1 KB no
-pior caso), e é o primeiro candidato a "economia de contexto" de quem lê `formato.ts` sem abrir
-`tools/kanban-escrita.ts`. Remover não quebra nada: nada falha, nenhum teste cai, as duas tools de
-escrita só ficam **inalcançáveis**, e as descrições passam a mentir.
+`packages/shared/src/formato.ts:246` — o arquivo **mudou de pacote** na Etapa B (era
+`apps/mcp/src/formato.ts`), e a mesma função agora serve duas superfícies: as tools e resources do
+MCP e o executor `get_board` do chat (`apps/api/src/modules/assistente/ferramentas.service.ts:118`).
+`create_card` e `move_card` endereçam por `columnId`, e nenhuma outra saída expõe esse id — as
+`description` das duas mandam chamar `get_board` justamente por isso. Custa 36 caracteres por
+coluna, com teto de 20 colunas por quadro (~1 KB no pior caso), e é o primeiro candidato a
+"economia de contexto" de quem lê `formato.ts` sem abrir `tools/kanban-escrita.ts`. Remover
+deixa as duas tools de escrita **inalcançáveis** e as descrições mentindo.
+
+**Passou a ter portão em 2026-09-23**, depois de nascer sem nenhum:
+`apps/mcp/tests/fuso.test.ts:112` chama `get_board` com o `fetch` dublado e executa `formatarQuadro`
+de verdade, asserindo o `  id:` da coluna. O portão entrou de carona num teste de fuso — então ele
+é frágil por procedência: quem reescrever aquele teste tire a asserção do `id` de lá antes, ou a
+invariante volta a não ter quem a defenda.
 
 **INV-41 — Envelope cifrado carrega rótulo de tipo, e o rótulo é obrigatório nas duas pontas.**
 `selar(dados, tipo)` e `abrir(envelope, tipo)` (`apps/mcp/src/auth/segredos.ts:68` e `:85`) exigem

@@ -1,6 +1,6 @@
 ---
 name: servidor-mcp-yu-book
-description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os dois transportes (stdio e StreamableHTTP) com uma montagem só, de onde vem a identidade em cada um e por que a escrita é liberada por eixos diferentes (URL local no stdio, escopo do token em HTTP), o servidor de autorização OAuth 2.1 próprio sem estado durável, cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, uma formatação para duas superfícies, a description como contrato de conversa com o modelo, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, antes de tocar em transporte, sessão ou autenticação, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
+description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os dois transportes (stdio e StreamableHTTP) com uma montagem só, de onde vem a identidade em cada um e por que a escrita é liberada por eixos diferentes (URL local no stdio, escopo do token em HTTP), o servidor de autorização OAuth 2.1 próprio sem estado durável, cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, a formatação que saiu deste pacote para packages/shared e hoje serve também o chat da API, de onde vem o fuso horário do usuário e por que na leitura ele recua e na escrita falha alto, a description como contrato de conversa com o modelo, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, antes de tocar em transporte, sessão, autenticação, formatação de texto ou qualquer conversão de data, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
 ---
 
 # O servidor MCP do Yu-book
@@ -39,12 +39,10 @@ registro dinâmico, PKCE, login e consentimento próprios (`src/auth/`) —, e o
 o `accessToken` da API **cifrado dentro**: corpo de JWT é base64, não cifra, e em claro o cliente
 ganharia uma credencial que fala direto com a `apps/api`, contornando todo escopo daqui.
 
-Duas frases resumem o que custou caro nesta etapa, e o argumento inteiro de cada uma está no
-catálogo: **cifra igual mais forma compatível não separa nada** (INV-41, um desvio de autenticação
-real) e **os dois relógios se derivam, não se igualam** (INV-42). O mapa de sessões vaza calado
-(INV-44), e escopo que encolhe encerra a sessão (INV-46). Leia as cinco antes de tocar em
-`src/auth/` ou `src/http.ts`; o mecanismo do fluxo OAuth
-está em **`referencias/identidade-http.md`**.
+O que custou caro está no catálogo, e se lê antes de tocar em `src/auth/` ou `src/http.ts`:
+**cifra igual mais forma compatível não separa nada** (INV-41, um desvio de autenticação real), **os
+dois relógios se derivam, não se igualam** (INV-42), o mapa de sessões vaza calado (INV-44) e escopo
+que encolhe encerra a sessão (INV-46). O mecanismo do fluxo está em **`referencias/identidade-http.md`**.
 
 ## 1. A regra de sobrevivência: stdout é o protocolo
 
@@ -128,19 +126,33 @@ notas, mas não há como reescrever uma URI já injetada no contexto de alguém.
 O esquema `yubook://` e os campos do catálogo ficam **em português** — não atravessam a API. Nome de
 tool fica em **inglês**, como caminho de rota (`search_notes`, `get_board`).
 
-## 7. Uma formatação, duas superfícies
+## 7. Uma formatação, e ela não mora mais aqui
 
-Tudo que monta texto de nota, card, quadro ou dashboard vive em **`src/formato.ts`**, e tool e
-resource chamam a mesma função. Duas implementações divergem, e a divergência aparece como o mesmo
-recurso com duas caras.
-
+Tudo que monta texto de nota, card, quadro ou dashboard vive em
+**`packages/shared/src/formato.ts`** — saiu de `apps/mcp/src/formato.ts` na Etapa B da frente de IA,
+porque o chat interno passou a precisar do mesmo texto. Tool, resource e chat chamam a **mesma**
+função, e a consequência é que **editar um formatador não é mais uma mudança contida em
+`apps/mcp`**: muda também o que o chat da API imprime (§4.6 de `contrato-compartilhado`).
 Verificação: ler `yubook://nota/{id}` e chamar `get_note` com o mesmo id devem produzir texto
 **idêntico caractere a caractere**.
 
-**Data de prazo não se formata aqui por conta própria.** `diaDoPrazo`/`diaParaPrazo` espelham a
-convenção do front, que grava o prazo às 23:59:59 **locais** — `.slice(0, 10)` sobre o ISO relata o
-dia seguinte. É um espelhamento frágil declarado: ver §4.5 da skill `contrato-compartilhado` antes
-de escrever qualquer conversão de data.
+### 7.1 O dia de um prazo vem do usuário, e o recuo nunca é o processo
+
+Os formatadores que imprimem prazo **exigem** um `fuso`, sem valor padrão; quem o obtém é
+`fusoDoUsuario` (`src/fuso.ts:42`), que pergunta `GET /ai/settings` — a mesma
+`ai_preference.timezone` que decide a janela do teto diário de IA. Ler o fuso do **processo**
+(`getMonth()`, `new Date("…T23:59:59")`) acerta por acaso em stdio e erra sempre hospedado,
+relatando todo prazo um dia à frente, calado.
+
+**A assimetria é decidida, e você a escolhe ao escrever a tool.** Tool que só **lê** e imprime data
+usa `exigir: false` — recuar para `FUSO_PADRAO` custa no máximo uma linha com o dia de outro fuso.
+Tool que **escreve** data (`create_card` com `dueDate`) usa `exigir: true`, e busca o fuso **antes**
+do POST (`src/tools/kanban-escrita.ts:36`): ali o fuso vira o instante gravado no banco, e recuar
+gravaria prazo errado em silêncio.
+
+Sem cache, deliberadamente — o argumento e o custo medido estão em `src/fuso.ts:5-29`, e ele
+responde pelo nome à proposta de um mapa por credencial. **Não acrescente `TZ` ao
+`apps/mcp/railway.json`**: hoje a variável é **inerte** (§4.5 de `contrato-compartilhado`).
 
 ## 8. Prompt: instrução, não dado
 
@@ -220,31 +232,21 @@ algo diferente?* Se não, é custo puro. Vale o §3: **meça o `tools/list`**, n
 
 ## 11. A via de volta: log e progresso
 
-Tudo em `src/notificacoes.ts`; nenhuma tool emite notificação à mão.
+Tudo em `src/notificacoes.ts`; nenhuma tool emite notificação à mão. **REGRA QUE NÃO SE QUEBRA:
+notificação nunca decide o resultado de uma tool** — toda emissão vive em `try/catch`
+(`:57,71,89`). Essa e as outras decisões da via de volta estão argumentadas no cabeçalho daquele
+arquivo (`:9-46`): leia-as lá, não são repetidas aqui.
 
-**REGRA QUE NÃO SE QUEBRA: notificação nunca decide o resultado de uma tool.** Quando o relato é
-emitido, a escrita **já aconteceu**. Um `sendNotification` que lance — cliente desconectado,
-transporte fechado, capability ausente — transformaria uma criação bem-sucedida em `isError`, e o
-modelo criaria o card de novo. Toda emissão vive em `try/catch`, com o motivo indo para stderr
-(`src/notificacoes.ts:57,71,89`).
+O que **não** está no código e custa caro descobrir:
 
-**A capability `logging` se declara no construtor do `McpServer`** (`src/servidor.ts:51`). Sem ela
-`sendLoggingMessage` não lança nem avisa: apenas não faz nada, e o log das escritas some em
-silêncio. Declarar depois não adianta — o handler de `logging/setLevel` só é registrado ali.
-
-**Log sempre por `server.server.sendLoggingMessage`, nunca por `extra.sendNotification` com
-`notifications/message`.** A segunda forma **lança** sem a capability; a primeira apenas não faz
-nada. Numa tool de escrita a diferença é entre um log perdido e uma escrita relatada como falha.
-
-**Progresso só sai se o cliente mandar `_meta.progressToken`**, e vai pelo `extra`, que é o que
-amarra a notificação à requisição em curso. Emitir sem token é ruído.
-
-Log vale mais que progresso aqui: todo diagnóstico deste pacote vai para stderr, que nenhum cliente
-MCP mostra, então um `notifications/message` por escrita é o único registro que o usuário chega a
-ver. **Não invente passo artificial para a barra parecer cheia** — progresso falso ensina o usuário
-a ignorá-lo. O passo só conta quando é trabalho real: `trash_note` tem dois porque lê a nota antes
-de apagar, para contar os vínculos perdidos, e **não registra passo nenhum** quando sai cedo por a
-nota já estar na lixeira.
+- **A capability `logging` se declara no construtor do `McpServer`** (`src/servidor.ts:51`) — outro
+  arquivo. Sem ela `sendLoggingMessage` não lança nem avisa: só não faz nada, e o log das escritas
+  some calado. Declarar depois não adianta: o handler de `logging/setLevel` só é registrado ali.
+- **Log sempre por `server.server.sendLoggingMessage`, nunca por `extra.sendNotification` com
+  `notifications/message`** — a segunda **lança** sem a capability. Numa tool de escrita, a
+  diferença é entre um log perdido e uma escrita relatada como falha.
+- **Passo só conta quando é trabalho real.** `trash_note` tem dois porque lê a nota antes de apagar;
+  não registra nenhum quando sai cedo por a nota já estar na lixeira.
 
 ## 12. Erro é texto que o modelo vai tentar contornar
 
@@ -257,10 +259,8 @@ Resource **lança** em vez de devolver `isError` — o cliente precisa distingui
 ## 13. Tolerar uma API mais velha que o contrato
 
 O servidor MCP e a API têm **ciclos de deploy independentes** — dois serviços, dois Watch Paths —,
-então o MCP fala com uma API que pode ser semanas mais velha que o contrato que ele compilou.
-
-Campo novo ausente na resposta é **omitido**, não emitido como `undefined`. Ver o catálogo em
-`src/resources/catalogos.ts`.
+então o MCP fala com uma API que pode ser semanas mais velha que o contrato que ele compilou. Campo
+novo ausente na resposta é **omitido**, não emitido como `undefined` (`src/resources/catalogos.ts`).
 
 ## 14. Propagação — o que fazer quando o domínio muda
 
@@ -270,21 +270,19 @@ nenhum typecheck reclama — a tool simplesmente para de contar a verdade inteir
 
 Diante de um campo, entidade ou filtro novo no domínio, percorra:
 
-- [ ] **`src/formato.ts`** — o campo novo deve aparecer no texto de nota, card, quadro ou dashboard?
+- [ ] **`packages/shared/src/formato.ts`** — o campo novo deve aparecer no texto de nota, card,
+      quadro ou dashboard? Não é mais arquivo deste pacote: o chat da API imprime o mesmo (§7).
 - [ ] **Tools** — alguma tool deveria aceitá-lo como filtro? Alguma deveria devolvê-lo?
 - [ ] **Resources diretos** — o campo pertence ao **índice** (identifica ou rotula) ou ao conteúdo?
-      Se for conteúdo, **não entra** no catálogo.
-- [ ] **Resource template novo?** Só se for conjunto que cresce sem limite e tiver endereço próprio.
+      Se for conteúdo, **não entra** no catálogo. **Template novo?** Só se for conjunto que cresce
+      sem limite e tiver endereço próprio.
 - [ ] **Prompts** — algum fluxo existente fica melhor, ou pior, com o campo novo?
-- [ ] **Orçamento** — o item do catálogo ficou mais caro? Meça, não estime. Lembre que
-      `description` de tool é cobrada em todo turno, e o catálogo só quando alguém anexa.
+- [ ] **Orçamento** — o item ficou mais caro? Meça, não estime (§3).
 - [ ] **Tools de escrita** — a mudança altera o que `create_card`, `move_card`, `trash_note` ou
       `restore_note` **fazem** ou **deixam de fazer**? Se altera, a `description` mente até ser
-      reescrita, e a `description` é o contrato (§10). Regra nova de reversibilidade ou de efeito
-      colateral cai aqui.
+      reescrita (§10), e reescrevê-la mexe nas duas superfícies (§4.6 de `contrato-compartilhado`).
 - [ ] **`annotations`** — o risco da operação mudou? `destructiveHint` acompanha o domínio.
-- [ ] **Log e progresso** — a escrita passou a ter um efeito que o usuário precisa ver no
-      `notifications/message`? Passo real novo, ou passo que deixou de existir? (§11)
+- [ ] **Log e progresso** — passo real novo, ou passo que deixou de existir? (§11)
 - [ ] **Transporte** — a mudança vale nos dois? Regra que dependa de **quem** está chamando só tem
       resposta em HTTP; em stdio há uma conta só. Escopo novo entra no consentimento (§0).
 - [ ] **`src/verificar.ts`** — vale reportar no diagnóstico?
@@ -295,6 +293,8 @@ esquecimento.
 ## 15. Como verificar
 
 `pnpm --filter @yu-book/mcp test` é o **quarto portão** do projeto e não precisa de banco nem de API
-no ar. Desde o arnês em memória (`tests/arnes.ts`) ele fala JSON-RPC e vê a **superfície** de tools
-— mas não o texto que elas imprimem, e INV-40 segue sem portão. O que ele cobre, os comandos, o
-ambiente local de escrita e as duas provas de progresso estão em **`referencias/verificacao.md`**.
+no ar. Desde o arnês em memória (`tests/arnes.ts`) ele fala JSON-RPC e vê a **superfície** de tools;
+desde `tests/fuso.test.ts` ele executa também a **formatação**, com o `fetch` dublado — foi ali que
+INV-40 ganhou portão. O que continua sem portão: o **texto** das `description` e o tamanho do
+`tools/list` (§4.6 de `contrato-compartilhado`). O que ele cobre, os comandos, o ambiente local de
+escrita e as duas provas de progresso estão em **`referencias/verificacao.md`**.
