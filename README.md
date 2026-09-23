@@ -29,7 +29,10 @@ favoritos, modelo por tarefa, teto de gasto diário e o **botão de formatar a n
 por 8 segundos. É a **Fase 5 daquele roteiro**, uma terceira numeração que também não se converte
 nas outras duas; PRD em [docs/prd-ia-no-yu-book.md](docs/prd-ia-no-yu-book.md). **O provedor é de
 nuvem e só ele**: o Ollama saiu do escopo porque a API roda na Railway, sem GPU — veja
-[Formatar nota por IA](#formatar-nota-por-ia-e-o-teto-de-gasto) antes de usar.
+[Formatar nota por IA](#formatar-nota-por-ia-e-o-teto-de-gasto) antes de usar. Em **2026-09-23** o
+catálogo foi refeito: variantes que o provedor recusa na chamada saíram, e entraram filtro de
+custo, ordenação e os índices de qualidade. Como nas Etapas B e C da Fase 5, **a interface não foi
+verificada à mão** — é a quinta entrega seguida nessa condição.
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
@@ -475,6 +478,12 @@ em vez de engolir o que você acabou de escrever.
   conjunto de alvos mudar, ela é recusada. Não é instrução no prompt, é código.
 - **Ajustes em `/ajustes`**: estado do provedor, catálogo buscável, favoritos, o modelo padrão de
   cada tarefa, o teto diário (US$ 0,20 por padrão) e o gasto de hoje.
+- **O catálogo não mostra tudo que o provedor mostra.** Ficam de fora as variantes `:batch`, que o
+  provedor recusa na chamada que fazemos; os modelos que devolvem imagem ou áudio, que não servem à
+  tarefa; e os apelidos `…-latest`, porque o favorito guarda uma **cópia** do preço e ela ficaria
+  errada em silêncio quando o alvo do apelido mudasse. São 348 modelos dos 455 do provedor.
+- **Os índices de qualidade ordenam, mas não filtram.** Só 142 dos 348 modelos têm medição, e quem
+  não tem não ganha etiqueta — ausência quer dizer "não medido", não "ruim".
 - **O dia do teto é o seu**, no fuso configurado nos ajustes — não o dia UTC do servidor.
 - **Chamada sem custo informado pelo provedor aparece contada na tela.** Ela grava zero e não move
   o teto; esconder isso faria o teto mentir.

@@ -13,6 +13,103 @@ _Nada pendente._
 
 ---
 
+## [0.11.0] — 2026-09-23
+
+**A Etapa A foi para produção e quebrou na primeira tentativa de uso.** O operador favoritou uma
+variante `:batch` do modelo — ela custa metade, tem nome quase idêntico e aparece colada na variante
+normal na lista — e a formatação devolveu **404**. O provedor recusa essas variantes no endpoint que
+usamos e **não expõe campo nenhum** que as identifique: comparando a entrada normal com a `:batch`,
+só `id`, `name` e `pricing` mudam. Estávamos oferecendo no catálogo modelos que a chamada não
+aceita. Esta entrada tira essas variantes de circulação, torna o erro do provedor legível e
+reconstrói o catálogo em volta da pergunta que a tela não deixava responder: **qual destes modelos
+eu devo escolher?**
+
+Nenhuma das quatro numerações avança. Continua sendo a **Etapa A da frente de IA**, que é a Fase 5
+do roteiro de IA aplicada; as fases de produto seguem em 0 a 5 fechadas, e o MCP na Etapa 4 de 5.
+Isto é correção e refino da mesma entrega.
+
+Os quatro pacotes se movem: `apps/api` e `apps/web` de `0.6.0` para `0.7.0`, `packages/shared` de
+`0.4.0` para `0.5.0`, `apps/mcp` de `0.7.0` para `0.8.0`. **O MCP não foi tocado** — nenhuma das nove
+tools, quatro resources, dois templates e dois prompts mudou, e ele não importa nada de
+`packages/shared/src/ia.ts` —, mas `AiModel`, `AiFavorite` e a query do catálogo mudaram no pacote
+que ele declara como dependência. A versão de um pacote existe para dizer **contra qual contrato ele
+foi construído**, e ele vai ao ar hoje construído contra o `0.5.0`. `ERROR_CODES` não ganhou membro
+novo desta vez.
+
+Portões: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo nos quatro pacotes,
+`pnpm --filter @yu-book/api test` com **7 arquivos e 105 testes** (eram 97),
+`pnpm --filter @yu-book/mcp test` com 5 arquivos e 43 testes, `pnpm --filter @yu-book/web build` ok
+e busca por `sk-or-v1` e `openrouter.ai` no bundle compilado: **zero ocorrências** (CA-01, M2).
+
+**Nada disto foi verificado à mão, e é a quinta entrega seguida em que isso acontece** — Etapas A,
+B e C da Fase 5, a Etapa A da frente de IA e agora esta. `apps/web` continua sem runner de teste, e
+os portões acima **não cobrem nenhuma linha de interface**: os chips de preço, o seletor de
+ordenação, a etiqueta de raciocínio e os índices na lista estão implementados e ninguém os
+executou. A repetição é a informação, não o caso isolado. O que os testes da API cobrem é o que está
+atrás da tela: as três exclusões do catálogo, o teto de preço com zero como filtro de gratuitos, a
+ordenação que põe o não medido no fim e a recusa do favorito de lote.
+
+Segue valendo a **corrida declarada no teto**: dez pedidos de 60 s cabem no limite de 10/min da
+rota e podem ler o gasto antes de qualquer linha de uso existir. E o teto **não é exercitável na
+prática** pela conta do operador, que é free tier com crédito: modelo gratuito custa zero, então o
+teto corretamente não barra e o gasto do dia não sobe. Continua aberto o defeito do `diaDoPrazo` no
+MCP hospedado, que nada aqui toca.
+
+### Corrigido
+- **Variante `:batch` não aparece mais no catálogo.** São 71 dos 455 modelos do provedor, custam
+  metade do preço e ficam coladas na variante normal na lista — uma armadilha atraente. O provedor
+  não tem campo que as marque, então o discriminador é o sufixo do `id`, e a regra vive em **um
+  lugar só**.
+- **Favorito de lote gravado antes deste filtro é recusado com `422` e uma frase que diz o que
+  fazer**, em vez do 404 em inglês sobre adaptadores. Tirar as variantes do catálogo não desfaz a
+  linha que já está no banco de produção, e o usuário não tem como adivinhar o que "cannot be used
+  with the chat/completions endpoint (adapter OpenAIBatchAdapter)" pede dele.
+- **Erro de provedor virou acionável** (RF-06). Antes a mensagem era "O provedor de IA respondeu
+  404" e não dizia a ninguém o que fazer — foi preciso reproduzir a chamada à mão para descobrir o
+  que perguntar ao operador. Agora ela carrega o caminho chamado e a mensagem do corpo, truncada em
+  200 caracteres e só quando o corpo é o JSON esperado, para não despejar página de erro de terceiro
+  na tela. Vale para os três desfechos: chave recusada, cota excedida e o resto.
+
+### Adicionado
+- **Filtro de preço por faixa na tela de ajustes**: grátis, até US$ 0,50, até US$ 2 e qualquer. As
+  faixas saem da distribuição real do catálogo — mediana em US$ 0,325 por milhão de tokens de
+  entrada —, não de números redondos escolhidos no olho. O teto é pelo preço de **entrada**, que é o
+  que domina a conta ao formatar uma nota: o corpo inteiro entra e só a formatação sai.
+- **Filtro de raciocínio e etiqueta "raciocínio" na lista**, ao lado das de ferramentas e grátis.
+  Raciocínio pesa no custo — pensar gasta tokens de saída —, então é informação de escolha, não
+  enfeite. 238 dos 348 modelos declaram.
+- **Seis critérios de ordenação**: recentes, mais barato, maior contexto e os três índices de
+  qualidade. Ordena-se **antes** de cortar em 20, senão "mais barato" diria "mais barato entre os
+  vinte mais recentes".
+- **Sinal de qualidade no catálogo**, com três índices de terceiro — inteligência, código e
+  agêntico. Eles **ordenam mas não filtram**: estão presentes em 142 dos 348 modelos, e filtrar por
+  índice esconderia dois terços do catálogo. Quem não tem medição **não ganha etiqueta nenhuma**,
+  porque ausência quer dizer "não medido" e não "ruim"; na ordenação, o não medido vai para o fim,
+  nunca para o meio.
+- **Corte de conhecimento e aceitação de imagem** passam a vir no catálogo (`knowledgeCutoff`,
+  `acceptsImage`), capturados agora que o resto da normalização está de pé.
+
+### Alterado
+- **O catálogo passou de 455 modelos do provedor para 348.** Além das variantes de lote, saem duas
+  famílias novas: **15 modelos de saída não-textual**, que devolvem imagem ou áudio e falhariam na
+  tarefa "texto entra, texto sai" pelo mesmo motivo de fundo que o lote; e **18 apelidos
+  `…-latest`**, que funcionam hoje e são a mesma armadilha por outro caminho — o favorito guarda uma
+  **cópia** de preço e de contexto, e sob apelido essa cópia fica errada **em silêncio** no dia em
+  que o alvo muda, orçando outro modelo. A exclusão dos apelidos é reversível: voltando, eles
+  precisam de etiqueta própria na tela. Dos 348 que ficam, 292 sabem usar ferramentas, 238 declaram
+  raciocínio e 22 são gratuitos.
+- **`AiFavorite` deixou de estender `AiModel`** e declara campo a campo o que o banco guarda. A
+  forma do tipo não muda em nada nesta versão; o que muda é que ele **para de herdar** os campos
+  novos. Índice de qualidade é medição de terceiro que muda com o tempo, e congelar uma nota velha
+  dentro de um favorito seria desinformar: os índices existem para **escolher** um modelo no
+  catálogo, não para descrever o já escolhido.
+- **`AiModel` ganhou `reasoning`, `acceptsImage`, `indices` e `knowledgeCutoff`**, e
+  `listAiModelsQuerySchema` ganhou `maxPrice`, `reasoning` e `sort`. `sort` tem padrão
+  `"relevance"`, o que torna o campo obrigatório no tipo de saída — quem monta uma
+  `ListAiModelsQuery` à mão precisa informá-lo.
+
+---
+
 ## [0.10.0] — 2026-09-22
 
 **Etapa A da frente de IA aplicada: o Yu-book deixa de ser só _servidor_ MCP e passa a ser

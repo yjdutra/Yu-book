@@ -9,6 +9,100 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-23 — O catálogo oferecia modelos que a chamada não aceita, e a mensagem de erro não deixava descobrir isso
+
+A Etapa A subiu ontem e **quebrou na primeira tentativa de uso**: o operador favoritou uma variante
+`:batch`, clicou em formatar e recebeu 404. Vale registrar o caminho até o diagnóstico, porque ele é
+o argumento de metade do que mudou hoje.
+
+**Eliminei por medição antes de achar a causa.** A mesma chave, o mesmo modelo e a mesma política
+`data_collection: "deny"` respondem 200 numa chamada à mão; `origin/master` estava no lugar certo;
+as rotas `/ai` existiam em produção — respondiam 401 sem token, não 404; o banco estava de pé. Só
+então reproduzi contra o provedor com a variante de lote e li
+`"openai/gpt-6-luna-pro:batch cannot be used with the chat/completions endpoint (adapter
+OpenAIBatchAdapter)"`. **O 404 vinha do nosso pedido, não da nossa infraestrutura.**
+
+**A primeira decisão é que isso é defeito do catálogo, não da chamada.** A alternativa era tratar o
+404 na formatação — detectar o caso e explicar. Foi descartada: a variante de lote não serve para
+**nenhuma** chamada que fazemos, então oferecê-la é errado em todo lugar onde ela apareça, e
+consertar no ponto de uso deixaria a armadilha montada para o próximo ponto de uso. O filtro é na
+origem, e a regra de reconhecer uma variante de lote vive em **um lugar só**,
+`modelos.service.ts`, exportada para quem precise — hoje a escolha de modelo por tarefa.
+
+**O provedor não expõe campo que identifique a variante, e isso é o fato desconfortável da entrada.**
+Comparei a entrada normal com a `:batch` no `/models`: só `id`, `name` e `pricing` diferem. O único
+discriminador disponível é o sufixo do `id`. Casar string com o formato de um terceiro é frágil e
+não há alternativa — se o provedor mudar a convenção, o filtro para de filtrar em silêncio. O que
+segura é a segunda camada: mesmo passando pelo catálogo, o favorito de lote é recusado na escolha do
+modelo com 422 e uma frase acionável. Uma camada sozinha não bastaria de qualquer jeito: **filtrar o
+catálogo não desfaz a linha que já está gravada no banco de produção**, e era exatamente essa linha
+que o operador tinha.
+
+**A mensagem de erro do provedor era inútil, e isso custou tempo real.** "O provedor de IA respondeu
+404" não diz a ninguém o que fazer — foi preciso reproduzir a chamada à mão para saber o que
+perguntar ao operador. Agora ela carrega o caminho e a mensagem do corpo. Os limites foram
+escolhidos: **200 caracteres** e **só quando o corpo é o JSON esperado**, porque é texto de terceiro
+indo para a tela e uma página de erro em HTML despejada na interface é outro tipo de defeito. O
+caminho é literal e não carrega chave nem dado do usuário. Há um ganho lateral que vale anotar: o
+404 mais provável neste código nem vem do provedor recusar — vem de `OPENROUTER_BASE_URL` apontar
+para um caminho que não existe, e agora a mensagem mostra qual.
+
+**A exclusão dos apelidos `…-latest` é a mesma decisão do lote por outro caminho, e ela é mais
+difícil de defender.** Os 18 apelidos **funcionam**: chamá-los responde 200. O problema é o nosso
+desenho, não o deles — o favorito guarda uma **cópia** de preço e de contexto, tirada no dia em que
+se favorita, porque a estimativa de custo não pode buscar o catálogo inteiro dentro da requisição e
+a lista precisa abrir com o provedor fora do ar. Sob um apelido, essa cópia fica errada **em
+silêncio** no dia em que o alvo muda, e a estimativa passa a orçar outro modelo. A alternativa era
+mantê-los e não copiar preço para eles, o que exigiria um segundo caminho de estimativa só para um
+punhado de modelos. Preferi tirá-los, e a decisão é **reversível**: voltando, eles precisam de
+etiqueta própria na tela dizendo que o preço mostrado é o de hoje. Os 15 de saída não-textual saem
+sem controvérsia: a tarefa é texto entra, texto sai.
+
+**Os índices de qualidade ordenam e não filtram, e essa assimetria é deliberada.** Descobri no
+caminho que o provedor **não expõe** o campo `categories` que a tela dele mostra — as
+"especialidades" não vêm pela API, e não dá para reproduzi-las. O que vem são três índices de
+terceiro (inteligência, código, agêntico), presentes em **142 dos 348** modelos. Filtrar por eles
+esconderia dois terços do catálogo por falta de medição de um terceiro, que é uma afirmação que
+ninguém fez. Pela mesma razão, **quem não tem medição não ganha etiqueta** — desenhar um zero ali
+seria inventar uma nota ruim para quem ninguém mediu — e, na ordenação, o não medido vai para o
+**fim**, nunca para o meio: tratar ausência como zero enfileiraria um modelo não medido atrás dos
+piores medidos.
+
+**As faixas de preço saem da distribuição, não do olho.** Medi antes de escolher: mediana em
+US$ 0,325 por milhão de tokens de entrada. Daí saem grátis, até US$ 0,50, até US$ 2 e qualquer. O
+teto é pelo preço de **entrada** porque é ele que domina a conta ao formatar uma nota — o corpo
+inteiro entra e só a formatação sai. Detalhe que vai morder quem mexer: `0` é o filtro de gratuitos,
+então a comparação não pode ser `maxPrice &&` em lugar nenhum, nem no servidor nem no front.
+
+**Voltei atrás numa promessa do plano, e o motivo é o mesmo da cópia.** Eu havia prometido que a
+lista "Seus modelos" ganharia as etiquetas novas. Ao implementar, `AiFavorite` deixou de estender
+`AiModel` e passou a declarar campo a campo o que o banco guarda — o que impede justamente isso.
+Índice é medição volátil; congelá-lo dentro de um favorito seria desinformar com cara de dado. Os
+índices existem para **escolher** um modelo no catálogo, não para descrever o já escolhido. O tipo
+não muda de forma nesta versão: o que ele passa a fazer é **não herdar** os campos novos, e essa é
+a única razão de a herança ter saído.
+
+**`apps/mcp` bumpa sem ter sido tocado, e a regra é essa mesmo.** Ele não importa nada de
+`packages/shared/src/ia.ts` e nenhuma tool, resource ou prompt mudou. Mas o contrato que ele declara
+como dependência mudou, e ele é deployado hoje construído contra o `0.5.0`. A versão de um pacote
+diz contra qual contrato ele foi construído; abrir exceção aqui faria `0.7.0` significar dois
+contratos diferentes, e a correspondência não se recupera depois. Mesma decisão e mesma razão da
+entrada de 2026-09-22.
+
+Ficou pendente: **o teto de gasto continua não exercitável na prática.** A conta do operador é free
+tier com crédito, e modelo gratuito custa zero — o teto corretamente não barra e o gasto do dia não
+sobe. Continuam de pé a corrida declarada no teto e o defeito do `diaDoPrazo` no MCP
+hospedado, que nada aqui toca.
+
+E fica registrado o que já é padrão e não deveria ser: **esta é a quinta entrega seguida que toca
+`apps/web` e fecha sem conferência à mão** — Etapas A, B e C da Fase 5, a Etapa A da frente de IA e
+esta. Da vez passada a dívida foi escrita como exceção de uma entrega; cinco vezes seguidas ela não
+é exceção, é o modo de operação do projeto. Os portões cobrem o servidor e os tipos; a tela vai ao
+ar por inspeção do código. Hoje o que ninguém executou são os chips de preço, o seletor de
+ordenação, a etiqueta de raciocínio e os índices na lista.
+
+---
+
 ## 2026-09-22 — IA aplicada, Etapa A: o Yu-book vira cliente de um modelo, e o Ollama não sobrevive à Railway
 
 Primeira etapa da **Fase 5 do roteiro de IA aplicada** (`applied-ai-read-trip.md`, PRD em
