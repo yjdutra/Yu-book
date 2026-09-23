@@ -50,6 +50,16 @@ enum AiTask {
   chat
 }
 
+/// Quem falou numa mensagem do chat. `tool` é o resultado que o Yu-book
+/// devolveu ao modelo no meio do laço — fica gravado porque o histórico é o que
+/// o provedor recebe de volta na mensagem seguinte: sem ele, o modelo veria a
+/// própria decisão de chamar a ferramenta sem nunca ver a resposta.
+enum AiMessageRole {
+  user
+  assistant
+  tool
+}
+
 /// De onde veio o custo registrado. `desconhecido` é o degrau perigoso: grava
 /// zero, não move o teto, e por isso precisa ser contado e mostrado na tela.
 enum AiCostSource {
@@ -75,10 +85,11 @@ model User {
   links         Link[]
   refreshTokens RefreshToken[]
 
-  aiPreference AiPreference?
-  aiFavorites  AiModelFavorite[]
-  aiTaskModels AiTaskModel[]
-  aiUsages     AiUsage[]
+  aiPreference    AiPreference?
+  aiFavorites     AiModelFavorite[]
+  aiTaskModels    AiTaskModel[]
+  aiUsages        AiUsage[]
+  aiConversations AiConversation[]
 
   @@map("user")
 }
@@ -152,6 +163,7 @@ model Note {
   cards     Card[]
   events    Event[]
   aiUsages  AiUsage[]
+  aiAttachments AiAttachment[]
 
   @@index([userId, kind])
   @@index([userId, deletedAt, updatedAt(sort: Desc)])
@@ -209,9 +221,10 @@ model Board {
   position    Int      @default(0)
   createdAt   DateTime @default(now()) @map("created_at")
 
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  columns   BoardColumn[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  columns       BoardColumn[]
+  aiAttachments AiAttachment[]
 
   @@unique([workspaceId, name])
   @@index([userId, workspaceId])
@@ -252,9 +265,10 @@ model Card {
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
-  column BoardColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  note   Note?       @relation(fields: [noteId], references: [id], onDelete: SetNull)
-  events Event[]
+  column        BoardColumn    @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  note          Note?          @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  events        Event[]
+  aiAttachments AiAttachment[]
 
   @@index([columnId, position])
   @@index([dueDate])
@@ -437,13 +451,108 @@ model AiUsage {
   /// `SetNull` como em `Event.noteId`: apagar a nota não apaga o registro de
   /// gasto, ou o teto diário viraria resetável por exclusão de nota.
   noteId   String? @map("note_id") @db.Uuid
+  /// Mesma regra, mesmo motivo: uma mensagem do chat custa até cinco chamadas,
+  /// e apagar a conversa não pode zerar o que já foi gasto hoje.
+  conversationId String? @map("conversation_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  note Note? @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note         Note?           @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  conversation AiConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
 
   @@index([userId, localDay])
   @@index([userId, createdAt(sort: Desc)])
   @@map("ai_usage")
+}
+
+/// Uma conversa do chat interno (Etapa B da frente de IA, RF-23 e RF-24).
+///
+/// Escopada por usuário como tudo o mais: id de outra conta é indistinguível de
+/// inexistente. Excluir a conversa apaga suas mensagens e anexos por cascata, e
+/// **não** toca em nota nem em card — o anexo é um ponteiro, não uma posse.
+model AiConversation {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  title  String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+  usages   AiUsage[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("ai_conversation")
+}
+
+/// Uma fala da conversa. O histórico inteiro volta ao provedor a cada mensagem,
+/// então ele é o dado, não o registro do dado.
+model AiMessage {
+  id             String        @id @default(uuid()) @db.Uuid
+  conversationId String        @map("conversation_id") @db.Uuid
+  role           AiMessageRole
+  content        String
+
+  /// Preenchidos só em `assistant`: RF-25 pede que o painel diga qual modelo
+  /// respondeu **cada** mensagem, e a escolha pode mudar entre uma e outra.
+  modelId   String? @map("model_id")
+  modelUsed String? @map("model_used")
+
+  /// Quem o modelo chamou, quando esta linha é o resultado de uma ferramenta.
+  /// O nome fica para o painel poder dizer "consultei o quadro X" sem reabrir
+  /// o conteúdo, que é texto formatado para o modelo, não para a tela.
+  toolName   String? @map("tool_name")
+  /// O `tool_call_id` do provedor. É ele que amarra o resultado ao pedido na
+  /// mensagem seguinte; sem ele o provedor recusa o histórico.
+  toolCallId String? @map("tool_call_id")
+  /// Os pedidos de ferramenta que **esta** mensagem de assistente fez, como o
+  /// provedor os devolveu. JSON e não tabela: a forma é do provedor, o Yu-book
+  /// só a devolve intacta no turno seguinte, e modelá-la seria inventar um
+  /// esquema para um dado que não consultamos por campo.
+  toolCalls Json? @map("tool_calls")
+  /// O que o turno consultou, gravado na fala que o fecha (RF-20, RN-05).
+  ///
+  /// Persistido, e não recalculado na leitura: as fontes nascem do resultado
+  /// das ferramentas daquele momento, e uma nota que vá para a lixeira depois
+  /// não pode apagar do histórico o fato de ela ter sido consultada. JSON pelo
+  /// mesmo motivo de `toolCalls` — é uma lista que a tela desenha inteira,
+  /// nunca um campo que se consulta.
+  sources Json? @map("sources")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  attachments  AiAttachment[]
+
+  @@index([conversationId, createdAt])
+  @@map("ai_message")
+}
+
+/// O que o usuário anexou pelo `@` ao escrever **aquela** mensagem.
+///
+/// Pende da mensagem, não da conversa — o PRD modelou o contrário, e a decisão
+/// foi revista: preso à conversa, o histórico mente, porque uma mensagem feita
+/// antes de anexar a nota apareceria depois como se já a tivesse tido.
+///
+/// Os três alvos são `SetNull`: apagar a nota anexada não apaga a conversa, do
+/// mesmo jeito que o vínculo card ↔ nota já se desfaz sem levar o card junto.
+model AiAttachment {
+  id        String  @id @default(uuid()) @db.Uuid
+  messageId String  @map("message_id") @db.Uuid
+  noteId    String? @map("note_id") @db.Uuid
+  cardId    String? @map("card_id") @db.Uuid
+  boardId   String? @map("board_id") @db.Uuid
+  /// O título no momento do anexo. Sem isto, um anexo cujo alvo foi apagado
+  /// vira três nulos e o histórico perde a única coisa que ele dizia.
+  title String
+
+  message AiMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  note    Note?     @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  card    Card?     @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  board   Board?    @relation(fields: [boardId], references: [id], onDelete: SetNull)
+
+  @@index([messageId])
+  @@map("ai_attachment")
 }

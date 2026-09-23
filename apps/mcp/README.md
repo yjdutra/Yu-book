@@ -174,6 +174,18 @@ produziu uma afirmação errada na `description` da tool, corrigida na revisão 
 - **Listar a lixeira.** Consequência assumida: `restore_note` só alcança o que a própria conversa
   acabou de mandar para lá, porque `search_notes` não enxerga nota excluída. Se isso incomodar na
   prática, a saída é uma tool `list_trashed_notes` sobre `GET /notes?trash=true`.
+- **Conversa, mensagem e anexo do chat interno** (`/ai/conversations*`, desde 2026-09-23). Declarado
+  em vez de presumido, porque uma entidade nova que não quebra nada é a que some do radar. Cada uma
+  cai por um motivo próprio: **conversa** passaria no teste de forma — id e título rotulam bem —,
+  mas não é acervo: é transcrição de um diálogo com outro modelo, e pô-la no menu do `@` a tornaria
+  indistinguível de nota no único lugar do produto desenhado para alimentar um modelo. **Mensagem**
+  seria um segundo conjunto sem limite, de conteúdo sintético — custo de contexto puro, com risco de
+  o modelo tratar afirmação de outro modelo como fato do acervo. **Anexo** é um ponteiro para nota,
+  card ou quadro, e os três já têm endereço aqui. Mandar uma mensagem (`POST
+  /ai/conversations/:id/messages`) é recusado por três motivos independentes: é modelo chamando
+  modelo, quando quem chega pelo MCP já tem um do outro lado; **gasta dinheiro do usuário** contra o
+  teto diário, por decisão de um modelo, e no hospedado essa é a conta de produção; e a rota
+  responde em `text/event-stream`, que uma tool — resultado único — não sabe representar.
 
 ## As decisões que valem conhecer
 
@@ -202,9 +214,29 @@ porque o mecanismo é o mesmo de que o backfill de embeddings vai precisar, e co
 custa zero. O que não se faz é inventar passo artificial para a barra parecer cheia.
 
 **O servidor é um cliente da API, não do banco.** Ele fala HTTP com `apps/api` em vez de importar o
-Prisma. Custa uma requisição a mais e paga com tudo o que já está resolvido do outro lado: escopo
-por `userId` vindo só do token, posse por cadeia no kanban, códigos de erro estáveis. Importar o
-Prisma exigiria reimplementar esse escopo aqui — e um erro nisso vaza dado entre contextos.
+Prisma. Custa uma requisição a mais — **duas**, nas cinco superfícies que imprimem data, ver a
+decisão do fuso abaixo — e paga com tudo o que já está resolvido do outro lado: escopo por `userId`
+vindo só do token, posse por cadeia no kanban, códigos de erro estáveis. Importar o Prisma exigiria
+reimplementar esse escopo aqui — e um erro nisso vaza dado entre contextos.
+
+**O dia de um prazo é o dia do usuário, e isso custa uma requisição.** Até 2026-09-23 os
+formatadores usavam o fuso do **processo**. Na máquina do operador isso acertava por acaso; no
+serviço hospedado, que roda em UTC, errava sempre — o front grava o prazo às 23:59:59 locais, o que
+em UTC−3 vira 02:59 do dia seguinte, e o servidor relatava **todo prazo um dia à frente**, calado.
+Agora `diaDoPrazo` exige o fuso como argumento, sem valor padrão, e `src/fuso.ts` o busca em
+`ai_preference.timezone` por `GET /ai/settings`. Três coisas para não desfazer sem pensar:
+
+- **O recuo é `FUSO_PADRAO`, nunca o fuso do processo.** Cair no processo é o defeito de volta.
+- **Não há cache, de propósito.** Um mapa por credencial é a forma do mapa de sessões de `http.ts`,
+  que precisou de cinco guardas para não vazar calado. Uma requisição a mais é custo previsível.
+  O custo medido: +1 em `get_board`, `get_dashboard`, `create_card`, `move_card` e
+  `yubook://board/{id}`; zero nas outras cinco superfícies, e quatro das cinco pagam em paralelo.
+- **Na escrita o recuo não é silencioso.** `create_card` com prazo **falha** se não conseguir ler o
+  fuso, porque ali ele vira o instante gravado no banco — não um rótulo que morre com a conversa.
+
+Efeito colateral que vale registrar: `railway.json` não define `TZ`, e depois disto **não deve**
+definir. Nenhuma data do texto deste servidor lê mais o fuso do processo, então a variável seria
+inerte — e sugeriria que ela resolve algo.
 
 **`search_notes` nunca devolve corpo de nota.** É o mesmo problema que `GET /notes` teve: trazer o
 corpo inteiro de 50 notas custava 4,2 MB por página, e a correção foi truncar no banco. Uma tool
@@ -246,3 +278,19 @@ diagnóstico deste pacote vai para stderr, sem exceção.
 Nome de tool é fronteira, como caminho de rota — por isso em inglês, igual a `/notes` e `/boards`.
 O que é interno segue o resto do repositório e fica em português (`registrarToolsDeNotas`,
 `limparDestaque`, `mensagemDeErro`). Ver a skill `convencoes-yu-book`.
+
+## Onde a superfície mora agora
+
+Desde a Etapa B da frente de IA (2026-09-23), **o metadado das nove tools não fica neste pacote**.
+Título, descrição e schema vivem em [`packages/shared/src/ferramentas.ts`](../../packages/shared/src/ferramentas.ts),
+e a formatação do acervo em [`packages/shared/src/formato.ts`](../../packages/shared/src/formato.ts)
+— o `src/formato.ts` daqui deixou de existir. O motivo é que existe um **segundo consumidor**: o
+chat interno de `apps/api` oferece as mesmas ações ao provedor e chama os services direto, e dois
+catálogos escritos à mão divergiriam em silêncio. Aqui ficam os handlers, o transporte e a
+autenticação.
+
+**O preço disso precisa estar escrito:** editar uma `descricao` lá muda o contrato de conversa
+deste servidor e o custo de todo turno, **e nenhum portão fica vermelho**. `tests/escrita.test.ts`
+confere *quais* tools são anunciadas e que cada uma de escrita recusa token sem escopo — nunca o
+texto de uma descrição, nunca o tamanho da resposta. Quem mexer no catálogo por causa do chat mexeu
+no MCP junto.

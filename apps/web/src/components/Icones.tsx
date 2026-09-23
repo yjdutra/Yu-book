@@ -133,6 +133,16 @@ export function IconeFormatar(p: IconeProps) {
   );
 }
 
+export function IconeConversa(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M13.5 10a1.5 1.5 0 0 1-1.5 1.5H6l-3 2.5v-2.5H4A1.5 1.5 0 0 1 2.5 10V4A1.5 1.5 0 0 1 4 2.5h8A1.5 1.5 0 0 1 13.5 4Z" />
+      <path d="M5.5 5.8h5" />
+      <path d="M5.5 8.2h3" />
+    </Icone>
+  );
+}
+
 export function IconeInfo(p: IconeProps) {
   return (
     <Icone {...p}>

@@ -64,24 +64,41 @@ export function temChave(chave: string | undefined): boolean {
   return Boolean(chave);
 }
 
+export interface OpcoesDoProvedor {
+  metodo?: "GET" | "POST";
+  corpo?: unknown;
+  /**
+   * Teto de tempo da chamada inteira. Num fluxo ele **não** para no primeiro
+   * byte: o `AbortSignal` continua preso ao corpo, então o orçamento vale até
+   * o último pedaço — que é o que se quer, porque um fluxo que trava no meio
+   * prenderia a requisição para sempre.
+   */
+  orcamentoMs?: number;
+  /// Trocável só nos testes, como em `temChave`.
+  chave?: string | undefined;
+  /// O catálogo de modelos é público no provedor. Marcar assim é o que faz a
+  /// tela de ajustes continuar listando modelos num servidor sem chave — o
+  /// que some sem chave é gerar texto, não olhar o cardápio (RNF-03).
+  publico?: boolean;
+}
+
 /**
  * Uma requisição ao provedor, com teto de tempo e erro traduzido para código
- * estável. `T` é a forma do corpo, conferida por quem chama.
+ * estável. Devolve a `Response` **sem consumir o corpo**: o chat precisa lê-lo
+ * como fluxo, e `.json()` esperaria a resposta inteira — que é exatamente o
+ * que streaming existe para não fazer.
+ *
+ * O erro **antes** do primeiro byte continua sendo um status HTTP comum, com
+ * `application/json` no corpo, mesmo quando o pedido tinha `stream: true`
+ * (medido em 2026-09-23: 429 no modelo saturado, 400 no modelo inexistente).
+ * Por isso a tradução de erro vale para os dois caminhos sem ramo novo — o que
+ * o fluxo acrescenta é o erro que chega **depois** do 200, e esse é assunto de
+ * quem lê o fluxo.
  */
-export async function pedirDoProvedor<T>(
+export async function abrirNoProvedor(
   caminho: string,
-  opcoes: {
-    metodo?: "GET" | "POST";
-    corpo?: unknown;
-    orcamentoMs?: number;
-    /// Trocável só nos testes, como em `temChave`.
-    chave?: string | undefined;
-    /// O catálogo de modelos é público no provedor. Marcar assim é o que faz a
-    /// tela de ajustes continuar listando modelos num servidor sem chave — o
-    /// que some sem chave é gerar texto, não olhar o cardápio (RNF-03).
-    publico?: boolean;
-  } = {},
-): Promise<T> {
+  opcoes: OpcoesDoProvedor = {},
+): Promise<Response> {
   const chave = "chave" in opcoes ? opcoes.chave : env.OPENROUTER_API_KEY;
   if (!chave && !opcoes.publico) {
     throw indisponivel("Nenhuma chave de IA configurada no servidor");
@@ -143,5 +160,35 @@ export async function pedirDoProvedor<T>(
     throw indisponivel(`O provedor de IA respondeu ${resposta.status} em ${onde}`);
   }
 
+  return resposta;
+}
+
+/**
+ * O bloco `provider` da requisição, montado a partir da escolha do usuário.
+ *
+ * **Não é de graça pedir `deny`**, e é por isso que isto não volta a ser fixo:
+ * medido em 2026-09-23, o mesmo modelo gratuito devolve **404** com
+ * `data_collection: "deny"` ("No endpoints found matching your data policy") e
+ * **200** sem ele. Endpoints gratuitos treinam com os dados; exigir que não
+ * treinem é exigir um endpoint que não existe.
+ *
+ * Com a permissão ligada não mandamos bloco nenhum — deixar o roteamento livre
+ * é o que abre os gratuitos, e a tela diz isso em voz alta.
+ *
+ * Mora aqui, e não na tarefa, porque **toda** chamada de inferência precisa
+ * dela: formatar nota e chat tomam a mesma decisão, e a Etapa A a deixou fixa
+ * numa linha de `formatar.service.ts` — foi assim que ela atravessou uma etapa
+ * inteira sendo escolha nossa escondida em vez de escolha do usuário.
+ */
+export function politicaDeDados(permiteTreino: boolean): Record<string, unknown> {
+  return permiteTreino ? {} : { provider: { data_collection: "deny" } };
+}
+
+/** A mesma requisição, com o corpo já lido como JSON. `T` é conferido por quem chama. */
+export async function pedirDoProvedor<T>(
+  caminho: string,
+  opcoes: OpcoesDoProvedor = {},
+): Promise<T> {
+  const resposta = await abrirNoProvedor(caminho, opcoes);
   return (await resposta.json()) as T;
 }

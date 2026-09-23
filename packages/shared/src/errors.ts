@@ -24,6 +24,13 @@ export const ERROR_CODES = [
   "TETO_DIARIO_ATINGIDO",
   /** A tarefa de IA não tem modelo padrão escolhido. */
   "MODELO_NAO_ESCOLHIDO",
+  /**
+   * O modelo escolhido para o chat não sabe chamar ferramenta. Separado de
+   * `MODELO_NAO_ESCOLHIDO` porque o que se pede a quem está na tela é outro:
+   * lá é escolher um modelo, aqui é trocar por um que suporte `tools` — e a
+   * bandeira `supportsTools` do favorito diz quais são, desde a Etapa A.
+   */
+  "MODELO_SEM_FERRAMENTA",
   /** RN-06: o modelo alterou um [[wikilink]] — a resposta foi descartada. */
   "RESPOSTA_INVALIDA",
   "INTERNAL_ERROR",

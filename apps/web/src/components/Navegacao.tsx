@@ -12,6 +12,7 @@ import { useWorkspaceAtivo } from "../lib/workspace";
 import {
   ICONE_TIPO,
   IconeBoard,
+  IconeConversa,
   IconeEstrela,
   IconeInfo,
   IconeInicio,
@@ -32,6 +33,8 @@ interface NavegacaoProps {
   onAbrirGaveta: () => void;
   /** Abre o modal de atalhos — o mesmo do Ctrl+/ (RNF-01). */
   onAbrirAtalhos: () => void;
+  /** Abre o chat — o mesmo do Ctrl+Shift+Y (RF-17). */
+  onAbrirChat: () => void;
   /** Quantos itens esperam na fila de "ver depois" (RF-16). */
   linksParaVer: number;
 }
@@ -129,6 +132,7 @@ export function Navegacao({
   onNovaNota,
   onAbrirGaveta,
   onAbrirAtalhos,
+  onAbrirChat,
   linksParaVer,
 }: NavegacaoProps) {
   const { user, logout } = useAuth();
@@ -308,6 +312,16 @@ export function Navegacao({
         </Item>
         <div className="mt-2 flex items-center gap-1 px-2">
           <span className="min-w-0 flex-1 truncate text-xs text-ink-400">{user?.name}</span>
+          <button
+            type="button"
+            onClick={onAbrirChat}
+            title="Conversar com o assistente (Ctrl+Shift+Y)"
+            className="flex items-center rounded px-1.5 py-0.5 text-ink-400 transition
+                       hover:bg-ink-800 hover:text-ink-200"
+          >
+            <IconeConversa className="size-3.5" />
+            <span className="sr-only">Conversar com o assistente</span>
+          </button>
           <button
             type="button"
             onClick={onAbrirAtalhos}

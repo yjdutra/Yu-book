@@ -73,6 +73,30 @@ export function refreshSession(): Promise<AuthResponse | null> {
   return refreshInFlight;
 }
 
+/**
+ * A mesma requisição, devolvendo a `Response` **sem consumir o corpo**.
+ *
+ * Existe para o chat (RF-22): `apiRequest` faz `.json()` sobre a resposta
+ * inteira, que é exatamente o que streaming existe para não fazer. E
+ * `EventSource` não serve — ele não manda cabeçalho, e o access token vive em
+ * memória, não em cookie.
+ *
+ * A renovação de 401 é a mesma, e de propósito: uma sessão que expira no meio
+ * de uma conversa longa se renova sozinha, como em qualquer outra rota.
+ */
+export async function apiStream(path: string, init: RequestInit = {}): Promise<Response> {
+  let response = await rawRequest(path, init);
+
+  if (response.status === 401 && accessToken) {
+    const session = await refreshSession();
+    if (!session) throw await toApiError(response);
+    response = await rawRequest(path, init);
+  }
+
+  if (!response.ok) throw await toApiError(response);
+  return response;
+}
+
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response = await rawRequest(path, init);
 

@@ -1,5 +1,6 @@
 import type { AiModel, AiModelIndices, AiModelSort, AiTask } from "@yu-book/shared";
 import {
+  AI_TASKS,
   dolaresParaMicros,
   FAIXAS_DE_PRECO_MICROS,
   microsParaDolares,
@@ -28,7 +29,24 @@ import {
  * que mantém `Button` e `Modal` inexistentes neste projeto.
  */
 
-const TAREFA: AiTask = "formatar";
+/**
+ * Uma coluna de escolha por tarefa de IA.
+ *
+ * **Derivado de `AI_TASKS`, e não escrito à mão.** A Etapa B acrescentou a
+ * tarefa `chat` ao enum e ao servidor, e esta tela continuou com `formatar`
+ * fixo numa constante — resultado: o chat exigia um modelo que não havia por
+ * onde escolher, e a mensagem mandava o usuário para uma tela que não tinha o
+ * controle. Derivando da lista, a próxima tarefa aparece aqui sozinha.
+ */
+const ROTULO_DA_TAREFA: Record<AiTask, { titulo: string; usa: string }> = {
+  formatar: { titulo: "formatar", usa: "o botão de formatar nota" },
+  chat: { titulo: "chat", usa: "o painel de conversa (Ctrl+Shift+Y)" },
+};
+
+/// Tarefas que só funcionam com modelo capaz de chamar ferramenta. O chat sem
+/// isso conversa bem e não consegue consultar o acervo — e falharia no meio,
+/// depois de a chamada já ter sido paga.
+const EXIGE_FERRAMENTA: ReadonlySet<AiTask> = new Set<AiTask>(["chat"]);
 
 function Bloco({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
@@ -147,7 +165,7 @@ export function AjustesPage() {
   }, [indice]);
 
   const favoritos = ajustes.data?.favorites ?? [];
-  const escolhido = ajustes.data?.taskModels[TAREFA] ?? "";
+  const escolhidos = ajustes.data?.taskModels ?? {};
 
   async function aoFavoritar(modelo: AiModel) {
     setErro(null);
@@ -392,15 +410,45 @@ export function AjustesPage() {
           <Vazio texto="Nenhum favorito ainda. Busque no catálogo acima e clique para favoritar." />
         ) : (
           <ul className="px-4 py-2">
+            <li className="flex items-center gap-2 pb-1 text-[10px] uppercase text-ink-400">
+              {AI_TASKS.map((tarefa) => (
+                <span key={tarefa} className="w-16 shrink-0 text-center">
+                  {ROTULO_DA_TAREFA[tarefa].titulo}
+                </span>
+              ))}
+              <span className="flex-1" />
+            </li>
             {favoritos.map((f) => (
               <li key={f.favoriteId} className="flex items-center gap-2 py-1 text-xs">
-                <input
-                  type="radio"
-                  name="modelo-formatar"
-                  checked={escolhido === f.id}
-                  onChange={() => void definirTarefa.mutateAsync({ task: TAREFA, modelId: f.id })}
-                  aria-label={`Usar ${f.name} para formatar notas`}
-                />
+                {AI_TASKS.map((tarefa) => {
+                  /// Um modelo sem ferramenta não pode ser o do chat. Desabilitar
+                  /// aqui é o que evita a recusa de 422 lá na frente, quando o
+                  /// usuário já digitou a pergunta.
+                  const impedido = EXIGE_FERRAMENTA.has(tarefa) && !f.supportsTools;
+                  return (
+                    <span key={tarefa} className="flex w-16 shrink-0 justify-center">
+                      <input
+                        type="radio"
+                        name={`modelo-${tarefa}`}
+                        checked={escolhidos[tarefa] === f.id}
+                        disabled={impedido}
+                        onChange={() =>
+                          void definirTarefa.mutateAsync({ task: tarefa, modelId: f.id })
+                        }
+                        aria-label={
+                          impedido
+                            ? `${f.name} não sabe chamar ferramenta e não serve para ` +
+                              ROTULO_DA_TAREFA[tarefa].titulo
+                            : `Usar ${f.name} para ${ROTULO_DA_TAREFA[tarefa].titulo}`
+                        }
+                        title={
+                          impedido ? "Este modelo não sabe chamar ferramenta." : undefined
+                        }
+                        className="disabled:opacity-30"
+                      />
+                    </span>
+                  );
+                })}
                 <span className="min-w-0 flex-1 truncate text-ink-200">{f.name}</span>
                 {f.supportsTools && <span className="text-[10px] text-emerald-300">ferramentas</span>}
                 <span className="tabular-nums text-ink-400">{emDolares(f.promptMicros)}/M</span>
@@ -416,8 +464,22 @@ export function AjustesPage() {
             ))}
           </ul>
         )}
+        {/* Derivada de `AI_TASKS` como as colunas, e não escrita em prosa: uma
+            frase com os nomes das tarefas à mão é o mesmo furo de novo, só que
+            em texto — a coluna nova nasceria sozinha e a legenda continuaria
+            descrevendo duas tarefas. Acesso a chave conhecida não é erro de
+            tipo, então nada acusaria. */}
         <p className="px-4 pb-3 text-[10px] text-ink-400">
-          O modelo marcado é o que o botão de formatar nota usa.
+          Uma escolha por tarefa.{" "}
+          {AI_TASKS.map((tarefa) => (
+            <span key={tarefa}>
+              A de <strong>{ROTULO_DA_TAREFA[tarefa].titulo}</strong> é usada por{" "}
+              {ROTULO_DA_TAREFA[tarefa].usa}.{" "}
+            </span>
+          ))}
+          Tarefa que precisa consultar o acervo só aceita modelo com{" "}
+          <span className="text-emerald-300">ferramentas</span> — sem isso o modelo conversa e não
+          alcança as suas notas.
         </p>
       </Bloco>
 

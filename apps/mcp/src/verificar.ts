@@ -8,10 +8,12 @@
  *
  *   pnpm --filter @yu-book/mcp verificar
  */
+import { FUSO_PADRAO } from "@yu-book/shared";
 import type { NoteCounts, SearchResponse } from "@yu-book/shared";
 import { api, ErroDaApi } from "./cliente.js";
 import { env } from "./env.js";
 import { mensagemDeErro } from "./erros.js";
+import { fusoDoUsuario } from "./fuso.js";
 
 async function principal(): Promise<void> {
   console.log(`Ambiente: ${env.YUBOOK_API_URL}`);
@@ -55,6 +57,22 @@ async function principal(): Promise<void> {
   // configuração `pt_unaccent` e o trigger vivem na migration, não no Prisma.
   const busca = await api.get<SearchResponse>("/search", new URLSearchParams({ q: "a", limit: "1" }));
   console.log(`  busca        ${busca.results.length > 0 ? "respondeu" : "respondeu, sem resultado"}`);
+
+  /**
+   * O fuso de quem vai ler os prazos.
+   *
+   * Entra aqui porque o modo de falha que ele introduziu é exatamente o tipo
+   * que este utilitário existe para pegar: **silencioso**. `fusoDoUsuario`
+   * recua para `FUSO_PADRAO` quando não consegue ler a preferência, e o sintoma
+   * só apareceria lá na frente, como um dia errado dentro de uma conversa. Aqui
+   * o recuo fica visível — e uma API velha demais para ter a rota também.
+   */
+  const fuso = await fusoDoUsuario().catch(() => null);
+  const comoPadrao = fuso === FUSO_PADRAO;
+  console.log(
+    `  fuso         ${fuso ?? "não respondeu"}` +
+      (comoPadrao ? " (padrão — confira se é o seu, em /ajustes)" : " (de /ai/settings)"),
+  );
 
   console.log("");
   console.log(contagem.total === 0 ? "Banco vazio — nada para o MCP ler." : "Pronto para uso.");

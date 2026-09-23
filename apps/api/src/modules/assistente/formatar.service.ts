@@ -10,7 +10,7 @@ import {
   tokensAproximados,
   type UsoDoProvedor,
 } from "./custo.service.js";
-import { pedirDoProvedor } from "./openrouter.service.js";
+import { pedirDoProvedor, politicaDeDados } from "./openrouter.service.js";
 import { modeloParaTarefa, preferenciaDe } from "./preferencias.service.js";
 
 /**
@@ -86,22 +86,6 @@ function mesmosWikilinks(entrada: string, saida: string): boolean {
   const antes = new Set(extrairWikilinks(entrada).map(normalizarTitulo));
   const depois = new Set(extrairWikilinks(saida).map(normalizarTitulo));
   return antes.size === depois.size && [...antes].every((alvo) => depois.has(alvo));
-}
-
-/**
- * O bloco `provider` da requisição, montado a partir da escolha do usuário.
- *
- * **Não é de graça pedir `deny`**, e é por isso que isto não volta a ser fixo:
- * medido em 2026-09-23, o mesmo modelo gratuito devolve **404** com
- * `data_collection: "deny"` ("No endpoints found matching your data policy") e
- * **200** sem ele. Endpoints gratuitos treinam com os dados; exigir que não
- * treinem é exigir um endpoint que não existe.
- *
- * Com a permissão ligada não mandamos bloco nenhum — deixar o roteamento livre
- * é o que abre os gratuitos, e a tela diz isso em voz alta.
- */
-function politicaDeDados(permiteTreino: boolean): Record<string, unknown> {
-  return permiteTreino ? {} : { provider: { data_collection: "deny" } };
 }
 
 export async function formatarNota(

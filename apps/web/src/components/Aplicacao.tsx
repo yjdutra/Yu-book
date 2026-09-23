@@ -58,6 +58,12 @@ const GavetaLinks = lazy(() =>
   import("./GavetaLinks").then((m) => ({ default: m.GavetaLinks })),
 );
 
+/**
+ * O chat também: ele arrasta o renderizador de Markdown e a leitura de fluxo
+ * para dentro do bundle, e quem só quer escrever uma nota não paga por isso.
+ */
+const PainelChat = lazy(() => import("./PainelChat").then((m) => ({ default: m.PainelChat })));
+
 function CarregandoTela() {
   return (
     <main className="flex flex-1 items-center justify-center text-sm text-ink-400">
@@ -85,6 +91,7 @@ export function Aplicacao() {
   const criarLink = useCriarLink();
   const excluirLink = useExcluirLink();
   const [gavetaAberta, setGavetaAberta] = useState(false);
+  const [chatAberto, setChatAberto] = useState(false);
   const [destacado, setDestacado] = useState<string | null>(null);
   const [erroCaptura, setErroCaptura] = useState<string | null>(null);
   /** Link removido há pouco, à espera do desfazer (RN-05). */
@@ -194,6 +201,15 @@ export function Aplicacao() {
         setGavetaAberta((v) => !v);
         return;
       }
+      // RF-17. Y porque as teclas vizinhas já estão tomadas pelo navegador:
+      // Ctrl+Shift+I e Ctrl+Shift+J abrem as ferramentas de desenvolvedor no
+      // Chrome, Ctrl+Shift+K o console no Firefox, e Ctrl+Shift+C o inspetor
+      // nos dois. Y está livre em ambos.
+      if (mod && e.shiftKey && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        setChatAberto((v) => !v);
+        return;
+      }
       if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPaletaAberta(true);
@@ -213,6 +229,7 @@ export function Aplicacao() {
         setPaletaAberta(false);
         setAtalhosAbertos(false);
         setGavetaAberta(false);
+        setChatAberto(false);
       }
     }
 
@@ -234,6 +251,7 @@ export function Aplicacao() {
           onNovaNota={() => novaNota()}
           onAbrirGaveta={() => setGavetaAberta(true)}
           onAbrirAtalhos={() => setAtalhosAbertos(true)}
+          onAbrirChat={() => setChatAberto(true)}
           linksParaVer={(links ?? []).filter((l) => l.kind === "depois").length}
         />
       </PainelRedimensionavel>
@@ -345,6 +363,12 @@ export function Aplicacao() {
             erroCaptura={erroCaptura}
             onLimparErro={() => setErroCaptura(null)}
           />
+        </Suspense>
+      )}
+
+      {chatAberto && (
+        <Suspense fallback={null}>
+          <PainelChat aberto onFechar={() => setChatAberto(false)} onAbrirNota={abrirNota} />
         </Suspense>
       )}
 

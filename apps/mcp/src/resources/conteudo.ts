@@ -1,9 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { formatarNota, formatarQuadro } from "@yu-book/shared";
 import type { BoardDetail, NoteDetail } from "@yu-book/shared";
 import { api } from "../cliente.js";
 import { comErroDeResource } from "../erros.js";
-import { formatarNota, formatarQuadro } from "../formato.js";
+import { fusoDoUsuario } from "../fuso.js";
 
 /**
  * Resource templates — o conteúdo, sob demanda.
@@ -13,7 +14,7 @@ import { formatarNota, formatarQuadro } from "../formato.js";
  * injetada no contexto de alguém — então a identidade tem que ser estável.
  *
  * Estes templates devolvem exatamente o mesmo texto que as tools `get_note` e
- * `get_board`, porque chamam a mesma função de `formato.ts`. A duplicação seria
+ * `get_board`, porque chamam a mesma função de `packages/shared`. A duplicação seria
  * o mesmo recurso com duas caras; o que se duplica de propósito é a
  * **superfície**, não a implementação. Tool é o modelo decidindo buscar;
  * resource é o usuário anexando antes de perguntar.
@@ -48,9 +49,12 @@ export function registrarConteudo(server: McpServer): void {
       mimeType: "text/markdown",
     },
     comErroDeResource(async (uri, { id }) => {
-      const board = await api.get<BoardDetail>(`/boards/${id}`);
+      const [board, fuso] = await Promise.all([
+        api.get<BoardDetail>(`/boards/${id}`),
+        fusoDoUsuario(),
+      ]);
       return {
-        contents: [{ uri: uri.href, mimeType: "text/markdown", text: formatarQuadro(board) }],
+        contents: [{ uri: uri.href, mimeType: "text/markdown", text: formatarQuadro(board, fuso) }],
       };
     }),
   );

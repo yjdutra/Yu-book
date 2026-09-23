@@ -3,6 +3,7 @@ const ATALHOS: { grupo: string; tecla: string; descricao: string }[] = [
   { grupo: "Geral", tecla: "Ctrl+N", descricao: "Nova nota" },
   { grupo: "Geral", tecla: "Ctrl+Shift+B", descricao: "Ir para os boards" },
   { grupo: "Geral", tecla: "Ctrl+Shift+L", descricao: "Abrir a gaveta de links" },
+  { grupo: "Geral", tecla: "Ctrl+Shift+Y", descricao: "Conversar com o assistente" },
   { grupo: "Geral", tecla: "Ctrl+/", descricao: "Mostrar/esconder esta lista" },
   { grupo: "Geral", tecla: "Esc", descricao: "Fechar o que estiver aberto" },
 

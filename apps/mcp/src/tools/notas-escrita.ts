@@ -1,9 +1,8 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { FERRAMENTAS_DO_ACERVO, formatarNotaBreve } from "@yu-book/shared";
 import type { NoteDetail } from "@yu-book/shared";
 import { api } from "../cliente.js";
 import { comErroDeEscrita } from "../erros.js";
-import { formatarNotaBreve } from "../formato.js";
 import { relatar } from "../notificacoes.js";
 
 /**
@@ -23,30 +22,14 @@ import { relatar } from "../notificacoes.js";
  * isso com um humano confirmando.
  */
 export function registrarEscritaDeNotas(server: McpServer): void {
+  const lixeira = FERRAMENTAS_DO_ACERVO.trash_note;
   server.registerTool(
     "trash_note",
     {
-      title: "Mandar uma nota para a lixeira",
-      description:
-        "Manda uma nota para a lixeira. Ela some da busca, do catálogo, do autocomplete de " +
-        "`[[…]]` e dos backlinks das outras notas. **Um efeito não se desfaz:** os cards que " +
-        "apontavam para ela perdem o vínculo, e `restore_note` não o refaz — isso se refaz no " +
-        "aplicativo, um card por vez. Os links `[[…]]` de e para a nota também são apagados, " +
-        "mas esses **voltam** ao restaurar. Enquanto ela está na lixeira o título fica livre, " +
-        "então outra nota pode tomá-lo — e aí a volta falha. **Não apaga em definitivo**: este " +
-        "servidor não expõe essa operação.",
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: true,
-        idempotentHint: false,
-        openWorldHint: false,
-      },
-      inputSchema: {
-        noteId: z
-          .string()
-          .uuid()
-          .describe("Id da nota, como devolvido por `search_notes` ou `get_note`."),
-      },
+      title: lixeira.titulo,
+      description: lixeira.descricao,
+      annotations: lixeira.anotacoes,
+      inputSchema: lixeira.entrada,
     },
     comErroDeEscrita(async ({ noteId }, extra) => {
       const relato = relatar(server, extra, "trash_note", 2);
@@ -114,27 +97,14 @@ export function registrarEscritaDeNotas(server: McpServer): void {
     }),
   );
 
+  const restaurar = FERRAMENTAS_DO_ACERVO.restore_note;
   server.registerTool(
     "restore_note",
     {
-      title: "Tirar uma nota da lixeira",
-      description:
-        "Tira uma nota da lixeira e a devolve ativa: ela volta à busca, ao catálogo e aos " +
-        "backlinks, e os `[[…]]` do corpo dela são recalculados. **Não refaz** o vínculo dos " +
-        "cards que apontavam para ela — isso se refaz no aplicativo, um card por vez. " +
-        "**Pode falhar por título duplicado**: se outra nota ativa tiver ficado com o mesmo " +
-        "título enquanto esta estava na lixeira, a API recusa. Restaurar uma nota que já está " +
-        "ativa não altera nada. O id vem da confirmação de `trash_note` — a busca não enxerga " +
-        "a lixeira.",
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-      inputSchema: {
-        noteId: z.string().uuid().describe("Id da nota na lixeira."),
-      },
+      title: restaurar.titulo,
+      description: restaurar.descricao,
+      annotations: restaurar.anotacoes,
+      inputSchema: restaurar.entrada,
     },
     comErroDeEscrita(async ({ noteId }, extra) => {
       const relato = relatar(server, extra, "restore_note", 1);

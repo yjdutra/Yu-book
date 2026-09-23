@@ -1,15 +1,9 @@
-import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import {
-  cardPrioritySchema,
-  MAX_CARD_DESCRICAO,
-  MAX_CARD_TITULO,
-  MAX_TAGS_CARD,
-} from "@yu-book/shared";
+import { diaParaPrazo, FERRAMENTAS_DO_ACERVO, formatarCardDetalhe } from "@yu-book/shared";
 import type { CardDetail } from "@yu-book/shared";
 import { api } from "../cliente.js";
 import { comErroDeEscrita } from "../erros.js";
-import { diaParaPrazo, formatarCardDetalhe } from "../formato.js";
+import { fusoDoUsuario } from "../fuso.js";
 import { relatar } from "../notificacoes.js";
 
 /**
@@ -28,64 +22,25 @@ import { relatar } from "../notificacoes.js";
  * com mais chance de erro e menos valor numa criação.
  */
 export function registrarEscritaDeKanban(server: McpServer): void {
+  const criar = FERRAMENTAS_DO_ACERVO.create_card;
   server.registerTool(
     "create_card",
     {
-      title: "Criar um card",
-      description:
-        "Cria um card no fim de uma coluna de um quadro kanban. **Chame `get_board` antes**: o " +
-        "`columnId` sai de lá, e o quadro é deduzido da coluna — não existe parâmetro de quadro. " +
-        "O card **nasce no fim da coluna**; para pô-lo em outra posição, crie e depois chame " +
-        "`move_card`. Não cria coluna, quadro nem workspace, e não cria checklist: os três " +
-        "precisam existir antes, e checklist se edita no aplicativo.",
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: false,
-        openWorldHint: false,
-      },
-      inputSchema: {
-        columnId: z
-          .string()
-          .uuid()
-          .describe("Id da coluna de destino, como `get_board` mostra sob o nome de cada coluna."),
-        title: z
-          .string()
-          .trim()
-          .min(1)
-          .max(MAX_CARD_TITULO)
-          .describe(`Título do card, até ${MAX_CARD_TITULO} caracteres.`),
-        descriptionMd: z
-          .string()
-          .max(MAX_CARD_DESCRICAO)
-          .optional()
-          .describe("Descrição em Markdown. Omita para criar sem descrição."),
-        dueDate: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/)
-          .optional()
-          .describe(
-            "Dia do prazo, no formato AAAA-MM-DD. O prazo é o fim do dia escolhido: antes disso " +
-              "o card não está vencido.",
-          ),
-        priority: cardPrioritySchema.optional().describe("baixa, media ou alta. Omita para media."),
-        tags: z
-          .array(z.string())
-          .max(MAX_TAGS_CARD)
-          .optional()
-          // A normalização do servidor (minúsculas, corte em 24, fusão de
-          // repetidas) é toda silenciosa: não há nada que o modelo possa fazer
-          // diferente sabendo dela, e descrever custa em todo turno.
-          .describe(`Até ${MAX_TAGS_CARD} etiquetas livres.`),
-        noteId: z
-          .string()
-          .uuid()
-          .optional()
-          .describe("Vincula o card a uma nota ativa. O id vem de `search_notes` ou `get_note`."),
-      },
+      title: criar.titulo,
+      description: criar.descricao,
+      annotations: criar.anotacoes,
+      inputSchema: criar.entrada,
     },
     comErroDeEscrita(async ({ columnId, title, descriptionMd, dueDate, priority, tags, noteId }, extra) => {
       const relato = relatar(server, extra, "create_card", 1);
+      // Antes do POST, não em paralelo: é o fuso que decide em que instante o
+      // dia vira prazo, e mandar o corpo sem ele seria gravar outro dia.
+      //
+      // `exigir` só quando há prazo para converter. Sem prazo o fuso serve de
+      // rótulo na confirmação, e recuar é inofensivo; com prazo ele vira o
+      // instante gravado no banco, e recuar em silêncio deixaria uma data
+      // errada num lugar que não morre junto com a conversa.
+      const fuso = await fusoDoUsuario({ exigir: dueDate !== undefined });
 
       const card = await api.post<CardDetail>("/cards", {
         columnId,
@@ -96,7 +51,7 @@ export function registrarEscritaDeKanban(server: McpServer): void {
         // convenção não tem identificador de PRD; a referência é o arquivo.
         // Gravar meia-noite UTC aqui criaria uma segunda convenção de prazo
         // dentro do mesmo produto.
-        ...(dueDate !== undefined && { dueDate: diaParaPrazo(dueDate) }),
+        ...(dueDate !== undefined && { dueDate: diaParaPrazo(dueDate, fuso) }),
         ...(priority !== undefined && { priority }),
         ...(tags !== undefined && { tags }),
         ...(noteId !== undefined && { noteId }),
@@ -110,45 +65,26 @@ export function registrarEscritaDeKanban(server: McpServer): void {
         title: card.title,
       });
 
-      return { content: [{ type: "text", text: `Card criado.\n\n${formatarCardDetalhe(card)}` }] };
+      return { content: [{ type: "text", text: `Card criado.\n\n${formatarCardDetalhe(card, fuso)}` }] };
     }),
   );
 
+  const mover = FERRAMENTAS_DO_ACERVO.move_card;
   server.registerTool(
     "move_card",
     {
-      title: "Mover um card de coluna",
-      description:
-        "Move um card para outra coluna **do mesmo quadro**, ou muda a posição dele dentro da " +
-        "coluna atual. `position` é a posição em que o card vai ficar, começando em 0 — a " +
-        "confirmação devolve a posição final, então dá para conferir. **Número maior que a " +
-        "coluna é ajustado para o fim, não é erro**: é a forma legítima de dizer 'no fim'. " +
-        "Card não atravessa quadro: coluna de outro quadro é recusada. Card arquivado não se " +
-        "move. Chame `get_board` antes para pegar os ids e ver a ordem atual. Esta tool não " +
-        "altera título, prazo, tags nem nenhum outro campo.",
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-      inputSchema: {
-        cardId: z.string().uuid().describe("Id do card, como aparece em `get_board`."),
-        columnId: z
-          .string()
-          .uuid()
-          .describe("Id da coluna de destino, do mesmo quadro. Repita a atual para só reordenar."),
-        position: z
-          .number()
-          .int()
-          .min(0)
-          .describe("Posição final na coluna de destino, de 0 em diante. Número alto = no fim."),
-      },
+      title: mover.titulo,
+      description: mover.descricao,
+      annotations: mover.anotacoes,
+      inputSchema: mover.entrada,
     },
     comErroDeEscrita(async ({ cardId, columnId, position }, extra) => {
       const relato = relatar(server, extra, "move_card", 1);
 
-      const card = await api.patch<CardDetail>(`/cards/${cardId}/move`, { columnId, position });
+      const [card, fuso] = await Promise.all([
+        api.patch<CardDetail>(`/cards/${cardId}/move`, { columnId, position }),
+        fusoDoUsuario(),
+      ]);
 
       await relato.passo("card movido");
       await relato.registrar("info", {
@@ -161,7 +97,7 @@ export function registrarEscritaDeKanban(server: McpServer): void {
         position: card.position,
       });
 
-      return { content: [{ type: "text", text: `Card movido.\n\n${formatarCardDetalhe(card)}` }] };
+      return { content: [{ type: "text", text: `Card movido.\n\n${formatarCardDetalhe(card, fuso)}` }] };
     }),
   );
 }

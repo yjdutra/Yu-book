@@ -194,10 +194,15 @@ export async function definirModeloDaTarefa(
 export async function modeloParaTarefa(userId: string, task: AiTask): Promise<AiFavorite> {
   const escolha = await prisma.aiTaskModel.findUnique({ where: { userId_task: { userId, task } } });
   if (!escolha) {
+    /// A tarefa vai **no texto**. Sem ela a frase é "escolha um modelo para
+    /// esta tarefa", e quem está na tela de ajustes vendo um modelo marcado
+    /// conclui que o erro é falso — foi exatamente o que aconteceu quando o
+    /// chat passou a exigir a tarefa `chat` e a tela só oferecia `formatar`.
     throw new AppError(
       422,
       "MODELO_NAO_ESCOLHIDO",
-      "Escolha um modelo para esta tarefa nos ajustes de IA.",
+      `Nenhum modelo escolhido para a tarefa "${task}". Marque um na coluna ${task} ` +
+        "de «Seus modelos», nos ajustes de IA.",
     );
   }
 
@@ -208,7 +213,7 @@ export async function modeloParaTarefa(userId: string, task: AiTask): Promise<Ai
     throw new AppError(
       422,
       "MODELO_NAO_ESCOLHIDO",
-      "O modelo escolhido para esta tarefa saiu dos favoritos. Escolha outro nos ajustes.",
+      `O modelo escolhido para a tarefa "${task}" saiu dos favoritos. Marque outro nos ajustes.`,
     );
   }
 

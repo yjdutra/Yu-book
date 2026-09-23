@@ -9,3 +9,6 @@ export * from "./dashboard.js";
 export * from "./busca.js";
 export * from "./wikilinks.js";
 export * from "./ia.js";
+export * from "./formato.js";
+export * from "./ferramentas.js";
+export * from "./chat.js";

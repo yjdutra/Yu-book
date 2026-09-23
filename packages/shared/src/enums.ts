@@ -27,6 +27,17 @@ export const AI_TASKS = ["formatar", "chat"] as const;
 export type AiTask = (typeof AI_TASKS)[number];
 
 /**
+ * Quem falou numa mensagem do chat. Espelha o enum `AiMessageRole` do Prisma.
+ *
+ * `tool` é o resultado que o Yu-book devolveu ao modelo no meio do laço. Fica
+ * gravado porque o histórico é o que volta ao provedor na mensagem seguinte:
+ * sem ele, o modelo veria a própria decisão de chamar a ferramenta sem nunca
+ * ver a resposta.
+ */
+export const AI_MESSAGE_ROLES = ["user", "assistant", "tool"] as const;
+export type AiMessageRole = (typeof AI_MESSAGE_ROLES)[number];
+
+/**
  * De onde veio o custo registrado de uma chamada. Espelha `AiCostSource`.
  *
  * `estimado` é calculado pelo preço do catálogo quando o provedor não informa;
