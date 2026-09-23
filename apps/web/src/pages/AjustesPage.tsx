@@ -1,5 +1,9 @@
-import type { AiModel, AiTask } from "@yu-book/shared";
-import { dolaresParaMicros, microsParaDolares } from "@yu-book/shared";
+import type { AiModel, AiModelIndices, AiModelSort, AiTask } from "@yu-book/shared";
+import {
+  dolaresParaMicros,
+  FAIXAS_DE_PRECO_MICROS,
+  microsParaDolares,
+} from "@yu-book/shared";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { ApiError } from "../lib/api";
@@ -61,6 +65,44 @@ function contexto(tokens: number): string {
   return tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : String(tokens);
 }
 
+/**
+ * Índices de qualidade de terceiro, quando existem.
+ *
+ * Cobertura baixa de propósito visível: menos de 40% dos modelos têm medição, e
+ * **quem não tem não ganha etiqueta nenhuma** — ausência quer dizer "não
+ * medido", não "ruim". Desenhar um zero ali seria inventar uma nota.
+ */
+function Indices({ indices }: { indices: AiModelIndices | null }) {
+  if (!indices) return null;
+  const partes = [
+    indices.intelligence !== null ? `int ${Math.round(indices.intelligence)}` : null,
+    indices.coding !== null ? `cod ${Math.round(indices.coding)}` : null,
+    indices.agentic !== null ? `agt ${Math.round(indices.agentic)}` : null,
+  ].filter(Boolean);
+
+  if (partes.length === 0) return null;
+  return <span className="text-[10px] tabular-nums text-ink-400">{partes.join(" · ")}</span>;
+}
+
+const FAIXAS: { rotulo: string; teto: number | null }[] = [
+  /// Teto sobre o preço de **entrada**, que é o que domina ao formatar uma
+  /// nota. Medido em 2026-09-23: nenhum dos 348 tem entrada grátis com saída
+  /// paga, então este chip e a etiqueta `grátis` da linha coincidem hoje.
+  { rotulo: "grátis", teto: 0 },
+  { rotulo: "até $0,50", teto: FAIXAS_DE_PRECO_MICROS[1] },
+  { rotulo: "até $2", teto: FAIXAS_DE_PRECO_MICROS[2] },
+  { rotulo: "qualquer", teto: null },
+];
+
+const ROTULO_ORDEM: Record<AiModelSort, string> = {
+  relevance: "recentes",
+  price: "mais barato",
+  context: "maior contexto",
+  intelligence: "inteligência",
+  coding: "código",
+  agentic: "agêntico",
+};
+
 export function AjustesPage() {
   const saude = useAiSaude();
   const ajustes = useAiAjustes();
@@ -72,6 +114,9 @@ export function AjustesPage() {
   const [busca, setBusca] = useState("");
   const [termo, setTermo] = useState("");
   const [soFerramentas, setSoFerramentas] = useState(false);
+  const [soRaciocinio, setSoRaciocinio] = useState(false);
+  const [tetoDePreco, setTetoDePreco] = useState<number | null>(null);
+  const [ordem, setOrdem] = useState<AiModelSort>("relevance");
   const [indice, setIndice] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const listaRef = useRef<HTMLUListElement>(null);
@@ -82,9 +127,18 @@ export function AjustesPage() {
     return () => clearTimeout(t);
   }, [busca]);
 
-  useEffect(() => setIndice(0), [termo, soFerramentas]);
+  useEffect(
+    () => setIndice(0),
+    [termo, soFerramentas, soRaciocinio, tetoDePreco, ordem],
+  );
 
-  const catalogo = useAiModelos(termo, soFerramentas);
+  const catalogo = useAiModelos({
+    q: termo,
+    tools: soFerramentas,
+    reasoning: soRaciocinio,
+    maxPrice: tetoDePreco,
+    sort: ordem,
+  });
   const modelos = catalogo.data?.items ?? [];
 
   // Mantém o item destacado visível, como na paleta.
@@ -193,13 +247,60 @@ export function AjustesPage() {
               className="min-w-0 flex-1 rounded bg-ink-800 px-2 py-1 text-xs text-ink-200 outline-none
                          placeholder:text-ink-400/60 focus:ring-1 focus:ring-accent-400"
             />
-            <label className="flex items-center gap-1 text-xs text-ink-400">
+          </div>
+
+          {/* As faixas saem da distribuição real do catálogo — mediana em
+              US$ 0,325/M —, não de números redondos escolhidos no olho. */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-ink-400">Preço:</span>
+            {FAIXAS.map((f) => (
+              <button
+                key={f.rotulo}
+                type="button"
+                onClick={() => setTetoDePreco(f.teto)}
+                aria-pressed={tetoDePreco === f.teto}
+                className={`rounded px-2 py-0.5 transition-colors ${
+                  tetoDePreco === f.teto
+                    ? "bg-ink-700 text-titulo"
+                    : "text-ink-400 hover:bg-ink-800 hover:text-ink-200"
+                }`}
+              >
+                {f.rotulo}
+              </button>
+            ))}
+
+            <label className="ml-2 flex items-center gap-1 text-ink-400">
               <input
                 type="checkbox"
                 checked={soFerramentas}
                 onChange={(e) => setSoFerramentas(e.target.checked)}
               />
-              só com ferramentas
+              ferramentas
+            </label>
+            <label className="flex items-center gap-1 text-ink-400">
+              <input
+                type="checkbox"
+                checked={soRaciocinio}
+                onChange={(e) => setSoRaciocinio(e.target.checked)}
+              />
+              raciocínio
+            </label>
+
+            <label className="ml-auto flex items-center gap-1 text-ink-400">
+              ordenar
+              <select
+                value={ordem}
+                onChange={(e) => setOrdem(e.target.value as AiModelSort)}
+                aria-label="Ordenar o catálogo"
+                className="rounded bg-ink-800 px-1 py-0.5 text-ink-200 outline-none
+                           focus:ring-1 focus:ring-accent-400"
+              >
+                {Object.entries(ROTULO_ORDEM).map(([valor, rotulo]) => (
+                  <option key={valor} value={valor}>
+                    {rotulo}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
 
@@ -224,10 +325,11 @@ export function AjustesPage() {
                               ${i === indice ? "border-l-2 border-accent-400 bg-ink-700/70" : ""}`}
                 >
                   <span className="min-w-0 flex-1 truncate text-ink-200">{m.name}</span>
-                  {/* RNF-07: etiqueta de texto, nunca só cor. É a informação de
-                      que o chat vai depender para escolher modelo. */}
+                  {/* RNF-07: etiqueta de texto, nunca só cor. */}
                   {m.supportsTools && <span className="text-[10px] text-emerald-300">ferramentas</span>}
+                  {m.reasoning && <span className="text-[10px] text-violet-300">raciocínio</span>}
                   {m.free && <span className="text-[10px] text-sky-300">grátis</span>}
+                  <Indices indices={m.indices} />
                   <span className="tabular-nums text-ink-400">{contexto(m.contextLength)}</span>
                   <span className="tabular-nums text-ink-400">
                     {emDolares(m.promptMicros)}/M
@@ -236,7 +338,18 @@ export function AjustesPage() {
               </li>
             ))}
           </ul>
-          {catalogo.data && modelos.length === 0 && <Vazio texto={`Nenhum modelo com «${termo}».`} />}
+          {catalogo.data && modelos.length === 0 && (
+            /* A mensagem nasceu quando o termo era o único filtro. Com os chips
+               e as caixas, um clique em "grátis" sem nada digitado dizia
+               «Nenhum modelo com «».» — culpando uma busca que não existe. */
+            <Vazio
+              texto={
+                termo
+                  ? `Nenhum modelo com «${termo}» nestes filtros.`
+                  : "Nenhum modelo nestes filtros."
+              }
+            />
+          )}
           {catalogo.data && (
             <p className="text-[10px] text-ink-400">
               {modelos.length} de {catalogo.data.total}

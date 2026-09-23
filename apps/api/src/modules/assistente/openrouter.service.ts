@@ -31,6 +31,22 @@ function garantirDestinoDeTeste(url: string): void {
   }
 }
 
+/**
+ * A mensagem que o provedor pôs no corpo do erro, quando pôs.
+ *
+ * Truncada: é texto de terceiro e vai parar na tela. Se não for o JSON
+ * esperado, devolve vazio — nunca despeja HTML de página de erro na interface.
+ */
+function mensagemDoProvedor(corpo: string): string {
+  try {
+    const json = JSON.parse(corpo) as { error?: { message?: unknown } };
+    const mensagem = json.error?.message;
+    return typeof mensagem === "string" ? mensagem.slice(0, 200) : "";
+  } catch {
+    return "";
+  }
+}
+
 function indisponivel(motivo: string): AppError {
   return new AppError(503, "PROVEDOR_INDISPONIVEL", motivo);
 }
@@ -100,8 +116,20 @@ export async function pedirDoProvedor<T>(
   }
 
   if (!resposta.ok) {
+    /// O que o provedor disse, e em qual caminho. Sem isto a mensagem é
+    /// "respondeu 404" e não diz a ninguém o que fazer — e o 404 mais provável
+    /// não vem do provedor recusar, vem de `OPENROUTER_BASE_URL` apontar para
+    /// um caminho que não existe (sem `/v1`, por exemplo). O caminho é literal
+    /// e não carrega chave nem dado do usuário.
+    const detalhe = mensagemDoProvedor(await resposta.text().catch(() => ""));
+    const onde = `${caminho}${detalhe ? ` — ${detalhe}` : ""}`;
+
     if (resposta.status === 401 || resposta.status === 403) {
-      throw indisponivel("O provedor de IA recusou a chave configurada");
+      /// Sem o `detalhe` aqui, e só aqui: é o ramo em que o provedor costuma
+      /// ecoar a credencial na própria mensagem ("Invalid API key: sk-…"), e
+      /// 200 caracteres cabem um prefixo de chave com folga. É também onde o
+      /// detalhe menos acrescenta — a frase já diz o que aconteceu.
+      throw indisponivel(`O provedor de IA recusou a chave configurada (${caminho})`);
     }
     /// 402 é crédito acabado; 429 é limite de taxa **ou** cota diária do modelo
     /// gratuito. Os dois pedem a mesma coisa de quem está na tela: esperar.
@@ -109,10 +137,10 @@ export async function pedirDoProvedor<T>(
       throw new AppError(
         402,
         "COTA_EXCEDIDA",
-        "O provedor de IA recusou por cota ou limite de uso. Tente de novo mais tarde.",
+        `O provedor de IA recusou por cota ou limite de uso (${onde}). Tente mais tarde.`,
       );
     }
-    throw indisponivel(`O provedor de IA respondeu ${resposta.status}`);
+    throw indisponivel(`O provedor de IA respondeu ${resposta.status} em ${onde}`);
   }
 
   return (await resposta.json()) as T;

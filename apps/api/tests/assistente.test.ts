@@ -6,12 +6,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vitest"
 import { prisma } from "../src/db.js";
 import { diaLocal, TETO_DIARIO_PADRAO_MICROS } from "@yu-book/shared";
 import { saude } from "../src/modules/assistente/assistente.service.js";
+import { pedirDoProvedor } from "../src/modules/assistente/openrouter.service.js";
 import {
   custoDaResposta,
   garantirTeto,
   resumoDoDia,
 } from "../src/modules/assistente/custo.service.js";
 import { esquecerCatalogo, listarModelos } from "../src/modules/assistente/modelos.service.js";
+import { modeloParaTarefa } from "../src/modules/assistente/preferencias.service.js";
 import { chamar, criarUsuario, limpar, subirApp } from "./apoio.js";
 import type { Usuario } from "./apoio.js";
 
@@ -35,6 +37,20 @@ const MODELOS = [
     context_length: 128_000,
     pricing: { prompt: "0.00000435", completion: "0.0000087" },
     supported_parameters: ["temperature", "tools"],
+    architecture: { input_modalities: ["text", "image"], output_modalities: ["text"] },
+    reasoning: { mandatory: false, default_effort: "medium" },
+    knowledge_cutoff: "2026-02-16",
+    benchmarks: {
+      artificial_analysis: { intelligence_index: 47.5, coding_index: 61, agentic_index: null },
+    },
+  },
+  {
+    id: "estudio/gpt-x:batch",
+    name: "Estúdio: GPT-X (batch)",
+    context_length: 128_000,
+    pricing: { prompt: "0.000002175", completion: "0.00000435" },
+    supported_parameters: ["temperature", "tools"],
+    architecture: { input_modalities: ["text"], output_modalities: ["text"] },
   },
   {
     id: "meta/llama-3-8b:free",
@@ -42,6 +58,7 @@ const MODELOS = [
     context_length: 8_192,
     pricing: { prompt: "0", completion: "0" },
     supported_parameters: ["temperature"],
+    architecture: { input_modalities: ["text"], output_modalities: ["text"] },
   },
   {
     id: "anthropic/claude-x",
@@ -49,6 +66,29 @@ const MODELOS = [
     context_length: 200_000,
     pricing: { prompt: "0.000003", completion: "0.000015" },
     supported_parameters: ["tools"],
+    architecture: { input_modalities: ["text"], output_modalities: ["text"] },
+    benchmarks: {
+      artificial_analysis: { intelligence_index: 55, coding_index: 70, agentic_index: 60 },
+    },
+  },
+  {
+    /// Devolve imagem: a tarefa aqui é texto entra, texto sai.
+    id: "estudio/pintor",
+    name: "Estúdio: Pintor",
+    context_length: 32_000,
+    pricing: { prompt: "0.00001", completion: "0.00002" },
+    supported_parameters: ["tools"],
+    architecture: { input_modalities: ["text"], output_modalities: ["image", "text"] },
+  },
+  {
+    /// Apelido que o provedor repõe: o favorito guardaria preço de outro modelo.
+    id: "~estudio/gpt-latest",
+    name: "Estúdio: GPT (latest)",
+    context_length: 128_000,
+    pricing: { prompt: "0.00000435", completion: "0.0000087" },
+    supported_parameters: ["tools"],
+    architecture: { input_modalities: ["text"], output_modalities: ["text"] },
+    alias_target: { name: "Estúdio: GPT-X", slug: "estudio/gpt-x" },
   },
 ];
 
@@ -129,6 +169,25 @@ describe("saúde do assistente", () => {
     expect(dublê.recebidas).toEqual(["/api/v1/key"]);
   });
 
+  test("o erro do provedor diz o caminho e o que ele respondeu", async () => {
+    // "respondeu 404" sozinho não diz a ninguém o que fazer — e o 404 mais
+    // provável vem de base URL errada, não de recusa do provedor.
+    dublê.responder = () => ({
+      status: 404,
+      corpo: { error: { message: "No endpoints found for this model." } },
+    });
+
+    const erro = await pedirDoProvedor<unknown>("/chat/completions", { chave: "x" }).then(
+      () => null,
+      (e: unknown) => (e instanceof Error ? e : null),
+    );
+
+    expect(erro).not.toBeNull();
+    expect(erro?.message).toContain("404");
+    expect(erro?.message).toContain("/chat/completions");
+    expect(erro?.message).toContain("No endpoints found");
+  });
+
   test("provedor fora do ar vira 'não responde', não exceção", async () => {
     dublê.responder = () => ({ status: 503, corpo: { error: "fora do ar" } });
 
@@ -171,7 +230,7 @@ describe("GET /ai/health", () => {
 
 describe("catálogo de modelos", () => {
   test("normaliza preço, contexto e as duas bandeiras", async () => {
-    const { items, total } = await listarModelos({ limit: 30 });
+    const { items, total } = await listarModelos({ sort: "relevance", limit: 30 });
 
     expect(total).toBe(3);
     const gpt = items.find((m) => m.id === "estudio/gpt-x");
@@ -181,24 +240,97 @@ describe("catálogo de modelos", () => {
     expect(gpt?.contextLength).toBe(128_000);
     expect(gpt?.supportsTools).toBe(true);
     expect(gpt?.free).toBe(false);
+    expect(gpt?.reasoning).toBe(true);
+    expect(gpt?.acceptsImage).toBe(true);
+    expect(gpt?.knowledgeCutoff).toBe("2026-02-16");
+    // Índice ausente é `null`, nunca zero: zero seria uma nota ruim inventada
+    // para um modelo que ninguém mediu.
+    expect(gpt?.indices).toEqual({ intelligence: 47.5, coding: 61, agentic: null });
 
     const llama = items.find((m) => m.id === "meta/llama-3-8b:free");
     expect(llama?.free).toBe(true);
     expect(llama?.supportsTools).toBe(false);
+    expect(llama?.reasoning).toBe(false);
+    expect(llama?.indices).toBeNull();
+  });
+
+  test("variante de lote fica fora do catálogo", async () => {
+    // Ela responde 404 em /chat/completions — "cannot be used with the
+    // chat/completions endpoint" —, custa metade e fica colada na normal na
+    // lista. Oferecer é convidar o usuário a escolher o que não funciona.
+    const { items, total } = await listarModelos({ sort: "relevance", limit: 30 });
+
+    expect(items.map((m) => m.id)).not.toContain("estudio/gpt-x:batch");
+    expect(items.map((m) => m.id)).toContain("estudio/gpt-x");
+    expect(total).toBe(3);
+  });
+
+  test("modelo que não devolve texto fica fora", async () => {
+    // Mesma classe do lote: oferecer no catálogo o que a chamada não aceita.
+    const { items } = await listarModelos({ sort: "relevance", limit: 30 });
+    expect(items.map((m) => m.id)).not.toContain("estudio/pintor");
+  });
+
+  test("forma desconhecida do provedor falha alto, não vira catálogo vazio", async () => {
+    // As exclusões leem campo aninhado do provedor. Se essa forma mudar, toda
+    // entrada vira descarte — e um catálogo vazio cacheado por uma hora
+    // apareceria na tela como "0 de 0", indistinguível de filtro apertado.
+    dublê.responder = (url) =>
+      url.endsWith("/models")
+        ? { corpo: { data: [{ id: "x/y", name: "X", pricing: { prompt: "0", completion: "0" } }] } }
+        : respostaPadrao(url);
+
+    await expect(listarModelos({ sort: "relevance", limit: 30 })).rejects.toThrow();
+  });
+
+  test("apelido fica fora", async () => {
+    // Funciona, mas o favorito guarda cópia de preço e contexto — sob apelido
+    // essa cópia fica errada em silêncio no dia em que o alvo muda.
+    const { items } = await listarModelos({ sort: "relevance", limit: 30 });
+    expect(items.map((m) => m.id)).not.toContain("~estudio/gpt-latest");
+  });
+
+  test("o teto de preço corta, e zero é o filtro de gratuitos", async () => {
+    const baratos = await listarModelos({ sort: "relevance", limit: 30, maxPrice: 3_000_000 });
+    expect(baratos.items.map((m) => m.id).sort()).toEqual([
+      "anthropic/claude-x",
+      "meta/llama-3-8b:free",
+    ]);
+
+    // `0` tem que filtrar, não ser tratado como "sem filtro".
+    const gratis = await listarModelos({ sort: "relevance", limit: 30, maxPrice: 0 });
+    expect(gratis.items.map((m) => m.id)).toEqual(["meta/llama-3-8b:free"]);
+  });
+
+  test("ordenar por índice põe quem não foi medido no fim, nunca no meio", async () => {
+    // É a asserção que impede a ordenação de mentir: ausência de medição não é
+    // nota baixa, e tratá-la como zero enfileiraria o não medido atrás do pior.
+    const { items } = await listarModelos({ sort: "coding", limit: 30 });
+
+    expect(items.map((m) => m.id)).toEqual([
+      "anthropic/claude-x",
+      "estudio/gpt-x",
+      "meta/llama-3-8b:free",
+    ]);
+  });
+
+  test("ordenar por preço não se limita aos primeiros do provedor", async () => {
+    const { items } = await listarModelos({ sort: "price", limit: 2 });
+    expect(items.map((m) => m.id)).toEqual(["meta/llama-3-8b:free", "anthropic/claude-x"]);
   });
 
   test("a busca casa sem acento, como o resto do projeto", async () => {
     // `programacao` tem que achar `Programação` — é a mesma chave que o banco
     // usa. O acento existe **só no nome**: se estivesse também no id, a busca
     // casaria pelo id e este teste passaria com a normalização quebrada.
-    const { items, total } = await listarModelos({ q: "programacao", limit: 30 });
+    const { items, total } = await listarModelos({ sort: "relevance", q: "programacao", limit: 30 });
 
     expect(total).toBe(1);
     expect(items[0]?.id).toBe("meta/llama-3-8b:free");
   });
 
   test("tools=true deixa de fora quem não sabe chamar ferramenta", async () => {
-    const { items } = await listarModelos({ tools: true, limit: 30 });
+    const { items } = await listarModelos({ sort: "relevance", tools: true, limit: 30 });
 
     expect(items.map((m) => m.id).sort()).toEqual(["anthropic/claude-x", "estudio/gpt-x"]);
   });
@@ -206,36 +338,36 @@ describe("catálogo de modelos", () => {
   test("total conta o que casou, não o que coube no corte", async () => {
     // Sem isto a tela diria "1 de 1" quando há três — mentira barata e difícil
     // de notar, porque a lista mostrada estaria certa.
-    const { items, total } = await listarModelos({ limit: 1 });
+    const { items, total } = await listarModelos({ sort: "relevance", limit: 1 });
 
     expect(items).toHaveLength(1);
     expect(total).toBe(3);
   });
 
   test("a segunda consulta não toca no provedor", async () => {
-    await listarModelos({ limit: 30 });
+    await listarModelos({ sort: "relevance", limit: 30 });
     const depoisDaPrimeira = [...dublê.recebidas];
-    await listarModelos({ q: "claude", limit: 30 });
+    await listarModelos({ sort: "relevance", q: "claude", limit: 30 });
 
     expect(depoisDaPrimeira).toEqual(["/api/v1/models"]);
     expect(dublê.recebidas).toEqual(depoisDaPrimeira);
   });
 
   test("com cache quente, provedor fora do ar devolve o que tinha e avisa", async () => {
-    const primeira = await listarModelos({ limit: 30 });
+    const primeira = await listarModelos({ sort: "relevance", limit: 30 });
     expect(primeira.stale).toBe(false);
 
     esquecerCatalogo();
     dublê.responder = () => ({ status: 503, corpo: { error: "fora do ar" } });
     // Recarrega e falha — mas o cache anterior foi esquecido, então este caminho
     // é o de "sem cache": o erro tem que subir.
-    await expect(listarModelos({ limit: 30 })).rejects.toThrow();
+    await expect(listarModelos({ sort: "relevance", limit: 30 })).rejects.toThrow();
   });
 
   test("o catálogo não exige chave — sem ela a tela ainda lista modelos", async () => {
     // `GET /models` é público no provedor. Exigir chave aqui faria a tela de
     // ajustes ficar vazia num servidor sem chave, contra RNF-03.
-    const { items } = await listarModelos({ limit: 30 });
+    const { items } = await listarModelos({ sort: "relevance", limit: 30 });
 
     expect(items.length).toBeGreaterThan(0);
     expect(dublê.recebidas).toEqual(["/api/v1/models"]);
@@ -526,6 +658,33 @@ describe("ajustes de IA", () => {
 
     expect(comFavorito.status).toBe(200);
     expect((comFavorito.body as Record<string, string>).formatar).toBe("anthropic/claude-x");
+  });
+
+  test("favorito de lote gravado antes do filtro é recusado com motivo", async () => {
+    // O provedor recusaria com 404 e uma frase em inglês sobre adaptadores.
+    const u = await criarUsuario("ia-lote");
+    await prisma.aiModelFavorite.create({
+      data: {
+        userId: u.id,
+        modelId: "estudio/gpt-x:batch",
+        name: "Estúdio: GPT-X (batch)",
+        contextLength: 128_000,
+        promptMicros: 2_175_000,
+        completionMicros: 4_350_000,
+        supportsTools: true,
+      },
+    });
+    await prisma.aiTaskModel.create({
+      data: { userId: u.id, task: "formatar", modelId: "estudio/gpt-x:batch" },
+    });
+
+    const erro = await modeloParaTarefa(u.id, "formatar").then(
+      () => null,
+      (e: unknown) => (e instanceof Error ? e : null),
+    );
+
+    expect(erro?.message).toContain("lote");
+    expect(erro?.message).toContain("Remova");
   });
 
   test("favorito de outra conta é 404, não 403", async () => {

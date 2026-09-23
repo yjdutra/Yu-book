@@ -94,8 +94,42 @@ export const aiTaskModelSchema = z.object({
   modelId: z.string().trim().min(1).max(200).nullable(),
 });
 
+/**
+ * Como ordenar o catálogo.
+ *
+ * Os três últimos são índices de terceiro, presentes em **menos de 40%** dos
+ * modelos — por isso ordenam, mas nunca filtram: filtrar por índice esconderia
+ * dois terços do catálogo, e ausência de medição não é defeito do modelo.
+ */
+export const AI_MODEL_SORTS = [
+  "relevance",
+  "price",
+  "context",
+  "intelligence",
+  "coding",
+  "agentic",
+] as const;
+export type AiModelSort = (typeof AI_MODEL_SORTS)[number];
+
+/**
+ * Faixas de preço da tela, em µUSD por milhão de tokens de entrada.
+ *
+ * Saem da distribuição real, medida em 2026-09-23 sobre os **348** modelos que
+ * sobram depois das exclusões: 22 gratuitos, 184 até US$ 0,50, 99 entre 0,50 e
+ * 2, e 43 acima — mediana em US$ 0,32/M. Não são números redondos escolhidos no
+ * olho, e somam 348 de propósito: contagem que não fecha envelhece em silêncio.
+ */
+export const FAIXAS_DE_PRECO_MICROS = [0, 500_000, 2_000_000] as const;
+
 export const listAiModelsQuerySchema = z.object({
   q: z.string().trim().max(80).optional(),
+  /// Teto de preço de **entrada**, em µUSD por milhão. `0` quer dizer gratuito.
+  maxPrice: z.coerce.number().int().min(0).optional(),
+  reasoning: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true")),
+  sort: z.enum(AI_MODEL_SORTS).default("relevance"),
   /// `z.coerce.boolean()` transformaria a string "false" em `true`. Mesma forma
   /// de `ALLOW_SIGNUP` em `apps/api/src/env.ts`.
   tools: z
@@ -119,6 +153,18 @@ export type ListAiModelsQuery = z.infer<typeof listAiModelsQuerySchema>;
 
 /// Preço em µUSD por **1 milhão** de tokens — o provedor entrega USD por token
 /// como string decimal, e guardar por milhão mantém tudo em inteiro.
+/**
+ * Índices de qualidade de terceiro, quando o provedor os informa.
+ *
+ * Cada um é `null` quando não há medição — e `null` **não é zero**: quer dizer
+ * "não medido", e é por isso que a tela não desenha etiqueta nenhuma nesse caso.
+ */
+export interface AiModelIndices {
+  intelligence: number | null;
+  coding: number | null;
+  agentic: number | null;
+}
+
 export interface AiModel {
   id: string;
   name: string;
@@ -129,6 +175,13 @@ export interface AiModel {
   /// por isso que a bandeira é capturada agora, não quando o chat chegar.
   supportsTools: boolean;
   free: boolean;
+  /// O modelo declara raciocínio. Pesa no custo: pensar gasta tokens de saída.
+  reasoning: boolean;
+  acceptsImage: boolean;
+  /// `null` quando o provedor não informou nenhum dos três.
+  indices: AiModelIndices | null;
+  /// `AAAA-MM-DD` de até quando o modelo foi treinado, quando informado.
+  knowledgeCutoff: string | null;
 }
 
 export interface AiModelList {
@@ -139,12 +192,27 @@ export interface AiModelList {
   stale: boolean;
 }
 
-/// Favorito carrega uma **cópia** do catálogo: a estimativa de custo não pode
-/// buscar o catálogo inteiro dentro da requisição, e a tela precisa listar
-/// favoritos com o provedor fora do ar.
-export interface AiFavorite extends AiModel {
+/**
+ * Favorito carrega uma **cópia** do catálogo: a estimativa de custo não pode
+ * buscar o catálogo inteiro dentro da requisição, e a tela precisa listar
+ * favoritos com o provedor fora do ar.
+ *
+ * Os campos são declarados um a um, e **não** por `extends AiModel`, porque
+ * eles dizem exatamente o que está gravado no banco. O que ficou de fora ficou
+ * de propósito: índices são medição de terceiro que muda com o tempo, e
+ * congelar uma nota velha num favorito seria desinformar — eles existem para
+ * **escolher** um modelo no catálogo, não para descrever o já escolhido.
+ */
+export interface AiFavorite {
   favoriteId: string;
   snapshotAt: string;
+  id: string;
+  name: string;
+  contextLength: number;
+  promptMicros: number;
+  completionMicros: number;
+  supportsTools: boolean;
+  free: boolean;
 }
 
 export interface AiUsageSummary {

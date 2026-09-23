@@ -2,6 +2,7 @@ import type {
   AiFavorite,
   AiHealth,
   AiModelList,
+  AiModelSort,
   AiSettings,
   AiSettingsPatch,
   AiTask,
@@ -36,13 +37,25 @@ export function useAiAjustes() {
   });
 }
 
-export function useAiModelos(termo: string, soComFerramentas: boolean) {
-  const busca = new URLSearchParams({ limit: "20" });
-  if (termo) busca.set("q", termo);
-  if (soComFerramentas) busca.set("tools", "true");
+/** O que a tela pergunta ao catálogo. `maxPrice` em µUSD por milhão; `null` = sem teto. */
+export interface FiltrosDeModelo {
+  q: string;
+  tools: boolean;
+  reasoning: boolean;
+  maxPrice: number | null;
+  sort: AiModelSort;
+}
+
+export function useAiModelos(filtros: FiltrosDeModelo) {
+  const busca = new URLSearchParams({ limit: "20", sort: filtros.sort });
+  if (filtros.q) busca.set("q", filtros.q);
+  if (filtros.tools) busca.set("tools", "true");
+  if (filtros.reasoning) busca.set("reasoning", "true");
+  // `0` é o filtro de gratuitos, então a checagem é contra `null`, não falsy.
+  if (filtros.maxPrice !== null) busca.set("maxPrice", String(filtros.maxPrice));
 
   return useQuery({
-    queryKey: ["ia", "modelos", termo, soComFerramentas],
+    queryKey: ["ia", "modelos", filtros],
     queryFn: () => api.get<AiModelList>(`/ai/models?${busca.toString()}`),
     // O catálogo muda em dias; o servidor ainda tem cache próprio de uma hora.
     staleTime: 300_000,

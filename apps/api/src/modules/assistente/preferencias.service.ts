@@ -4,7 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
 import { resumoDoDia, type TetoDoUsuario } from "./custo.service.js";
-import { acharModelo } from "./modelos.service.js";
+import { acharModelo, ehVarianteDeLote } from "./modelos.service.js";
 
 /** Erro de entrada, no molde dos outros módulos. */
 const invalido = (mensagem: string) => new AppError(422, "VALIDATION_ERROR", mensagem);
@@ -199,6 +199,18 @@ export async function modeloParaTarefa(userId: string, task: AiTask): Promise<Ai
       422,
       "MODELO_NAO_ESCOLHIDO",
       "O modelo escolhido para esta tarefa saiu dos favoritos. Escolha outro nos ajustes.",
+    );
+  }
+
+  /// Favorito de lote gravado antes de o catálogo passar a filtrá-los. O
+  /// provedor recusaria com 404 e uma frase em inglês sobre adaptadores; aqui a
+  /// recusa diz o que fazer.
+  if (ehVarianteDeLote(favorito.modelId)) {
+    throw new AppError(
+      422,
+      "MODELO_NAO_ESCOLHIDO",
+      `"${favorito.name}" é uma variante de lote e não serve para esta tarefa. ` +
+        "Remova-a dos favoritos e escolha a versão normal do modelo.",
     );
   }
 
