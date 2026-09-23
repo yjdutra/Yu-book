@@ -37,7 +37,7 @@ foi construído**, e ele vai ao ar hoje construído contra o `0.5.0`. `ERROR_COD
 novo desta vez.
 
 Portões: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo nos quatro pacotes,
-`pnpm --filter @yu-book/api test` com **7 arquivos e 105 testes** (eram 97),
+`pnpm --filter @yu-book/api test` com **7 arquivos e 106 testes** (eram 97),
 `pnpm --filter @yu-book/mcp test` com 5 arquivos e 43 testes, `pnpm --filter @yu-book/web build` ok
 e busca por `sk-or-v1` e `openrouter.ai` no bundle compilado: **zero ocorrências** (CA-01, M2).
 
