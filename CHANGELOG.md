@@ -13,6 +13,137 @@ _Nada pendente._
 
 ---
 
+## [0.13.0] — 2026-09-23
+
+**Etapa B da frente de IA: o chat que lê.** Até esta entrada o Yu-book mandava um texto ao modelo e
+recebia outro de volta. Agora **uma mensagem do usuário não é uma chamada ao provedor, são até
+cinco**: o modelo pede uma ferramenta, o Yu-book executa contra o acervo, o resultado volta e ele
+decide se acabou. As **nove ações** que o servidor MCP publica desde a Etapa 3 passaram a ser as
+mesmas que o chat oferece ao provedor — **uma definição, dois consumidores**, em
+`packages/shared/src/ferramentas.ts`. O que o MCP publica não mudou um byte: `tools/list` devolve
+**8551 B com escrita e 3480 B sem**, idêntico antes e depois, comparado por JSON-RPC entre as duas
+revisões.
+
+Cobre a **Fase 3** do [`docs/prd-ia-no-yu-book.md`](docs/prd-ia-no-yu-book.md), RF-17 a RF-26 — e
+**revoga o RF-21, a RN-04 e o CA-09** de lá, porque o laço de ferramenta é exatamente o que eles
+mandavam não fazer: em vez de o chat pedir que se anexe algo, ele vai buscar. A RN-05 — toda
+afirmação cita origem — continua valendo inteira, e agora é sustentada por construção: só existe
+afirmação sobre o que uma ferramenta de leitura devolveu.
+
+É a **Etapa B da frente de IA**, que é a **Fase 5 do roteiro de IA aplicada**. Não é fase de
+produto — as de produto vão de 0 a 5, seguem fechadas, e a 6 (Google Calendar) não começou — e não é
+etapa do MCP, que continua na **4 de 5**. Quatro numerações, nenhuma conversível na outra.
+
+Os quatro pacotes se movem: `apps/api` e `apps/web` de `0.8.0` para `0.9.0`, `packages/shared` de
+`0.6.0` para `0.7.0`, `apps/mcp` de `0.9.0` para `0.10.0` — no `package.json` **e** no construtor do
+`McpServer`, que é o que ele anuncia no `initialize`. **Desta vez o MCP foi tocado de verdade**, ao
+contrário das três entradas anteriores: `apps/mcp/src/formato.ts` foi apagado, as quatro superfícies
+de tool passaram a ler o metadado de `packages/shared`, e `fuso.ts` nasceu. O que ele **publica**
+continua o mesmo — nove tools, quatro resources, dois templates, dois prompts. `ERROR_CODES` ganhou
+um membro, `MODELO_SEM_FERRAMENTA`.
+
+Portões, medidos nesta árvore: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo nos
+quatro pacotes, `pnpm --filter @yu-book/api test` com **8 arquivos e 131 testes** (eram 7 e 109),
+`pnpm --filter @yu-book/mcp test` com **6 arquivos e 49 testes** (eram 5 e 43),
+`pnpm --filter @yu-book/web build` ok e `prisma migrate status` com o banco em dia. A suíte do MCP
+foi rodada duas vezes, com `TZ=UTC` e com o fuso da máquina, `America/Sao_Paulo`: 49 passam nos
+dois, que é o ponto da suíte nova.
+
+**A sequência de seis entregas sem conferência de interface à mão termina aqui, e a conferência
+cobrou na hora.** O operador abriu o painel pela primeira vez e encontrou, em minutos, um defeito
+que nenhum dos portões via: a tela `/ajustes` não tinha como escolher o modelo da tarefa `chat` —
+está nos **Corrigido** abaixo. Não é a dívida quitada; é ela sendo cobrada.
+
+O que passou a estar **verificado ao vivo**, nesta árvore: o painel abre, a escolha de modelo por
+tarefa funciona, o laço busca sozinho, lê a nota e cita a origem, e o gasto do dia aparece. O que
+**continua sem verificação nenhuma**: o anexo pelo `@` a partir da tela, o chip de origem abrindo o
+alvo, o teto cortando no meio de uma resposta, renomear e excluir conversa, e o atalho
+`Ctrl+Shift+Y`. `apps/web` continua sem runner de teste — a conferência de hoje vale para a árvore
+de hoje e não vigia nada amanhã. O que os 22 testes novos da API cobrem é o que está atrás da tela:
+o laço, o teto por passo, o corte de anexo, o escopo por usuário, o formato dos eventos e a
+convivência das duas escolhas de modelo.
+
+**Para usar o chat é preciso marcar um modelo na coluna `chat` de «Seus modelos», em `/ajustes`.**
+Enquanto não houver, o painel recusa com `MODELO_NAO_ESCOLHIDO`, e um modelo que não saiba chamar
+ferramenta é recusado com `MODELO_SEM_FERRAMENTA` — na tela, esse rádio já vem desabilitado.
+
+### Adicionado
+- **Painel de chat, por `Ctrl+Shift+Y` e por botão na navegação** (RF-17). A resposta chega em
+  streaming, aparecendo enquanto é gerada (RF-22).
+- **O assistente lê o acervo sozinho**, chamando até cinco ferramentas por pergunta: buscar notas,
+  abrir nota, listar quadros, abrir quadro, ver o dashboard, criar card, mover card, mandar nota
+  para a lixeira e restaurar. São as **mesmas nove** que o servidor MCP publica, do mesmo arquivo.
+  O limite de cinco passos não é economia: é o que impede um modelo em ciclo de gastar o teto do dia
+  numa pergunta só.
+- **Anexo por `@`**: nota, card ou quadro entram no contexto da **mensagem** (RF-18, RF-19). Nota vai
+  com o corpo completo; quadro vai com as colunas e a face dos cards, o mesmo recorte que o MCP usa.
+- **A resposta cita a origem** (RF-20, RN-05): o turno termina nomeando o que consultou, e cada
+  fonte abre o alvo.
+- **Conversas persistidas, escopadas por usuário, com renomear e excluir** (RF-23, RF-24). Excluir
+  conversa não toca em nota nem em card. Cada mensagem guarda **qual modelo a respondeu** (RF-25).
+- **Rotas de conversa** em `/ai/conversations`, mais `POST /ai/conversations/:id/messages` em
+  `text/event-stream`. Limite de taxa próprio, 10/min: o global de 300/min por IP não protege contra
+  dez pedidos de um minuto cada.
+- **Migrations `20260923165733_chat_ancorado` e `20260923172226_fontes_da_resposta`**: as tabelas
+  `ai_conversation`, `ai_message` e `ai_attachment`, e as fontes citadas por mensagem.
+- **O servidor MCP passou a saber o fuso do usuário** (`apps/mcp/src/fuso.ts`), lido de
+  `ai_preference.timezone` — a mesma fonte que decide a janela do teto diário.
+- **`pnpm --filter @yu-book/mcp verificar` mostra o fuso em uso** e avisa quando ele é o padrão, em
+  vez de o recuo passar calado.
+- **`MODELO_SEM_FERRAMENTA`** em `ERROR_CODES`, separado de `MODELO_NAO_ESCOLHIDO` porque o que se
+  pede a quem está na tela é outro: lá é escolher um modelo, aqui é trocar por um que saiba chamar
+  ferramenta.
+
+### Corrigido
+- **A tela `/ajustes` não tinha como escolher o modelo do chat.** Ela trazia a tarefa `formatar`
+  fixa numa constante, e a Etapa B acrescentou `chat` ao enum, ao banco e ao `PATCH /ai/tasks/:task`
+  sem que a tela acompanhasse: o painel exigia uma escolha que não tinha por onde ser feita. Agora
+  «Seus modelos» tem uma **coluna de rádio por tarefa**, **derivada de `AI_TASKS`** e não escrita à
+  mão — a próxima tarefa aparece sozinha em vez de repetir o buraco (RF-03). Encontrado na primeira
+  vez que o chat foi usado.
+- **O rádio de `chat` vem desabilitado em modelo sem suporte a ferramenta**, com o motivo no
+  `title`. É a recusa de `MODELO_SEM_FERRAMENTA` antecipada para antes de a pergunta ser digitada,
+  em vez de depois de ela já ter sido enviada.
+- **As duas mensagens de `MODELO_NAO_ESCOLHIDO` nomeiam a tarefa** e dizem em qual coluna marcar.
+  Antes diziam "escolha um modelo para esta tarefa" sem dizer qual: quem olhava para um modelo
+  marcado — o de formatar — concluía que o erro era falso e que a tela estava mentindo.
+- **Busca sem resultado deixou de ser um beco sem saída.** Perguntado por uma receita que **está**
+  no acervo, o modelo buscou `"receita de bolo"`, recebeu vazio e desistiu numa volta só — a busca é
+  por palavra sobre título e corpo, e "receita" não está em "Bolo de fubá". `formatarBusca` passou a
+  declarar isso e a sugerir o termo mais específico sozinho antes de concluir que não existe.
+  Medido depois: a mesma pergunta passou a buscar duas vezes, ler a nota e citar a origem. **Muda as
+  duas superfícies** — a mesma função imprime o resultado de `search_notes` no chat e no servidor
+  MCP, então o texto que o cliente MCP recebe num resultado vazio também mudou. O que `tools/list`
+  publica continua idêntico: nenhuma `descricao` foi tocada.
+- **O MCP hospedado relatava todo prazo um dia à frente, calado.** Os formatadores usavam o fuso do
+  **processo**: na máquina do operador isso acertava por acaso, e no serviço da Railway, que roda em
+  UTC, errava sempre — o front grava o prazo às 23:59:59 locais, o que em UTC−3 é 02:59 do dia
+  seguinte. Agora o dia sai do fuso **do usuário**, e a regressão é guardada por uma suíte escrita em
+  `Asia/Tokyo` de propósito, que morde em qualquer máquina. O `railway.json` **não** precisa de `TZ`
+  e não deve ganhar uma.
+- **O catálogo das nove ações não entra mais no bundle da primeira pintura.** Ele custava 6,3 KB
+  para quem só abriu o dashboard. `packages/shared` declara `sideEffects: false`, e o `search_notes`
+  agora aparece só no pedaço `PainelChat`, carregado sob demanda — conferido no `dist`.
+
+### Alterado
+- **Os formatadores do acervo saíram de `apps/mcp` para `packages/shared`.** Card, quadro,
+  dashboard e lista de notas são formatados pelo mesmo código nas duas superfícies, e o dia de um
+  prazo passa a ser argumento em vez de efeito do ambiente.
+- **O anexo pende da mensagem, não da conversa** — emenda à seção 7 do PRD. Preso à conversa, o
+  histórico mentiria: uma pergunta feita antes de você anexar a nota apareceria depois como se já a
+  tivesse tido. O anexo guarda uma cópia do título, para que um alvo mandado à lixeira não
+  transforme a linha do histórico em três nulos.
+- **O limite de contexto do chat corta por anexo inteiro**, nos mesmos 60 000 caracteres que a
+  formatação já usava, e a tela diz quais ficaram de fora (RNF-04). Meia nota no contexto é o tipo
+  de entrada que faz o modelo afirmar o contrário do que a nota diz. Resolve a Q-05 do PRD.
+- **`apps/api` ganhou uma dependência direta**, `zod-to-json-schema`: é o que traduz o schema Zod de
+  cada ação para o formato que o provedor espera no campo `tools`.
+
+### Removido
+- **`apps/mcp/src/formato.ts`**, 250 linhas, absorvido por `packages/shared/src/formato.ts`.
+
+---
+
 ## [0.12.0] — 2026-09-23
 
 **O operador favoritou modelos gratuitos, eles recusaram, e a trava era nossa.** Medido com a chave

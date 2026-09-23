@@ -33,8 +33,23 @@ nuvem e só ele**: o Ollama saiu do escopo porque a API roda na Railway, sem GPU
 catálogo foi refeito — variantes que o provedor recusa na chamada saíram, e entraram filtro de
 custo, ordenação e os índices de qualidade — e, no mesmo dia, **a política de dados virou escolha do
 usuário**: fixá-la em `data_collection: "deny"` era o que tornava os modelos gratuitos
-inalcançáveis. Como nas Etapas B e C da Fase 5, **a interface não foi verificada à mão** — é a sexta
-entrega seguida nessa condição.
+inalcançáveis.
+
+Ainda em **2026-09-23** veio a **Etapa B, o chat que lê**: painel por `Ctrl+Shift+Y`, resposta em
+streaming, conversas persistidas, anexo de nota, card ou quadro pelo `@` e, o que muda a natureza da
+coisa, **um laço de ferramenta** — o assistente chama até cinco das nove ações do acervo para
+responder, em vez de só falar sobre o que foi anexado. São as **mesmas nove** que o servidor MCP
+publica, agora definidas uma vez só em `packages/shared`. Para usá-lo é preciso **marcar um modelo
+na coluna `chat` de «Seus modelos», em `/ajustes`**, e ele precisa saber chamar ferramenta.
+
+**Esta é a primeira entrega em sete com conferência de interface à mão — e a conferência cobrou na
+hora.** A sequência sem conferência parou em seis: ao usar o chat pela primeira vez, o operador
+encontrou em minutos um defeito que nenhum portão automático via — `/ajustes` não tinha como
+escolher o modelo do chat —, e mais um que só a prova ao vivo acharia: busca sem resultado fazia o
+assistente desistir numa volta só. Os dois foram corrigidos. **A conferência foi parcial**: o
+painel, a escolha de modelo, o laço e o gasto do dia foram vistos funcionando; o anexo pelo `@`, os
+chips de origem, o corte pelo teto, renomear/excluir conversa e o atalho `Ctrl+Shift+Y` **continuam
+sem execução**. `apps/web` segue sem runner de teste.
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
@@ -339,6 +354,7 @@ antes da primeira pintura, então não há piscada ao carregar.
 | `Ctrl+K` | busca notas e cards, de qualquer tela |
 | `Ctrl+Shift+B` | vai para os boards |
 | `Ctrl+Shift+L` | abre a gaveta de links |
+| `Ctrl+Shift+Y` | abre o chat com o assistente |
 | `Ctrl+S` | salva agora, sem esperar o autosave |
 | `Ctrl+B` / `Ctrl+I` / `` Ctrl+` `` | negrito / itálico / código |
 | `[[` | autocomplete para vincular a outra nota |
@@ -493,6 +509,27 @@ em vez de engolir o que você acabou de escrever.
 - **O dia do teto é o seu**, no fuso configurado nos ajustes — não o dia UTC do servidor.
 - **Chamada sem custo informado pelo provedor aparece contada na tela.** Ela grava zero e não move
   o teto; esconder isso faria o teto mentir.
+
+### O chat que lê
+
+`Ctrl+Shift+Y` abre um painel de conversa que **consulta o acervo por conta própria**. Você pergunta;
+o modelo chama as ferramentas de que precisa — buscar notas, abrir nota, listar quadros, abrir
+quadro, ver o dashboard, criar card, mover card, mandar nota para a lixeira, restaurar —, o Yu-book
+executa e devolve o resultado, e ele decide se já pode responder. São as **mesmas nove ações** que o
+servidor MCP publica, definidas uma vez só.
+
+- **Escolha um modelo de chat em `/ajustes` antes**, e ele precisa saber chamar ferramenta. Sem
+  isso o painel recusa, dizendo qual dos dois falta.
+- **No máximo cinco passos por pergunta.** Não é economia: é o que impede um modelo em ciclo de
+  gastar o teto do dia numa pergunta só.
+- **Cada turno cita o que consultou**, e a fonte abre o alvo. A resposta chega em streaming.
+- **O `@` anexa** nota, card ou quadro à mensagem. Anexo pende da **mensagem**, não da conversa: o
+  histórico mostra o que cada pergunta tinha em mãos na hora em que foi feita. Passando de 60 000
+  caracteres, o corte é por anexo inteiro e a tela diz quais ficaram de fora.
+- **O teto vale por passo.** Batendo no meio do laço, a resposta é interrompida e o parcial é
+  entregue — o que já foi gasto não vira nada.
+- **Conversas ficam salvas**, escopadas por você, e podem ser renomeadas e excluídas. Excluir
+  conversa não toca em nota nem em card.
 
 ## Sobre as cores
 

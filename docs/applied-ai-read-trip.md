@@ -185,15 +185,23 @@ pessoa.
 É a demonstração do princípio no topo deste documento. Se a integração tivesse sido feita ponto a
 ponto, o resultado seria acoplamento e nenhuma reutilização.
 
-### Fase 5 — IA dentro do Yu-book — Etapa A entregue em 2026-09-22
+### Fase 5 — IA dentro do Yu-book — Etapa A em 2026-09-22, Etapa B em 2026-09-23
 
 A direção oposta à do MCP: aqui o Yu-book deixa de ser só servidor e passa a ser **cliente** de um
 modelo. Resolve o caso que o MCP não alcança e nunca vai alcançar — quem está com o Yu-book aberto
 no navegador não tem um cliente MCP por perto.
 
 Quatro etapas próprias: o provedor e o botão de formatar nota (**Etapa A, entregue**), a marca de
-conteúdo gerado, o chat ancorado em notas e quadros anexados, e a busca semântica — que resgata a
-Fase 6 da proposta original.
+conteúdo gerado, o chat ancorado em notas e quadros anexados (**Etapa B, entregue**), e a busca
+semântica — que resgata a Fase 6 da proposta original.
+
+**A Etapa B entregou mais do que "chat ancorado" descrevia, e o PRD foi emendado por isso.** O
+painel não se limita ao que você anexou: ele chama as **nove ações do acervo** — as mesmas que o
+servidor MCP publica, agora definidas uma vez só em `packages/shared` — e vai buscar o que precisa.
+O RF-21, a RN-04 e o CA-09 do PRD, que mandavam o chat recusar em vez de procurar, foram revogados;
+a RN-05, "toda afirmação cita origem", sobrevive e passa a valer por construção. É a primeira vez
+que as duas frentes deste roteiro — o Yu-book como **servidor** de modelo e como **cliente** dele —
+compartilham código em vez de só tema.
 
 **A privacidade que distinguia esta frente foi perdida na Etapa A, e de propósito.** O desenho
 original dizia que tarefa sobre conteúdo de nota rodaria em modelo local e que a nota não sairia da

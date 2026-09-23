@@ -9,6 +9,224 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-23 — O chat usado pela primeira vez: a tela sem a tarefa, a busca que desistia, e a conferência que cobrou
+
+Esta entrada não abre versão nova. A Etapa B ainda não foi publicada, então tudo aqui cabe dentro da
+`[0.13.0]` e nenhum `package.json` se move — a regra é a da §3.1 da skill: o heading nomeia a versão
+do conjunto, e o conjunto ainda não saiu. O que ela registra é o que aconteceu **entre** fechar os
+documentos e o push: o operador usou o chat, e usar encontrou dois defeitos.
+
+**O primeiro defeito é uma omissão de entrega, não um erro de código.** `AjustesPage.tsx` tinha
+`const TAREFA: AiTask = "formatar"` **fixo**. A Etapa B acrescentou a tarefa `chat` ao enum, ao banco
+e ao `PATCH /ai/tasks/:task`, e a tela nunca acompanhou: o chat passou a exigir uma escolha que não
+tinha por onde ser feita. O conserto podia ser uma linha — marcar a segunda tarefa à mão — e foi
+outro: uma **coluna de rádio por tarefa, derivada de `AI_TASKS`**. A alternativa barata se descarta
+sozinha ao ser escrita, porque ela é literalmente o defeito de novo, só que com dois nomes em vez de
+um; derivando da lista, a próxima tarefa aparece na tela no mesmo commit em que entra no enum.
+
+**Vale registrar a forma do engano, porque ela se repete: é a terceira vez nesta frente que o
+sintoma acusa o lugar errado.** Aqui a tela parecia mentir — havia um modelo marcado e mesmo assim o
+erro dizia que não havia escolha —, e o que faltava era uma tarefa sem controle. Antes foram o 404 da
+variante de lote, que parecia recusa do provedor e era o que nós oferecíamos no catálogo, e o 404 da
+política de dados, que parecia indisponibilidade do modelo gratuito e era o bloco `provider` que nós
+mandávamos. Nos três, o que o sistema **dizia** estava correto e apontava para fora; a causa estava
+no que nós emitíamos. A lição operacional é barata: diante de erro que parece falso, conferir
+primeiro o que **nós** enviamos, antes de acreditar no lugar que a mensagem indica.
+
+**Duas decisões pequenas no conserto.** A primeira: o rádio de `chat` fica **desabilitado** em modelo
+sem `supportsTools`, com o motivo no `title`, em vez de deixar marcar e recusar depois com 422. A
+recusa tardia chega quando a pergunta já foi digitada, e o custo de descobrir ali é maior do que o de
+um controle apagado com explicação. A segunda: as duas mensagens de `MODELO_NAO_ESCOLHIDO` passaram
+a **nomear a tarefa** e a dizer em qual coluna marcar. Uma mensagem que diz "esta tarefa" para quem
+está olhando para outra tarefa marcada é pior do que uma mensagem vaga: ela produz a conclusão
+errada com confiança.
+
+**O segundo defeito só a prova ao vivo encontrava.** Com o modelo configurado, o operador perguntou
+por uma receita que **está** no acervo e recebeu "não encontrei". A busca estava certa — `q=bolo`
+devolve "Bolo de fubá" —; o modelo buscou `"receita de bolo"`, recebeu vazio e **desistiu numa volta
+só**. O resultado vazio relatava o que tinha entendido e não oferecia saída nenhuma, e "nenhum
+resultado" lido por um modelo vira "não existe".
+
+Três consertos possíveis, e o escolhido é o terceiro. (1) Afrouxar a busca — `OR` entre os termos ou
+similaridade — muda a semântica para **todos** os consumidores e troca um falso negativo por vários
+falsos positivos. (2) Instruir no prompt de sistema do chat: resolve numa superfície e deixa o
+servidor MCP com o mesmo beco, porque o prompt do chat não alcança cliente nenhum de MCP. (3) Mudar
+o **texto do resultado vazio** em `formatarBusca`, que é onde as duas superfícies se encontram: ele
+passou a dizer que a busca é por palavra sobre título e corpo — não por assunto — e a sugerir o
+substantivo sozinho antes de concluir que não existe. Medido depois: a mesma pergunta passou a buscar
+duas vezes, ler a nota e citar a origem.
+
+**O preço do terceiro caminho está declarado e é o mesmo já catalogado nesta frente:** esse texto é
+contrato de conversa com o modelo em **duas** superfícies, e nenhum portão fica vermelho quando ele
+muda. É irmão da dívida das nove `descricao`. O que **não** mudou: `tools/list` continua byte a byte
+o mesmo, porque nenhuma descrição foi tocada — só a saída de uma tool.
+
+**Um teste novo, e ele é da API por falta de onde mais.** `apps/api/tests/chat.test.ts` passou a
+provar que as duas escolhas de modelo convivem e são independentes em `GET /ai/settings`: definir
+`formatar` não derruba `chat`. É o contrato que a coluna de rádio desenha, e é o mais perto que se
+chega de testar o defeito encontrado — `apps/web` continua sem runner, então o que sobra é blindar o
+lado de cá. 131 testes na API, eram 130.
+
+**A conferência à mão aconteceu, e é por isso que esta entrada existe.** A contagem de "entregas
+seguidas sem conferência de interface" parou em seis. Não porque a dívida foi paga — `apps/web`
+continua sem um único teste —, mas porque desta vez o operador abriu a tela, e a tela devolveu em
+minutos um defeito que `typecheck`, 130 testes e o build não viam. É o argumento da dívida sendo
+apresentado com um exemplo: o portão que faltava era o único que mordeu.
+
+### O que fica aberto
+
+**A conferência foi parcial, e a parte não conferida é a maior.** Verificado ao vivo: o painel abre,
+a escolha de modelo por tarefa funciona, o laço busca sozinho, lê a nota e cita a origem, e o gasto
+do dia aparece. **Continua sem execução nenhuma**: o anexo pelo `@` a partir da tela, o chip de
+origem abrindo o alvo, o teto cortando no meio de uma resposta, renomear e excluir conversa, e o
+atalho `Ctrl+Shift+Y`. Conferência à mão não é regressão: vale para a árvore de hoje e não vigia
+nada amanhã.
+
+**Pendência de pós-deploy.** Que o MCP **hospedado** passou a relatar o dia certo do prazo só é
+conferível depois do push — o defeito só aparecia no serviço da Railway, que roda em UTC, e a suíte
+em `Asia/Tokyo` prova o código, não o ambiente. Primeira coisa a conferir contra o serviço quando a
+Etapa B subir.
+
+**O texto do resultado vazio de `formatarBusca` não tem portão.** Quem o encurtar por parecer verboso
+devolve o beco sem saída às duas superfícies, e nada fica vermelho.
+
+---
+
+## 2026-09-23 — Etapa B: uma definição para duas portas, e três coisas que só a medição sabia
+
+Terceira sessão do dia, e a maior. O chat ancorado deixou de ser documento. O que vale registrar não
+é que ele existe — está no changelog —, são as decisões que custaram alguma coisa.
+
+**Uma definição, dois consumidores.** O metadado das nove ações do acervo — nome, título, descrição
+e schema — saiu de `apps/mcp/src/tools/` e virou `packages/shared/src/ferramentas.ts`. O chat interno
+e o servidor MCP oferecem as mesmas nove, da mesma fonte. A alternativa era escrever um segundo
+catálogo para o chat, o que teria sido o diff menor e o único sem risco de mexer no MCP; recusada
+porque dois catálogos à mão divergem em silêncio, e a divergência apareceria como **a mesma ação com
+duas caras conforme a porta de entrada** — um modelo que sabe usar `move_card` pelo MCP errando os
+campos pelo chat. Os **handlers ficam separados de propósito**: o MCP fala HTTP com a API, o chat
+chama os services direto. O que é comum é o vocabulário, não o caminho.
+
+**O preço está declarado, e não é pequeno:** a `descricao` de uma tool é contrato de conversa com o
+modelo, e agora ela é contrato de dois. Editar uma frase lá muda o comportamento do servidor MCP para
+todo cliente, e **nenhum portão fica vermelho**. Para provar que a migração não mudou nada, o agente
+`mcp` comparou as duas revisões por JSON-RPC: `tools/list` devolve **8551 B com escrita e 3480 B
+sem**, byte a byte igual. É prova de hoje, não vigilância — nada guarda esse número amanhã.
+
+**Três decisões do operador, tomadas em modo plano.** (1) Pagar a dívida do `diaDoPrazo` inteira
+nesta entrega, MCP incluído, em vez de deixá-la para depois como vinha desde que foi catalogada.
+(2) O anexo pende da **mensagem**, não da conversa — o que contraria a seção 7 do PRD, que foi
+emendada. Preso à conversa, o histórico mente: uma pergunta feita antes de você anexar a nota
+apareceria depois como se já a tivesse tido. (3) Teto cortando no meio do laço **interrompe e entrega
+o parcial**, em vez de descartar. A alternativa seria mais limpa de explicar — ou responde inteiro ou
+não responde —, mas jogaria fora dinheiro já gasto e deixaria o usuário sem nada depois de esperar.
+
+**Medir em vez de lembrar, três achados que teriam virado defeito em produção.** (a) O `usage` do
+provedor **não** vem no chunk que traz o `finish_reason`, vem no **seguinte**. Parar de ler no
+primeiro — que é o que a leitura ingênua do protocolo manda fazer — faria **todo passo do laço**
+gravar custo `desconhecido`, e o teto diário viraria decorativo (INV-48). (b) Os `tool_calls` chegam
+**fatiados por `index`**, não inteiros num chunk. (c) Erro em modo streaming volta como **JSON com
+status HTTP normal**, e não como evento SSE — quem esperasse um evento de erro nunca o veria.
+
+**O plano estava errado sobre a compressão, e a prova negativa revelou algo melhor.** Ele mandava
+`config: { compress: false }` na rota do fluxo. Essa forma é **ignorada em silêncio**: o
+`@fastify/compress` lê `routeOptions.compress` no `onRoute`, não `config.compress`. Ao tentar provar
+negativamente que a linha fazia alguma coisa, descobri que ela **não é a primeira camada**: o
+`@fastify/compress@9.2.0` já exclui `text/event-stream` na própria regex de tipos compressíveis, e
+sem a linha a resposta sai sem `content-encoding` e o fluxo chega fatiado do mesmo jeito — conferido
+nos dois estados. A linha ficou, na forma certa, como **segunda camada**, porque a exclusão é do
+*padrão* do plugin: um `customTypes` no registro global a substitui inteira, e aí o streaming pararia
+de fluir sem nenhum teste ficar vermelho. É o mesmo raciocínio das duas travas de escrita do MCP. O
+comentário foi reescrito para dizer o que foi **medido**, não o que o plano supunha.
+
+**A dívida do `diaDoPrazo` foi paga, e o que importa é como ela foi provada.** O defeito: os
+formatadores usavam o fuso do **processo**, o que acertava por acaso na máquina do operador e errava
+**sempre** no serviço hospedado, que roda em UTC — o front grava o prazo às 23:59:59 locais, e em
+UTC−3 isso é 02:59 do dia seguinte, então o MCP da Railway relatava todo prazo um dia à frente,
+calado, havia semanas. `apps/mcp/tests/fuso.test.ts` usa **`Asia/Tokyo`**, e essa escolha é o teste:
+uma suíte escrita em `America/Sao_Paulo` passaria na máquina do operador com o código velho **e** com
+o novo, provando nada. Rodei com `TZ=UTC` e com o fuso da máquina, `America/Sao_Paulo` — que é
+justamente aquele em que o código velho passava por acaso: 49 passam nos dois.
+Consequência direta — `apps/mcp/railway.json` **não** precisa de `TZ` e não deve ganhar uma; fixar o
+fuso do processo seria voltar a esconder o defeito em vez de removê-lo.
+
+**Assimetria decidida no recuo do fuso.** Falhar ao ler `ai_preference.timezone` recua para
+`FUSO_PADRAO` na **leitura** e **falha alto** na **escrita** (`create_card` com prazo). A diferença é
+entre rótulo e dado: numa leitura, o recuo produz no máximo uma linha de texto com o dia de outro
+fuso, e derrubar a leitura do quadro inteiro por causa disso seria pior; numa escrita, o fuso vira o
+**instante gravado no banco**, e recuar ali gravaria um prazo errado em silêncio. O recuo nunca é o
+fuso do processo — cair no processo é exatamente o defeito que o módulo existe para remover. Também
+se decidiu **não** cachear o fuso: um mapa por credencial economizaria as cinco consultas de
+`GET /ai/settings` e traria de volta o modo de falha já catalogado neste servidor, o mapa indexado
+por sessão que ninguém esvazia. Uma requisição a mais é custo previsível; um vazamento não é.
+
+**Oito provas negativas, e duas delas ensinaram mais falhando.** Toda invariante nova ganhou um
+defeito injetado para conferir que o teste morde. Duas passaram na primeira tentativa, o que é sinal
+de prova ruim, não de código bom: uma mexia na estimativa de custo dentro de um modelo **gratuito**,
+onde a estimativa é zero e portanto qualquer erro é invisível; a outra caiu no filtro em vez do mapa.
+As duas viraram teste melhor depois de corrigido o defeito injetado.
+
+**O revisor achou seis defeitos reais e todos foram corrigidos.** Vale listar porque quatro deles são
+de uma classe que este projeto já produziu antes. O `abort` do painel **nunca disparava** — o
+componente desmonta, então a limpeza tinha de ser função de retorno. O par `assistant`/`tool`
+quebrado por desconexão **envenenava a conversa para sempre**: o provedor recusa um histórico em que
+uma chamada de ferramenta não tem resposta, e a conversa ficava morta sem jeito de recuperar —
+consertado **na leitura**, e não na escrita, porque conversa já quebrada em banco também precisa
+voltar a funcionar. A pergunta era gravada **antes** da conferência do teto. Fontes repetiam ao vivo.
+`onAbrirCard` estava morto. Chaves de cache em string literal. Mais o catálogo das nove ações
+entrando no bundle da primeira pintura — 6,3 KB para quem só abriu o dashboard —, resolvido com
+`sideEffects: false` em `packages/shared` e **medido depois**: `search_notes` agora só aparece no
+pedaço `PainelChat`.
+
+**O RF-21, a RN-04 e o CA-09 foram revogados**, e é a segunda revogação de requisito desta frente em
+dois dias. Eles mandavam o chat **avisar que só responde sobre o anexado** em vez de tentar responder
+sobre o acervo. O laço de ferramenta é exatamente o oposto — e é melhor no que aqueles requisitos
+protegiam: a preocupação era resposta inventada sobre um acervo que o modelo não viu, e agora só
+existe afirmação sobre o que uma ferramenta de leitura devolveu. A RN-05 sobrevive inteira e passa a
+ser sustentada por construção. O anexo pelo `@` não sumiu; deixou de ser a **única** porta.
+
+### O que fica aberto
+
+**~~A sétima entrega seguida sem conferência de interface à mão.~~ Não foi — ver a emenda logo
+abaixo.** O painel inteiro, o anexo pelo `@`,
+a lista de fontes e o atalho estão implementados e **nada disso foi executado** — `apps/web` não tem
+runner de teste. Já não é caso isolado nem dívida recente: é o modo de trabalho vigente, e a
+contagem existe para que a decisão de mudá-lo seja tomada de propósito, e não por acidente no dia em
+que algo quebrar na cara do operador.
+
+> **Emenda, no mesmo dia.** A contagem parou em seis: horas depois disto o operador conferiu o chat à
+> mão, e a conferência encontrou em minutos um defeito que nenhum portão pegava — `/ajustes` sem a
+> coluna da tarefa `chat`. A dívida não foi paga; foi cobrada. A conferência foi **parcial**, e o que
+> segue sem execução está listado na entrada do topo.
+
+**O espelhamento do dia do prazo mudou de lado e não fechou.** `packages/shared` decide o dia pelo
+`ai_preference.timezone`; `apps/web/src/components/PainelCard.tsx` continua lendo e gravando pelo
+fuso do **navegador** — `getDate()` na leitura e um literal de data com `T23:59:59` na gravação,
+os dois sem fuso explícito. Era "MCP × front", virou "shared × front": metade resolvida, e a metade
+que sobrou é a que ninguém vai lembrar, porque o sintoma visível sumiu.
+
+**Nenhum portão vigia o texto das nove descrições nem o tamanho do `tools/list`.** Os 8551 B são
+prova de hoje. Quem editar uma descrição para o chat muda o contrato do MCP e não vai receber aviso
+nenhum.
+
+**A corrida no teto continua declarada e não resolvida**, e agora vale **por passo do laço**: dez
+pedidos cabem no limite da rota e podem ler o gasto antes de qualquer linha de uso existir.
+
+**O portão da API falha por porta ocupada, e a falha se parece com defeito de código.**
+`tests/assistente.test.ts` e `tests/chat.test.ts` sobem o dublê de provedor na **mesma porta fixa**,
+39333 — ela não pode ser sorteada, porque é escolhida em `tests/setup.ts` antes de o `env` da
+aplicação existir. `fileParallelism: false` faz as duas não se cruzarem numa rodada normal, mas
+**uma rodada interrompida deixa o processo escutando**, e a rodada seguinte morre nos dois
+`beforeAll` com `EADDRINUSE` e 72 testes pulados. Aconteceu duas vezes ao conferir esta entrega, e
+o sintoma não aponta para a causa: parece o chat quebrado. Matando o processo órfão, 130 passam.
+Quem for mexer nisso: o conserto não é sortear a porta, é o `setup.ts` deixar de precisar conhecê-la
+antes da hora.
+
+**O chat não funciona até o operador escolher um modelo de chat em `/ajustes`.** Enquanto não
+escolher, o painel recusa com `MODELO_NAO_ESCOLHIDO`; escolhendo um que não saiba chamar ferramenta,
+recusa com `MODELO_SEM_FERRAMENTA`.
+
+---
+
 ## 2026-09-23 — A política de dados era nossa e estava fixa no código; e a migration que teria derrubado o boot
 
 Segunda sessão do dia. A de manhã tirou do catálogo os modelos que a chamada recusa; esta descobriu

@@ -167,8 +167,13 @@ Um usuário, um papel. Sem hierarquia, como no resto do projeto.
   colunas e a **face** dos cards, sem descrição — o mesmo recorte que o MCP já usa.
 - **RF-20** — A resposta **cita a origem**: toda afirmação sobre uma nota nomeia a nota e permite
   abri-la.
-- **RF-21** — Sem nada anexado, o chat **avisa que responde sobre o que for anexado** e não tenta
-  responder sobre o acervo inteiro.
+- **RF-21** — ~~Sem nada anexado, o chat **avisa que responde sobre o que for anexado** e não tenta
+  responder sobre o acervo inteiro.~~ **Revogado em 2026-09-23**, com a RN-04 e o CA-09. A Etapa B
+  trouxe o **laço de ferramenta**, e ele é exatamente o assistente procurando sozinho: o modelo pede
+  `search_notes`, o Yu-book executa, o resultado volta e ele decide se acabou. O que este requisito
+  protegia — resposta inventada sobre um acervo que o modelo não viu — passou a ser protegido de
+  outro jeito, e melhor: só existe afirmação sobre o que uma ferramenta de leitura devolveu, e a
+  RN-05 continua valendo inteira. O anexo pelo `@` não sumiu; deixou de ser a **única** porta.
 - **RF-22** — A resposta chega em **streaming**, com o texto aparecendo enquanto é gerado.
 - **RF-23** — Conversa e mensagens são **persistidas**, escopadas por usuário, e a conversa é
   recuperável depois de recarregar a página.
@@ -231,8 +236,16 @@ Duas entidades novas na Fase 3 e uma coluna na Fase 4. Nada é removido.
 |---|---|---|
 | `conversa` | `id`, `user_id`, `titulo`, `created_at`, `updated_at` | Escopada por usuário |
 | `mensagem` | `id`, `conversa_id`, `papel`, `conteudo`, `provedor`, `modelo`, `created_at` | Cascata a partir de `conversa` |
-| `conversa_anexo` | `conversa_id`, `note_id?`, `board_id?` | O que foi anexado ao contexto |
+| ~~`conversa_anexo`~~ `ai_attachment` | `message_id`, `note_id?`, `card_id?`, `board_id?`, `title` | **Emendado em 2026-09-23:** pende da **mensagem**, não da conversa |
 | `note.embedding` | vetor, mais marca de obsolescência | Coluna nova, Fase 4 |
+
+**Emenda de 2026-09-23, na Etapa B.** O anexo passou a pender da **mensagem**. Preso à conversa, o
+histórico mente: uma mensagem feita antes de você anexar a nota apareceria depois como se já a
+tivesse tido. Ele ganhou também `card_id` — o `@` anexa card, não só nota e quadro — e uma cópia do
+`title` no momento do anexo, para que um alvo que vá para a lixeira não transforme a linha do
+histórico em três nulos. Os nomes reais das três tabelas são `ai_conversation`, `ai_message` e
+`ai_attachment`: a fronteira e a persistência ficam em inglês, como no resto do projeto, e os nomes
+em português acima são do rascunho.
 
 **Invariantes do modelo:** excluir conversa apaga suas mensagens e anexos, e **não** toca em nota nem
 em card. Excluir a nota anexada **não** apaga a conversa — o anexo é desfeito, como o vínculo
@@ -275,8 +288,9 @@ card ↔ nota já faz.
   `VITE_API_URL`: o que o front conhece, o bundle publica.
 - **RN-03 IA não escreve nota sozinha.** Toda alteração de conteúdo por modelo é iniciada pelo
   usuário e reversível por ele.
-- **RN-04 O chat responde sobre o anexado.** Sem contexto, ele diz que precisa de contexto — não
-  improvisa sobre o acervo.
+- **RN-04 O chat responde sobre o anexado.** **Revogada em 2026-09-23**, com o RF-21 e o CA-09. O
+  laço de ferramenta substitui "pedir contexto" por "ir buscar". A regra que sobrevive, e que é a
+  que importava, é a RN-05.
 - **RN-05 Toda afirmação cita origem.** Resposta que fala de uma nota nomeia a nota.
 - **RN-06 Wikilink é intocável por modelo.** Nenhum prompt que edite conteúdo pode alterar `[[…]]` —
   `note_link` é tabela derivada e reescrever o texto quebraria o grafo.
@@ -305,8 +319,11 @@ card ↔ nota já faz.
   três permanecem com o mesmo alvo, e `note_link` não muda.
 - **CA-08** (RF-15) — Dado que o usuário edita a nota enquanto a formatação está em andamento, quando
   o resultado chega, então ele é recusado com aviso e o texto do usuário permanece.
-- **CA-09** (RF-21, RN-04) — Dado o chat sem nada anexado, quando se faz uma pergunta sobre o acervo,
-  então a resposta pede que se anexe algo, em vez de responder.
+- **CA-09** (RF-21, RN-04) — ~~Dado o chat sem nada anexado, quando se faz uma pergunta sobre o
+  acervo, então a resposta pede que se anexe algo, em vez de responder.~~ **Revogado em
+  2026-09-23**, com os dois. O critério que ocupou o lugar dele: dado o chat sem nada anexado,
+  quando se pergunta sobre o acervo, então o assistente chama uma ferramenta de leitura e a
+  resposta nomeia o que encontrou.
 - **CA-10** (RF-23, M5) — Dada uma conversa com mensagens, quando se recarrega a página, então a
   conversa aparece íntegra.
 - **CA-11** (RF-26) — Dado um id de nota, quando se compara o contexto montado pelo chat com o texto
@@ -391,8 +408,13 @@ ser declarada, não presumida — o agente `mcp` roda no modo de propagação e 
 - **Q-04** — A conversa deve poder virar nota? Aproveitaria que nota já é a entidade forte do
   projeto, mas conflita com NO2, que proíbe texto sintético no acervo. Responsável: operador, depois
   de usar o chat.
-- **Q-05** — O limite de contexto do chat é por número de anexos, por bytes, ou os dois? Impacto:
-  RNF-04. Resolver na Fase 3, medindo.
+- **Q-05** — ~~O limite de contexto do chat é por número de anexos, por bytes, ou os dois?~~
+  **Resolvida em 2026-09-23, na Etapa B: os dois, e cada um resolve uma coisa.** O corte que vale é
+  por **caracteres**, no mesmo `MAX_CONTEUDO_IA` de 60 000 que a formatação já usa, e ele corta por
+  anexo inteiro — meia nota no contexto é o tipo de entrada que faz o modelo afirmar o contrário do
+  que a nota diz. O limite por **quantidade** (`MAX_ANEXOS_POR_MENSAGEM`, 10) existe só para não
+  montar dez consultas ao banco antes de descobrir que não caberiam. Quando corta, a tela diz quais
+  ficaram de fora (RNF-04): nada de corte silencioso.
 
 ---
 
