@@ -100,6 +100,10 @@ function respostaPadrao(url: string): { status?: number; corpo?: unknown } {
 interface Dublê {
   server: Server;
   recebidas: string[];
+  /// Os corpos que chegaram, já parseados. Sem isto dá para afirmar **que** uma
+  /// chamada saiu, mas não **o que** ela pediu — e a política de dados é
+  /// exatamente uma afirmação sobre o que vai no corpo.
+  corpos: Record<string, unknown>[];
   responder: (url: string) => { status?: number; corpo?: unknown };
 }
 
@@ -117,13 +121,25 @@ beforeAll(async () => {
   const estado: Dublê = {
     server: createServer(),
     recebidas: [],
+    corpos: [],
     responder: respostaPadrao,
   };
   estado.server.on("request", (req, res) => {
     estado.recebidas.push(req.url ?? "");
-    const { status = 200, corpo = {} } = estado.responder(req.url ?? "");
-    res.writeHead(status, { "content-type": "application/json" });
-    res.end(JSON.stringify(corpo));
+    const pedacos: Buffer[] = [];
+    req.on("data", (c: Buffer) => pedacos.push(c));
+    req.on("end", () => {
+      if (pedacos.length > 0) {
+        try {
+          estado.corpos.push(JSON.parse(Buffer.concat(pedacos).toString()) as Record<string, unknown>);
+        } catch {
+          estado.corpos.push({});
+        }
+      }
+      const { status = 200, corpo = {} } = estado.responder(req.url ?? "");
+      res.writeHead(status, { "content-type": "application/json" });
+      res.end(JSON.stringify(corpo));
+    });
   });
   await new Promise<void>((ok) => estado.server.listen(PORTA, "127.0.0.1", ok));
   dublê = estado;
@@ -140,6 +156,7 @@ afterAll(async () => {
 
 beforeEach(() => {
   dublê.recebidas = [];
+  dublê.corpos = [];
   dublê.responder = respostaPadrao;
   /// O catálogo é cache de módulo: sem esquecer, um teste herda o do anterior.
   esquecerCatalogo();
@@ -424,12 +441,12 @@ describe("tabelas de IA", () => {
     // delas fosse lida.
     const u = await criarUsuario("ia-pref");
     await prisma.aiPreference.create({
-      data: { userId: u.id, dailyCapMicros: 200_000, timezone: "America/Sao_Paulo" },
+      data: { userId: u.id, dailyCapMicros: 200_000, timezone: "America/Sao_Paulo", allowTraining: false },
     });
 
     await expect(
       prisma.aiPreference.create({
-        data: { userId: u.id, dailyCapMicros: 500_000, timezone: "UTC" },
+        data: { userId: u.id, dailyCapMicros: 500_000, timezone: "UTC", allowTraining: false },
       }),
     ).rejects.toThrow();
   });
@@ -454,7 +471,7 @@ describe("tabelas de IA", () => {
   test("apagar a conta leva preferência, favoritos, tarefas e uso junto", async () => {
     const u = await criarUsuario("ia-cascata");
     await prisma.aiPreference.create({
-      data: { userId: u.id, dailyCapMicros: 200_000, timezone: "America/Sao_Paulo" },
+      data: { userId: u.id, dailyCapMicros: 200_000, timezone: "America/Sao_Paulo", allowTraining: false },
     });
     await prisma.aiTaskModel.create({
       data: { userId: u.id, task: "formatar", modelId: "estudio/gpt-x" },
@@ -959,6 +976,58 @@ describe("POST /ai/notes/:id/format", () => {
     expect(uso?.costMicros).toBe(250);
     expect(uso?.noteId).toBe(nota.id);
     expect(uso?.generationId).toBe("gen-teste");
+  });
+
+  test("com a política restritiva, o pedido carrega data_collection deny", async () => {
+    const meuIp = ip();
+    const { u, nota } = await comModelo("ia-pol-nega");
+    dublê.corpos = [];
+    dublê.responder = responderCom("texto");
+
+    await chamar(app, {
+      method: "POST",
+      url: `/ai/notes/${nota.id}/format`,
+      token: u.token,
+      ip: meuIp,
+      body: { contentMd: "texto" },
+    });
+
+    const pedido = dublê.corpos.at(-1) as { provider?: { data_collection?: string } };
+    expect(pedido.provider?.data_collection).toBe("deny");
+  });
+
+  test("com treino permitido, o pedido não leva bloco de provedor", async () => {
+    // A asserção é sobre **ausência**, e é o que estava errado sem ninguém ver:
+    // pedir `deny` a um endpoint gratuito é pedir um endpoint que não existe —
+    // medido, o mesmo modelo devolve 404 com a política e 200 sem ela.
+    const meuIp = ip();
+    const { u, nota } = await comModelo("ia-pol-permite");
+    await chamar(app, {
+      method: "PATCH",
+      url: "/ai/settings",
+      token: u.token,
+      body: { allowTraining: true },
+    });
+    dublê.corpos = [];
+    dublê.responder = responderCom("texto");
+
+    await chamar(app, {
+      method: "POST",
+      url: `/ai/notes/${nota.id}/format`,
+      token: u.token,
+      ip: meuIp,
+      body: { contentMd: "texto" },
+    });
+
+    const pedido = dublê.corpos.at(-1) as Record<string, unknown>;
+    expect(pedido).not.toHaveProperty("provider");
+  });
+
+  test("quem nunca configurou começa com o treino proibido", async () => {
+    // A proteção não pode sumir por omissão.
+    const u = await criarUsuario("ia-pol-padrao");
+    const { body } = await chamar(app, { method: "GET", url: "/ai/settings", token: u.token });
+    expect((body as { allowTraining: boolean }).allowTraining).toBe(false);
   });
 
   test("cerca de código é desembrulhada, mas não em nota que já era um bloco", async () => {

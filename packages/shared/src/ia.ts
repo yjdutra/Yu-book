@@ -24,6 +24,15 @@ export const TETO_DIARIO_PADRAO_MICROS = 200_000;
 export const FUSO_PADRAO = "America/Sao_Paulo";
 
 /**
+ * Deixar o provedor guardar e treinar com o conteúdo enviado.
+ *
+ * Padrão **desligado**: a proteção não pode sumir por omissão. Ligado é o que
+ * torna os modelos gratuitos utilizáveis — os endpoints deles treinam com os
+ * dados, e pedir `data_collection: "deny"` faz o roteamento não achar nenhum.
+ */
+export const TREINO_PERMITIDO_PADRAO = false;
+
+/**
  * O dia **do usuário**, `AAAA-MM-DD`, que define a janela do teto diário.
  *
  * Hoje só o servidor a chama, e é de propósito: ele grava `ai_usage.local_day`
@@ -82,6 +91,7 @@ export const aiSettingsPatchSchema = z.object({
     .max(TETO_DIARIO_MAXIMO_MICROS, "Teto diário acima do limite aceito")
     .optional(),
   timezone: z.string().refine(ehFusoValido, "Fuso horário desconhecido").optional(),
+  allowTraining: z.boolean().optional(),
 });
 
 /// O id do modelo vai no corpo, não no caminho: o slug do OpenRouter tem barra
@@ -227,6 +237,9 @@ export interface AiUsageSummary {
 export interface AiSettings {
   dailyCapMicros: number;
   timezone: string;
+  /// Ligado, os modelos gratuitos passam a funcionar e o provedor pode treinar
+  /// com o conteúdo das notas. A tela diz as duas coisas, nos dois estados.
+  allowTraining: boolean;
   usage: AiUsageSummary;
   favorites: AiFavorite[];
   taskModels: Partial<Record<AiTask, string>>;

@@ -88,6 +88,22 @@ function mesmosWikilinks(entrada: string, saida: string): boolean {
   return antes.size === depois.size && [...antes].every((alvo) => depois.has(alvo));
 }
 
+/**
+ * O bloco `provider` da requisição, montado a partir da escolha do usuário.
+ *
+ * **Não é de graça pedir `deny`**, e é por isso que isto não volta a ser fixo:
+ * medido em 2026-09-23, o mesmo modelo gratuito devolve **404** com
+ * `data_collection: "deny"` ("No endpoints found matching your data policy") e
+ * **200** sem ele. Endpoints gratuitos treinam com os dados; exigir que não
+ * treinem é exigir um endpoint que não existe.
+ *
+ * Com a permissão ligada não mandamos bloco nenhum — deixar o roteamento livre
+ * é o que abre os gratuitos, e a tela diz isso em voz alta.
+ */
+function politicaDeDados(permiteTreino: boolean): Record<string, unknown> {
+  return permiteTreino ? {} : { provider: { data_collection: "deny" } };
+}
+
 export async function formatarNota(
   userId: string,
   noteId: string,
@@ -102,7 +118,7 @@ export async function formatarNota(
   if (!nota) throw notFound("Nota não encontrada");
 
   const modelo = await modeloParaTarefa(userId, "formatar");
-  const teto = await preferenciaDe(userId);
+  const preferencia = await preferenciaDe(userId);
 
   const tokensEntrada = tokensAproximados(contentMd.length);
   const maxTokens = Math.min(
@@ -122,7 +138,7 @@ export async function formatarNota(
 
   const estimativa = estimarCustoMicros(modelo, contentMd.length, maxTokens);
   /// Recusa **antes de abrir conexão**, e devolve o dia que o registro vai usar.
-  const { localDay } = await garantirTeto(userId, teto, estimativa);
+  const { localDay } = await garantirTeto(userId, preferencia, estimativa);
 
   const inicio = Date.now();
   let resposta: RespostaDeChat;
@@ -137,8 +153,7 @@ export async function formatarNota(
           { role: "system", content: INSTRUCOES },
           { role: "user", content: contentMd },
         ],
-        /// O corpo da nota sai da máquina; ao menos pedimos que não vire treino.
-        provider: { data_collection: "deny" },
+        ...politicaDeDados(preferencia.allowTraining),
       },
     });
   } catch (erro) {

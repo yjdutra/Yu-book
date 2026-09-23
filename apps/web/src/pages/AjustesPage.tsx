@@ -173,6 +173,15 @@ export function AjustesPage() {
     }
   }
 
+  async function aoMudarTreino(permitir: boolean) {
+    setErro(null);
+    try {
+      await atualizar.mutateAsync({ allowTraining: permitir });
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : "Não foi possível salvar a política de dados.");
+    }
+  }
+
   async function aoMudarTeto(valor: string) {
     const dolares = Number(valor);
     if (!Number.isFinite(dolares) || dolares < 0) return;
@@ -192,8 +201,8 @@ export function AjustesPage() {
         <h2 className="text-lg font-semibold text-titulo">Ajustes de IA</h2>
         <p className="mt-0.5 text-xs text-ink-400">
           As funções de IA usam um provedor de nuvem. <strong className="text-ink-200">
-          O conteúdo da nota sai da sua máquina</strong> quando você usa uma delas — o servidor pede
-          ao provedor que não guarde o texto para treino, mas a nota é enviada.
+          O conteúdo da nota sai da sua máquina</strong> quando você usa uma delas. O que o provedor
+          pode fazer com esse conteúdo é a escolha abaixo.
         </p>
       </header>
 
@@ -229,6 +238,26 @@ export function AjustesPage() {
               )}
             </p>
           )}
+
+          {/* A consequência está escrita nos DOIS estados de propósito: a tela
+              antes prometia a proteção sem dizer que ela é o que torna os
+              modelos gratuitos inalcançáveis. */}
+          <label className="mt-3 flex items-start gap-2 border-t border-ink-800 pt-3 text-xs">
+            <input
+              type="checkbox"
+              checked={ajustes.data?.allowTraining ?? false}
+              onChange={(e) => void aoMudarTreino(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span className="min-w-0">
+              <span className="text-ink-200">Permitir que o provedor treine com o conteúdo</span>
+              <span className="mt-0.5 block text-ink-400">
+                {ajustes.data?.allowTraining
+                  ? "Modelos gratuitos ficam disponíveis. O provedor pode guardar o conteúdo das suas notas e treinar com ele."
+                  : "O servidor pede ao provedor que não guarde o texto para treino. Modelos gratuitos ficam indisponíveis — os endpoints deles treinam com os dados."}
+              </span>
+            </span>
+          </label>
         </div>
       </Bloco>
 

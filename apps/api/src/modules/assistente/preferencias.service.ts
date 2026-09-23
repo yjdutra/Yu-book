@@ -1,5 +1,9 @@
 import type { AiFavorite, AiSettings, AiSettingsPatch, AiTask } from "@yu-book/shared";
-import { FUSO_PADRAO, TETO_DIARIO_PADRAO_MICROS } from "@yu-book/shared";
+import {
+  FUSO_PADRAO,
+  TETO_DIARIO_PADRAO_MICROS,
+  TREINO_PERMITIDO_PADRAO,
+} from "@yu-book/shared";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
@@ -37,11 +41,16 @@ function toFavorite(f: FavoritoNoBanco): AiFavorite {
  * nunca 404 por falta de configuração — continua valendo, e o padrão segue com
  * uma fonte só.
  */
-export async function preferenciaDe(userId: string): Promise<TetoDoUsuario> {
+export interface PreferenciaDeIa extends TetoDoUsuario {
+  allowTraining: boolean;
+}
+
+export async function preferenciaDe(userId: string): Promise<PreferenciaDeIa> {
   const linha = await prisma.aiPreference.findUnique({ where: { userId } });
   return {
     dailyCapMicros: linha?.dailyCapMicros ?? TETO_DIARIO_PADRAO_MICROS,
     timezone: linha?.timezone ?? FUSO_PADRAO,
+    allowTraining: linha?.allowTraining ?? TREINO_PERMITIDO_PADRAO,
   };
 }
 
@@ -52,11 +61,12 @@ export async function atualizarPreferencia(
   const atual = await preferenciaDe(userId);
   const dailyCapMicros = patch.dailyCapMicros ?? atual.dailyCapMicros;
   const timezone = patch.timezone ?? atual.timezone;
+  const allowTraining = patch.allowTraining ?? atual.allowTraining;
 
   await prisma.aiPreference.upsert({
     where: { userId },
-    create: { userId, dailyCapMicros, timezone },
-    update: { dailyCapMicros, timezone },
+    create: { userId, dailyCapMicros, timezone, allowTraining },
+    update: { dailyCapMicros, timezone, allowTraining },
   });
 
   return montarSettings(userId);
@@ -229,6 +239,7 @@ export async function montarSettings(userId: string): Promise<AiSettings> {
   return {
     dailyCapMicros: preferencia.dailyCapMicros,
     timezone: preferencia.timezone,
+    allowTraining: preferencia.allowTraining,
     usage,
     favorites,
     taskModels: tarefas,
