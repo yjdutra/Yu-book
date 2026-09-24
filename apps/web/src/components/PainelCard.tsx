@@ -3,7 +3,6 @@ import type { CardPriority, CardUpdateInput, ChecklistItem } from "@yu-book/shar
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "../lib/api";
 import { useAtualizarCard, useBoard, useCard, useExcluirCard } from "../lib/kanban";
-import { renderMarkdown } from "../lib/markdown";
 import { useCriarNota, useTitulos } from "../lib/notas";
 import { catalogoDeTags } from "../lib/tags";
 import { useAcoesChat } from "../lib/sessaoChat";
@@ -11,6 +10,7 @@ import { useAutosave } from "../lib/useAutosave";
 import { Aviso } from "./base/Aviso";
 import { Esqueleto } from "./base/Bloco";
 import { Botao, BotaoIcone } from "./base/Botao";
+import { CampoMarkdown } from "./CampoMarkdown";
 import { IndicadorSalvamento } from "./base/IndicadorSalvamento";
 import { IconeAssistente, IconeChevron, IconeClipe, IconeFechar } from "./Icones";
 import { RotuloTipo } from "./RotuloTipo";
@@ -63,7 +63,6 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
   const { data: titulos } = useTitulos();
 
   const [rascunho, setRascunho] = useState<Rascunho>({ title: "", descriptionMd: "" });
-  const [preview, setPreview] = useState(false);
   const [buscaNota, setBuscaNota] = useState("");
   const [novoItem, setNovoItem] = useState("");
   const [erro, setErro] = useState<string | null>(null);
@@ -73,7 +72,6 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
     if (!card || carregadoRef.current === card.id) return;
     carregadoRef.current = card.id;
     setRascunho({ title: card.title, descriptionMd: card.descriptionMd });
-    setPreview(false);
     setBuscaNota("");
     setErro(null);
   }, [card]);
@@ -97,7 +95,6 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
   // RF-29: mesmo comportamento da nota — 800 ms, Ctrl+S imediato, 3 tentativas.
   const { estado, salvarAgora } = useAutosave({ valor: rascunho, chave: cardId, salvar, iguais });
 
-  const html = useMemo(() => renderMarkdown(rascunho.descriptionMd), [rascunho.descriptionMd]);
 
   const tagsDoBoard = useMemo(() => catalogoDeTags(board?.columns ?? []), [board]);
 
@@ -262,46 +259,22 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
         </section>
 
         {/* RF-28: coluna única com preview alternável — não é o split da nota. */}
-        <section>
-          <div className="mb-1 flex items-center justify-between">
-            <p className="rotulo">
-              Descrição
-            </p>
-            <button
-              type="button"
-              onClick={() => setPreview((v) => !v)}
-              aria-pressed={preview}
-              className="rounded-controle px-1.5 py-0.5 text-miudo text-ink-400 hover:text-ink-200"
-            >
-              {preview ? "editar" : "ver formatado"}
-            </button>
-          </div>
-
-          {preview ? (
-            <div
-              className="preview min-h-24 rounded-controle bg-ink-900/60 px-3 py-2 text-sm"
-              // Sanitizado por DOMPurify em renderMarkdown (RNF-16).
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
-          ) : (
-            <textarea
-              value={rascunho.descriptionMd}
-              onChange={(e) => setRascunho((r) => ({ ...r, descriptionMd: e.target.value }))}
-              onKeyDown={(e) => {
-                if (e.ctrlKey && e.key.toLowerCase() === "s") {
-                  e.preventDefault();
-                  salvarAgora();
-                }
-              }}
-              rows={6}
-              placeholder="Detalhes em Markdown…"
-              aria-label="Descrição do card"
-              className="w-full resize-y rounded-controle bg-ink-900/60 px-3 py-2 font-mono text-xs
-                         leading-relaxed text-ink-200 outline-none placeholder:text-ink-400/50
-                         focus:ring-1 focus:ring-accent-400"
-            />
-          )}
-        </section>
+        {/* A chave volta a prévia para "editar" ao trocar de card, como fazia o
+            estado que morava aqui. */}
+        <CampoMarkdown
+          key={card.id}
+          titulo="Descrição"
+          rotuloCampo="Descrição do card"
+          valor={rascunho.descriptionMd}
+          onMudar={(descriptionMd) => setRascunho((r) => ({ ...r, descriptionMd }))}
+          onKeyDown={(e) => {
+            if (e.ctrlKey && e.key.toLowerCase() === "s") {
+              e.preventDefault();
+              salvarAgora();
+            }
+          }}
+          placeholder="Detalhes em Markdown…"
+        />
 
         {/* RF-30 */}
         <section>

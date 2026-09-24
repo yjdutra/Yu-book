@@ -6,6 +6,7 @@ import type {
   ChatEvent,
   Conversation,
   ConversationDetail,
+  ConversationInput,
   MessageToNoteInput,
   NoteDetail,
 } from "@yu-book/shared";
@@ -54,7 +55,8 @@ export function useConversa(id: string | null) {
 export function useCriarConversa() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (title: string) => api.post<Conversation>("/ai/conversations", { title }),
+    /// `agentId` só na criação: o agente é fixo por conversa (Etapa D).
+    mutationFn: (input: ConversationInput) => api.post<Conversation>("/ai/conversations", input),
     onSuccess: () => qc.invalidateQueries({ queryKey: CONVERSAS }),
   });
 }

@@ -4,6 +4,9 @@ import {
   aiFavoriteInputSchema,
   aiSettingsPatchSchema,
   aiTaskModelSchema,
+  agentInputSchema,
+  agentPreviewSchema,
+  agentUpdateSchema,
   chatMessageInputSchema,
   conversationInputSchema,
   formatNoteSchema,
@@ -14,6 +17,7 @@ import type { ChatEvent } from "@yu-book/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../lib/authenticate.js";
+import * as agentes from "./agentes.service.js";
 import * as service from "./assistente.service.js";
 import * as chat from "./chat.service.js";
 import * as conversas from "./conversas.service.js";
@@ -31,6 +35,7 @@ const favoritoParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
 const tarefaParamsSchema = z.object({ task: z.enum(AI_TASKS) });
 const notaParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
 const conversaParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
+const agenteParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
 /// `:id` é a conversa, como em todas as rotas de `/ai/conversations/…`.
 const mensagemParamsSchema = z.object({
   id: z.string().uuid("Id inválido"),
@@ -98,11 +103,53 @@ export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  /// Agentes especialistas (Etapa D).
+  app.get("/ai/agents", async (request) => agentes.listar(request.userId));
+
+  app.post("/ai/agents", async (request, reply) => {
+    const entrada = agentInputSchema.parse(request.body);
+    const agente = await agentes.criar(request.userId, entrada);
+    return reply.status(201).send(agente);
+  });
+
+  /// O rascunho do editor, sem gravar: o que o agente receberia e quanto custa
+  /// um passo. Não chama o provedor — é montagem e consulta ao banco.
+  app.post("/ai/agents/preview", async (request) => {
+    const rascunho = agentPreviewSchema.parse(request.body);
+    return agentes.previaDoUsuario(request.userId, rascunho);
+  });
+
+  app.get("/ai/agents/:id", async (request) => {
+    const { id } = agenteParamsSchema.parse(request.params);
+    return agentes.buscarPorId(request.userId, id);
+  });
+
+  app.patch("/ai/agents/:id", async (request) => {
+    const { id } = agenteParamsSchema.parse(request.params);
+    const patch = agentUpdateSchema.parse(request.body);
+    return agentes.atualizar(request.userId, id, patch);
+  });
+
+  app.delete("/ai/agents/:id", async (request, reply) => {
+    const { id } = agenteParamsSchema.parse(request.params);
+    await agentes.excluir(request.userId, id);
+    return reply.status(204).send();
+  });
+
+  app.get("/ai/agents/:id/export", async (request, reply) => {
+    const { id } = agenteParamsSchema.parse(request.params);
+    const { arquivo, markdown } = await agentes.exportar(request.userId, id);
+    return reply
+      .header("content-type", "text/markdown; charset=utf-8")
+      .header("content-disposition", `attachment; filename="${arquivo}"`)
+      .send(markdown);
+  });
+
   app.get("/ai/conversations", async (request) => conversas.listar(request.userId));
 
   app.post("/ai/conversations", async (request, reply) => {
-    const { title } = conversationInputSchema.parse(request.body);
-    const conversa = await conversas.criar(request.userId, title);
+    const { title, agentId } = conversationInputSchema.parse(request.body);
+    const conversa = await conversas.criar(request.userId, title, agentId);
     return reply.status(201).send(conversa);
   });
 
@@ -180,6 +227,7 @@ export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
           tipo: "inicio",
           mensagem: sessao.mensagemDoUsuario,
           cortados: sessao.cortados,
+          premissasCortadas: sessao.premissasCortadas,
         });
         for await (const evento of chat.conversar(sessao)) yield comoSse(evento);
       }

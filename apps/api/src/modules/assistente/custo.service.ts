@@ -16,6 +16,11 @@ import { AppError } from "../../lib/errors.js";
 /// para cobrar — quem cobra é o provedor, e o custo real dele é gravado depois.
 const CHARS_POR_TOKEN = 4;
 
+/// Teto de saída por passo do chat. O passo que só chama ferramenta gasta muito
+/// menos. Mora aqui, e não no chat, porque a prévia do agente (Etapa D) estima
+/// o custo de um passo com o mesmo número.
+export const MAX_SAIDA_TOKENS = 2_048;
+
 /** Tokens aproximados de um texto, pela heurística acima. */
 export function tokensAproximados(chars: number): number {
   return Math.ceil(chars / CHARS_POR_TOKEN);

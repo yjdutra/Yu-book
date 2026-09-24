@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../lib/auth";
-import { ID_BOTAO_PAINEL } from "../../lib/sessaoChat";
+import { ID_BOTAO_PAINEL, naTelaDoChat } from "../../lib/sessaoChat";
 import { useWorkspaceAtivo } from "../../lib/workspace";
 import { BotaoIcone } from "../base/Botao";
 import { Menu } from "../base/Menu";
@@ -113,7 +113,8 @@ export function Trilho({
   onAbrirAtalhos: () => void;
 }) {
   const navigate = useNavigate();
-  const area = areaDe(useLocation().pathname);
+  const { pathname } = useLocation();
+  const area = areaDe(pathname);
   const { user, logout } = useAuth();
   const { ativo } = useWorkspaceAtivo();
 
@@ -248,8 +249,9 @@ export function Trilho({
       </ItemTrilho>
 
       <div className="mt-auto flex flex-col items-center gap-1">
-        {/* O painel lateral do assistente. Some na tela cheia, que já é ele. */}
-        {area !== "assistente" && (
+        {/* O painel lateral do assistente. Some na tela cheia, que já é ele —
+            mas não na galeria de agentes, que é da área e não é o chat. */}
+        {!naTelaDoChat(pathname) && (
           <button
             id={ID_BOTAO_PAINEL}
             type="button"

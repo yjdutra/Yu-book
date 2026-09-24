@@ -1,7 +1,7 @@
 # PRD — IA dentro do Yu-book
 
 **Versão:** v0.1 (draft) · **Autor:** yjdutra · **Data:** 2026-08-24 · **Status:** Etapas A e B entregues;
-Etapa C (marca de conteúdo gerado) em 2026-09-24
+Etapa C (marca de conteúdo gerado) e Etapa D (agentes especialistas) em 2026-09-24
 
 > **A Etapa A revogou seis afirmações deste documento.** Elas ficam abaixo, marcadas onde estão, em
 > vez de reescritas — o que se pensava em 2026-08-24 é parte do registro. São: **RN-01** e
@@ -221,6 +221,36 @@ Esta seção não é uma fase da numeração 1–4 acima: é a primeira das etap
 - **RF-42** — O que o assistente formata **não** recebe marca: formatar reorganiza o texto do
   usuário, não gera texto novo (S-03).
 
+### 5.6 Etapa D — Agentes especialistas
+
+Segunda etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md). Um **agente** é uma
+conversa com premissas: instruções, notas do acervo e consultas que ele carrega sempre, com modelo
+e ferramentas próprios. Não é um processo que roda sozinho — isso é das Etapas E e F.
+
+- **RF-43** — O usuário cria, edita, duplica e exclui agentes. Cada um tem nome, descrição, cor,
+  instruções em Markdown, até 10 **notas-base**, até 5 **fontes vivas**, modelo e ferramentas.
+- **RF-44** — **Nota-base** é uma nota do acervo que entra inteira no contexto de toda mensagem do
+  agente. A premissa mora no acervo e é editada no editor de sempre.
+- **RF-45** — **Fonte viva** é uma consulta refeita a cada mensagem. A primeira e única desta
+  etapa: os cards de uma coluna de quadro (títulos ou faces, até um limite) — o índice dos posts já
+  publicados.
+- **RF-46** — O **modelo** do agente é um dos favoritos de `/ajustes`, ou o modelo da tarefa
+  `chat` quando não há escolha. Favorito removido faz o agente recusar a conversa com o motivo, não
+  trocar de modelo calado.
+- **RF-47** — As **ferramentas** do agente são um subconjunto das que o chat oferece. Sem nenhuma,
+  a requisição vai sem o campo `tools`.
+- **RF-48** — O editor mostra **o que o agente recebe**: o tamanho, os tokens aproximados e o custo
+  estimado por mensagem, antes de salvar.
+- **RF-49** — A conversa é aberta **com um agente** e fica com ele; trocar de agente é abrir outra
+  conversa. O nome do agente fica gravado na conversa e sobrevive à exclusão dele.
+- **RF-50** — O que um agente cria leva o nome dele na marca (RF-35).
+- **RF-51** — Três **modelos prontos** — Especialista em LinkedIn, Marketing e Revisor — servem de
+  ponto de partida e sugerem as notas-base que cada um precisa.
+- **RF-52** — O agente se **exporta** como Markdown com frontmatter, legível por outras ferramentas
+  de agente.
+- **RF-53** — Agentes **não** entram no servidor MCP (NO3): quem usa o MCP já tem um modelo do outro
+  lado, e as instruções do operador ficam privadas.
+
 ---
 
 ## 6. Requisitos não-funcionais
@@ -249,6 +279,9 @@ Esta seção não é uma fase da numeração 1–4 acima: é a primeira das etap
   comentário citando `RF-xx`. Sem biblioteca de UI e sem `dark:`.
 - **RNF-09 Marca sem depender de cor** — A marca de conteúdo gerado é lida por ícone e texto ("IA",
   "revisada"); a cor de IA é reforço, nunca o único sinal. Vale nos dois temas.
+- **RNF-10 Preço das premissas à vista** — Notas-base e fontes vivas entram em todo passo do laço.
+  O limite (`MAX_PREMISSAS_DO_AGENTE`) é declarado quando corta, e o custo estimado aparece no
+  editor, nunca só depois de gasto.
 
 ---
 
@@ -333,6 +366,13 @@ card ↔ nota já faz.
 - **RN-12 Nem toda escrita é do chat.** O catálogo do chat é uma lista explícita — as leituras mais
   `create_card` e `create_note`. Ação de escrita nova no catálogo compartilhado não chega ao chat
   por existir lá.
+- **RN-13 As regras do Yu-book vêm antes do agente.** Citar a origem, não tocar em `[[…]]` e criar
+  só a pedido abrem o prompt de sistema e valem para todo agente; as instruções dele vêm depois e
+  não as revogam.
+- **RN-14 Texto não concede ferramenta.** O que um agente pode fazer é a lista de ferramentas dele,
+  conferida ao oferecer e ao executar. Instrução que peça outra ação não a torna disponível.
+- **RN-15 Premissa de outra conta não existe.** Nota-base, coluna de fonte viva e agente de outra
+  conta respondem como inexistentes.
 
 ---
 
@@ -385,6 +425,18 @@ card ↔ nota já faz.
   sete e não incluem `move_card`, `trash_note` nem `restore_note`.
 - **CA-22** (RNF-09) — Dada a marca em qualquer superfície, quando se remove a cor (escala de
   cinza), então ela continua legível pelo ícone e pelo texto.
+- **CA-23** (RF-44, RF-45) — Dado um agente com uma nota-base e uma fonte viva, quando se envia uma
+  mensagem, então o prompt de sistema traz as instruções, a nota inteira e os títulos da coluna.
+- **CA-24** (RN-14, RF-47) — Dado um agente só com leitura, quando o modelo pede `create_card`, então
+  a ação não é oferecida nem executada.
+- **CA-25** (RN-15) — Dada uma nota ou coluna de outra conta, quando se tenta usá-la num agente,
+  então a resposta é 404, igual à de um id inexistente.
+- **CA-26** (RF-48, RNF-10) — Dadas notas-base que somam mais que o limite, quando se pede a
+  prévia, então as que não couberam são listadas como cortadas, por inteiro.
+- **CA-27** (RF-49) — Dado um agente excluído, quando se abre uma conversa dele, então ela continua
+  legível com o nome gravado.
+- **CA-28** (RF-46) — Dado um agente cujo modelo saiu dos favoritos, quando se envia mensagem,
+  então a resposta é 422 com o motivo.
 
 ---
 

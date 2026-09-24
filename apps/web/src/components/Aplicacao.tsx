@@ -6,7 +6,7 @@ import { useAtalhosGlobais } from "../lib/atalhosGlobais";
 import { lerFiltros, temFiltroAtivo } from "../lib/filtrosUrl";
 import { useCriarLink, useExcluirLink, useLinks } from "../lib/links";
 import { useCriarNota } from "../lib/notas";
-import { useAcoesChat } from "../lib/sessaoChat";
+import { naTelaDoChat, useAcoesChat } from "../lib/sessaoChat";
 import { useTema } from "../lib/tema";
 import { useWorkspaceAtivo } from "../lib/workspace";
 import { DashboardPage } from "../pages/DashboardPage";
@@ -18,6 +18,7 @@ import { PilhaFlutuante, Toast } from "./base/Toast";
 import { PainelContexto } from "./casca/PainelContexto";
 import { ID_MOSTRAR_CONTEXTO, Trilho } from "./casca/Trilho";
 import {
+  IconeAgente,
   IconeAjustes,
   IconeAssistente,
   IconeBoard,
@@ -88,6 +89,14 @@ const AssistentePage = lazy(() =>
   import("../pages/AssistentePage").then((m) => ({ default: m.AssistentePage })),
 );
 
+/**
+ * A galeria e o editor de agentes (Etapa D da IA) têm chunk próprio: trazem o
+ * metadado das ferramentas e os modelos prontos, que o chat não usa.
+ */
+const AgentesPage = lazy(() =>
+  import("../pages/AgentesPage").then((m) => ({ default: m.AgentesPage })),
+);
+
 function CarregandoTela() {
   return (
     <main className="flex flex-1 items-center justify-center text-sm text-ink-400">
@@ -150,7 +159,9 @@ export function Aplicacao() {
   const excluirLink = useExcluirLink();
   const [gavetaAberta, setGavetaAberta] = useState(false);
   const sessao = useAcoesChat();
-  const emAssistente = pathname.startsWith("/assistente");
+  /// A tela cheia do chat, e não a área inteira: na galeria e no editor de
+  /// agentes o painel existe, e é para ele que a resposta em curso vai.
+  const emAssistente = naTelaDoChat(pathname);
 
   /**
    * Sair da tela cheia do assistente com uma resposta chegando abre o painel
@@ -322,6 +333,18 @@ export function Aplicacao() {
         executar: () => navigate("/assistente"),
       },
       {
+        id: "agentes",
+        rotulo: "Agentes",
+        icone: <IconeAgente />,
+        executar: () => navigate("/assistente/agentes"),
+      },
+      {
+        id: "novo-agente",
+        rotulo: "Novo agente",
+        icone: <IconeAgente />,
+        executar: () => navigate("/assistente/agentes/novo"),
+      },
+      {
         id: "ir-ajustes",
         rotulo: "Ir para Ajustes",
         icone: <IconeAjustes />,
@@ -446,6 +469,15 @@ export function Aplicacao() {
             </Suspense>
           }
         />
+        <Route
+          path="/assistente/agentes/*"
+          element={
+            <Suspense fallback={<CarregandoTela />}>
+              <AgentesPage />
+            </Suspense>
+          }
+        />
+        <Route path="/assistente/*" element={<Navigate to="/assistente" replace />} />
         <Route
           path="/ajustes/*"
           element={

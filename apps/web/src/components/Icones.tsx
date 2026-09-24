@@ -158,6 +158,30 @@ export function IconeAssistente(p: IconeProps) {
   );
 }
 
+/**
+ * Um rosto de crachá com a faísca no ombro — o agente especialista (Etapa D da
+ * IA): o assistente, com uma identidade própria.
+ */
+export function IconeAgente(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="6.6" cy="5.4" r="2.6" />
+      <path d="M1.9 13.6c.5-2.5 2.4-4 4.7-4 1 0 1.9.3 2.6.8" />
+      <path d="M12 8.6l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6Z" />
+    </Icone>
+  );
+}
+
+/** Seta para a bandeja — baixar um arquivo (exportar agente). */
+export function IconeBaixar(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8 2.4v7.4M4.9 6.9 8 10l3.1-3.1" />
+      <path d="M2.6 10.6v1.8a1.2 1.2 0 0 0 1.2 1.2h8.4a1.2 1.2 0 0 0 1.2-1.2v-1.8" />
+    </Icone>
+  );
+}
+
 export function IconeFechar(p: IconeProps) {
   return (
     <Icone {...p}>

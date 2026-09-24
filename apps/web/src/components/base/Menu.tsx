@@ -40,9 +40,10 @@ export function Menu({
   itens: ItemMenu[];
   /**
    * `direita` abre ao lado do gatilho — o caso do trilho; `direita-acima`
-   * cresce para cima, para o gatilho que fica no pé da tela.
+   * cresce para cima, para o gatilho que fica no pé da tela; `cima` abre acima
+   * do gatilho, alinhado à esquerda dele.
    */
-  lado?: "direita" | "direita-acima" | "baixo" | "baixo-fim";
+  lado?: "direita" | "direita-acima" | "baixo" | "baixo-fim" | "cima";
   cabecalho?: ReactNode;
 }) {
   const [aberto, setAberto] = useState(false);
@@ -98,6 +99,8 @@ export function Menu({
     baixo: "left-0 top-full mt-1",
     // Alinhado pela direita: para o gatilho perto da borda direita da janela.
     "baixo-fim": "right-0 top-full mt-1",
+    // Para o gatilho que mora no pé da tela — o "Conversar com" do compositor.
+    cima: "left-0 bottom-full mb-1",
   }[lado];
 
   return (

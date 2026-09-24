@@ -1,6 +1,7 @@
-import type { ChatAttachmentInput } from "@yu-book/shared";
+import type { AgentSummary, ChatAttachmentInput } from "@yu-book/shared";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useMatch } from "react-router-dom";
+import { useAgentes } from "../../lib/agentes";
 import { useAiAjustes, useAiSaude } from "../../lib/ia";
 import { useBoards, useCard } from "../../lib/kanban";
 import { useBusca, useNota } from "../../lib/notas";
@@ -10,6 +11,8 @@ import { useWorkspaceAtivo } from "../../lib/workspace";
 import { Aviso } from "../base/Aviso";
 import { Botao } from "../base/Botao";
 import { IconeFechar, IconeMais } from "../Icones";
+import { useAgenteDaConversa } from "./agenteDaConversa";
+import { SeletorAgente } from "./SeletorAgente";
 
 /**
  * Uma linha do menu do `@`.
@@ -46,27 +49,54 @@ function useContextoDaTela(): Anexo | null {
 /**
  * RNF-03 da IA: sem provedor, ou sem modelo escolhido para o chat, o campo
  * fica desabilitado e diz por quê — e onde resolver.
+ *
+ * Agente com modelo próprio (Etapa D) não passa pelo modelo do chat: exigir a
+ * escolha da tarefa `chat` dele bloquearia uma conversa que o servidor aceita.
  */
-function useMotivoSemChat(): string | null {
+function useMotivoSemChat(agente: AgentSummary | null): string | null {
   const { data: saude } = useAiSaude();
   const { data: ajustes } = useAiAjustes();
   if (saude && !saude.configured) return "Nenhum provedor de IA configurado no servidor.";
+  if (agente?.modelId) return null;
   if (ajustes && !ajustes.taskModels.chat) return "Nenhum modelo escolhido para o chat.";
   return null;
 }
 
-export function Compositor({ placeholder = "Pergunte alguma coisa. @ anexa uma nota." }: {
-  placeholder?: string;
-}) {
+export function Compositor({ placeholder }: { placeholder?: string }) {
   const sessao = useSessaoChat();
   const { texto, setTexto, anexos, emCurso, enviar, parar, anexar, desanexar } = sessao;
+  const { conversaId, agenteId, escolherAgente, novaConversa, focarCampo } = sessao;
+  const agente = useAgenteDaConversa();
+  const { data: agentes } = useAgentes();
   const { ativoId } = useWorkspaceAtivo();
   const campoRef = useRef<HTMLTextAreaElement>(null);
   const idMotivo = useId();
 
   useEffect(() => sessao.registrarCampo(campoRef), [sessao.registrarCampo]);
 
-  const motivo = useMotivoSemChat();
+  /// O agente escolhido para a conversa nova foi excluído entretanto (aqui ou
+  /// em outra aba): a escolha volta ao Assistente, em vez de criar uma conversa
+  /// que o servidor recusa com 404.
+  useEffect(() => {
+    if (!conversaId && agenteId && agentes && !agentes.some((a) => a.id === agenteId)) {
+      escolherAgente(null);
+    }
+  }, [conversaId, agenteId, agentes, escolherAgente]);
+
+  const motivoGeral = useMotivoSemChat(agente.resumo);
+  /**
+   * Os bloqueios do agente (Etapa D). Os dois viriam do servidor como 422 na
+   * hora de enviar; aqui eles aparecem antes, com a saída ao lado. O servidor
+   * continua sendo quem decide — o `erro` da sessão cobre o que esta leitura
+   * do cache não viu.
+   */
+  const bloqueioDoAgente: "excluido" | "modelo" | null = agente.excluido
+    ? "excluido"
+    : agente.resumo?.modelMissing
+      ? "modelo"
+      : null;
+  const motivo = motivoGeral ?? (bloqueioDoAgente ? "O agente não pode responder agora." : null);
+  const mostrarSeletor = !conversaId && !emCurso;
   const daTela = useContextoDaTela();
   const [dispensados, setDispensados] = useState<string[]>([]);
   const sugerirTela =
@@ -195,14 +225,46 @@ export function Compositor({ placeholder = "Pergunte alguma coisa. @ anexa uma n
         </ul>
       )}
 
-      {motivo && (
+      {motivoGeral ? (
         <Aviso tom="alerta" className="mb-2">
-          <span id={idMotivo}>{motivo}</span>{" "}
+          <span id={idMotivo}>{motivoGeral}</span>{" "}
           <Link to="/ajustes/modelos" className="font-medium underline underline-offset-2">
             Escolher em Ajustes
           </Link>
         </Aviso>
-      )}
+      ) : bloqueioDoAgente === "excluido" ? (
+        <Aviso tom="alerta" className="mb-2">
+          <span id={idMotivo}>
+            O agente desta conversa foi excluído — comece uma conversa nova.
+          </span>
+          <div className="mt-1.5">
+            <Botao
+              variante="secundario"
+              icone={<IconeMais className="size-3.5" />}
+              onClick={() => {
+                novaConversa();
+                focarCampo();
+              }}
+            >
+              Nova conversa
+            </Botao>
+          </div>
+        </Aviso>
+      ) : bloqueioDoAgente === "modelo" && agente.resumo ? (
+        <Aviso tom="alerta" className="mb-2">
+          <span id={idMotivo}>
+            O modelo de «{agente.resumo.name}» saiu dos favoritos.
+          </span>{" "}
+          <Link
+            to={`/assistente/agentes/${agente.resumo.id}`}
+            className="font-medium underline underline-offset-2"
+          >
+            Editar o agente
+          </Link>
+        </Aviso>
+      ) : null}
+
+      {mostrarSeletor && <SeletorAgente />}
 
       {(anexos.length > 0 || sugerirTela) && (
         <div className="mb-2 flex flex-wrap gap-1">
@@ -263,7 +325,12 @@ export function Compositor({ placeholder = "Pergunte alguma coisa. @ anexa uma n
           disabled={Boolean(motivo)}
           aria-label="Sua pergunta"
           aria-describedby={motivo ? idMotivo : undefined}
-          placeholder={placeholder}
+          placeholder={
+            placeholder ??
+            (agente.identidade
+              ? `Escreva para ${agente.identidade.name}. @ anexa uma nota.`
+              : "Pergunte alguma coisa. @ anexa uma nota.")
+          }
           className="max-h-40 min-w-0 flex-1 resize-none bg-transparent px-1.5 py-1 text-sm
                      text-ink-200 outline-none placeholder:text-ink-400 disabled:opacity-50"
         />

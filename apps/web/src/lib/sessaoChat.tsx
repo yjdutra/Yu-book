@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import type { ChatAttachmentInput, ChatCreated, ChatSource } from "@yu-book/shared";
+import type { ChatAttachmentInput, ChatCreated, ChatSource, ErrorCode } from "@yu-book/shared";
 import {
   createContext,
   useCallback,
@@ -61,12 +61,54 @@ export interface EmCurso {
   /** O que a resposta já gravou no acervo (Etapa C da IA) — chega antes do fim. */
   criados: ChatCreated[];
   cortados: string[];
+  /** Premissas do agente que não couberam (Etapa D) — declaradas como os anexos. */
+  premissasCortadas: string[];
+}
+
+/**
+ * Um erro da conversa. O `code` decide o que a tela oferece junto — o modelo do
+ * agente que saiu dos favoritos pede um link para o editor dele —, e a
+ * mensagem é só para ler (a regra é ramificar por `code`, nunca por texto).
+ */
+export interface ErroChat {
+  mensagem: string;
+  code: ErrorCode | null;
 }
 
 /** Identidade de um item criado — nota e card vivem em tabelas diferentes. */
 export const chaveCriado = (c: ChatCreated) => `${c.kind}:${c.id}`;
 
 const CHAVE_ABERTO = "yb:chat-aberto";
+
+/**
+ * A rota em que a conversa ocupa a tela — e onde, por isso, o painel não
+ * existe. **Não** é "a área Assistente": desde a Etapa D a área tem também a
+ * galeria e o editor de agentes (`/assistente/agentes…`), e neles o painel
+ * volta a existir. Confundir as duas faria uma resposta em curso sumir ao ir
+ * do chat para a galeria — nenhuma superfície à vista, e o laço pagando
+ * (INV-56).
+ */
+export function naTelaDoChat(pathname: string): boolean {
+  return pathname === "/assistente" || pathname === "/assistente/";
+}
+
+/**
+ * O `state` de navegação que leva a `/assistente` pedindo uma conversa nova —
+ * com um agente, ou sem (Etapa D: da galeria e do editor de agentes). A troca
+ * acontece **lá**, ao chegar, e não antes de navegar: saindo do editor com
+ * rascunho sujo, a guarda de saída segura o `navigate`, e a conversa trocada
+ * antes teria mudado sem a pessoa sair de onde estava.
+ */
+export interface EstadoRotaChat {
+  conversaNova?: { agente: { id: string; name: string } | null };
+}
+
+/** O aviso de quem pediu conversa nova com uma resposta chegando (INV-56). */
+export function avisoDeEspera(agente: string | null): string {
+  return agente
+    ? `Espere a resposta terminar para conversar com «${agente}».`
+    : "Espere a resposta terminar para começar outra conversa.";
+}
 
 /** O botão do trilho que alterna o painel — recebe o foco quando não há origem. */
 export const ID_BOTAO_PAINEL = "yb-botao-painel-assistente";
@@ -76,7 +118,14 @@ interface EstadoChat {
   texto: string;
   anexos: Anexo[];
   emCurso: EmCurso | null;
-  erro: string | null;
+  erro: ErroChat | null;
+  /**
+   * O agente escolhido para a **próxima** conversa (Etapa D), enquanto ela não
+   * existe. Depois de criada, o agente é o dela (`Conversation.agent`) e fica
+   * fixo: trocar exigiria reescrever as premissas de um histórico que já as
+   * usou.
+   */
+  agenteId: string | null;
   /**
    * O que o usuário desfez do que o chat criou (RN-03 da IA). Mora aqui, e não
    * na superfície, para sobreviver à troca entre painel e `/assistente` e à
@@ -92,7 +141,10 @@ interface AcoesChat {
   limparErro: () => void;
   enviar: () => Promise<void>;
   parar: () => void;
-  novaConversa: () => void;
+  /** Começa do zero; com `agenteId`, a próxima conversa será com ele. */
+  novaConversa: (agenteId?: string | null) => void;
+  /** Troca o agente da conversa ainda vazia — o seletor "Conversar com". */
+  escolherAgente: (agenteId: string | null) => void;
   selecionar: (id: string) => void;
   anexar: (a: Anexo) => void;
   desanexar: (alvo: string) => void;
@@ -121,12 +173,13 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
   const [texto, setTexto] = useState("");
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [emCurso, setEmCurso] = useState<EmCurso | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
+  const [erro, setErro] = useState<ErroChat | null>(null);
+  const [agenteId, setAgenteId] = useState<string | null>(null);
   const [desfeitos, setDesfeitos] = useState<ReadonlySet<string>>(() => new Set());
 
   /// As ações leem o estado por aqui, para continuarem as mesmas entre renders.
-  const atual = useRef({ painelAberto, conversaId, texto, anexos });
-  atual.current = { painelAberto, conversaId, texto, anexos };
+  const atual = useRef({ painelAberto, conversaId, texto, anexos, agenteId });
+  atual.current = { painelAberto, conversaId, texto, anexos, agenteId };
 
   /**
    * O controle do envio **inteiro**, criado antes de qualquer `await`. Se ele
@@ -169,15 +222,24 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
     setDesfeitos((atual) => new Set(atual).add(chave));
   }, []);
 
-  const novaConversa = useCallback(() => {
+  const novaConversa = useCallback((agente: string | null = null) => {
     setConversaId(null);
+    setAgenteId(agente);
     setAnexos([]);
     setTexto("");
     setErro(null);
   }, []);
 
+  /// Só vale na conversa vazia: depois de criada, o agente é o dela.
+  const escolherAgente = useCallback((agente: string | null) => {
+    if (atual.current.conversaId) return;
+    setAgenteId(agente);
+    setErro(null);
+  }, []);
+
   const selecionar = useCallback((id: string) => {
     setConversaId(id);
+    setAgenteId(null);
     setErro(null);
   }, []);
 
@@ -230,7 +292,12 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
   }, [fecharPainel, abrirPainel]);
 
   const enviar = useCallback(async () => {
-    const { texto: rascunho, conversaId: escolhida, anexos: enviados } = atual.current;
+    const {
+      texto: rascunho,
+      conversaId: escolhida,
+      anexos: enviados,
+      agenteId: agente,
+    } = atual.current;
     const pergunta = rascunho.trim();
     if (!pergunta || abortarRef.current) return;
 
@@ -248,6 +315,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       fontes: [],
       criados: [],
       cortados: [],
+      premissasCortadas: [],
     });
 
     let alvo = escolhida;
@@ -255,7 +323,11 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       if (!alvo) {
         // A conversa nasce com o começo da primeira pergunta como título — o
         // usuário renomeia depois se quiser (RF-24).
-        const nova = await criar.mutateAsync(pergunta.slice(0, 60));
+        // Com agente, ele fica gravado na conversa desde aqui (Etapa D).
+        const nova = await criar.mutateAsync({
+          title: pergunta.slice(0, 60),
+          ...(agente && { agentId: agente }),
+        });
         alvo = nova.id;
         setConversaId(nova.id);
         setEmCurso((f) => (f ? { ...f, conversaId: nova.id } : f));
@@ -273,7 +345,11 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
             if (!f) return f;
             switch (evento.tipo) {
               case "inicio":
-                return { ...f, cortados: evento.cortados };
+                return {
+                  ...f,
+                  cortados: evento.cortados,
+                  premissasCortadas: evento.premissasCortadas ?? [],
+                };
               case "delta":
                 return { ...f, texto: f.texto + evento.texto, ferramenta: null };
               case "ferramenta":
@@ -301,7 +377,9 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
 
           /// Fora do updater de propósito: com o `StrictMode` ligado ele roda
           /// duas vezes, e um updater que produz efeito deixa de ser puro.
-          if (evento.tipo === "teto" || evento.tipo === "erro") setErro(evento.mensagem);
+          if (evento.tipo === "teto" || evento.tipo === "erro") {
+            setErro({ mensagem: evento.mensagem, code: null });
+          }
           /// O acervo mudou agora, não no fim: o quadro aberto ao lado mostra o
           /// card assim que ele existe.
           if (evento.tipo === "criado") invalidarCriados(qc, evento.criados);
@@ -309,7 +387,19 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       });
     } catch (e) {
       if (!controle.signal.aborted) {
-        setErro(e instanceof ApiError ? e.message : "Não foi possível falar com o assistente.");
+        setErro(
+          e instanceof ApiError
+            ? { mensagem: e.message, code: e.code }
+            : { mensagem: "Não foi possível falar com o assistente.", code: null },
+        );
+        // Recusada antes do fluxo — o agente saiu, o modelo dele saiu dos
+        // favoritos: a pergunta volta ao campo, e ninguém redigita o que já
+        // tinha escrito. Só se o campo continuar vazio, para não pisar no que
+        // a pessoa começou a digitar enquanto isso.
+        if (e instanceof ApiError) {
+          setTexto((t) => t || pergunta);
+          setAnexos((a) => (a.length > 0 ? a : enviados));
+        }
       }
     } finally {
       abortarRef.current = null;
@@ -324,8 +414,8 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
   }, [criar, qc]);
 
   const estado = useMemo<EstadoChat>(
-    () => ({ conversaId, texto, anexos, emCurso, erro, desfeitos }),
-    [conversaId, texto, anexos, emCurso, erro, desfeitos],
+    () => ({ conversaId, texto, anexos, emCurso, erro, desfeitos, agenteId }),
+    [conversaId, texto, anexos, emCurso, erro, desfeitos, agenteId],
   );
 
   const acoes = useMemo<AcoesChat>(
@@ -336,6 +426,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       enviar,
       parar,
       novaConversa,
+      escolherAgente,
       selecionar,
       anexar,
       desanexar,
@@ -352,6 +443,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       enviar,
       parar,
       novaConversa,
+      escolherAgente,
       selecionar,
       anexar,
       desanexar,

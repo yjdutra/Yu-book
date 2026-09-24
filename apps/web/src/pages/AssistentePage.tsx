@@ -1,9 +1,14 @@
 import type { ChatSource, NoteDetail } from "@yu-book/shared";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { AvatarAgente } from "../components/agentes/AvatarAgente";
+import { useAgenteDaConversa } from "../components/assistente/agenteDaConversa";
 import { Compositor } from "../components/assistente/Compositor";
 import { Conversa } from "../components/assistente/Conversa";
+import { Aviso } from "../components/base/Aviso";
 import { IconeAssistente } from "../components/Icones";
-import { useAcoesChat } from "../lib/sessaoChat";
+import { avisoDeEspera, useAcoesChat } from "../lib/sessaoChat";
+import type { EstadoRotaChat } from "../lib/sessaoChat";
 
 /** Perguntas de partida: mostram o que o assistente alcança, e um clique as escreve. */
 const SUGESTOES = [
@@ -25,7 +30,38 @@ export function AssistentePage({
   onNotaCriada: (nota: NoteDetail) => void;
 }) {
   const navigate = useNavigate();
-  const { setTexto, focarCampo, abrirPainel } = useAcoesChat();
+  const { setTexto, focarCampo, abrirPainel, novaConversa, temFluxo } = useAcoesChat();
+  const agente = useAgenteDaConversa();
+  const location = useLocation();
+  const pedido = (location.state as EstadoRotaChat | null)?.conversaNova ?? null;
+  /// `undefined` sem aviso; `null` é o aviso da conversa nova sem agente.
+  const [esperando, setEsperando] = useState<string | null | undefined>(undefined);
+
+  /**
+   * A conversa nova pedida de fora da tela do chat — "Conversar" com um agente,
+   * ou "Nova conversa" na galeria e no editor de agentes — chega aqui pelo
+   * `state` (`EstadoRotaChat`). É ao chegar, e não antes de navegar, que a
+   * conversa troca: a guarda do editor de agentes pode ter segurado a navegação. O `state` sai do histórico logo,
+   * para o Voltar e o recarregar não pedirem a troca de novo.
+   *
+   * A resposta que começou entre o clique e a chegada (a pessoa enviou pelo
+   * painel enquanto o diálogo da guarda estava aberto) está na tela: trocar a
+   * conversa a tiraria dela com o laço pagando (INV-56).
+   */
+  useEffect(() => {
+    if (!pedido) return;
+    navigate(
+      { pathname: location.pathname, search: location.search },
+      { replace: true, state: null },
+    );
+    if (temFluxo()) {
+      setEsperando(pedido.agente?.name ?? null);
+    } else {
+      setEsperando(undefined);
+      novaConversa(pedido.agente?.id ?? null);
+    }
+    focarCampo();
+  }, [pedido, location.pathname, location.search, navigate, novaConversa, temFluxo, focarCampo]);
 
   /**
    * RF-20: a fonte abre o alvo. Sair da tela cheia para ele leva a conversa
@@ -41,8 +77,52 @@ export function AssistentePage({
 
   return (
     <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      {/* Etapa D: com a conversa começada, quem responde fica fixo no topo —
+          o seletor do compositor só existe na conversa vazia. */}
+      {agente.fixo && agente.identidade && (
+        <div className="shrink-0 border-b border-ink-800 bg-ink-950/40">
+          <div className="mx-auto flex w-full max-w-[760px] items-center gap-3 px-8 py-2.5">
+            <AvatarAgente
+              nome={agente.identidade.name}
+              cor={agente.identidade.color}
+              tamanho="g"
+              excluido={agente.excluido}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-titulo">
+                {agente.identidade.name}
+                {agente.excluido && (
+                  <span className="ml-2 text-xs font-normal text-ink-400">agente excluído</span>
+                )}
+              </p>
+              {agente.resumo?.description && (
+                <p className="truncate text-xs text-ink-400">{agente.resumo.description}</p>
+              )}
+            </div>
+            {agente.identidade.id && (
+              <Link
+                to={`/assistente/agentes/${agente.identidade.id}`}
+                className="shrink-0 rounded-controle px-2 py-1 text-xs text-ink-400 transition
+                           hover:bg-ink-800 hover:text-ink-200"
+              >
+                Editar o agente
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[760px] px-8 py-8">
+          {esperando !== undefined && (
+            <Aviso
+              tom="alerta"
+              urgente
+              onFechar={() => setEsperando(undefined)}
+              className="mb-4"
+            >
+              {avisoDeEspera(esperando)}
+            </Aviso>
+          )}
           <Conversa
             onAbrirFonte={abrirFonte}
             onNotaCriada={onNotaCriada}

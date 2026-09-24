@@ -5,6 +5,7 @@ import {
   MAX_CONTEUDO_IA,
 } from "@yu-book/shared";
 import type {
+  AgentColor,
   ChatAttachment,
   ChatAttachmentInput,
   ChatCreated,
@@ -15,7 +16,7 @@ import type {
   MessageToNoteInput,
   NoteDetail,
 } from "@yu-book/shared";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
 import * as kanban from "../kanban/kanban.service.js";
@@ -53,17 +54,35 @@ function toMensagem(m: MensagemNoBanco): ChatMessage {
   };
 }
 
-interface ConversaNoBanco {
-  id: string;
-  title: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
+/// Nome e cor vêm do agente vivo, para renomear e recolorir chegarem às
+/// conversas. Excluído o agente, sobra o nome gravado na criação e a cor
+/// neutra — o histórico continua dizendo quem respondeu.
+const COR_DE_AGENTE_EXCLUIDO: AgentColor = "cinza";
+
+const CAMPOS_DA_CONVERSA = {
+  id: true,
+  title: true,
+  agentId: true,
+  agentName: true,
+  agent: { select: { name: true, color: true } },
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.AiConversationSelect;
+
+type ConversaNoBanco = Prisma.AiConversationGetPayload<{ select: typeof CAMPOS_DA_CONVERSA }>;
 
 function toConversa(c: ConversaNoBanco): Conversation {
   return {
     id: c.id,
     title: c.title,
+    agent:
+      c.agentName === null
+        ? null
+        : {
+            id: c.agentId,
+            name: c.agent?.name ?? c.agentName,
+            color: c.agent?.color ?? COR_DE_AGENTE_EXCLUIDO,
+          },
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };
@@ -73,14 +92,52 @@ export async function listar(userId: string): Promise<Conversation[]> {
   const linhas = await prisma.aiConversation.findMany({
     where: { userId },
     orderBy: { updatedAt: "desc" },
-    select: { id: true, title: true, createdAt: true, updatedAt: true },
+    select: CAMPOS_DA_CONVERSA,
   });
   return linhas.map(toConversa);
 }
 
-export async function criar(userId: string, title: string): Promise<Conversation> {
-  const linha = await prisma.aiConversation.create({ data: { userId, title } });
-  return toConversa(linha);
+/**
+ * Cria a conversa, com ou sem agente (Etapa D). O agente é conferido contra o
+ * usuário (INV-59): de outra conta, o mesmo 404 do inexistente. O nome é
+ * gravado aqui e guarda quem respondeu mesmo depois de o agente ser excluído.
+ */
+export async function criar(
+  userId: string,
+  title: string,
+  agentId?: string,
+): Promise<Conversation> {
+  let agente: { id: string; name: string } | null = null;
+  if (agentId !== undefined) {
+    agente = await prisma.aiAgent.findFirst({
+      where: { id: agentId, userId },
+      select: { id: true, name: true },
+    });
+    if (!agente) throw notFound("Agente não encontrado");
+  }
+
+  try {
+    const linha = await prisma.aiConversation.create({
+      data: { userId, title, agentId: agente?.id ?? null, agentName: agente?.name ?? null },
+      select: CAMPOS_DA_CONVERSA,
+    });
+    return toConversa(linha);
+  } catch (erro) {
+    // O agente pode ser excluído entre o `findFirst` e o `create`. A FK recusa,
+    // e a resposta é a mesma de quem pediu um agente que não existe — não um 500.
+    if (ehAgenteQueSumiu(erro)) throw notFound("Agente não encontrado");
+    throw erro;
+  }
+}
+
+/// O Prisma 6 põe o nome da constraint em `meta.constraint`. Conferir o nome, e
+/// não só o `P2003`, deixa qualquer outra FK violada subir como o erro que é.
+function ehAgenteQueSumiu(erro: unknown): boolean {
+  return (
+    erro instanceof Prisma.PrismaClientKnownRequestError &&
+    erro.code === "P2003" &&
+    erro.meta?.constraint === "ai_conversation_agent_id_fkey"
+  );
 }
 
 /**
@@ -94,7 +151,8 @@ export async function criar(userId: string, title: string): Promise<Conversation
 export async function buscarPorId(userId: string, id: string): Promise<ConversationDetail> {
   const linha = await prisma.aiConversation.findFirst({
     where: { id, userId },
-    include: {
+    select: {
+      ...CAMPOS_DA_CONVERSA,
       messages: { orderBy: { createdAt: "asc" }, include: { attachments: true } },
     },
   });
@@ -103,13 +161,20 @@ export async function buscarPorId(userId: string, id: string): Promise<Conversat
   return { ...toConversa(linha), messages: linha.messages.map(toMensagem) };
 }
 
-/** Só a posse, sem arrastar o histórico. */
-export async function garantirPosse(userId: string, id: string): Promise<void> {
+/**
+ * A posse e o agente da conversa, sem arrastar o histórico. `agentName` sem
+ * `agentId` é agente excluído depois de a conversa começar.
+ */
+export async function agenteDaConversa(
+  userId: string,
+  id: string,
+): Promise<{ agentId: string | null; agentName: string | null }> {
   const linha = await prisma.aiConversation.findFirst({
     where: { id, userId },
-    select: { id: true },
+    select: { agentId: true, agentName: true },
   });
   if (!linha) throw notFound("Conversa não encontrada");
+  return linha;
 }
 
 /**
@@ -128,7 +193,10 @@ export async function renomear(userId: string, id: string, title: string): Promi
 
   /// Uma segunda consulta porque `updateMany` não devolve linha. É o mesmo
   /// número de idas ao banco que a forma antiga, sem o furo de forma.
-  const linha = await prisma.aiConversation.findUniqueOrThrow({ where: { id } });
+  const linha = await prisma.aiConversation.findUniqueOrThrow({
+    where: { id },
+    select: CAMPOS_DA_CONVERSA,
+  });
   return toConversa(linha);
 }
 
@@ -160,7 +228,13 @@ export async function virarNota(
 ): Promise<NoteDetail> {
   const mensagem = await prisma.aiMessage.findFirst({
     where: { id: messageId, conversationId, conversation: { userId } },
-    select: { role: true, content: true, modelId: true, modelUsed: true },
+    select: {
+      role: true,
+      content: true,
+      modelId: true,
+      modelUsed: true,
+      conversation: { select: { agentName: true } },
+    },
   });
   if (!mensagem) throw notFound("Mensagem não encontrada");
 
@@ -182,7 +256,12 @@ export async function virarNota(
       ...(entrada.kind !== undefined && { kind: entrada.kind }),
       ...(entrada.workspaceId !== undefined && { workspaceId: entrada.workspaceId }),
     },
-    { via: "chat", author: mensagem.modelUsed ?? mensagem.modelId, conversationId },
+    {
+      via: "chat",
+      author: mensagem.modelUsed ?? mensagem.modelId,
+      conversationId,
+      agentName: mensagem.conversation.agentName,
+    },
   );
 }
 
@@ -230,6 +309,17 @@ export async function resolverAnexos(
   );
 }
 
+/** Um pedaço de contexto que entra inteiro ou não entra. */
+export interface BlocoDeContexto {
+  titulo: string;
+  texto: string;
+}
+
+/** A forma de um bloco no contexto. O tamanho do corte é medido nela. */
+export function blocoComoTexto(bloco: BlocoDeContexto): string {
+  return `<<< ${bloco.titulo} >>>\n${bloco.texto}`;
+}
+
 /**
  * Os anexos como um bloco de contexto, com o limite **declarado** quando corta
  * (RNF-04).
@@ -238,21 +328,29 @@ export async function resolverAnexos(
  * que ignorou metade do que ele mandou sem avisar é pior do que uma recusa.
  * Cortamos por anexo inteiro, não no meio de um — meia nota no contexto é o
  * tipo de entrada que faz o modelo afirmar o contrário do que a nota diz.
+ *
+ * Genérico desde a Etapa D: as premissas do agente cortam pela mesma regra,
+ * com `MAX_PREMISSAS_DO_AGENTE`. `incluidos` diz quais entraram, na ordem.
  */
-export function montarContexto(anexos: AnexoResolvido[]): { texto: string; cortados: string[] } {
+export function montarContexto<T extends BlocoDeContexto>(
+  blocos: T[],
+  limite: number = MAX_CONTEUDO_IA,
+): { texto: string; cortados: string[]; incluidos: T[]; tamanho: number } {
   const partes: string[] = [];
   const cortados: string[] = [];
+  const incluidos: T[] = [];
   let tamanho = 0;
 
-  for (const anexo of anexos) {
-    const bloco = `<<< ${anexo.titulo} >>>\n${anexo.texto}`;
-    if (tamanho + bloco.length > MAX_CONTEUDO_IA) {
-      cortados.push(anexo.titulo);
+  for (const bloco of blocos) {
+    const texto = blocoComoTexto(bloco);
+    if (tamanho + texto.length > limite) {
+      cortados.push(bloco.titulo);
       continue;
     }
-    partes.push(bloco);
-    tamanho += bloco.length;
+    partes.push(texto);
+    incluidos.push(bloco);
+    tamanho += texto.length;
   }
 
-  return { texto: partes.join("\n\n"), cortados };
+  return { texto: partes.join("\n\n"), cortados, incluidos, tamanho };
 }

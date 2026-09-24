@@ -26,6 +26,9 @@ export interface AiMark {
   author: string | null;
   /// De que conversa veio. Some se a conversa for apagada; a marca, não.
   conversationId: string | null;
+  /// O agente que escreveu (Etapa D), guardado como texto: sobrevive à
+  /// exclusão do agente. `null` fora de conversa com agente.
+  agentName: string | null;
   revisedAt: string | null;
 }
 

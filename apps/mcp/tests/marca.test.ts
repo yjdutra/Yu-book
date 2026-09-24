@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_AUTOR_IA } from "@yu-book/shared";
+import type { AiMark } from "@yu-book/shared";
 import { registroDeClientes } from "../src/auth/provedor.js";
 import { abrirCliente, identidade } from "./arnes.js";
 
@@ -25,9 +26,34 @@ const COLUNA_ID = "22222222-2222-4222-8222-222222222222";
 
 const AGORA = "2026-09-24T15:00:00.000Z";
 
-function nota(corpo: Record<string, unknown>) {
+/**
+ * A marca que a API devolveria. Tipada, e não literal solto: campo novo em
+ * `AiMark` (como `agentName`, na Etapa D) quebra o typecheck aqui em vez de a
+ * dublagem ficar para trás do contrato calada.
+ */
+const MARCA_MCP: AiMark = {
+  generatedAt: AGORA,
+  via: "mcp",
+  author: null,
+  conversationId: null,
+  agentName: null,
+  revisedAt: null,
+};
+
+/// Nota escrita por um agente do chat — o único caminho que grava `agentName`.
+const NOTA_DE_AGENTE_ID = "55555555-5555-4555-8555-555555555555";
+const MARCA_DE_AGENTE: AiMark = {
+  generatedAt: AGORA,
+  via: "chat",
+  author: "modelo/x",
+  conversationId: null,
+  agentName: "Pesquisador",
+  revisedAt: null,
+};
+
+function nota(corpo: Record<string, unknown>, id = NOTA_ID, ai: AiMark = MARCA_MCP) {
   return {
-    id: NOTA_ID,
+    id,
     title: corpo["title"],
     kind: corpo["kind"] ?? "livre",
     workspaceId: null,
@@ -37,7 +63,7 @@ function nota(corpo: Record<string, unknown>) {
     updatedAt: AGORA,
     createdAt: AGORA,
     deletedAt: null,
-    ai: { generatedAt: AGORA, via: "mcp", author: null, conversationId: null, revisedAt: null },
+    ai,
     contentMd: corpo["contentMd"],
     meta: {},
     sourceUrl: null,
@@ -60,7 +86,7 @@ function card(corpo: Record<string, unknown>) {
     tags: [],
     note: null,
     updatedAt: AGORA,
-    ai: { generatedAt: AGORA, via: "mcp", author: null, conversationId: null, revisedAt: null },
+    ai: MARCA_MCP,
     boardId: "11111111-1111-4111-8111-111111111111",
     boardName: "Quadro",
     columnName: "Fazer",
@@ -92,6 +118,11 @@ beforeEach(() => {
       return json(nota(corpo ?? {}), 201);
     }
     if (metodo === "POST" && String(url).endsWith("/cards")) return json(card(corpo ?? {}), 201);
+    if (metodo === "GET" && String(url).endsWith(`/notes/${NOTA_DE_AGENTE_ID}`)) {
+      return json(
+        nota({ title: "Pauta", contentMd: "corpo" }, NOTA_DE_AGENTE_ID, MARCA_DE_AGENTE),
+      );
+    }
     return json([]);
   });
 });
@@ -210,6 +241,24 @@ describe("create_note", () => {
       expect(r.isError).toBe(true);
       expect(texto(r)).toContain("Nada foi criado");
       expect(texto(r)).toContain("Escolha outro título");
+    } finally {
+      await cliente.encerrar();
+    }
+  });
+});
+
+describe("a linha da marca na leitura (Etapa D)", () => {
+  it("get_note e yubook://nota/{id} imprimem o agente, e o mesmo texto", async () => {
+    const cliente = await abrirCliente({ escrita: false }, identidade(["yubook:read"]));
+    try {
+      const r = await cliente.chamarTool("get_note", { id: NOTA_DE_AGENTE_ID });
+      expect(r.isError).toBeFalsy();
+      // O agente vem antes do modelo: é ele que diz com que premissas foi escrito.
+      expect(texto(r)).toContain("gerada por IA · «Pesquisador» · modelo/x · via chat");
+
+      const lido = await cliente.lerResource(`yubook://nota/${NOTA_DE_AGENTE_ID}`);
+      const corpo = lido.contents.map((c) => ("text" in c ? c.text : "")).join("\n");
+      expect(corpo).toBe(texto(r));
     } finally {
       await cliente.encerrar();
     }

@@ -6,6 +6,8 @@ import { BotaoIcone } from "../base/Botao";
 import { Menu } from "../base/Menu";
 import { PainelRedimensionavel } from "../Colunas";
 import { IconeExpandir, IconeFechar, IconeMais, IconeConversas } from "../Icones";
+import { AvatarAgente } from "../agentes/AvatarAgente";
+import { useAgenteDaConversa } from "./agenteDaConversa";
 import { Compositor } from "./Compositor";
 import { Conversa } from "./Conversa";
 
@@ -34,6 +36,7 @@ export function PainelAssistente({
   const { conversaId, selecionar, novaConversa, fecharPainel, focarCampo } = useSessaoChat();
   const { data: conversas } = useConversas();
   const { data: conversa } = useConversa(conversaId);
+  const agente = useAgenteDaConversa();
 
   /** RF-20: a fonte abre o alvo — e o painel continua aberto ao lado dele. */
   function abrirFonte(fonte: ChatSource) {
@@ -67,9 +70,27 @@ export function PainelAssistente({
         />
 
         <header className="flex shrink-0 items-center gap-1 border-b border-ink-800 px-3 py-2.5">
-          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold text-titulo">
-            {conversaId ? (conversa?.title ?? "…") : "Nova conversa"}
-          </h2>
+          {/* Com a conversa começada, o agente é a identidade dela, fixa no
+              cabeçalho (Etapa D); antes disso, quem escolhe é o seletor do
+              compositor. */}
+          {agente.fixo && agente.identidade && (
+            <AvatarAgente
+              nome={agente.identidade.name}
+              cor={agente.identidade.color}
+              excluido={agente.excluido}
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-sm font-semibold text-titulo">
+              {conversaId ? (conversa?.title ?? "…") : "Nova conversa"}
+            </h2>
+            {agente.fixo && agente.identidade && (
+              <p className="truncate text-miudo text-ink-400">
+                com {agente.identidade.name}
+                {agente.excluido && " · agente excluído"}
+              </p>
+            )}
+          </div>
           <Menu
             rotulo="Conversas recentes"
             lado="baixo-fim"
@@ -88,6 +109,14 @@ export function PainelAssistente({
             itens={[
               ...(conversas ?? []).slice(0, RECENTES).map((c) => ({
                 rotulo: c.title,
+                icone: c.agent ? (
+                  <AvatarAgente
+                    nome={c.agent.name}
+                    cor={c.agent.color}
+                    tamanho="p"
+                    excluido={c.agent.id === null}
+                  />
+                ) : undefined,
                 aoEscolher: () => {
                   selecionar(c.id);
                   focarCampo();
@@ -114,6 +143,7 @@ export function PainelAssistente({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           <Conversa
+            compacto
             onAbrirFonte={abrirFonte}
             onNotaCriada={onNotaCriada}
             vazio={

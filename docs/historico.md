@@ -9,6 +9,100 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-24 — Frente de IA, Etapa D: agentes especialistas
+
+Segunda etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md), entregue no mesmo dia da
+C. O que mudou está na `[0.20.0]` do changelog, e os requisitos na seção 5.6 do PRD de IA. Aqui ficam
+as decisões. As três primeiras são do operador, e o plano geral as deixava em aberto.
+
+**Tabela própria, e não um `kind` de nota.** O plano geral pesava a alternativa: um `kind` novo
+reaproveitaria editor, busca e wikilinks, e seguiria a decisão de "uma entidade forte". O operador a
+descartou pelo motivo que lhe foi apresentado na escolha: como nota, o agente apareceria na lista de
+notas, na busca e no MCP, e o `search_notes` do próprio chat leria as instruções de outro agente;
+e o `meta` da nota só guarda valores simples. O agente é quase todo estrutura que nota não tem —
+lista de ferramentas conferida contra o catálogo do chat, fontes vivas, modelo e notas-base em
+ordem —, que viraria frontmatter validado à mão em cada gravação. O que a nota daria de graça é o que continua sendo nota:
+**a premissa mora no acervo**, como nota-base editada no editor de sempre. A portabilidade que o
+`kind` traria saiu pela exportação em Markdown com frontmatter (RF-52).
+
+**O agente é fixo por conversa.** Trocar de agente no meio misturaria, no mesmo histórico, respostas
+escritas com premissas diferentes, e a marca do que foi criado não diria mais com qual. Trocar de
+agente é abrir outra conversa. O nome fica gravado na conversa (`agentName`) porque a FK é
+`SetNull`: sem a cópia, excluir o agente apagaria a informação de quem respondeu.
+
+**A área fica dentro de Assistente**, em `/assistente/agentes`, sem item novo no trilho. Um agente é
+uma forma de conversar, e o lugar dele é junto das conversas. O efeito colateral foi separar "a
+área Assistente" de "a tela do chat" (`naTelaDoChat`). Antes eram a mesma coisa, e o painel lateral
+sumia na área inteira. Com a galeria e o editor dentro da área, ir do chat para a galeria com uma
+resposta em curso a deixaria sem nenhuma superfície à vista, com o laço pagando (INV-56). O painel
+agora só some em `/assistente` exato.
+
+**`formatar` e `chat` continuaram fora do registro de agentes.** O plano geral perguntava se virariam
+os dois primeiros agentes "de sistema". Não viraram: `AI_TASKS` segue à parte, o chat sem agente é
+o "Assistente" de sempre, e o agente sem modelo próprio usa o da tarefa `chat`.
+
+**Conversa de agente excluído dá 422 ao receber mensagem**, e não segue como o Assistente. Seguir
+mudaria quem responde no meio da conversa sem ninguém ter escolhido, e o cabeçalho continuaria com
+o nome do agente. A conversa continua legível (CA-27). Continuar exige começar uma conversa nova, que
+é o mesmo gesto de trocar de agente. Criar a conversa com um agente excluído no meio do caminho,
+entre a conferência e o `create`, dá o mesmo 404 de um agente inexistente. A FK recusa (`P2003`), e
+o código confere o nome da constraint para não engolir outra FK violada como "agente sumiu".
+
+**Ao editar, só as referências novas são conferidas.** O editor manda a lista inteira de notas-base
+e fontes a cada PATCH. Conferir de novo o que já estava gravado tornaria o agente impossível de
+salvar depois de alguém excluir uma coluna usada por ele, até o usuário achar e tirar a fonte, e o
+404 nem diria qual era. O que já está gravado passou pela conferência quando entrou. Na montagem,
+o que deixou de resolver vira um bloco `indisponivel` com aviso. A prévia faz o mesmo com a coluna:
+ela recebe um rascunho, e dizer 404 ali vazaria se a coluna é alheia ou apagada. As notas-base da
+prévia são conferidas, porque a prévia as lê inteiras.
+
+**Uma montagem só para a prévia e para o chat.** `montarContextoDoAgente` é chamada pelos dois, e o
+que o editor mostra é o que o modelo recebe. Duas montagens divergiriam sem nenhum teste ficar
+vermelho, e o RNF-10 é justamente mostrar o preço antes de gastá-lo. A montagem roda **a cada
+mensagem** para que a fonte viva e a nota-base editada entre duas mensagens venham frescas. O preço
+aceito são as leituras de banco por turno.
+
+**As regras do Yu-book abrem o prompt, e o texto não concede ferramenta** (RN-13, RN-14). O
+`INSTRUCOES` estático virou `instrucoesPara(ferramentas)`: as regras que valem sempre vêm primeiro, e
+a linha de cada ferramenta só aparece se ela está na lista. A lista é conferida duas vezes, ao
+oferecer ao provedor e ao executar, como no INV-52. Oferecer uma lista estreita não basta, porque o
+modelo pode pedir pelo nome uma ação que não recebeu. Agente sem ferramenta nenhuma manda a
+requisição sem `tools`, e por isso deixa de exigir modelo que saiba chamar ferramenta.
+
+**O corte das premissas é por bloco inteiro e declarado**, dentro de 40 000 caracteres, reusando o
+`montarContexto` dos anexos. Cortar no meio de uma nota-base daria ao modelo metade de um guia sem
+que ninguém soubesse. Os cortados vão no evento `inicio` (`premissasCortadas`), separados dos
+anexos cortados.
+
+**Dívida: a etapa foi entregue sem conferência de interface à mão**, como a C. Os portões cobrem o
+servidor: 200 testes na API, 56 no MCP e o typecheck dos quatro pacotes, medidos no fechamento.
+Nenhum deles monta um componente. Roteiro de conferência, do plano da etapa:
+
+1. Estado vazio da galeria: "Usar este modelo" no Especialista em LinkedIn, com as notas sugeridas,
+   e salvar.
+2. No editor, escolher notas-base e adicionar a fonte viva "coluna Publicado". A prévia muda
+   caracteres e custo, e uma nota enorme aparece como "cortada".
+3. Ligar e desligar ferramentas. As de escrita mostram o selo.
+4. Conversar com o agente pelo painel contextual. O cabeçalho mostra o agente, e a resposta usa as
+   premissas.
+5. Pedir para criar um card. A marca diz o agente.
+6. Tentar trocar de agente numa conversa começada: o seletor está fixo, e "nova conversa" o libera.
+7. Excluir o agente. A conversa continua legível, com o nome guardado.
+8. Exportar em `.md` e abrir o arquivo.
+9. Teclado completo, foco devolvido, temas claro e escuro, `prefers-reduced-motion`.
+
+**Ficou pendente:**
+
+- A conferência acima, e a da Etapa C, que também segue em aberto.
+- **"Nova conversa" ou escolher outra conversa em `/assistente` com uma resposta em curso escondem a
+  resposta sem parar o laço.** O defeito é anterior à D. A D só pôs o aviso no caminho novo, o da
+  conversa pedida de fora.
+- **O Voltar do navegador não passa pela guarda de saída do editor.** Ela intercepta a navegação
+  dentro do app e o fechamento da aba (`beforeunload`), mas não o botão Voltar.
+- `CLAUDE.md` e as skills ainda não falam de agentes. A atualização é do `curador`.
+
+---
+
 ## 2026-09-24 — Frente de IA, Etapa C: a marca de conteúdo gerado, e o chat que passou a escrever
 
 A Etapa C abre o [plano de agentes de acervo](plano-agentes-de-acervo.md), aprovado hoje. As

@@ -31,7 +31,7 @@ function marcaDe(apelido: "n" | "c"): Prisma.Sql {
   return Prisma.sql`
     ${t}.ai_generated_at AS "aiGeneratedAt", ${t}.ai_via::text AS "aiVia",
     ${t}.ai_author AS "aiAuthor", ${t}.ai_conversation_id AS "aiConversationId",
-    ${t}.ai_revised_at AS "aiRevisedAt"`;
+    ${t}.ai_agent_name AS "aiAgentName", ${t}.ai_revised_at AS "aiRevisedAt"`;
 }
 
 interface ColunasDaMarca {
@@ -39,6 +39,7 @@ interface ColunasDaMarca {
   aiVia: "chat" | "mcp" | null;
   aiAuthor: string | null;
   aiConversationId: string | null;
+  aiAgentName: string | null;
   aiRevisedAt: Date | null;
 }
 

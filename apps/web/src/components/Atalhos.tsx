@@ -22,6 +22,10 @@ const ATALHOS: { grupo: string; tecla: string; descricao: string }[] = [
   { grupo: "Nota", tecla: "[[", descricao: "Vincular a outra nota" },
   { grupo: "Nota", tecla: "Enter", descricao: "Do título, pular para o corpo" },
 
+  // Etapa D da IA: o editor de agentes salva só quando mandam — não há autosave.
+  { grupo: "Agente", tecla: "Ctrl+S", descricao: "Salvar o agente (no editor de agentes)" },
+  { grupo: "Agente", tecla: "↑ ↓ Enter", descricao: "Escolher uma nota-base na lista" },
+
   { grupo: "Board", tecla: "N", descricao: "Novo card na coluna com foco" },
   { grupo: "Board", tecla: "Espaço", descricao: "Pegar e soltar o card com foco" },
   { grupo: "Board", tecla: "↑ ↓ ← →", descricao: "Mover o card pego entre posições e colunas" },
@@ -35,7 +39,7 @@ const ATALHOS: { grupo: string; tecla: string; descricao: string }[] = [
   { grupo: "Links", tecla: "Ctrl+V", descricao: "Colar uma URL na aba visível" },
 ];
 
-const GRUPOS = ["Geral", "Nota", "Board", "Links"] as const;
+const GRUPOS = ["Geral", "Nota", "Agente", "Board", "Links"] as const;
 
 export function Atalhos({ aberto, onFechar }: { aberto: boolean; onFechar: () => void }) {
   // O foco começa no título, não no primeiro botão: o único botão é "Fechar",

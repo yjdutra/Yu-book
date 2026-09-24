@@ -2,6 +2,7 @@ import type { Conversation } from "@yu-book/shared";
 import { useRef, useState } from "react";
 import { useConversas, useExcluirConversa, useRenomearConversa } from "../../lib/chat";
 import { useSessaoChat } from "../../lib/sessaoChat";
+import { AvatarAgente } from "../agentes/AvatarAgente";
 import { IconeFechar, IconeLapis } from "../Icones";
 
 const DIA = 24 * 60 * 60 * 1000;
@@ -97,14 +98,25 @@ function Linha({
         type="button"
         onClick={() => onEscolher(conversa.id)}
         aria-current={ativa ? "true" : undefined}
-        className={`min-w-0 flex-1 truncate rounded-controle px-2.5 py-1.5 text-left text-sm
-                    transition-colors ${
+        className={`flex min-w-0 flex-1 items-center gap-2 rounded-controle px-2.5 py-1.5
+                    text-left text-sm transition-colors ${
                       ativa
                         ? "bg-ink-800 text-titulo"
                         : "text-ink-400 hover:bg-ink-800/60 hover:text-ink-200"
                     }`}
       >
-        {conversa.title}
+        {/* Etapa D: quem respondeu, pelo avatar — e pelo nome, para quem não
+            o vê. */}
+        {conversa.agent && (
+          <AvatarAgente
+            nome={conversa.agent.name}
+            cor={conversa.agent.color}
+            tamanho="p"
+            excluido={conversa.agent.id === null}
+          />
+        )}
+        <span className="truncate">{conversa.title}</span>
+        {conversa.agent && <span className="sr-only">, com {conversa.agent.name}</span>}
       </button>
       <div
         className="absolute right-1 flex opacity-0 transition-opacity group-hover:opacity-100

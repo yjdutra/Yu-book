@@ -85,8 +85,17 @@ você pede, mostra o que criou e oferece desfazer, e qualquer resposta dele pode
 servidor MCP ganhou `create_note` e tem **dez tools**. A lista de notas filtra por "Geradas por IA".
 É a primeira etapa do [plano de agentes de acervo](docs/plano-agentes-de-acervo.md), que vai de C a
 G. **Foi entregue sem conferência de interface à mão**, e o roteiro está em
-[`docs/historico.md`](docs/historico.md). O próximo passo da frente de IA é a **Etapa D**, agentes
-especialistas.
+[`docs/historico.md`](docs/historico.md).
+
+No mesmo dia veio a **Etapa D, agentes especialistas**, em `/assistente/agentes`. Um agente é uma
+conversa com premissas: instruções próprias, até 10 **notas-base** do acervo que entram em toda
+mensagem, até 5 **fontes vivas** (os cards de uma coluna de quadro, relidos a cada mensagem), modelo
+próprio e uma lista de ferramentas. Ele é escolhido ao abrir a conversa e fica com ela. O editor
+mostra o que o agente recebe e quanto custa por mensagem antes de salvar, e o agente se exporta em
+Markdown com frontmatter. Três modelos prontos servem de ponto de partida: Especialista em LinkedIn,
+Marketing e Revisor. O que um agente cria leva o nome dele na marca. Agentes não entram no servidor
+MCP. **Também foi entregue sem conferência de interface à mão**, e o roteiro está em
+[`docs/historico.md`](docs/historico.md). O próximo passo da frente de IA é a **Etapa E**, rotinas.
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,

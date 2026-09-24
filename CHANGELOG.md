@@ -13,6 +13,103 @@ _Nada pendente._
 
 ---
 
+## [0.20.0] — 2026-09-24
+
+**Etapa D da frente de IA: agentes especialistas.** Um agente é uma conversa com premissas. Ele tem
+instruções próprias, até 10 **notas-base** do acervo que entram inteiras em toda mensagem, até 5
+**fontes vivas** (os cards de uma coluna de quadro, relidos a cada mensagem), modelo próprio e uma
+lista de ferramentas. O agente é escolhido ao abrir a conversa e fica com ela. O editor mostra o que
+o agente recebe e quanto custa **antes de salvar**. Requisitos na seção 5.6 de
+[`docs/prd-ia-no-yu-book.md`](docs/prd-ia-no-yu-book.md): RF-43 a RF-53, RN-13 a RN-15, RNF-10 e
+CA-23 a CA-28.
+
+É a segunda etapa do [plano de agentes de acervo](docs/plano-agentes-de-acervo.md) (C a G). A
+próxima é a E, rotinas. Não é fase de produto nem etapa do MCP, que segue na 4 de 5.
+
+**Os quatro pacotes se movem**, porque `packages/shared` mudou de contrato (`AiMark.agentName`,
+`Conversation.agent`, o evento `inicio` do stream, `conversationInputSchema.agentId` e o módulo novo
+`agentes.ts`): `packages/shared` de `0.8.0` para `0.9.0`, `apps/api` de `0.10.0` para `0.11.0`,
+`apps/web` de `0.15.0` para `0.16.0` e `apps/mcp` de `0.11.0` para `0.12.0`, no `package.json`
+**e** no construtor do `McpServer`. Uma migration aditiva, `20260924204516_ia_etapa_d_agentes`.
+
+**O MCP não mudou de comportamento.** Em `apps/mcp/src` só mudou a versão: agentes ficam fora do MCP
+(RF-53), e o que o MCP cria nunca tem agente, então a linha da marca sai igual. O bump vem só do
+contrato. Os tamanhos medidos batem com a `[0.19.0]`: `tools/list` com escrita em 9601 B.
+
+Portões, medidos nesta árvore: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo nos
+quatro pacotes, `pnpm --filter @yu-book/api test` com **200 testes** (eram 164) e
+`pnpm --filter @yu-book/mcp test` com **56 testes** (eram 55).
+
+**Entregue sem conferência de interface à mão**, como a C. Nada do que é tela nesta entrada foi
+visto funcionando: a galeria, o editor com a prévia, o seletor "Conversar com", a identidade do
+agente na conversa e a exportação. `apps/web` continua sem runner de teste. O roteiro de nove itens
+está em [`docs/historico.md`](docs/historico.md).
+
+### Adicionado
+- **Agentes especialistas** (RF-43). Criar, editar, duplicar, exportar e excluir, com nome único por
+  conta, descrição, uma de seis cores e instruções em Markdown. Rotas `GET|POST /ai/agents` e
+  `GET|PATCH|DELETE /ai/agents/:id`.
+- **Notas-base** (RF-44). Até 10 notas do acervo, em ordem, entram inteiras no contexto de toda
+  mensagem do agente. A premissa continua sendo editada no editor de notas de sempre. Nota na
+  lixeira é pulada e avisada.
+- **Fontes vivas** (RF-45). Até 5 colunas de quadro, com os títulos ou as faces dos cards até um
+  limite de 1 a 50, relidas a cada mensagem. O contexto diz "10 de 42 cards" quando a coluna passa do
+  limite.
+- **Modelo e ferramentas por agente** (RF-46, RF-47). O modelo é um favorito de `/ajustes`, ou o
+  da tarefa `chat` quando não há escolha. As ferramentas são um subconjunto das do chat. Sem
+  nenhuma, a requisição ao provedor vai sem `tools`, e o modelo não precisa saber chamar
+  ferramenta.
+- **"O que o agente recebe"** no editor (RF-48, RNF-10). Coluna fixa com a barra de uso contra o
+  limite de 40 000 caracteres, os tokens aproximados, o custo estimado por mensagem de 1 a 5 passos
+  do laço e a lista de blocos: incluído, cortado, na lixeira ou indisponível. Mostra também o texto
+  completo. Rota nova: `POST /ai/agents/preview`, que monta o contexto de um rascunho sem gravar.
+- **Conversa com agente** (RF-49). Na conversa vazia, "Conversar com" escolhe o agente, no painel e
+  em `/assistente`. Depois da primeira mensagem, o agente vira identidade fixa no cabeçalho, nas
+  falas e na lista de conversas. O nome fica gravado na conversa e sobrevive à exclusão do agente
+  (CA-27).
+- **A marca diz qual agente escreveu** (RF-50). O que um agente cria leva o nome dele na etiqueta,
+  na faixa e na linha "gerada por IA · «Agente» · …" que o chat e o MCP leem.
+- **Três modelos prontos** (RF-51): Especialista em LinkedIn, Marketing e Revisor. Aparecem no estado
+  vazio da galeria. "Usar este modelo" abre o editor preenchido e oferece criar vazias as notas-base
+  que o modelo sugere.
+- **Exportar agente em Markdown** (RF-52), com frontmatter (nome, descrição, modelo, ferramentas,
+  títulos das notas-base e fontes) e as instruções no corpo. Rota nova: `GET /ai/agents/:id/export`.
+- **Área de agentes dentro de Assistente**: galeria em `/assistente/agentes`, editor em
+  `/assistente/agentes/novo` e `/assistente/agentes/:id`, seção "Agentes" no painel contextual e os
+  comandos "Agentes" e "Novo agente" na paleta. Sem item novo no trilho.
+- O editor tem guarda de saída: com alterações não salvas, sair pede confirmação, e fechar a aba
+  também. Salva com `Ctrl+S`.
+- Primitivo `Interruptor` em `components/base/`, `CampoMarkdown` (o campo do painel do card, agora
+  compartilhado), `SeletorDeNota`, `AvatarAgente`, o ícone de agente e seis cores de agente nos dois
+  temas.
+
+### Alterado
+- **O prompt de sistema do chat é montado por conversa.** As regras do Yu-book (citar a origem, não
+  tocar em `[[…]]`, criar só a pedido) abrem o prompt e valem para todo agente, e as instruções dele
+  vêm depois sem revogá-las (RN-13). As linhas sobre cada ferramenta só aparecem se a ferramenta
+  está na lista.
+- **Premissas que não cabem são declaradas.** O corte é por bloco inteiro, e o chat avisa quais
+  ficaram de fora, pelo evento `inicio` (RNF-04, CA-26).
+- O custo estimado de cada passo do laço passa a contar as premissas, que vão em todo passo.
+- **Conversa de agente excluído fica legível e para de responder.** Mandar mensagem dá 422 com o
+  motivo, em vez de seguir como o Assistente sem ninguém ter escolhido.
+- **Agente cujo modelo saiu dos favoritos recusa a conversa** com 422 `MODELO_NAO_ESCOLHIDO`,
+  apontando o editor do agente (CA-28). Não troca de modelo calado.
+- Abrir uma conversa nova com agente de fora de `/assistente`, pela galeria ou pelo painel
+  contextual, é aplicado ao chegar lá. Se houver resposta em curso, aparece um aviso.
+
+### Segurança
+- **Texto não concede ferramenta** (RN-14, CA-24). A lista do agente é conferida ao oferecer as
+  ações ao provedor e de novo ao executar. Uma ação pedida fora dela é recusada, mesmo que as
+  instruções a peçam. Ferramenta fora do catálogo do chat dá 422 ao gravar.
+- **Premissa de outra conta não existe** (RN-15, CA-25). Nota-base, coluna de fonte viva e agente
+  alheios dão o mesmo 404 de um id inexistente. A coluna é conferida pela cadeia coluna → quadro →
+  usuário. A prévia transforma coluna que deixou de resolver em "indisponível", sem dizer se ela é
+  alheia ou apagada. Agente excluído entre a conferência e a criação da conversa também dá 404, e
+  não 500.
+
+---
+
 ## [0.19.0] — 2026-09-24
 
 **Etapa C da frente de IA: a marca de conteúdo gerado.** Nota e card passam a guardar no dado se

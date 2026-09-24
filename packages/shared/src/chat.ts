@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ConversationAgent } from "./agentes.js";
 import type { AiCallUsage } from "./ia.js";
 import type { AiMessageRole } from "./enums.js";
 import { noteKindSchema, tituloSchema } from "./notes.js";
@@ -79,6 +80,9 @@ export interface ChatMessage {
 export interface Conversation {
   id: string;
   title: string;
+  /// O agente da conversa (Etapa D), fixo desde a criação. `null` é o
+  /// Assistente de sempre.
+  agent: ConversationAgent | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -105,7 +109,14 @@ export type ChatEvent =
    * uma resposta que ignorou metade do que o usuário anexou, em silêncio, é
    * pior do que uma recusa.
    */
-  | { tipo: "inicio"; mensagem: ChatMessage; cortados: string[] }
+  | {
+      tipo: "inicio";
+      mensagem: ChatMessage;
+      cortados: string[];
+      /// Premissas do agente (notas-base e fontes vivas) que não couberam em
+      /// `MAX_PREMISSAS_DO_AGENTE`, pelo mesmo RNF-04. Vazio sem agente.
+      premissasCortadas: string[];
+    }
   /// Um pedaço de texto da resposta. Chega em ordem; concatenar basta.
   | { tipo: "delta"; texto: string }
   /// O modelo pediu uma ação e ela está sendo executada. É o que o painel
@@ -133,6 +144,8 @@ export type ChatEvent =
 
 export const conversationInputSchema = z.object({
   title: z.string().trim().min(1, "Informe um título").max(MAX_TITULO_CONVERSA),
+  /// Só na criação: o agente é fixo por conversa, e renomear ignora o campo.
+  agentId: z.string().uuid().optional(),
 });
 
 /**

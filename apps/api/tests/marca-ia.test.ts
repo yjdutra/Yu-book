@@ -1,5 +1,6 @@
 import {
   FERRAMENTAS_DO_ACERVO,
+  FERRAMENTAS_DO_CHAT,
   FUSO_PADRAO,
   diaLocal,
   formatarCard,
@@ -78,6 +79,7 @@ function contextoDoChat(usuario: Usuario, conversationId: string, author = "estu
     userId: usuario.id,
     fuso: FUSO_PADRAO,
     origem: { via: "chat" as const, author, conversationId },
+    permitidas: FERRAMENTAS_DO_CHAT,
   };
 }
 
@@ -472,7 +474,7 @@ describe("apagar a conversa não apaga a marca", () => {
 
 describe("CA-21 / RN-12: o chat escreve só criando", () => {
   test("o catálogo oferecido ao provedor tem sete ações, e nenhuma de mover ou apagar", () => {
-    const nomes = catalogoParaProvedor().map((f) => f.function.name);
+    const nomes = catalogoParaProvedor(FERRAMENTAS_DO_CHAT).map((f) => f.function.name);
 
     expect(nomes).toHaveLength(7);
     expect(new Set(nomes).size).toBe(7);
@@ -484,7 +486,7 @@ describe("CA-21 / RN-12: o chat escreve só criando", () => {
   test("toda ação de escrita que o catálogo compartilhado tem, fora as duas criações, fica fora", () => {
     // Derivado do catálogo, e não enumerado: uma ação de escrita nova em
     // `ferramentas.ts` não pode entrar no chat só por existir lá (RN-12).
-    const oferecidas = new Set(catalogoParaProvedor().map((f) => f.function.name));
+    const oferecidas = new Set(catalogoParaProvedor(FERRAMENTAS_DO_CHAT).map((f) => f.function.name));
     const escritas = (Object.keys(FERRAMENTAS_DO_ACERVO) as NomeDeFerramenta[]).filter(
       (n) => FERRAMENTAS_DO_ACERVO[n].escrita,
     );

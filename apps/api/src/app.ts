@@ -35,6 +35,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     origin: env.corsOrigins,
     credentials: true, // o cookie de refresh depende disso
     allowedHeaders: ["Content-Type", "Authorization", "X-Yu-Book-Client"],
+    // O front e a API moram em origens diferentes: sem isto o navegador esconde
+    // o nome do arquivo da exportação de agente (RF-52).
+    exposedHeaders: ["Content-Disposition"],
   });
 
   await app.register(cookie);

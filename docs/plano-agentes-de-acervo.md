@@ -181,6 +181,13 @@ primeiros agentes "de sistema" ou continuam à parte.
 - Modelos prontos para começar ("Especialista em LinkedIn", "Marketing", "Revisor") que o operador
   duplica e ajusta — estado vazio que ensina.
 
+**Como ficou (2026-09-24).** O operador escolheu **tabela própria** (`AiAgent`), e não um `kind` de
+nota — a portabilidade saiu por exportação em Markdown com frontmatter; o agente é **fixo por
+conversa**; e a área mora **dentro de Assistente** (`/assistente/agentes`), sem item novo no trilho.
+`formatar` e `chat` continuaram fora do registro de agentes: o chat sem agente é o "Assistente". A
+única fonte viva desta etapa é a coluna de quadro. Requisitos em `prd-ia-no-yu-book.md`, seção 5.6
+(RF-43 a RF-53, RN-13 a RN-15, RNF-10, CA-23 a CA-28).
+
 **Riscos.** Custo de contexto (notas-base entram em **todo** turno — mostrar e limitar); o teto de
 gasto continua conferido a cada passo do laço (INV da frente de IA); DOMPurify em toda saída de
 modelo (INV-09); as ferramentas definidas uma vez em `packages/shared` seguem a regra de propagação

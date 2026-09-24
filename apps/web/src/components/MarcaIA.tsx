@@ -36,9 +36,11 @@ const VIA: Record<AiMark["via"], string> = { chat: "via chat", mcp: "via MCP" };
 
 /** O detalhe por extenso — a dica da forma compacta. */
 export function descricaoMarca(marca: AiMark): string {
+  const agente = marca.agentName ? ` · «${marca.agentName}»` : "";
   const autor = marca.author ? ` — ${marca.author}` : "";
   const revisada = marca.revisedAt ? `; revisada em ${diaCurto(marca.revisedAt)}` : "";
-  return `Gerada por IA${autor}, ${VIA[marca.via]}, ${diaCurto(marca.generatedAt)}${revisada}`;
+  const quando = diaCurto(marca.generatedAt);
+  return `Gerada por IA${agente}${autor}, ${VIA[marca.via]}, ${quando}${revisada}`;
 }
 
 /**
@@ -86,6 +88,16 @@ export function FaixaIA({ marca }: { marca: AiMark }) {
     >
       <IconeAssistente className="size-3.5 text-accent-400" />
       <span className="font-medium text-ink-200">Gerada por IA</span>
+      {/* Etapa D: o agente que escreveu, guardado como texto — sobrevive à
+          exclusão dele, como a conversa guarda o nome. */}
+      {marca.agentName && (
+        <>
+          <Separador />
+          <span className="max-w-[24ch] truncate text-ink-200" title={marca.agentName}>
+            «{marca.agentName}»
+          </span>
+        </>
+      )}
       {marca.author && (
         <>
           <Separador />

@@ -20,6 +20,8 @@ export interface OrigemIA {
   via: "chat" | "mcp";
   author: string | null;
   conversationId?: string | null;
+  /// O agente da conversa (Etapa D). Só o chat o conhece; o MCP não tem agente.
+  agentName?: string | null;
 }
 
 /** Os campos `ai*` de uma criação, iguais em nota e card. */
@@ -30,6 +32,7 @@ export function camposDaOrigem(origem: OrigemIA | undefined) {
     aiVia: origem.via,
     aiAuthor: origem.author,
     aiConversationId: origem.conversationId ?? null,
+    aiAgentName: origem.agentName ?? null,
   };
 }
 
@@ -39,6 +42,7 @@ export const CAMPOS_DA_MARCA = {
   aiVia: true,
   aiAuthor: true,
   aiConversationId: true,
+  aiAgentName: true,
   aiRevisedAt: true,
 } satisfies Prisma.NoteSelect & Prisma.CardSelect;
 
@@ -47,6 +51,7 @@ interface LinhaDaMarca {
   aiVia: "chat" | "mcp" | null;
   aiAuthor: string | null;
   aiConversationId: string | null;
+  aiAgentName: string | null;
   aiRevisedAt: Date | null;
 }
 
@@ -58,6 +63,7 @@ export function paraMarca(linha: LinhaDaMarca): AiMark | null {
     via: linha.aiVia,
     author: linha.aiAuthor,
     conversationId: linha.aiConversationId,
+    agentName: linha.aiAgentName,
     revisedAt: linha.aiRevisedAt?.toISOString() ?? null,
   };
 }

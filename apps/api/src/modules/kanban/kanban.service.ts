@@ -312,6 +312,52 @@ export async function listarArquivados(userId: string, boardId: string): Promise
   return cards.map(toCardSummary);
 }
 
+/**
+ * Os cards ativos de uma coluna, em ordem, até `limite` — a fonte viva de um
+ * agente (Etapa D da frente de IA). Posse pela cadeia coluna → quadro →
+ * usuário na mesma consulta (INV-03): coluna alheia é 404 como a inexistente.
+ *
+ * `total` vem junto para o contexto poder dizer "10 de 42" em vez de fingir
+ * que a coluna acaba no limite.
+ */
+export async function cardsDaColuna(
+  userId: string,
+  columnId: string,
+  limite: number,
+): Promise<{
+  id: string;
+  name: string;
+  boardId: string;
+  boardName: string;
+  total: number;
+  cards: CardSummary[];
+}> {
+  const coluna = await prisma.boardColumn.findFirst({
+    where: { id: columnId, board: { userId } },
+    select: { id: true, name: true, board: { select: { id: true, name: true } } },
+  });
+  if (!coluna) throw notFound("Coluna não encontrada");
+
+  const [cards, total] = await Promise.all([
+    prisma.card.findMany({
+      where: { columnId: coluna.id, archived: false },
+      orderBy: { position: "asc" },
+      take: limite,
+      select: CARD_FACE,
+    }),
+    prisma.card.count({ where: { columnId: coluna.id, archived: false } }),
+  ]);
+
+  return {
+    id: coluna.id,
+    name: coluna.name,
+    boardId: coluna.board.id,
+    boardName: coluna.board.name,
+    total,
+    cards: cards.map(toCardSummary),
+  };
+}
+
 /* ----------------------------------------------------------------- colunas */
 
 export async function criarColuna(userId: string, input: ColumnInput): Promise<BoardDetail> {

@@ -75,6 +75,18 @@ enum AiCostSource {
   desconhecido
 }
 
+/// As seis cores de agente (Etapa D da frente de IA). Tons fixos, mapeados para
+/// tokens do tema no front — cor livre em hex não passaria pelos dois temas.
+/// Espelha `AGENT_COLORS` de `packages/shared/src/agentes.ts`.
+enum AiAgentColor {
+  violeta
+  azul
+  verde
+  ambar
+  rosa
+  cinza
+}
+
 model User {
   id           String   @id @default(uuid()) @db.Uuid
   email        String   @unique
@@ -97,6 +109,7 @@ model User {
   aiTaskModels    AiTaskModel[]
   aiUsages        AiUsage[]
   aiConversations AiConversation[]
+  aiAgents        AiAgent[]
 
   @@map("user")
 }
@@ -170,6 +183,9 @@ model Note {
   aiConversationId String?   @map("ai_conversation_id") @db.Uuid
   /// Última edição humana de título ou corpo depois de gerado.
   aiRevisedAt      DateTime? @map("ai_revised_at")
+  /// O agente que escreveu (Etapa D), gravado na criação. Texto e não chave
+  /// estrangeira: excluir o agente não pode apagar quem escreveu.
+  aiAgentName      String?   @map("ai_agent_name")
 
   /// Mantida por trigger (ver migration). Consultada via SQL cru.
   searchVector Unsupported("tsvector")? @map("search_vector")
@@ -184,6 +200,7 @@ model Note {
   aiUsages  AiUsage[]
   aiAttachments AiAttachment[]
   aiConversation AiConversation? @relation("NotasGeradas", fields: [aiConversationId], references: [id], onDelete: SetNull)
+  aiAgentBases  AiAgentBaseNote[]
 
   @@index([userId, kind])
   @@index([userId, deletedAt, updatedAt(sort: Desc)])
@@ -300,6 +317,9 @@ model Card {
   aiConversationId String?   @map("ai_conversation_id") @db.Uuid
   /// Última edição humana de título ou corpo depois de gerado.
   aiRevisedAt      DateTime? @map("ai_revised_at")
+  /// O agente que escreveu (Etapa D), gravado na criação. Texto e não chave
+  /// estrangeira: excluir o agente não pode apagar quem escreveu.
+  aiAgentName      String?   @map("ai_agent_name")
 
   column        BoardColumn    @relation(fields: [columnId], references: [id], onDelete: Cascade)
   note          Note?          @relation(fields: [noteId], references: [id], onDelete: SetNull)
@@ -512,11 +532,16 @@ model AiConversation {
   id     String @id @default(uuid()) @db.Uuid
   userId String @map("user_id") @db.Uuid
   title  String
+  /// O agente da conversa (Etapa D), fixo desde a criação. `SetNull`: excluir
+  /// o agente não apaga a conversa, e `agentName` guarda quem respondeu.
+  agentId   String? @map("agent_id") @db.Uuid
+  agentName String? @map("agent_name")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agent    AiAgent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
   messages AiMessage[]
   usages   AiUsage[]
   /// O que esta conversa criou no acervo. `SetNull` do outro lado: apagar a
@@ -599,4 +624,51 @@ model AiAttachment {
 
   @@index([messageId])
   @@map("ai_attachment")
+}
+
+/// Um agente especialista (Etapa D da frente de IA): instruções, notas-base,
+/// fontes vivas, modelo e ferramentas. Tabela própria, não um tipo de nota — a
+/// portabilidade vem pela exportação em Markdown.
+model AiAgent {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @map("user_id") @db.Uuid
+  name           String
+  description    String       @default("")
+  color          AiAgentColor @default(violeta)
+  instructionsMd String       @default("") @map("instructions_md")
+  /// Nulo = usa o modelo da tarefa `chat`. Não é chave estrangeira para o
+  /// favorito: desfavoritar não pode apagar nem alterar o agente, e a
+  /// conferência de que ainda é favorito acontece na hora do uso.
+  modelId        String?      @map("model_id")
+  /// Nomes de `FERRAMENTAS_DO_CHAT`. Só esta lista concede ferramenta; texto de
+  /// instrução, não.
+  tools          String[]     @default([])
+  /// Até cinco `{ tipo: "coluna", boardId, columnId, limite, detalhe }`. JSON e
+  /// não tabela: a posse da coluna é conferida pela cadeia ao gravar e de novo
+  /// ao ler, e uma coluna que sumiu vira aviso, não erro de FK.
+  liveSources    Json         @default("[]") @map("live_sources")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  baseNotes     AiAgentBaseNote[]
+  conversations AiConversation[]
+
+  @@unique([userId, name])
+  @@map("ai_agent")
+}
+
+/// Uma nota-base de agente, em ordem. Cascata dos dois lados: é associação,
+/// não posse.
+model AiAgentBaseNote {
+  agentId  String @map("agent_id") @db.Uuid
+  noteId   String @map("note_id") @db.Uuid
+  position Int
+
+  agent AiAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  note  Note    @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@id([agentId, noteId])
+  @@index([noteId])
+  @@map("ai_agent_base_note")
 }

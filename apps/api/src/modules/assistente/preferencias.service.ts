@@ -185,36 +185,49 @@ export async function definirModeloDaTarefa(
 }
 
 /**
- * **O ponto único da escolha de modelo.**
- *
- * Hoje só lê a preferência. É aqui que uma regra futura de conteúdo sensível
- * entra — "esta nota não pode ir para um modelo de rota aberta" —, sem que
- * nenhum chamador precise mudar.
+ * Quem escolheu o modelo — a tarefa, nos ajustes, ou um agente (Etapa D). Só
+ * muda o texto da recusa: ele precisa apontar para a tela onde se conserta.
  */
-export async function modeloParaTarefa(userId: string, task: AiTask): Promise<AiFavorite> {
-  const escolha = await prisma.aiTaskModel.findUnique({ where: { userId_task: { userId, task } } });
-  if (!escolha) {
-    /// A tarefa vai **no texto**. Sem ela a frase é "escolha um modelo para
-    /// esta tarefa", e quem está na tela de ajustes vendo um modelo marcado
-    /// conclui que o erro é falso — foi exatamente o que aconteceu quando o
-    /// chat passou a exigir a tarefa `chat` e a tela só oferecia `formatar`.
-    throw new AppError(
-      422,
-      "MODELO_NAO_ESCOLHIDO",
-      `Nenhum modelo escolhido para a tarefa "${task}". Arraste um favorito para a coluna ` +
-        `${task} em Ajustes → Modelos.`,
-    );
-  }
+export type DonoDaEscolha = { tarefa: AiTask } | { agente: string };
 
+function ondeConsertar(dono: DonoDaEscolha): { sujeito: string; remedio: string } {
+  if ("tarefa" in dono) {
+    return {
+      sujeito: `para a tarefa "${dono.tarefa}"`,
+      remedio: `Arraste outro para a coluna ${dono.tarefa} em Ajustes → Modelos.`,
+    };
+  }
+  return {
+    sujeito: `para o agente «${dono.agente}»`,
+    remedio: "Escolha outro no editor do agente, ou volte a usar o modelo do chat.",
+  };
+}
+
+/**
+ * Um modelo pelo id, **se ainda for um favorito utilizável** — a checagem que
+ * `modeloParaTarefa` sempre fez, extraída para o agente com modelo próprio
+ * usar a mesma. O favorito é o que garante que a estimativa de custo acha o
+ * snapshot de preço sem ir ao catálogo dentro da requisição.
+ *
+ * **O ponto único da escolha de modelo** desde a Etapa D: a tarefa passa por
+ * aqui, e o agente com modelo próprio chama direto. Uma regra futura de
+ * conteúdo sensível — "esta nota não pode ir para um modelo de rota aberta" —
+ * entra aqui, ou não alcança os agentes.
+ */
+export async function modeloPorId(
+  userId: string,
+  modelId: string,
+  dono: DonoDaEscolha,
+): Promise<AiFavorite> {
+  const { sujeito, remedio } = ondeConsertar(dono);
   const favorito = await prisma.aiModelFavorite.findUnique({
-    where: { userId_modelId: { userId, modelId: escolha.modelId } },
+    where: { userId_modelId: { userId, modelId } },
   });
   if (!favorito) {
     throw new AppError(
       422,
       "MODELO_NAO_ESCOLHIDO",
-      `O modelo escolhido para a tarefa "${task}" saiu dos favoritos. ` +
-        `Arraste outro para a coluna ${task} em Ajustes → Modelos.`,
+      `O modelo escolhido ${sujeito} saiu dos favoritos. ${remedio}`,
     );
   }
 
@@ -231,6 +244,29 @@ export async function modeloParaTarefa(userId: string, task: AiTask): Promise<Ai
   }
 
   return toFavorite(favorito);
+}
+
+/**
+ * O modelo escolhido para uma tarefa em Ajustes → Modelos. Lê a preferência e
+ * delega a conferência a `modeloPorId`, que é onde regra de escolha de modelo
+ * mora — agente com modelo próprio não passa por aqui.
+ */
+export async function modeloParaTarefa(userId: string, task: AiTask): Promise<AiFavorite> {
+  const escolha = await prisma.aiTaskModel.findUnique({ where: { userId_task: { userId, task } } });
+  if (!escolha) {
+    /// A tarefa vai **no texto**. Sem ela a frase é "escolha um modelo para
+    /// esta tarefa", e quem está na tela de ajustes vendo um modelo marcado
+    /// conclui que o erro é falso — foi exatamente o que aconteceu quando o
+    /// chat passou a exigir a tarefa `chat` e a tela só oferecia `formatar`.
+    throw new AppError(
+      422,
+      "MODELO_NAO_ESCOLHIDO",
+      `Nenhum modelo escolhido para a tarefa "${task}". Arraste um favorito para a coluna ` +
+        `${task} em Ajustes → Modelos.`,
+    );
+  }
+
+  return modeloPorId(userId, escolha.modelId, { tarefa: task });
 }
 
 /** A tela de ajustes inteira numa requisição — os três blocos aparecem juntos. */

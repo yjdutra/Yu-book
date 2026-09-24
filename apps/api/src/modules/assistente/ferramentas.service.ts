@@ -71,7 +71,22 @@ export interface ContextoDeFerramenta {
   /// Quem escreve, quando a ação cria alguma coisa. Montado pelo `chat.service`
   /// a partir da conversa e do modelo — o modelo não tem como declarar a
   /// própria origem, nem escapar da marca.
-  origem: { via: "chat"; author: string | null; conversationId: string };
+  origem: {
+    via: "chat";
+    author: string | null;
+    conversationId: string;
+    /// O agente da conversa (Etapa D), para a marca dizer quem escreveu.
+    agentName?: string | null;
+  };
+  /**
+   * O que **esta** conversa pode executar (Etapa D): a lista do agente, já
+   * cortada por `FERRAMENTAS_DO_CHAT`. O Assistente sem agente passa a lista
+   * inteira do chat, **explicitamente**: sem valor padrão, esquecer o campo é
+   * erro de compilação, e não uma conversa que ganha tudo em silêncio. É uma
+   * terceira condição, e não substitui as duas de INV-52: um nome aqui que não
+   * esteja no chat continua recusado.
+   */
+  permitidas: readonly NomeDeFerramenta[];
 }
 
 type Executor = (
@@ -227,27 +242,33 @@ export interface FerramentaParaProvedor {
  * publicar `tools/list`, pela mesma biblioteca — as duas superfícies descrevem
  * as ações pelo mesmo código, não por duas traduções parecidas.
  */
-export function catalogoParaProvedor(): FerramentaParaProvedor[] {
-  return FERRAMENTAS_DO_CHAT.filter((nome) => EXECUTORES[nome]).map((nome) => {
-    const definicao = FERRAMENTAS_DO_ACERVO[nome];
-    return {
-      type: "function",
-      function: {
-        name: nome,
-        description: definicao.descricao,
-        parameters: zodToJsonSchema(z.object(definicao.entrada), { target: "openApi3" }),
-      },
-    };
-  });
+export function catalogoParaProvedor(
+  permitidas: readonly NomeDeFerramenta[],
+): FerramentaParaProvedor[] {
+  /// A lista do chat continua sendo a fonte: `permitidas` só estreita. Um nome
+  /// fora dela, vindo de um agente gravado antes de a lista mudar, não entra.
+  return FERRAMENTAS_DO_CHAT.filter((nome) => permitidas.includes(nome) && EXECUTORES[nome]).map(
+    (nome) => {
+      const definicao = FERRAMENTAS_DO_ACERVO[nome];
+      return {
+        type: "function",
+        function: {
+          name: nome,
+          description: definicao.descricao,
+          parameters: zodToJsonSchema(z.object(definicao.entrada), { target: "openApi3" }),
+        },
+      };
+    },
+  );
 }
 
 /**
  * Executa o que o modelo pediu.
  *
- * Nome desconhecido, nome fora de `FERRAMENTAS_DO_CHAT` e nome sem executor
- * caem no **mesmo** ramo, e de propósito: os três são "esta ação não existe
- * para você". Distinguir diria ao modelo que a ação existe e está trancada, que
- * é um convite a insistir.
+ * Nome desconhecido, nome fora de `FERRAMENTAS_DO_CHAT`, nome fora da lista do
+ * agente e nome sem executor caem no **mesmo** ramo, e de propósito: os quatro
+ * são "esta ação não existe para você". Distinguir diria ao modelo que a ação
+ * existe e está trancada, que é um convite a insistir.
  *
  * A lista é conferida aqui, e não só em `catalogoParaProvedor`: o catálogo diz
  * o que se **oferece**, esta checagem diz o que se **executa**. Sem ela, um
@@ -259,7 +280,9 @@ export async function executar(
   argumentos: unknown,
   contexto: ContextoDeFerramenta,
 ): Promise<ResultadoDeFerramenta> {
-  const permitida = FERRAMENTAS_DO_CHAT.includes(nome as NomeDeFerramenta);
+  const permitida =
+    FERRAMENTAS_DO_CHAT.includes(nome as NomeDeFerramenta) &&
+    contexto.permitidas.includes(nome as NomeDeFerramenta);
   const executor = permitida ? EXECUTORES[nome as NomeDeFerramenta] : undefined;
   if (!executor) {
     throw new AppError(422, "VALIDATION_ERROR", `Ferramenta desconhecida: ${nome}`);

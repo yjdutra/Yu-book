@@ -1,6 +1,10 @@
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
-import type { CallToolResult, JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
+import type {
+  CallToolResult,
+  JSONRPCMessage,
+  ReadResourceResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import { criarServidor } from "../src/servidor.js";
 
 /**
@@ -33,6 +37,7 @@ export interface ToolAnunciada {
 export interface ClienteDeTeste {
   listarTools(): Promise<ToolAnunciada[]>;
   chamarTool(nome: string, argumentos?: Record<string, unknown>): Promise<CallToolResult>;
+  lerResource(uri: string): Promise<ReadResourceResult>;
   encerrar(): Promise<void>;
 }
 
@@ -101,6 +106,17 @@ export async function abrirCliente(
         throw new Error(`erro de protocolo em ${nome}: ${erro.message}`);
       }
       return r["result"] as CallToolResult;
+    },
+
+    async lerResource(uri) {
+      const r = await pedir("resources/read", { uri });
+      // Resource lança em vez de devolver `isError` (§12 da skill): aqui o erro
+      // é de protocolo, e o teste precisa vê-lo como falha.
+      if (r["error"]) {
+        const erro = r["error"] as { message: string };
+        throw new Error(`erro de protocolo em ${uri}: ${erro.message}`);
+      }
+      return r["result"] as ReadResourceResult;
     },
 
     async encerrar() {

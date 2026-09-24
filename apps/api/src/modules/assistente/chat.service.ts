@@ -8,14 +8,16 @@ import type {
   ChatMessageInput,
   ChatSource,
 } from "@yu-book/shared";
-import type { AiFavorite } from "@yu-book/shared";
+import type { AiFavorite, NomeDeFerramenta } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError } from "../../lib/errors.js";
+import * as agentes from "./agentes.service.js";
 import * as conversas from "./conversas.service.js";
 import {
   custoDaResposta,
   estimarCustoMicros,
   garantirTeto,
+  MAX_SAIDA_TOKENS,
   registrarUso,
   tokensAproximados,
 } from "./custo.service.js";
@@ -23,7 +25,7 @@ import * as ferramentas from "./ferramentas.service.js";
 import { lerFluxo } from "./fluxo.js";
 import type { PedidoDeFerramenta } from "./fluxo.js";
 import { abrirNoProvedor, politicaDeDados } from "./openrouter.service.js";
-import { modeloParaTarefa, preferenciaDe } from "./preferencias.service.js";
+import { modeloParaTarefa, modeloPorId, preferenciaDe } from "./preferencias.service.js";
 import type { PreferenciaDeIa } from "./preferencias.service.js";
 
 /**
@@ -55,30 +57,10 @@ const ORCAMENTO_MS = 60_000;
 const FOLGA_SAIDA_TOKENS = 512;
 /// Abaixo disto não sobra resposta: o histórico já não cabe no modelo.
 const MINIMO_SAIDA_TOKENS = 256;
-/// Teto de saída por passo. O passo que só chama ferramenta gasta muito menos.
-const MAX_SAIDA_TOKENS = 2_048;
 
-const INSTRUCOES = [
-  "Você é o assistente do Yu-book, o segundo cérebro do usuário. " +
-    "Responda em português do Brasil.",
-  "",
-  "Você tem ferramentas de leitura do acervo dele, e duas de criação. Use as de leitura:",
-  "- Procure sozinho quando a pergunta for sobre o acervo. Não peça ao usuário o que você " +
-    "pode buscar.",
-  "- `search_notes` acha; `get_note` lê uma nota inteira. Buscar é barato, ler é caro — " +
-    "busque antes.",
-  "- Não invente nota, card, quadro nem id. Se não achar, diga que não achou.",
-  "",
-  "Regras da resposta:",
-  "- **Cite a origem**: toda afirmação sobre uma nota ou um card nomeia a nota ou o card.",
-  "- Não altere nada entre colchetes duplos ao citar: `[[assim]]` é um link interno do usuário.",
-  "",
-  "Criação (`create_note`, `create_card`):",
-  "- Crie nota ou card **só quando o usuário pedir explicitamente**. Nunca por iniciativa sua.",
-  "- Depois de criar, confirme pelo nome o que criou.",
-  "- Você não move, não apaga nem edita nada. Se pedirem, diga que isso se faz no aplicativo.",
-  "- O que você cria fica marcado como gerado por IA.",
-].join("\n");
+/// A mensagem `system` não mora mais aqui: desde a Etapa D ela sai de
+/// `montarContextoDoAgente`, que com a conversa sem agente devolve as regras
+/// de sempre para a lista inteira do chat (`instrucoesPara`).
 
 type MensagemDoProvedor =
   | { role: "system" | "user"; content: string }
@@ -190,6 +172,14 @@ export interface Sessao {
   /// Anexos que não couberam no orçamento de contexto (RNF-04). O aviso sai na
   /// resposta, nunca calado.
   cortados: string[];
+  /// Premissas do agente que não couberam, pela mesma regra (Etapa D).
+  premissasCortadas: string[];
+  /// O que esta conversa pode executar: a lista do agente cortada pela do
+  /// chat, ou a do chat inteira sem agente. Vazia, o campo `tools` sai da
+  /// requisição.
+  permitidas: NomeDeFerramenta[];
+  /// O agente da conversa, para a marca do que ele criar.
+  agentName: string | null;
 }
 
 /**
@@ -204,21 +194,51 @@ export async function preparar(
   conversationId: string,
   entrada: ChatMessageInput,
 ): Promise<Sessao> {
-  await conversas.garantirPosse(userId, conversationId);
+  const conversa = await conversas.agenteDaConversa(userId, conversationId);
+
+  /// Agente excluído com a conversa aberta. Seguir como o Assistente puro
+  /// mudaria quem responde no meio da conversa sem ninguém ter escolhido — e
+  /// o cabeçalho continuaria dizendo o nome do agente.
+  if (conversa.agentName !== null && conversa.agentId === null) {
+    throw new AppError(
+      422,
+      "VALIDATION_ERROR",
+      `O agente «${conversa.agentName}» foi excluído. A conversa continua legível; para ` +
+        "continuar, comece uma conversa nova.",
+    );
+  }
 
   const preferencia = await preferenciaDe(userId);
-  const modelo = await modeloParaTarefa(userId, "chat");
+  const agente = conversa.agentId
+    ? await agentes.carregarParaChat(userId, conversa.agentId)
+    : null;
+  /// O agente sem modelo próprio usa o da tarefa `chat`. Com modelo próprio,
+  /// a mesma conferência de favorito, com a recusa apontando o editor dele.
+  const modelo = agente?.modelId
+    ? await modeloPorId(userId, agente.modelId, { agente: agente.name })
+    : await modeloParaTarefa(userId, "chat");
+
+  /// Montado **a cada mensagem**: as fontes vivas do agente precisam vir
+  /// frescas, e uma nota-base editada entre duas mensagens também.
+  const contextoDoAgente = await agentes.montarContextoDoAgente(
+    userId,
+    agente,
+    preferencia.timezone,
+  );
 
   /// A bandeira vem da cópia do catálogo no favorito, capturada desde a Etapa A
   /// justamente para isto. Um modelo que não sabe chamar ferramenta conversa
   /// bem e não consegue consultar o acervo — e falharia no meio, depois de
-  /// pagar a chamada.
-  if (!modelo.supportsTools) {
+  /// pagar a chamada. Um agente sem ferramenta nenhuma não precisa dela.
+  if (contextoDoAgente.permitidas.length > 0 && !modelo.supportsTools) {
     throw new AppError(
       422,
       "MODELO_SEM_FERRAMENTA",
-      `"${modelo.name}" não sabe chamar ferramenta, e sem isso o chat não consulta o acervo. ` +
-        "Escolha outro modelo para o chat nos ajustes de IA.",
+      agente
+        ? `"${modelo.name}" não sabe chamar ferramenta, e o agente «${agente.name}» usa ` +
+            "ferramentas. Troque o modelo ou desligue as ferramentas no editor do agente."
+        : `"${modelo.name}" não sabe chamar ferramenta, e sem isso o chat não consulta o ` +
+            "acervo. Escolha outro modelo para o chat nos ajustes de IA.",
     );
   }
 
@@ -243,7 +263,7 @@ export async function preparar(
   ].join("");
 
   const mensagens: MensagemDoProvedor[] = [
-    { role: "system", content: INSTRUCOES },
+    { role: "system", content: contextoDoAgente.sistema },
     ...anteriores,
     { role: "user", content: turno },
   ];
@@ -269,7 +289,18 @@ export async function preparar(
     anexos: resolvidos,
   });
 
-  return { userId, conversationId, modelo, preferencia, mensagemDoUsuario, mensagens, cortados };
+  return {
+    userId,
+    conversationId,
+    modelo,
+    preferencia,
+    mensagemDoUsuario,
+    mensagens,
+    cortados,
+    premissasCortadas: contextoDoAgente.cortados,
+    permitidas: contextoDoAgente.permitidas,
+    agentName: agente?.name ?? null,
+  };
 }
 
 function charsDe(mensagens: MensagemDoProvedor[]): number {
@@ -355,6 +386,9 @@ async function gravarMensagem(dados: GravarMensagem): Promise<ChatMessage> {
 export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
   const { userId, conversationId, modelo, preferencia } = sessao;
   const mensagens = [...sessao.mensagens];
+  /// Sem ferramenta permitida, o campo `tools` nem vai: lista vazia é recusada
+  /// por alguns provedores, e o modelo sem ferramenta não tem o que pedir.
+  const catalogo = ferramentas.catalogoParaProvedor(sessao.permitidas);
   const usos: AiCallUsage[] = [];
   /**
    * O que o turno inteiro consultou, acumulado entre os passos. Vai gravado na
@@ -462,7 +496,7 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
             /// `desconhecido` — o teto viraria decorativo (INV-48).
             stream_options: { include_usage: true },
             messages: mensagens,
-            tools: ferramentas.catalogoParaProvedor(),
+            ...(catalogo.length > 0 && { tools: catalogo }),
             ...politicaDeDados(preferencia.allowTraining),
           },
         });
@@ -556,7 +590,9 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
               via: "chat",
               author: resultado.modelUsed ?? modelo.id,
               conversationId,
+              agentName: sessao.agentName,
             },
+            permitidas: sessao.permitidas,
           });
           texto = saida.texto;
           if (saida.criados.length) {

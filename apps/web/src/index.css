@@ -27,6 +27,18 @@
   --color-superficie: #161b27;
   --color-ia-500: #6d4de6;
 
+  /* Etapa D da IA: as seis cores de agente (`AGENT_COLORS`). São o fundo do
+     avatar, com a inicial em branco por cima — por isso cada uma passa AA com
+     texto branco (4,75 a 5,37) e 3:1 contra ink-950, ink-900 e superficie
+     (3,21 a 4,06), para o avatar não sumir no painel. A cor nunca é o único
+     sinal: o nome do agente vai ao lado, e o da cor aparece no seletor. */
+  --color-agente-violeta: #7c4ddb;
+  --color-agente-azul: #2f6fd6;
+  --color-agente-verde: #16805a;
+  --color-agente-ambar: #a8620b;
+  --color-agente-rosa: #c2336f;
+  --color-agente-cinza: #5f6b82;
+
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -151,6 +163,14 @@
   --color-accent-400: #4338ca;
   --color-superficie: #ffffff;
   --color-ia-500: #6a3fd9;
+  /* Mais escuras que no tema escuro: branco por cima passa de 5,57 a 6,42, e
+     o avatar contra ink-950, ink-900 e superficie claros, de 4,83 a 6,42. */
+  --color-agente-violeta: #6d3fd0;
+  --color-agente-azul: #1f5fc4;
+  --color-agente-verde: #0f7050;
+  --color-agente-ambar: #9a5808;
+  --color-agente-rosa: #b02660;
+  --color-agente-cinza: #566178;
 
   --veu: rgb(27 33 48 / 0.28);
 

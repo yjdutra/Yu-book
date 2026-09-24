@@ -4,20 +4,22 @@ import type {
   ChatMessage,
   ChatSource,
   Conversation,
+  ConversationAgent,
   NoteDetail,
   NoteKind,
 } from "@yu-book/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ApiError } from "../../lib/api";
 import { useConversa, useVirarNota } from "../../lib/chat";
 import { carregarCard, useExcluirCard } from "../../lib/kanban";
 import { renderMarkdown } from "../../lib/markdown";
 import { useExcluirNota, useWorkspaces } from "../../lib/notas";
-import { alvoDe, chaveCriado, useSessaoChat } from "../../lib/sessaoChat";
+import { alvoDe, chaveCriado, naTelaDoChat, useSessaoChat } from "../../lib/sessaoChat";
 import { useWorkspaceAtivo } from "../../lib/workspace";
+import { AvatarAgente } from "../agentes/AvatarAgente";
 import { Aviso } from "../base/Aviso";
 import { Botao, BotaoIcone } from "../base/Botao";
 import { Dialogo } from "../base/Dialogo";
@@ -30,6 +32,8 @@ import {
   IconeNotas,
   IconeVirarNota,
 } from "../Icones";
+import { useAgenteDaConversa } from "./agenteDaConversa";
+import { ApresentacaoAgente } from "./ApresentacaoAgente";
 
 /**
  * As falas de uma conversa (RF-17 a RF-26 da IA) — a mesma nas duas
@@ -85,8 +89,24 @@ function Fontes({ fontes, onAbrir }: { fontes: ChatSource[]; onAbrir: (f: ChatSo
   );
 }
 
-/** Avatar do assistente: a mesma faísca do trilho, no gradiente de IA. */
-function Avatar() {
+/**
+ * Avatar de quem responde. Sem agente, a faísca do trilho no gradiente de IA;
+ * com agente (Etapa D), as iniciais na cor dele — e o nome dele para o leitor
+ * de tela, que de outro modo não saberia quem está falando.
+ */
+function Avatar({ agente }: { agente: ConversationAgent | null }) {
+  if (agente) {
+    return (
+      <span className="mt-0.5" title={agente.name}>
+        <AvatarAgente
+          nome={agente.name}
+          cor={agente.color}
+          rotulado
+          excluido={agente.id === null}
+        />
+      </span>
+    );
+  }
   return (
     <span
       aria-hidden="true"
@@ -168,7 +188,7 @@ function Criados({
     try {
       const card = await carregarCard(qc, c.id);
       navigate(`/b/${card.boardId}/c/${card.id}`);
-      if (pathname.startsWith("/assistente")) abrirPainel();
+      if (naTelaDoChat(pathname)) abrirPainel();
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : "Não foi possível abrir o card.");
     }
@@ -533,10 +553,16 @@ function Acoes({
   );
 }
 
-function FalaAssistente({ children }: { children: ReactNode }) {
+function FalaAssistente({
+  agente,
+  children,
+}: {
+  agente: ConversationAgent | null;
+  children: ReactNode;
+}) {
   return (
     <div className="flex gap-2.5">
-      <Avatar />
+      <Avatar agente={agente} />
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
@@ -547,11 +573,13 @@ function Fala({
   onAbrir,
   conversa,
   onNotaCriada,
+  agente,
 }: {
   mensagem: ChatMessage;
   onAbrir: (f: ChatSource) => void;
   conversa: Conversation | undefined;
   onNotaCriada: (nota: NoteDetail) => void;
+  agente: ConversationAgent | null;
 }) {
   // Já sanitizado por DOMPurify dentro de renderMarkdown (INV-09, RNF-05):
   // texto de modelo é entrada não confiável como qualquer outra.
@@ -578,14 +606,14 @@ function Fala({
   if (!mensagem.content.trim()) {
     if (mensagem.created.length === 0) return null;
     return (
-      <FalaAssistente>
+      <FalaAssistente agente={agente}>
         <Criados criados={mensagem.created} onAbrirFonte={onAbrir} />
       </FalaAssistente>
     );
   }
 
   return (
-    <FalaAssistente>
+    <FalaAssistente agente={agente}>
       <div className="preview text-sm" dangerouslySetInnerHTML={{ __html: html }} />
       <div className="mt-1 flex flex-wrap items-center gap-1.5">
         {mensagem.modelUsed && (
@@ -615,14 +643,18 @@ export function Conversa({
   onAbrirFonte,
   onNotaCriada,
   vazio,
+  compacto = false,
 }: {
   onAbrirFonte: (f: ChatSource) => void;
   /** A casca mostra o `Toast` — a pilha do que flutua mora nela, não aqui. */
   onNotaCriada: (nota: NoteDetail) => void;
   /** O que mostrar numa conversa sem falas — cada superfície tem o seu convite. */
   vazio: ReactNode;
+  /** O painel lateral: o convite do agente escolhido vai no tamanho dele. */
+  compacto?: boolean;
 }) {
   const { conversaId, emCurso: fluxo, erro, limparErro } = useSessaoChat();
+  const agente = useAgenteDaConversa();
   const { data: conversa } = useConversa(conversaId);
   const fimRef = useRef<HTMLDivElement>(null);
   const mensagens = conversaId ? (conversa?.messages ?? []) : [];
@@ -638,7 +670,13 @@ export function Conversa({
 
   return (
     <div className="space-y-5">
-      {mensagens.length === 0 && !emCurso && vazio}
+      {mensagens.length === 0 &&
+        !emCurso &&
+        (agente.resumo ? (
+          <ApresentacaoAgente agente={agente.resumo} compacto={compacto} />
+        ) : (
+          vazio
+        ))}
 
       {mensagens.map((m) => (
         <Fala
@@ -647,6 +685,7 @@ export function Conversa({
           onAbrir={onAbrirFonte}
           conversa={conversa}
           onNotaCriada={onNotaCriada}
+          agente={agente.identidade}
         />
       ))}
 
@@ -656,7 +695,7 @@ export function Conversa({
             texto={emCurso.pergunta}
             anexos={emCurso.anexos.map((a) => ({ chave: alvoDe(a), titulo: a.titulo }))}
           />
-          <FalaAssistente>
+          <FalaAssistente agente={agente.identidade}>
             {/* RNF-07: o passo é anunciado, e o texto visível é a própria
                 região — o leitor de tela não repete. */}
             <p role="status" className="flex items-center gap-2 text-xs text-ink-400">
@@ -690,13 +729,34 @@ export function Conversa({
                 Não coube no contexto e ficou de fora: {emCurso.cortados.join(", ")}.
               </p>
             )}
+            {emCurso.premissasCortadas.length > 0 && (
+              // O mesmo RNF-04 para as premissas do agente (Etapa D): a nota-base
+              // que não coube é dita, não omitida.
+              <p role="status" className="mt-1 text-xs text-amber-300">
+                Premissas do agente que não couberam e ficaram de fora:{" "}
+                {emCurso.premissasCortadas.join(", ")}.
+              </p>
+            )}
           </FalaAssistente>
         </>
       )}
 
       {erro && (
         <Aviso tom="erro" onFechar={limparErro}>
-          {erro}
+          {erro.mensagem}
+          {/* O modelo do agente saiu dos favoritos: quem resolve é o editor
+              dele, não Ajustes — o agente não usa o modelo do chat. */}
+          {erro.code === "MODELO_NAO_ESCOLHIDO" && agente.identidade?.id && (
+            <>
+              {" "}
+              <Link
+                to={`/assistente/agentes/${agente.identidade.id}`}
+                className="font-medium underline underline-offset-2"
+              >
+                Editar o agente
+              </Link>
+            </>
+          )}
         </Aviso>
       )}
       <div ref={fimRef} />

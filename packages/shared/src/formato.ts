@@ -153,6 +153,9 @@ function sufixoIa(ai: AiMark | null): string {
  */
 function linhaDaMarca(ai: AiMark, fuso: string, genero: "a" | "o"): string {
   const partes = [`gerad${genero} por IA`];
+  // O agente (Etapa D) antes do modelo: é ele que diz com que premissas o
+  // texto foi escrito, e o modelo só diz quem o escreveu.
+  if (ai.agentName) partes.push(`«${ai.agentName}»`);
   if (ai.author) partes.push(ai.author);
   partes.push(`via ${ai.via}`, diaLocal(new Date(ai.generatedAt), fuso));
   if (ai.revisedAt) partes.push(`revisad${genero} em ${diaLocal(new Date(ai.revisedAt), fuso)}`);
