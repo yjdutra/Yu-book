@@ -4,15 +4,16 @@
 
 ## O que já nos mordeu
 
-- Ref erra **de origem**, não só de linha, e o arquivo muda de pacote: confira o caminho antes.
-- **Arquivo de agente apodrece calado, e a paráfrase junto.** Grepe o fato, não a frase.
-- **O código alcança o registro:** comentário tardio no sítio desbanca o item; só reler revela.
-- **Registro que conta envelhece por aritmética, calado.** Registre o eixo, não o censo — e
-  seção de eixo com **um exemplo só** é lida como o exemplo: o ponteiro de outra skill
-  mente até chegar o segundo caso.
-- Eixo novo raramente contradiz a regra: **estreita a cláusula**. Cace o estreito, não só o falso.
-- Invariante categórica que o código da casa viola acusa inocente: nomeie a exceção com
-  `arquivo:linha` e diga que não é precedente.
+- Ref erra **de origem**, não só de linha: código muda de arquivo. Grepe o caminho.
+- Confira ref de **todo** arquivo do diff, não só dos nomeados: a linha desloca calada.
+- **Agente apodrece calado, e a paráfrase junto.** Grepe o fato, não a frase.
+- **O código alcança o registro:** comentário tardio no sítio desbanca o item.
+- Regra que troca de mecanismo vira INV novo; o número velho fica com a parte geral que sobrou.
+- **Registro que conta envelhece calado.** Registre o eixo, não o censo — e eixo com **um exemplo
+  só** é lido como o exemplo, até chegar o segundo caso.
+- Eixo novo raramente contradiz: **estreita a cláusula**. Cace o estreito, não só o falso.
+- Categórica ("a primeira", "toda", "tem dois") erra até no briefing: grepe e nomeie a exceção.
+- Defeito achado num sítio tem irmão: grepe o padrão, não só o sítio.
 
 ## Decisões em vigor
 
@@ -22,10 +23,9 @@
 - **Ponteiro não é duplicação; cópia do argumento é** — entre skills e entre skill e código.
 - **Número medido é memória de agente, não skill.** Grave a receita, não o número; e a receita
   barata costuma ser outra.
-- **Skill no limite: comprima o que acabou de escrever antes de cortar doutrina velha**, e procure
-  a cópia antes de extrair. Extraia só o que se lê *depois* de escrever.
+- **Skill no limite: comprima o recém-escrito antes de cortar doutrina velha**; procure a cópia
+  antes de extrair. Extraia só o que se lê *depois* de escrever.
 - **Não renumere seção: o número é referência cruzada.** Doutrina nova vira §0 ou subseção; item
   novo entra no fim da série.
-- Não vira registro: fato sem `arquivo:linha`, fato com prazo, valor que liga no painel sem deploy,
-  e medida que varia por rodada. Fato já em `docs/historico.md` ou no `CLAUDE.md` não se copia —
-  mas **ponteiro datado cabe**, se quem precisa dele não lê aqueles arquivos.
+- Não vira registro: fato sem `arquivo:linha`, com prazo, que liga no painel sem deploy, ou medida
+  que varia por rodada. Fato do `historico.md`/`CLAUDE.md` não se copia; ponteiro datado cabe.

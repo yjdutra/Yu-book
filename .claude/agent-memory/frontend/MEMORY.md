@@ -7,10 +7,6 @@
 
 ## O que já nos mordeu
 
-- **Portão verde não diz que a tela oferece o controle.** A Etapa B pôs `chat` em `AI_TASKS` e
-  `/ajustes` ficou com `formatar` fixo: o chat exigia escolha sem onde escolher, com typecheck e a
-  suíte da API inteiros verdes (2026-09-23; virou INV-54). Achou o operador, usando. Ao fechar,
-  nomeie o caminho de tela que ninguém percorreu.
 - Módulo de `packages/shared` que **constrói valor em escopo de módulo** entra no bundle do front
   mesmo sem ninguém importar. Medido em 2026-09-23: `ferramentas.ts` punha ~6,3 KB crus na primeira
   pintura, contra 0 de `formato.ts`. Fechou com `"sideEffects": false` em

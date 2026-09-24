@@ -96,7 +96,7 @@ Se divergirem: o front deixa de detectar duplicata que o banco recusa, ou vice-v
 ### 4.4 `normalizarTag` ↔ a normalização do card no servidor
 
 `normalizarTag` (`packages/shared/src/kanban.ts:48`) é chamada **nos dois lados**: o front normaliza
-para montar o catálogo e comparar (`apps/web/src/components/SeletorDeTags.tsx:51,63`) e
+para montar o catálogo e comparar (`apps/web/src/components/SeletorDeTags.tsx:52,64`) e
 `normalizarTags` normaliza de novo antes de gravar
 (`apps/api/src/modules/kanban/kanban.service.ts:136`). Corta espaço, remove `#` inicial, colapsa
 espaço interno, baixa a caixa e trunca em `MAX_TAG_TEXTO` — **não remove acento**: `revisão` é
@@ -106,7 +106,7 @@ Se um lado deixar de chamar: tags visualmente iguais viram entradas diferentes n
 (`Banco` e `banco` lado a lado). Nada falha, nada avisa — só se percebe quando a lista já está suja.
 
 **A chave de comparação de tags é `normalizarTitulo`, não uma função nova.** Quem precisa casar
-`revisao` com `revisão` — a busca do seletor e a da barra lateral (`apps/web/src/lib/tags.ts:24`) —
+`revisao` com `revisão` — a busca do seletor e a do painel contextual (`apps/web/src/lib/tags.ts:23`) —
 usa `normalizarTitulo` de `wikilinks.ts`, a mesma do §4.1. Foi decisão explícita **não** criar uma
 terceira definição de "mesmo texto" no projeto: `normalizarTag` canoniza para gravar,
 `normalizarTitulo` compara. Não escreva uma `normalizarTagParaBusca`.
@@ -130,8 +130,8 @@ pergunta à API (`apps/mcp/src/fuso.ts:42`) e o chat recebe o `fuso` no contexto
 (`apps/api/src/modules/assistente/ferramentas.service.ts:56-59`). As quatro funções escritas à mão
 viraram duas, num lugar só.
 
-**O lado do front não fechou.** `paraCampoData` (`apps/web/src/components/PainelCard.tsx:15`) e
-`paraData` (`:24`) continuam usando `getMonth()`/`getDate()` e um `new Date("…T23:59:59")` cru —
+**O lado do front não fechou.** `paraCampoData` (`apps/web/src/components/PainelCard.tsx:20`) e
+`paraData` (`:29`) continuam usando `getMonth()`/`getDate()` e um `new Date("…T23:59:59")` cru —
 isto é, o fuso do **navegador**, não `ai_preference.timezone`. Enquanto os dois coincidem, ninguém
 vê nada. Quando divergem — operador viajando, navegador com outro fuso, ou o usuário mudando o fuso
 em `/ajustes` sem mudar o do sistema —, a interface e tudo o que passa por `shared` (MCP, chat)

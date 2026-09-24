@@ -1,6 +1,6 @@
 ---
 name: invariantes-yu-book
-description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, as defesas de saída decididas pela origem do alvo (SSRF só onde a URL vem do usuário), escopo por usuário, a precisão do arraste do kanban, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna impresso num lugar só — hoje em packages/shared —, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda, e a frente de IA — teto de gasto conferido antes de cada conexão e a cada passo do laço de ferramenta, cascata de custo de três degraus, guarda de wikilink por conjunto, o dia local gravado em vez de calculado e a fronteira do chat com o modelo fechada pelo compilador nos dois sentidos —, e a montagem condicional de painel no front, que nunca entrega aberto: false, e o enum cuja escolha só existe se a tela o percorrer. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
+description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, as defesas de saída decididas pela origem do alvo (SSRF só onde a URL vem do usuário), escopo por usuário, a precisão do arraste do kanban e a alça única do quadro de modelos, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna impresso num lugar só — hoje em packages/shared —, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda, e a frente de IA — teto de gasto conferido antes de cada conexão e a cada passo do laço de ferramenta, cascata de custo de três degraus, guarda de wikilink por conjunto, o dia local gravado em vez de calculado e a fronteira do chat com o modelo fechada pelo compilador nos dois sentidos —, e a montagem condicional de painel no front, que nunca entrega aberto: false, o laço do chat que não roda sem superfície visível, o enum cuja escolha só existe se a tela o percorrer, e os filtros de notas na URL, que toda navegação em /n precisa carregar. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
 ---
 
 # Invariantes do Yu-book
@@ -76,7 +76,7 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-27 | Trocar de nota descarta o timer pendente |
 | INV-28 | Erro de título duplicado não é reintentado |
 | INV-29 | Durante o arraste o estado local vence; fora dele, o servidor |
-| INV-30 | O teclado do kanban é remapeado (e o vão usa `opacity-0`) |
+| INV-30 | O teclado do arraste é remapeado (a origem some com `opacity-0`; o `onKeyDown` compõe com o do sensor) |
 | INV-33 | Com filtro de tag ativo no board, o arraste é desligado |
 | INV-35 | O índice de inserção do arraste é contagem geométrica |
 | INV-36 | Os cards não usam estratégia de ordenação; as colunas usam |
@@ -87,6 +87,9 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-39 | O editor tem dois mapas de atalho, e os dois param o evento |
 | INV-53 | Painel montado dentro de `&&` nunca recebe `aberto: false` — ele desmonta |
 | INV-54 | Membro de enum que exige escolha do usuário só existe se a tela o percorrer |
+| INV-55 | Toda navegação dentro de `/n` carrega o `search`, onde moram os filtros |
+| INV-56 | O laço do chat não roda sem superfície visível; em `/assistente`, nada alterna o painel |
+| INV-57 | No quadro de modelos a alça é o único ativador do arraste; menu e botão ficam fora |
 
 ---
 
@@ -99,9 +102,11 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 5. **Diga o que você não pôde verificar.** O eixo é `apps/web`: **não existe teste de front neste
    projeto**, nenhum portão carrega uma `EditorView`, executa um arraste ou monta um painel. Toda
    invariante do `referencias/front.md` cai aqui — INV-29, INV-30, INV-33, INV-35, INV-36, INV-38,
-   INV-39, INV-53 e INV-54 são as que mais custam quando quebram. **INV-54 é meio-coberta**: o
-   `Record` total cai no typecheck; o `.map` e a prosa da tela, não. Se o diff as toca, nomeie-as e diga que
-   faltam: uma revisão que omite isso passa por verde o que ninguém executou.
+   INV-39, INV-53, INV-54, INV-55, INV-56 e INV-57 são as que mais custam quando quebram. **INV-54
+   é meio-coberta**: o `Record` total cai no typecheck; os `.map` da tela (colunas, menu, "Usado
+   por…"), não. Se
+   o diff as toca, nomeie-as e diga que faltam: uma revisão que omite isso passa por verde o que
+   ninguém executou.
    **INV-40 deixou de estar nesta lista** em 2026-09-23: `apps/mcp/tests/fuso.test.ts:112` executa
    `formatarQuadro` de verdade e assere o id da coluna. Não o cite mais como descoberto.
 
@@ -157,6 +162,18 @@ se perde de carona. O que ela **não** teve foi tela conferida à mão, e quem a
 operador usando o chat: tarefa nova no enum, sem coluna em `/ajustes` (INV-54). Nenhum portão
 deste repositório podia achá-la — **não é defeito que teste de API veja, é a interface não
 oferecendo um controle.**
+
+A **Etapa 2 do redesenho de UI** (2026-09-24, quinta numeração: não é Etapa B nem fase alguma)
+trocou a barra lateral por trilho e painel contextual e pôs os filtros de notas na URL — daí INV-55.
+Ela tirou o ouvinte de atalhos de `Aplicacao.tsx` e apagou `Navegacao.tsx`: INV-39 apontava para
+linhas que deixaram de existir, a mesma falha calada do INV-40, agora por extração de arquivo.
+A **Etapa 3** (2026-09-24) apagou `PainelChat.tsx` e levou o fluxo do chat para um provedor sempre
+montado: a limpeza de desmonte que INV-53 citava deixou de proteger o gasto, e a regra virou INV-56.
+A **Etapa 4** (2026-09-24) partiu `AjustesPage.tsx` em `components/ajustes/` e trocou a lista de
+modelos por um arraste novo: INV-54 mudou de arquivo inteiro, INV-30 ganhou o segundo lugar e
+nasceu INV-57. A **Etapa 5** (2026-09-24), a última, pôs gaveta e paleta dentro do `Dialogo`: o
+`return null` que INV-53 citava nos dois saiu deles. INV-30 ganhou a composição do `onKeyDown` — o
+defeito dos favoritos, e o mesmo ainda aberto no card do kanban — e INV-56 o avesso em `/assistente`.
 
 O que ainda não tem código: **busca semântica** (§5.4). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
 **menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece:

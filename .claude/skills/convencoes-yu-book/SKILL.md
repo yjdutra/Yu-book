@@ -39,6 +39,10 @@ import { criarNota } from "./notes.service.js";
 
 Esquecer a extensão compila no editor e quebra em runtime.
 
+**`apps/web` é a exceção:** sobrescreve para `moduleResolution: "Bundler"`
+(`apps/web/tsconfig.json:5-6`), e ali o import interno vai **sem** extensão, como todo o código do
+front já faz. Não acrescente `.js` lá.
+
 ## 3. Tipagem
 
 `strict: true` e **`noUncheckedIndexedAccess: true`** em todo o monorepo. Todo acesso por índice
@@ -75,9 +79,9 @@ Comentário explica **por quê**, nunca o quê. Em português. Cita o identifica
 existe — `RF-14`, `RN-03`, `RNF-08`, `CA-16`, `S-04`.
 
 **O identificador é local ao PRD da fase, não global, e os números se repetem entre fases.** `RF-19`
-é o tema em `apps/web/src/lib/tema.ts:8` (Fase 1) e é "o ponteiro decide o destino do arraste" em
-`apps/web/src/components/Quadro.tsx:165` (Fase 5). Quem lê resolve pelo arquivo em que o comentário
-está: fases 1 a 4 em `docs/old/prd-fase-*.md`, Fase 5 em diante em `docs/prd-fase-*.md`. Quem
+é o tema em `apps/web/src/lib/tema.ts:22` (Fase 4) e é "o ponteiro decide o destino do arraste" em
+`apps/web/src/components/Quadro.tsx:166` (Fase 5). Quem lê resolve pelo arquivo em que o comentário
+está: fases 1 a 5 em `docs/old/prd-fase-*.md`, fase nova em `docs/prd-fase-*.md`. Quem
 escreve **não** renumera nem inventa prefixo de fase para desambiguar — o código inteiro já cita
 assim, e mudar metade dele é pior que a ambiguidade.
 
@@ -99,8 +103,10 @@ comentário explica uma escolha que parece estranha, ela é deliberada — confi
 2 espaços, aspas duplas, ponto e vírgula, ~100 colunas. Arquivos `.tsx` só quando há JSX — por isso
 `apps/web/src/lib/auth.tsx` e `workspace.tsx` são `.tsx`, e renderizam Providers.
 
-Sem barris (`index.ts` reexportador) em `apps/web`. `components/` é plano, sem subpastas. `lib/`
-mistura hooks, utilitários puros e módulos de query — não reorganize.
+Sem barris (`index.ts` reexportador) em `apps/web`, inclusive nas subpastas: importe do arquivo.
+`components/` admite **subpasta por papel** — primitivos em `base/`, a casca em `casca/`, e uma
+por área que cresceu além de um arquivo, como `assistente/` e `ajustes/`. `lib/` mistura hooks,
+utilitários puros e módulos de query — não reorganize.
 
 ## 6. Verificação
 

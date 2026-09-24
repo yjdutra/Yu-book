@@ -23,13 +23,16 @@ provedor OpenRouter, teto de gasto diário, a tela `/ajustes` e o botão de form
 B** (2026-09-23) o chat ancorado, que lê o acervo por um laço de até cinco chamadas ao provedor por
 mensagem. A Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
 
-**Quatro numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
+**Cinco numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
 identidade) foi entregue em 2026-09-01; o **roteiro de IA aplicada** tem fases próprias, e a 5 dele é
 a frente de IA; dentro dessa frente, o **PRD de IA** tem as suas, de 1 a 4, entregues em etapas com
-letra — a Etapa A cobriu as fases 1 e 2 dele, e a Etapa B a fase 3. "Etapa 4" não é "Fase 4", e o
-mesmo número significa coisas diferentes em cada eixo. Não unifique nem renumere — a entrada de
-2026-08-26 em `docs/historico.md` diz de onde vem cada uma.
+letra — a Etapa A cobriu as fases 1 e 2 dele, e a Etapa B a fase 3; e o **redesenho de UI/UX** de
+`apps/web` tem cinco etapas próprias, entregues em 2026-09-24 sem conferência na tela a cada etapa e
+conferidas à mão pelo usuário no fechamento — relato, não checklist item por item (registro em
+`docs/historico.md`); essa numeração está fechada. "Etapa 4" não é
+"Fase 4", e o mesmo número significa coisas diferentes em cada eixo. Não unifique nem renumere — a
+entrada de 2026-08-26 em `docs/historico.md` diz de onde vêm as quatro primeiras.
 
 **O `RF-xx` do comentário resolve para o PRD da fase daquele código — os números colidem entre
 fases.** `RF-19` é o tema claro em `apps/web/src/lib/tema.ts` e é a colisão pelo ponteiro em
@@ -49,12 +52,14 @@ fases.** `RF-19` é o tema claro em `apps/web/src/lib/tema.ts` e é a colisão p
 - **Não existe ESLint, Prettier, Biome nem CI.** Estilo se aprende por imitação: 2 espaços, aspas
   duplas, ~100 colunas. Não instale linter.
 - **Não instale biblioteca de UI nem de ícones.** Sem shadcn, sem Radix, sem Material. Ícone novo é
-  SVG à mão em `apps/web/src/components/Icones.tsx`.
+  SVG à mão em `apps/web/src/components/Icones.tsx`. Botão, diálogo, menu e os demais primitivos já
+  existem em `apps/web/src/components/base/`: use-os em vez de copiar classes.
 - **Nunca use a variante `dark:` do Tailwind.** O tema mora inteiro em CSS, em `apps/web/src/index.css`.
   Cor nova exige entrada no bloco `@theme` **e** em `:root[data-tema="claro"]`.
 - **`apps/api` tem duas camadas e só duas:** `*.routes.ts` faz `schema.parse` → chama service →
   devolve; `*.service.ts` concentra regra e Prisma. Rota que importa `prisma` é violação.
-- **Imports internos levam extensão `.js`** (ESM/NodeNext), inclusive em arquivos `.ts`.
+- **Imports internos levam extensão `.js`** (ESM/NodeNext), inclusive em arquivos `.ts` — menos em
+  `apps/web`, que resolve como `Bundler` e importa sem extensão.
 - **`strict` e `noUncheckedIndexedAccess` estão ligados.** Todo acesso por índice devolve
   `T | undefined`.
 

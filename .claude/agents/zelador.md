@@ -41,7 +41,6 @@ Dívidas já conhecidas, que você deve continuar listando enquanto existirem:
   `docs/old/PROPOSTA-inicial.md` |
 | Lixeira que nunca expurga | A Fase 1 prometeu 30 dias; não há rotina de expurgo |
 | Sem script de `pg_dump` e sem export | Risco de lock-in registrado em `docs/old/PROPOSTA-inicial.md` |
-| `TRACO` duplicado | Definido em `Icones.tsx` e repetido em `SeletorTema.tsx` e `ModoNota.tsx` |
 | README desatualizado | `README.md:232` fala em cinco migrations; existem sete |
 
 ## Lista de exclusão — o que parece morto e não é
