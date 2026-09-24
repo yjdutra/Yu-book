@@ -19,8 +19,8 @@ import type {
   DropAnimation,
   KeyboardCoordinateGetter,
 } from "@dnd-kit/core";
-import { AI_TASKS } from "@yu-book/shared";
-import type { AiFavorite, AiTask } from "@yu-book/shared";
+import { TAREFAS_COM_MODELO } from "@yu-book/shared";
+import type { AiFavorite, TarefaComModelo } from "@yu-book/shared";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { ApiError } from "../../lib/api";
@@ -50,16 +50,16 @@ import {
  * um lugar só (`taskModels` guarda um id por tarefa), e soltar ali troca o que
  * estava.
  *
- * **As colunas saem de `AI_TASKS`** (INV-54): a tarefa nova aparece aqui
- * sozinha, e o `Record` de `ROTULO_DA_TAREFA` cobra o rótulo dela.
+ * **As colunas saem de `TAREFAS_COM_MODELO`** (INV-54): a tarefa nova aparece
+ * aqui sozinha, e o `Record` de `ROTULO_DA_TAREFA` cobra o rótulo dela.
  */
 
 type Origem =
   | { tipo: "favorito"; modelId: string }
-  | { tipo: "tarefa"; modelId: string; tarefa: AiTask };
+  | { tipo: "tarefa"; modelId: string; tarefa: TarefaComModelo };
 
 const ID_FAVORITOS = "favoritos";
-const idTarefa = (t: AiTask) => `tarefa:${t}`;
+const idTarefa = (t: TarefaComModelo) => `tarefa:${t}`;
 const idDomDaColuna = (id: string) => `coluna-${id.replace(":", "-")}`;
 
 /**
@@ -241,13 +241,15 @@ export function QuadroDeModelos({ onErro }: { onErro: (mensagem: string | null) 
     return () => document.documentElement.removeAttribute("data-arrastando");
   }, [arrastando]);
 
-  const tarefaDe = (overId: string | null): AiTask | null => {
+  const tarefaDe = (overId: string | null): TarefaComModelo | null => {
     if (!overId?.startsWith("tarefa:")) return null;
     const t = overId.slice("tarefa:".length);
-    return (AI_TASKS as readonly string[]).includes(t) ? (t as AiTask) : null;
+    return (TAREFAS_COM_MODELO as readonly string[]).includes(t)
+      ? (t as TarefaComModelo)
+      : null;
   };
 
-  async function atribuir(tarefa: AiTask, modelId: string, deTarefa?: AiTask) {
+  async function atribuir(tarefa: TarefaComModelo, modelId: string, deTarefa?: TarefaComModelo) {
     onErro(null);
     try {
       await definir.mutateAsync({ task: tarefa, modelId });
@@ -261,7 +263,7 @@ export function QuadroDeModelos({ onErro }: { onErro: (mensagem: string | null) 
     }
   }
 
-  async function tirar(tarefa: AiTask) {
+  async function tirar(tarefa: TarefaComModelo) {
     onErro(null);
     try {
       await definir.mutateAsync({ task: tarefa, modelId: null });
@@ -381,7 +383,8 @@ export function QuadroDeModelos({ onErro }: { onErro: (mensagem: string | null) 
       <div
         className="grid gap-4"
         style={{
-          gridTemplateColumns: `minmax(0, 1.4fr) repeat(${AI_TASKS.length}, minmax(0, 1fr))`,
+          gridTemplateColumns:
+            `minmax(0, 1.4fr) repeat(${TAREFAS_COM_MODELO.length}, minmax(0, 1fr))`,
         }}
       >
         <Coluna
@@ -395,7 +398,7 @@ export function QuadroDeModelos({ onErro }: { onErro: (mensagem: string | null) 
             <Vazio texto="Nenhum favorito ainda. Favorite modelos no catálogo acima." />
           )}
           {favoritos.map((f) => {
-            const serve = AI_TASKS.filter((t) => escolhidos[t] === f.id);
+            const serve = TAREFAS_COM_MODELO.filter((t) => escolhidos[t] === f.id);
             return (
               <Arrastavel
                 key={f.favoriteId}
@@ -427,7 +430,7 @@ export function QuadroDeModelos({ onErro }: { onErro: (mensagem: string | null) 
                         )}
                         itens={[
                           // A mesma escolha do arraste, sem arrastar.
-                          ...AI_TASKS.map((t) => ({
+                          ...TAREFAS_COM_MODELO.map((t) => ({
                             rotulo: `Usar para ${ROTULO_DA_TAREFA[t].titulo}`,
                             desabilitado: !podeServir(f, t) || escolhidos[t] === f.id,
                             motivo: !podeServir(f, t) ? MOTIVO_SEM_FERRAMENTA : "Já é o modelo dela",
@@ -455,7 +458,7 @@ export function QuadroDeModelos({ onErro }: { onErro: (mensagem: string | null) 
           })}
         </Coluna>
 
-        {AI_TASKS.map((tarefa) => {
+        {TAREFAS_COM_MODELO.map((tarefa) => {
           const modelId = escolhidos[tarefa];
           const modelo = modelId ? modeloDe(modelId) : undefined;
           const rotulo = ROTULO_DA_TAREFA[tarefa];

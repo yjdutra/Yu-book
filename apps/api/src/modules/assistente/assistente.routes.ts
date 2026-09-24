@@ -1,6 +1,5 @@
 import { Readable } from "node:stream";
 import {
-  AI_TASKS,
   aiFavoriteInputSchema,
   aiSettingsPatchSchema,
   aiTaskModelSchema,
@@ -12,8 +11,12 @@ import {
   formatNoteSchema,
   listAiModelsQuerySchema,
   messageToNoteSchema,
+  routineInputSchema,
+  routineRunsQuerySchema,
+  routineUpdateSchema,
+  TAREFAS_COM_MODELO,
 } from "@yu-book/shared";
-import type { ChatEvent } from "@yu-book/shared";
+import type { ChatEvent, RotinaEvent } from "@yu-book/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../lib/authenticate.js";
@@ -21,9 +24,11 @@ import * as agentes from "./agentes.service.js";
 import * as service from "./assistente.service.js";
 import * as chat from "./chat.service.js";
 import * as conversas from "./conversas.service.js";
+import * as execucao from "./execucao.service.js";
 import * as formatar from "./formatar.service.js";
 import * as modelos from "./modelos.service.js";
 import * as preferencias from "./preferencias.service.js";
+import * as rotinas from "./rotinas.service.js";
 
 /**
  * Caminho em **inglês** com prefixo `/ai`, como todo o resto da fronteira; o
@@ -32,10 +37,14 @@ import * as preferencias from "./preferencias.service.js";
  * do inglês — é lapso de um rascunho, e regra vence exemplo.
  */
 const favoritoParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
-const tarefaParamsSchema = z.object({ task: z.enum(AI_TASKS) });
+/// Só as tarefas com modelo próprio: `rotina` usa o do agente, e aceitar
+/// `PATCH /ai/tasks/rotina` gravaria uma escolha que nada lê.
+const tarefaParamsSchema = z.object({ task: z.enum(TAREFAS_COM_MODELO) });
 const notaParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
 const conversaParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
 const agenteParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
+const rotinaParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
+const execucaoParamsSchema = z.object({ runId: z.string().uuid("Id inválido") });
 /// `:id` é a conversa, como em todas as rotas de `/ai/conversations/…`.
 const mensagemParamsSchema = z.object({
   id: z.string().uuid("Id inválido"),
@@ -48,9 +57,24 @@ const mensagemParamsSchema = z.object({
  * Sem `event:` nomeado: o `tipo` já discrimina dentro do JSON, e um segundo
  * lugar dizendo a mesma coisa é um segundo lugar para divergir.
  */
-function comoSse(evento: ChatEvent): string {
+function comoSse(evento: ChatEvent | RotinaEvent): string {
   return `data: ${JSON.stringify(evento)}\n\n`;
 }
+
+/**
+ * Os cabeçalhos de todo `text/event-stream` daqui — o chat e a execução de
+ * rotina (Etapa E). O porquê do `compress: false` que os acompanha está na
+ * rota do chat, abaixo.
+ */
+const CABECALHOS_SSE = {
+  "content-type": "text/event-stream; charset=utf-8",
+  /// `no-transform` pede a qualquer intermediário que não recomprima.
+  "cache-control": "no-cache, no-transform",
+  connection: "keep-alive",
+  /// O proxy da Railway é nginx: sem isto ele bufferiza a resposta inteira
+  /// e o streaming vira uma entrega única, em produção e só em produção.
+  "x-accel-buffering": "no",
+} as const;
 
 export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", authenticate);
@@ -232,15 +256,91 @@ export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
         for await (const evento of chat.conversar(sessao)) yield comoSse(evento);
       }
 
-      return reply
-        .header("content-type", "text/event-stream; charset=utf-8")
-        /// `no-transform` pede a qualquer intermediário que não recomprima.
-        .header("cache-control", "no-cache, no-transform")
-        .header("connection", "keep-alive")
-        /// O proxy da Railway é nginx: sem isto ele bufferiza a resposta inteira
-        /// e o streaming vira uma entrega única, em produção e só em produção.
-        .header("x-accel-buffering", "no")
-        .send(Readable.from(eventos()));
+      return reply.headers(CABECALHOS_SSE).send(Readable.from(eventos()));
     },
   );
+
+  /// Rotinas (Etapa E). O cadastro é CRUD comum; a execução responde 202 e
+  /// segue no servidor, desacoplada da requisição.
+  app.get("/ai/routines", async (request) => rotinas.listar(request.userId));
+
+  app.post("/ai/routines", async (request, reply) => {
+    const entrada = routineInputSchema.parse(request.body);
+    const rotina = await rotinas.criar(request.userId, entrada);
+    return reply.status(201).send(rotina);
+  });
+
+  app.get("/ai/routines/:id", async (request) => {
+    const { id } = rotinaParamsSchema.parse(request.params);
+    return rotinas.buscarPorId(request.userId, id);
+  });
+
+  app.patch("/ai/routines/:id", async (request) => {
+    const { id } = rotinaParamsSchema.parse(request.params);
+    const patch = routineUpdateSchema.parse(request.body);
+    return rotinas.atualizar(request.userId, id, patch);
+  });
+
+  app.delete("/ai/routines/:id", async (request, reply) => {
+    const { id } = rotinaParamsSchema.parse(request.params);
+    await rotinas.excluir(request.userId, id);
+    return reply.status(204).send();
+  });
+
+  /// "Rodar agora". 202: a execução começou e segue sem esta requisição. O
+  /// limite de taxa é o mesmo das outras rotas que chamam o provedor.
+  app.post(
+    "/ai/routines/:id/runs",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const { id } = rotinaParamsSchema.parse(request.params);
+      const iniciada = await execucao.iniciar(request.userId, id, request.log);
+      return reply.status(202).send(iniciada);
+    },
+  );
+
+  app.get("/ai/routines/:id/runs", async (request) => {
+    const { id } = rotinaParamsSchema.parse(request.params);
+    const query = routineRunsQuerySchema.parse(request.query);
+    return rotinas.historico(request.userId, id, query);
+  });
+
+  app.get("/ai/runs/:runId", async (request) => {
+    const { runId } = execucaoParamsSchema.parse(request.params);
+    return rotinas.detalheDoRun(request.userId, runId);
+  });
+
+  /**
+   * A execução ao vivo. Mesmo transporte e mesmos cabeçalhos do chat, com a
+   * mesma segunda camada de `compress: false`. O primeiro evento é sempre o
+   * retrato; a execução já terminada fecha logo depois dele, com `fim`.
+   *
+   * Fechar a aba **não** para a execução — é o ponto da etapa. Só tira este
+   * assinante: o sinal abaixo acorda a espera e o `finally` do gerador o
+   * desinscreve. `reply.raw` e não `request.raw`: o `close` da requisição
+   * dispara ao fim do corpo dela, não quando o cliente vai embora.
+   */
+  app.get("/ai/runs/:runId/events", { compress: false }, async (request, reply) => {
+    const { runId } = execucaoParamsSchema.parse(request.params);
+    const fechou = new AbortController();
+    reply.raw.on("close", () => fechou.abort());
+    const fluxo = await execucao.assinar(request.userId, runId, fechou.signal);
+
+    async function* eventos(): AsyncGenerator<string> {
+      for await (const evento of fluxo) {
+        /// Comentário SSE: mantém a conexão sem virar evento do outro lado.
+        yield evento === "ping" ? ": ping\n\n" : comoSse(evento);
+      }
+    }
+
+    return reply.headers(CABECALHOS_SSE).send(Readable.from(eventos()));
+  });
+
+  /// Cancelar. Idempotente: execução que já terminou responde igual. O
+  /// status final chega pelo SSE, quando o motor terminar de gravar.
+  app.post("/ai/runs/:runId/cancel", async (request, reply) => {
+    const { runId } = execucaoParamsSchema.parse(request.params);
+    await execucao.cancelar(request.userId, runId);
+    return reply.status(204).send();
+  });
 }

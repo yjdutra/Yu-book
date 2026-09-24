@@ -224,6 +224,16 @@ para o MCP.
   marketing mudou e o que o revisor apontou.
 - O card gerado mostra de onde veio (rotina, execução) e leva ao histórico.
 
+**Como ficou (2026-09-24).** A execução roda **no servidor, desacoplada da aba** — decisão do
+operador que revoga "sem trabalho assíncrono" já nesta etapa, e não na F como previsto abaixo; o
+registro com o motivo e o custo (pulso no banco, reconciliação por pulso vencido, a janela de
+deploy com duas instâncias) está em `historico.md`. O
+editor é um **fluxo linear em blocos ligados**, no espírito do organizador de integrações da
+Umbler; ramificação ficou fora. O destino da ideia usada é **configurado por rotina** no bloco de
+Saída (mover, arquivar ou manter) e executado pelo código, não pedido ao modelo; a idempotência é
+pelo registro das execuções. Passos têm dois modos, **reescreve** e **revisa**. Requisitos em
+`prd-ia-no-yu-book.md`, seção 5.7 (RF-54 a RF-62, RN-16 a RN-19, RNF-11, CA-29 a CA-34).
+
 **Riscos.** Uma execução é várias chamadas; o teto precisa valer **por execução inteira** além do
 diário. Execução longa não pode depender da aba aberta (decidir no plano: disparo pelo servidor com
 progresso por fluxo, retomável na tela).

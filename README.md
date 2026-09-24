@@ -95,7 +95,19 @@ mostra o que o agente recebe e quanto custa por mensagem antes de salvar, e o ag
 Markdown com frontmatter. Três modelos prontos servem de ponto de partida: Especialista em LinkedIn,
 Marketing e Revisor. O que um agente cria leva o nome dele na marca. Agentes não entram no servidor
 MCP. **Também foi entregue sem conferência de interface à mão**, e o roteiro está em
-[`docs/historico.md`](docs/historico.md). O próximo passo da frente de IA é a **Etapa E**, rotinas.
+[`docs/historico.md`](docs/historico.md).
+
+Também em **2026-09-24** veio a **Etapa E, rotinas com "Rodar agora"**, em `/assistente/rotinas`.
+Uma rotina encadeia agentes numa sequência fixa: pega a próxima ideia de uma coluna, passa por cada
+passo ("reescreve" ou "revisa") e deixa o resultado num card novo, marcado "via rotina", sem
+publicar nada fora do Yu-book. O editor é um fluxo de blocos ligados (Entrada, até seis agentes e
+Saída), e a Saída decide também o destino da ideia usada: mover, arquivar ou manter. **A execução
+roda no servidor e não depende da aba**: a tela acompanha ao vivo, pode ser fechada e reaberta, e a
+execução pode ser cancelada. Cada execução tem teto de gasto próprio, além do diário, e fica no
+histórico com o texto de cada passo. Nos passos, o modelo só lê; o card é gravado pelo código. É o
+fim da regra "sem trabalho assíncrono", e o motivo está em [`docs/historico.md`](docs/historico.md).
+Rotinas não entram no servidor MCP. **Também foi entregue sem conferência de interface à mão.** O
+próximo passo da frente de IA é a **Etapa F**, agendamento.
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,

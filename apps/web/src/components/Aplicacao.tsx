@@ -27,6 +27,7 @@ import {
   IconeMais,
   IconeNotas,
   IconePainelDireito,
+  IconeRotina,
   IconeTeclado,
 } from "./Icones";
 import { Paleta } from "./Paleta";
@@ -95,6 +96,18 @@ const AssistentePage = lazy(() =>
  */
 const AgentesPage = lazy(() =>
   import("../pages/AgentesPage").then((m) => ({ default: m.AgentesPage })),
+);
+
+/**
+ * As rotinas (Etapa E da IA) também: trazem o arraste do fluxo, o modelo
+ * pronto de rotina e o renderizador de Markdown da execução ao vivo. As duas
+ * rotas saem do mesmo chunk.
+ */
+const RotinasPage = lazy(() =>
+  import("../pages/RotinasPage").then((m) => ({ default: m.RotinasPage })),
+);
+const ExecucaoAvulsaPage = lazy(() =>
+  import("../pages/RotinasPage").then((m) => ({ default: m.ExecucaoAvulsaPage })),
 );
 
 function CarregandoTela() {
@@ -345,6 +358,18 @@ export function Aplicacao() {
         executar: () => navigate("/assistente/agentes/novo"),
       },
       {
+        id: "rotinas",
+        rotulo: "Rotinas",
+        icone: <IconeRotina />,
+        executar: () => navigate("/assistente/rotinas"),
+      },
+      {
+        id: "nova-rotina",
+        rotulo: "Nova rotina",
+        icone: <IconeRotina />,
+        executar: () => navigate("/assistente/rotinas/novo"),
+      },
+      {
         id: "ir-ajustes",
         rotulo: "Ir para Ajustes",
         icone: <IconeAjustes />,
@@ -477,6 +502,23 @@ export function Aplicacao() {
             </Suspense>
           }
         />
+        <Route
+          path="/assistente/rotinas/*"
+          element={
+            <Suspense fallback={<CarregandoTela />}>
+              <RotinasPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/assistente/execucoes/:runId"
+          element={
+            <Suspense fallback={<CarregandoTela />}>
+              <ExecucaoAvulsaPage />
+            </Suspense>
+          }
+        />
+        {/* O catch-all por último: rota nova da área entra antes dele. */}
         <Route path="/assistente/*" element={<Navigate to="/assistente" replace />} />
         <Route
           path="/ajustes/*"

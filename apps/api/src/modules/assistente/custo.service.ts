@@ -185,6 +185,8 @@ export interface RegistroDeUso extends CustoApurado {
   /// Qual conversa gastou. Uma mensagem do chat vira até cinco linhas aqui, uma
   /// por passo do laço, e é isso que torna o gasto de uma conversa somável.
   conversationId?: string | null;
+  /// Qual execução de rotina gastou (Etapa E). Mesma regra de `conversationId`.
+  runId?: string | null;
 }
 
 /** Uma linha por chamada, **inclusive as que falharam** — é a trilha de auditoria. */
@@ -206,6 +208,7 @@ export async function registrarUso(registro: RegistroDeUso): Promise<void> {
       localDay: registro.localDay,
       noteId: registro.noteId ?? null,
       conversationId: registro.conversationId ?? null,
+      runId: registro.runId ?? null,
     },
   });
 }

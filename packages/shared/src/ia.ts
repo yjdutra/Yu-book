@@ -1,6 +1,6 @@
 import { z } from "zod";
 /// Os enums espelhados do Prisma moram todos em `enums.ts`.
-import type { AiCostSource, AiTask } from "./enums.js";
+import type { AiCostSource, TarefaComModelo } from "./enums.js";
 
 /**
  * Contrato da frente de IA — Fase 5 do roteiro, detalhada em
@@ -242,7 +242,8 @@ export interface AiSettings {
   allowTraining: boolean;
   usage: AiUsageSummary;
   favorites: AiFavorite[];
-  taskModels: Partial<Record<AiTask, string>>;
+  /// Só as tarefas com modelo próprio: `rotina` usa o do agente ou o do chat.
+  taskModels: Partial<Record<TarefaComModelo, string>>;
 }
 
 export interface AiHealth {

@@ -13,6 +13,127 @@ _Nada pendente._
 
 ---
 
+## [0.21.0] — 2026-09-24
+
+**Etapa E da frente de IA: rotinas com "Rodar agora".** Uma rotina encadeia agentes numa sequência
+fixa, orquestrada pelo código. Ela pega a próxima ideia de uma coluna, passa por cada passo e deixa
+o resultado num card novo, sem publicar nada fora do Yu-book. A execução **roda no servidor e não
+depende da aba**: "Rodar agora" responde na hora, e a tela acompanha ao vivo e pode ser fechada e
+reaberta. Requisitos na seção 5.7 de [`docs/prd-ia-no-yu-book.md`](docs/prd-ia-no-yu-book.md):
+RF-54 a RF-62, RN-16 a RN-19, RNF-11 e CA-29 a CA-34.
+
+É a terceira etapa do [plano de agentes de acervo](docs/plano-agentes-de-acervo.md) (C a G). A
+próxima é a F, agendamento. **A decisão de trabalho assíncrono, que o plano previa para a F, foi
+tomada nesta etapa** e revoga "sem trabalho assíncrono, por decisão". O motivo e o preço estão em
+[`docs/historico.md`](docs/historico.md). Não é fase de produto nem etapa do MCP, que segue na 4 de 5.
+
+**Os quatro pacotes se movem**, porque `packages/shared` mudou de contrato (o módulo novo
+`rotinas.ts`, `AiMark.routineName` e `AiMark.runId`, `rotina` em `AiTask` e em `AiVia`,
+`TAREFAS_COM_MODELO`, `OrigemIA` como união discriminada por via e quatro códigos de erro):
+`packages/shared` de `0.9.0` para `0.10.0`, `apps/api` de `0.11.0` para `0.12.0`, `apps/web` de
+`0.16.0` para `0.17.0` e `apps/mcp` de `0.12.0` para `0.13.0`, no `package.json` **e** no
+construtor do `McpServer`. Três migrations aditivas: `20260924215552_ia_etapa_e_rotinas`,
+`20260924224021_ia_etapa_e_pulso` e `20260924233000_ia_etapa_e_uma_execucao`. A última cria o
+índice único parcial `ai_routine_run_uma_em_andamento_idx`, que vive fora do `schema.prisma`.
+
+**O MCP não mudou de comportamento.** Em `apps/mcp/src` só mudou a versão. Rotinas ficam fora do
+MCP (RF-62), e a única mudança que o MCP enxerga é a linha da marca "via rotina «nome»", que vem de
+`packages/shared/src/formato.ts` e ganhou teste. Os tamanhos medidos batem com a `[0.20.0]`:
+`tools/list` com escrita em 9601 B.
+
+Portões: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo nos quatro pacotes e
+`pnpm --filter @yu-book/mcp test` com **57 testes** (eram 56), medidos de novo no fechamento.
+`pnpm --filter @yu-book/api test` com **229 testes** (eram 200), relatado pela sessão de
+implementação.
+
+**Entregue sem conferência de interface à mão**, como a C e a D. Nada do que é tela nesta entrada
+foi visto funcionando: a galeria, o editor de fluxo, a execução ao vivo, o histórico e a faixa "via
+rotina". `apps/web` continua sem runner de teste. O roteiro de oito itens está em
+[`docs/historico.md`](docs/historico.md).
+
+### Adicionado
+- **Rotinas** (RF-54). Criar, editar e excluir, com nome único por conta, descrição, Entrada, de 1 a
+  6 passos de agente (pelo menos um "reescreve") e Saída. Rotas `GET|POST /ai/routines` e
+  `GET|PATCH|DELETE /ai/routines/:id`.
+- **Entrada** (RF-55): uma coluna de quadro. A ideia é o primeiro card ativo dela que esta rotina
+  ainda não usou.
+- **Passos em dois modos** (RF-56). "Reescreve" substitui o rascunho. "Revisa" registra observações
+  sem tocar nele, e elas seguem para os passos seguintes. Cada passo tem agente e instrução próprios.
+- **Saída** (RF-57). O card novo nasce no fim de uma coluna de qualquer quadro, com o texto final, a
+  seção "Observações" (opcional) e a ideia de origem. O título vem da ideia ou da primeira linha do
+  texto. A ideia usada é **movida** para uma coluna do mesmo quadro, **arquivada** ou **mantida**,
+  conforme a rotina.
+- **"Rodar agora"** (RF-58). `POST /ai/routines/:id/runs` responde `202 { runId }`, e a execução
+  segue no servidor. `GET /ai/runs/:runId/events` é um SSE que manda primeiro o retrato do que está
+  gravado e depois os eventos ao vivo. Uma execução já terminada manda o retrato e `fim`.
+- **Cancelar** (RF-59): `POST /ai/runs/:runId/cancel`, com confirmação na tela. A execução termina
+  `cancelada`, os passos que faltavam ficam `pulado` e a ideia fica onde estava.
+- **Histórico de execuções** (RF-60): passos, texto de cada um, modelo, tokens, custo, duração,
+  status e erro. Rotas `GET /ai/routines/:id/runs`, paginada, e `GET /ai/runs/:runId`.
+- **A marca diz qual rotina escreveu** (RF-61). O card de saída leva a rotina e o agente na faixa,
+  com o botão **"Ver execução"**. A linha "gerada por IA", que o chat e o MCP leem, diz "via rotina
+  «nome»".
+- **Teto por execução** (RN-17), configurado na Saída. O padrão é US$ 0,50 e o máximo US$ 10.
+- **Área de rotinas dentro de Assistente**, sem item novo no trilho:
+  - galeria em `/assistente/rotinas`, com a miniatura do fluxo, a última execução e "Rodar agora";
+  - estado vazio com o modelo "Post do LinkedIn";
+  - editor de fluxo em `/assistente/rotinas/novo` e `/assistente/rotinas/:id`, e execução em
+    `/assistente/execucoes/:runId`;
+  - seção "Rotinas" no painel contextual;
+  - os comandos "Rotinas" e "Nova rotina" na paleta.
+- **Editor de fluxo em blocos ligados.**
+  - Os conectores são SVG, com um "+" que insere passo ali. Os passos se reordenam por arraste com
+    alça única, ou por teclado.
+  - O painel lateral muda com o bloco selecionado, e a validação é listada por bloco, com ícone e
+    texto.
+  - A estimativa "a partir de" mostra o custo por execução.
+  - Salvar é explícito, com `Ctrl+S` e guarda de saída. "Rodar agora" fica desabilitado, com o
+    motivo, enquanto houver alteração não salva.
+- **Execução ao vivo.**
+  - A linha do tempo repete o fluxo como estado: pendente, rodando, concluído, falhou ou pulado.
+  - O texto do passo chega enquanto é escrito.
+  - Mostra custo contra o teto, modelo, tokens e duração, e o texto de cada passo concluído.
+  - `aria-live` anuncia a troca de passo, e "Abrir card" aparece no fim.
+- `Parte` em `components/base/` e `SeletorColuna`, extraído do editor de agente.
+
+### Alterado
+- **O gasto de rotina entra no teto diário e no painel de gasto** com a tarefa `rotina`. Ele continua
+  contando mesmo depois de a rotina ou a execução ser excluída. O quadro de modelos de `/ajustes` não
+  ganhou coluna `rotina`: cada passo usa o modelo do agente, ou o da tarefa `chat`.
+- No chat, uma falha do teto diário ou do registro de uso que não seja estouro do teto passa a
+  chegar como evento `erro` do stream. Antes ela escapava do laço como exceção. O resto do chat não
+  mudou: o passo com o provedor foi extraído para ser usado também pela rotina, e os testes do chat
+  seguem verdes.
+- O resultado da busca traz a marca inteira, com a rotina e a execução.
+
+### Segurança
+- **A rotina escreve pelo código, não pelo modelo** (RN-16, CA-34). Nos passos, o agente só recebe
+  as ferramentas de **leitura** que já tinha, mesmo tendo `create_card`. O card de saída e o destino
+  da ideia são obra do código, só no fim de uma execução bem-sucedida. Execução que falha, é
+  cancelada ou é interrompida não cria card nem move a ideia.
+- **Dois tetos antes de cada chamada ao provedor** (RN-17, CA-31). O gasto da execução mais a
+  estimativa é conferido contra o teto da rotina, e o gasto do dia contra o diário. Estourar
+  qualquer um encerra a execução com `falhou`, com o motivo (`TETO_DA_EXECUCAO` ou o do diário).
+  Iniciar com o teto diário atingido dá 402.
+- **Uma ideia, um post** (RN-18, CA-30). Um card com execução concluída ou em andamento desta rotina
+  não é escolhido de novo, qualquer que seja a ação de consumo. Sem ideia elegível, a resposta é 404
+  `SEM_IDEIA`.
+- **Uma execução por vez** (RN-19). Uma segunda execução dá 409 `ROTINA_EM_ANDAMENTO`, garantido
+  por índice único parcial no banco, e não só pelo código.
+- **Posse pela cadeia** (RN-15). Rotina, agente e colunas de outra conta dão o mesmo 404 de um id
+  inexistente. A coluna de consumidas tem de ser do quadro da entrada. Uma rotina com agente
+  excluído ou coluna sumida recusa rodar com 422 `ROTINA_INVALIDA`, dizendo o motivo.
+- **Nenhuma execução fica "em andamento" para sempre** (RNF-11, CA-33).
+  - A execução pulsa a cada 10 s.
+  - Uma execução com pulso vencido há 45 s vira `interrompida`. A conferência roda no boot, a cada
+    minuto e ao iniciar outra execução.
+  - O SIGTERM marca as execuções vivas como `interrompida` antes de fechar a API.
+  - O cancelamento e o SSE funcionam também quando a execução roda noutra instância, pelo banco.
+  - Com um card já criado, a execução termina `concluida`. Se o consumo da ideia falhar, ela vem com
+    o aviso `CONSUMO_FALHOU` ou `FINALIZACAO_PARCIAL`, e nunca `falhou`.
+
+---
+
 ## [0.20.0] — 2026-09-24
 
 **Etapa D da frente de IA: agentes especialistas.** Um agente é uma conversa com premissas. Ele tem

@@ -14,3 +14,4 @@ export * from "./formato.js";
 export * from "./ferramentas.js";
 export * from "./chat.js";
 export * from "./agentes.js";
+export * from "./rotinas.js";

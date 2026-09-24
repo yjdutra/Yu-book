@@ -1,4 +1,5 @@
 import type { AiMark } from "@yu-book/shared";
+import { useNavigate } from "react-router-dom";
 import { useAcoesChat } from "../lib/sessaoChat";
 import { Etiqueta } from "./base/Etiqueta";
 import { IconeAssistente } from "./Icones";
@@ -32,15 +33,20 @@ function diaCurto(iso: string): string {
   return d.getFullYear() === new Date().getFullYear() ? base : `${base} ${d.getFullYear()}`;
 }
 
-const VIA: Record<AiMark["via"], string> = { chat: "via chat", mcp: "via MCP" };
+const VIA: Record<AiMark["via"], string> = {
+  chat: "via chat",
+  mcp: "via MCP",
+  rotina: "via rotina",
+};
 
 /** O detalhe por extenso — a dica da forma compacta. */
 export function descricaoMarca(marca: AiMark): string {
+  const rotina = marca.routineName ? ` · rotina «${marca.routineName}»` : "";
   const agente = marca.agentName ? ` · «${marca.agentName}»` : "";
   const autor = marca.author ? ` — ${marca.author}` : "";
   const revisada = marca.revisedAt ? `; revisada em ${diaCurto(marca.revisedAt)}` : "";
   const quando = diaCurto(marca.generatedAt);
-  return `Gerada por IA${agente}${autor}, ${VIA[marca.via]}, ${quando}${revisada}`;
+  return `Gerada por IA${rotina}${agente}${autor}, ${VIA[marca.via]}, ${quando}${revisada}`;
 }
 
 /**
@@ -74,10 +80,17 @@ export function MarcaIA({ marca, curta = false }: { marca: AiMark; curta?: boole
  * zera o `conversationId`, a marca fica. Abre no painel lateral, e não na rota
  * `/assistente`: a conversa fica ao lado da nota que saiu dela. A rota não tem
  * id de conversa; a sessão é quem escolhe qual se mostra.
+ *
+ * Etapa E: o que uma rotina criou diz «Rotina» · «Agente» e leva à execução
+ * ("Ver execução"). A marca guarda a execução, não a rotina — ela pode ter
+ * sido excluída —, e por isso a rota é `/assistente/execucoes/:runId`, que não
+ * precisa da rotina.
  */
 export function FaixaIA({ marca }: { marca: AiMark }) {
   const { selecionar, abrirPainel } = useAcoesChat();
+  const navigate = useNavigate();
   const conversa = marca.conversationId;
+  const execucao = marca.runId;
   return (
     <div
       role="note"
@@ -88,6 +101,14 @@ export function FaixaIA({ marca }: { marca: AiMark }) {
     >
       <IconeAssistente className="size-3.5 text-accent-400" />
       <span className="font-medium text-ink-200">Gerada por IA</span>
+      {marca.routineName && (
+        <>
+          <Separador />
+          <span className="max-w-[24ch] truncate text-ink-200" title={marca.routineName}>
+            <span className="sr-only">rotina </span>«{marca.routineName}»
+          </span>
+        </>
+      )}
       {/* Etapa D: o agente que escreveu, guardado como texto — sobrevive à
           exclusão dele, como a conversa guarda o nome. */}
       {marca.agentName && (
@@ -130,6 +151,17 @@ export function FaixaIA({ marca }: { marca: AiMark }) {
                      hover:decoration-current"
         >
           Abrir conversa
+        </button>
+      )}
+      {execucao && (
+        <button
+          type="button"
+          onClick={() => navigate(`/assistente/execucoes/${execucao}`)}
+          className={`${conversa ? "" : "ml-auto "}rounded-etiqueta px-1 text-accent-400 underline
+                      decoration-accent-400/40 underline-offset-2 transition-colors
+                      hover:text-titulo hover:decoration-current`}
+        >
+          Ver execução
         </button>
       )}
     </div>

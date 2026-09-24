@@ -333,6 +333,39 @@ export function IconeChevron({
   );
 }
 
+/**
+ * Três nós ligados, o do meio com a faísca — a rotina (Etapa E da IA): agentes
+ * encadeados numa sequência fixa.
+ */
+export function IconeRotina(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="1.6" y="6" width="3.6" height="4" rx="1" />
+      <rect x="10.8" y="6" width="3.6" height="4" rx="1" />
+      <path d="M5.2 8h1.4M9.4 8h1.4" />
+      <path d="M8 5.6l.5 1.4 1.4.5-1.4.5-.5 1.4-.5-1.4-1.4-.5 1.4-.5Z" />
+    </Icone>
+  );
+}
+
+/** Triângulo — "Rodar agora". */
+export function IconeRodar(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M5 3.2v9.6a.6.6 0 0 0 .9.5l7.4-4.8a.6.6 0 0 0 0-1L5.9 2.7a.6.6 0 0 0-.9.5Z" />
+    </Icone>
+  );
+}
+
+/** Quadrado — parar uma execução em curso. */
+export function IconeParar(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="3.6" y="3.6" width="8.8" height="8.8" rx="1.6" />
+    </Icone>
+  );
+}
+
 /** Seta em círculo — "ver de novo" na fila de links. */
 export function IconeRecarregar(p: IconeProps) {
   return (

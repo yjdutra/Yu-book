@@ -5,8 +5,8 @@ import type {
   AiModelSort,
   AiSettings,
   AiSettingsPatch,
-  AiTask,
   FormatNoteResult,
+  TarefaComModelo,
 } from "@yu-book/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
@@ -99,7 +99,7 @@ export function useDefinirModeloDaTarefa() {
   const qc = useQueryClient();
   return useMutation({
     mutationKey: TAREFA,
-    mutationFn: ({ task, modelId }: { task: AiTask; modelId: string | null }) =>
+    mutationFn: ({ task, modelId }: { task: TarefaComModelo; modelId: string | null }) =>
       api.patch<AiSettings["taskModels"]>(`/ai/tasks/${task}`, { modelId }),
     onMutate: async ({ task, modelId }) => {
       await qc.cancelQueries({ queryKey: AJUSTES });

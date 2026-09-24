@@ -1,5 +1,6 @@
 import { useMatch, useNavigate } from "react-router-dom";
 import { useAgentes } from "../../../lib/agentes";
+import { execucaoEmAndamento, useRotinas } from "../../../lib/rotinas";
 import { useAcoesChat } from "../../../lib/sessaoChat";
 import type { EstadoRotaChat } from "../../../lib/sessaoChat";
 import { useAcoesDoAgente } from "../../agentes/acoesDoAgente";
@@ -7,7 +8,7 @@ import { AvatarAgente } from "../../agentes/AvatarAgente";
 import { ListaConversas } from "../../assistente/ListaConversas";
 import { Botao } from "../../base/Botao";
 import { Menu } from "../../base/Menu";
-import { IconeAgente, IconeMais, IconeOpcoes } from "../../Icones";
+import { IconeAgente, IconeMais, IconeOpcoes, IconeRotina } from "../../Icones";
 import { Secao } from "../partes";
 
 /** O botão que fica quando um agente sai da lista — recebe o foco (RNF-06 F1). */
@@ -130,6 +131,128 @@ function SecaoAgentes() {
   );
 }
 
+/**
+ * O ponto de "rodando": forma que pulsa **e** o texto ao lado ou no nome
+ * acessível — nunca só a cor (RNF-09). O pulso para com
+ * `prefers-reduced-motion`.
+ */
+function PontoRodando() {
+  return (
+    <span aria-hidden="true" className="relative inline-flex size-2 shrink-0">
+      <span className="absolute inset-0 animate-ping rounded-full bg-accent-400 opacity-60" />
+      <span className="relative size-2 rounded-full bg-accent-400" />
+    </span>
+  );
+}
+
+/**
+ * As rotinas no painel contextual (Etapa E da IA), entre Agentes e Conversas:
+ * uma rotina é agentes encadeados. A que está rodando ganha o ponto, e o clique
+ * nela leva à execução ao vivo, não ao editor — a execução segue no servidor
+ * com a aba fechada, e este ponto é como se sabe disso sem abrir nada.
+ *
+ * Só `import type` de `shared` passa por aqui: `lib/rotinas.ts` é leve de
+ * propósito, e o modelo pronto e os schemas ficam no chunk da área.
+ */
+function SecaoRotinas() {
+  const navigate = useNavigate();
+  const { data: rotinas, isLoading } = useRotinas();
+  const aberta = useMatch("/assistente/rotinas/:id/*")?.params.id;
+  const lista = rotinas ?? [];
+  const viva = execucaoEmAndamento(rotinas);
+
+  return (
+    <Secao
+      titulo="Rotinas"
+      chave="rotinas"
+      contagem={rotinas ? lista.length : undefined}
+      // Fechada, a seção continua dizendo que há uma rodando.
+      resumo={
+        viva ? (
+          <span className="ml-1.5 inline-flex items-center gap-1 normal-case tracking-normal">
+            <PontoRodando />
+            <span className="text-accent-400">rodando</span>
+          </span>
+        ) : undefined
+      }
+    >
+      {isLoading && (
+        <div aria-hidden="true" className="h-8 animate-pulse rounded-controle bg-ink-800/60" />
+      )}
+
+      {rotinas && lista.length === 0 && (
+        <p className="px-2.5 py-1 text-xs text-ink-400/80">
+          Uma rotina encadeia agentes: pega uma ideia, escreve, revisa e deixa um card pronto.
+        </p>
+      )}
+
+      {lista.slice(0, VISIVEIS).map((r) => {
+        const rodando = r.lastRun?.status === "em_andamento";
+        return (
+          <div key={r.id} className="relative flex items-center">
+            {aberta === r.id && (
+              <span
+                aria-hidden="true"
+                className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-accent-400"
+              />
+            )}
+            <button
+              type="button"
+              onClick={() =>
+                navigate(
+                  rodando && r.lastRun
+                    ? `/assistente/rotinas/${r.id}/execucoes/${r.lastRun.id}`
+                    : `/assistente/rotinas/${r.id}`,
+                )
+              }
+              aria-current={aberta === r.id ? "true" : undefined}
+              title={r.description || r.name}
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-controle px-2.5 py-1.5
+                         text-left text-sm text-ink-400 transition-colors hover:bg-ink-800/60
+                         hover:text-ink-200"
+            >
+              <IconeRotina className="size-4 shrink-0" />
+              <span className="truncate">{r.name}</span>
+              {rodando && (
+                <span className="ml-auto flex items-center gap-1.5 text-miudo text-accent-400">
+                  <PontoRodando />
+                  rodando
+                </span>
+              )}
+              {!r.valid && !rodando && (
+                <span className="ml-auto text-miudo text-amber-300" title="Precisa de ajustes">
+                  <span aria-hidden="true">!</span>
+                  <span className="sr-only">— precisa de ajustes</span>
+                </span>
+              )}
+            </button>
+          </div>
+        );
+      })}
+
+      <div className="flex items-center gap-1 pt-1">
+        <Botao
+          variante="fantasma"
+          icone={<IconeMais className="size-3.5" />}
+          onClick={() => navigate("/assistente/rotinas/novo")}
+        >
+          Nova rotina
+        </Botao>
+        {lista.length > 0 && (
+          <Botao
+            variante="fantasma"
+            className="ml-auto"
+            icone={<IconeRotina className="size-3.5" />}
+            onClick={() => navigate("/assistente/rotinas")}
+          >
+            {lista.length > VISIVEIS ? `Ver todas (${lista.length})` : "Ver todas"}
+          </Botao>
+        )}
+      </div>
+    </Secao>
+  );
+}
+
 /** Área Assistente: começar uma conversa, com um agente ou não, ou voltar a uma. */
 export function ContextoAssistente() {
   const { novaConversa, focarCampo } = useAcoesChat();
@@ -160,6 +283,7 @@ export function ContextoAssistente() {
         Nova conversa
       </Botao>
       <SecaoAgentes />
+      <SecaoRotinas />
       <ListaConversas
         onEscolher={() => {
           if (!naTela) navigate("/assistente");

@@ -1,5 +1,5 @@
 import { microsParaDolares } from "@yu-book/shared";
-import type { AiTask } from "@yu-book/shared";
+import type { TarefaComModelo } from "@yu-book/shared";
 
 /**
  * As seções de `/ajustes`, na ordem do painel contextual. Moram aqui, e não na
@@ -15,25 +15,32 @@ export const SECOES_DE_AJUSTES = [
 /**
  * Uma coluna de escolha por tarefa de IA.
  *
- * **Derivado de `AI_TASKS`, e não escrito à mão.** A Etapa B acrescentou a
- * tarefa `chat` ao enum e ao servidor, e esta tela continuou com `formatar`
+ * **Derivado de `TAREFAS_COM_MODELO`, e não escrito à mão.** A Etapa B
+ * acrescentou a tarefa `chat` ao enum e ao servidor, e esta tela continuou com `formatar`
  * fixo numa constante — resultado: o chat exigia um modelo que não havia por
  * onde escolher, e a mensagem mandava o usuário para uma tela que não tinha o
  * controle. Derivando da lista, a próxima tarefa aparece aqui sozinha — e o
  * `Record` total faz o compilador cobrar o rótulo dela.
  */
-export const ROTULO_DA_TAREFA: Record<AiTask, { titulo: string; usa: string }> = {
+export const ROTULO_DA_TAREFA: Record<TarefaComModelo, { titulo: string; usa: string }> = {
   formatar: { titulo: "formatar", usa: "o botão de formatar nota" },
   chat: { titulo: "chat", usa: "o painel do assistente (Ctrl+Shift+Y)" },
 };
+// `rotina` não tem coluna (Etapa E): cada passo usa o modelo do agente, ou o
+// do chat. A lista é `TAREFAS_COM_MODELO`, não `AI_TASKS` — ver `enums.ts`.
 
 /// Tarefas que só funcionam com modelo capaz de chamar ferramenta. O chat sem
 /// isso conversa bem e não consegue consultar o acervo — e falharia no meio,
 /// depois de a chamada já ter sido paga.
-export const EXIGE_FERRAMENTA: ReadonlySet<AiTask> = new Set<AiTask>(["chat"]);
+export const EXIGE_FERRAMENTA: ReadonlySet<TarefaComModelo> = new Set<TarefaComModelo>([
+  "chat",
+]);
 
 /** O modelo pode servir a esta tarefa? A recusa é a mesma no arraste e no menu. */
-export function podeServir(modelo: { supportsTools: boolean }, tarefa: AiTask): boolean {
+export function podeServir(
+  modelo: { supportsTools: boolean },
+  tarefa: TarefaComModelo,
+): boolean {
   return !EXIGE_FERRAMENTA.has(tarefa) || modelo.supportsTools;
 }
 

@@ -80,6 +80,12 @@ export interface OpcoesDoProvedor {
   /// tela de ajustes continuar listando modelos num servidor sem chave — o
   /// que some sem chave é gerar texto, não olhar o cardápio (RNF-03).
   publico?: boolean;
+  /**
+   * Cancelamento de quem chama (Etapa E: "Cancelar" numa execução de rotina).
+   * Combinado com o orçamento de tempo, e não no lugar dele: uma execução que
+   * ninguém cancela continua precisando de teto de tempo por chamada.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -116,15 +122,19 @@ export async function abrirNoProvedor(
     cabecalhos["X-Title"] = "Yu-book";
   }
 
+  const prazo = AbortSignal.timeout(opcoes.orcamentoMs ?? ORCAMENTO_MS);
   let resposta: Response;
   try {
     resposta = await fetch(url, {
       method: opcoes.metodo ?? "GET",
       headers: cabecalhos,
       body: opcoes.corpo === undefined ? undefined : JSON.stringify(opcoes.corpo),
-      signal: AbortSignal.timeout(opcoes.orcamentoMs ?? ORCAMENTO_MS),
+      signal: opcoes.signal ? AbortSignal.any([prazo, opcoes.signal]) : prazo,
     });
   } catch (erro) {
+    /// Cancelado por quem chamou: sobe cru, sem virar "provedor indisponível".
+    /// Quem cancelou sabe que cancelou (`signal.aborted`) e decide o registro.
+    if (opcoes.signal?.aborted) throw erro;
     /// `AbortSignal.timeout` rejeita com `TimeoutError`; queda de rede, com `TypeError`.
     if (erro instanceof DOMException && erro.name === "TimeoutError") {
       throw new AppError(504, "PROVEDOR_DEMOROU", "O provedor de IA não respondeu a tempo");

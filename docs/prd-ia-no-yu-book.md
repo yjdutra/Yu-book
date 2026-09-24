@@ -1,7 +1,7 @@
 # PRD — IA dentro do Yu-book
 
 **Versão:** v0.1 (draft) · **Autor:** yjdutra · **Data:** 2026-08-24 · **Status:** Etapas A e B entregues;
-Etapa C (marca de conteúdo gerado) e Etapa D (agentes especialistas) em 2026-09-24
+Etapas C (marca), D (agentes) e E (rotinas) em 2026-09-24
 
 > **A Etapa A revogou seis afirmações deste documento.** Elas ficam abaixo, marcadas onde estão, em
 > vez de reescritas — o que se pensava em 2026-08-24 é parte do registro. São: **RN-01** e
@@ -251,6 +251,31 @@ e ferramentas próprios. Não é um processo que roda sozinho — isso é das Et
 - **RF-53** — Agentes **não** entram no servidor MCP (NO3): quem usa o MCP já tem um modelo do outro
   lado, e as instruções do operador ficam privadas.
 
+### 5.7 Etapa E — Rotinas com "Rodar agora"
+
+Terceira etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md). Uma **rotina** encadeia
+agentes numa sequência fixa, orquestrada pelo código: pega uma ideia de uma coluna, passa por cada
+passo e deixa o resultado num card. É disparada à mão; agendar é a Etapa F.
+
+- **RF-54** — O usuário cria, edita e exclui rotinas num **editor de fluxo em blocos ligados**:
+  Entrada, até 6 passos de agente e Saída. Passo se insere pelo "+" do conector e se reordena por
+  arraste ou teclado.
+- **RF-55** — A **Entrada** é uma coluna de quadro; a ideia é o primeiro card ativo dela que ainda
+  não foi usado por esta rotina.
+- **RF-56** — Cada **passo** tem agente, instrução e modo: **reescreve** (substitui o rascunho) ou
+  **revisa** (registra observações sem tocar no rascunho; elas seguem para os passos seguintes).
+- **RF-57** — A **Saída** cria um card novo numa coluna escolhida, de qualquer quadro, com o texto
+  final, as observações (opcional) e a ideia de origem. E decide o que acontece com a ideia usada:
+  **mover** para uma coluna do mesmo quadro, **arquivar** ou **manter**.
+- **RF-58** — **"Rodar agora"** inicia a execução no servidor e responde na hora; a tela acompanha
+  passo a passo, ao vivo, e pode ser fechada e reaberta sem interromper a execução.
+- **RF-59** — A execução pode ser **cancelada**.
+- **RF-60** — Cada execução fica no **histórico**: passos, texto de cada um, modelo, tokens, custo,
+  duração, status e erro.
+- **RF-61** — O card que uma rotina cria leva a marca com o nome da rotina e do agente, e leva à
+  execução que o gerou.
+- **RF-62** — Rotinas não entram no servidor MCP (NO3, como os agentes no RF-53).
+
 ---
 
 ## 6. Requisitos não-funcionais
@@ -282,6 +307,12 @@ e ferramentas próprios. Não é um processo que roda sozinho — isso é das Et
 - **RNF-10 Preço das premissas à vista** — Notas-base e fontes vivas entram em todo passo do laço.
   O limite (`MAX_PREMISSAS_DO_AGENTE`) é declarado quando corta, e o custo estimado aparece no
   editor, nunca só depois de gasto.
+- **RNF-11 Execução sem aba** — A execução de uma rotina não depende do navegador. O preço disso é
+  declarado: quem executa **pulsa** no banco, e uma execução cujo pulso venceu — processo morto
+  num reinício ou deploy — é marcada `interrompida` pela varredura de qualquer instância; nunca
+  fica "em andamento" para sempre. A janela de deploy, em que duas instâncias da API convivem, não
+  quebra as regras: cancelamento e acompanhamento passam pelo banco, e "uma execução por vez" é
+  garantida por índice único.
 
 ---
 
@@ -373,6 +404,16 @@ card ↔ nota já faz.
   conferida ao oferecer e ao executar. Instrução que peça outra ação não a torna disponível.
 - **RN-15 Premissa de outra conta não existe.** Nota-base, coluna de fonte viva e agente de outra
   conta respondem como inexistentes.
+- **RN-16 A rotina escreve pelo código, não pelo modelo.** Nos passos, o agente só tem as
+  ferramentas de **leitura** que já tinha; o card de saída e o destino da ideia são obra do código,
+  no fim de uma execução bem-sucedida. Execução que falha ou é cancelada não cria card nem move a
+  ideia.
+- **RN-17 Teto por execução, além do diário.** Antes de cada chamada ao provedor, o gasto da
+  execução mais a estimativa é conferido contra o teto da rotina, e o gasto do dia contra o teto
+  diário. Estourar qualquer um encerra a execução com o motivo.
+- **RN-18 Uma ideia, um post.** A idempotência é pelo registro: card com execução concluída ou em
+  andamento desta rotina não é escolhido de novo, qualquer que seja a ação de consumo.
+- **RN-19 Uma execução por vez.** Só uma execução em andamento por usuário.
 
 ---
 
@@ -437,6 +478,20 @@ card ↔ nota já faz.
   legível com o nome gravado.
 - **CA-28** (RF-46) — Dado um agente cujo modelo saiu dos favoritos, quando se envia mensagem,
   então a resposta é 422 com o motivo.
+- **CA-29** (RF-56, RF-57) — Dada uma rotina de três passos (reescreve, reescreve, revisa), quando
+  ela conclui, então o card de saída traz o texto do segundo passo, as observações do terceiro e a
+  marca com rotina e agente, e a ideia está na coluna de consumidas.
+- **CA-30** (RN-18) — Dada uma rotina concluída com ação "manter", quando se roda de novo, então a
+  execução pega a ideia seguinte, não a mesma.
+- **CA-31** (RN-17) — Dado um teto por execução menor que o custo de dois passos, quando se roda,
+  então a execução termina `falhou` com o motivo, sem card e sem mover a ideia.
+- **CA-32** (RF-59) — Dada uma execução no segundo passo, quando se cancela, então ela termina
+  `cancelada` e os passos seguintes ficam `pulado`.
+- **CA-33** (RNF-11) — Dada uma execução em andamento cujo processo morreu, quando o pulso dela
+  vence, então ela aparece `interrompida`; e dada uma execução viva em outra instância, então ela
+  não é tocada.
+- **CA-34** (RN-16) — Dado um agente com `create_card`, quando ele roda como passo de rotina, então
+  a ferramenta não é oferecida ao modelo.
 
 ---
 
@@ -504,6 +559,11 @@ ser declarada, não presumida — o agente `mcp` roda no modo de propagação e 
   a Fase 4 precisa de outro caminho ou sai do escopo. Verificar **antes** de começar a Fase 4.
 - **Q-03** — Como o backfill roda sem introduzir uma fila de jobs? Impacto: decide se a Fase 4 é
   simples ou traz infraestrutura nova. Responsável: operador, na Fase 4.
+  **Anotada em 2026-09-24, na Etapa E, sem resolver:** a decisão de trabalho assíncrono, que esta
+  questão e as restrições técnicas previam para a Fase 4, foi tomada antes, para as rotinas.
+  Existe agora execução de fundo **no processo da API**, sem fila de jobs (RNF-11), com pulso e
+  reconciliação. Se ela serve a um backfill de embeddings, que é longo e não tem teto por
+  execução, continua sendo decisão da Fase 4. Registro em `historico.md`, 2026-09-24.
 - **Q-04** — ~~A conversa deve poder virar nota? Aproveitaria que nota já é a entidade forte do
   projeto, mas conflita com NO2, que proíbe texto sintético no acervo. Responsável: operador, depois
   de usar o chat.~~ **Resolvida em 2026-09-24, na Etapa C: sim, por resposta**, com a marca que o

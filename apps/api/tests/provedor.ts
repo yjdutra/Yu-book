@@ -39,7 +39,12 @@ export type Turno =
   | { tipo: "texto"; texto: string; custoMicros?: number }
   | { tipo: "ferramenta"; nome: string; argumentos: string; custoMicros?: number }
   /// O provedor respondendo 500 — o passo morre antes do primeiro byte do fluxo.
-  | { tipo: "falha" };
+  | { tipo: "falha" }
+  /// Manda `antes` e **para**, com a conexão aberta, até `solta` resolver; aí
+  /// manda `depois` e fecha como um turno de texto. É o que deixa um teste
+  /// agir no meio de uma geração sem depender de relógio (Etapa E: assinar no
+  /// meio, cancelar no meio, a segunda execução enquanto a primeira roda).
+  | { tipo: "segura"; antes: string; depois: string; solta: Promise<void>; custoMicros?: number };
 
 /**
  * O turno no formato `text/event-stream`, **na forma real do provedor**
@@ -53,7 +58,7 @@ export type Turno =
  * Um dublê que mandasse tudo junto passaria com um parser ingênuo, que é
  * exatamente o parser que quebraria em produção.
  */
-export function comoSse(turno: Exclude<Turno, { tipo: "falha" }>): string {
+export function comoSse(turno: Exclude<Turno, { tipo: "falha" } | { tipo: "segura" }>): string {
   const id = "gen-teste";
   const base = { id, object: "chat.completion.chunk", model: "estudio/conversa" };
   const eventos: unknown[] = [];
@@ -148,6 +153,23 @@ export async function subirProvedor(): Promise<Dublê> {
           return;
         }
         res.writeHead(200, { "content-type": "text/event-stream" });
+        if (turno.tipo === "segura") {
+          /// Quem cancela derruba a conexão com a resposta parada; escrever
+          /// depois disso não pode virar erro solto no processo da suíte.
+          res.on("error", () => undefined);
+          const antes = {
+            id: "gen-teste",
+            object: "chat.completion.chunk",
+            model: "estudio/conversa",
+            choices: [{ index: 0, delta: { content: turno.antes } }],
+          };
+          res.write(`data: ${JSON.stringify(antes)}\n\n`);
+          void turno.solta.then(() => {
+            if (res.destroyed) return;
+            res.end(comoSse({ tipo: "texto", texto: turno.depois, custoMicros: turno.custoMicros }));
+          });
+          return;
+        }
         res.end(comoSse(turno));
         return;
       }

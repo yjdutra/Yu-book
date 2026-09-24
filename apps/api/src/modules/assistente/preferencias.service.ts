@@ -1,4 +1,5 @@
-import type { AiFavorite, AiSettings, AiSettingsPatch, AiTask } from "@yu-book/shared";
+import { TAREFAS_COM_MODELO } from "@yu-book/shared";
+import type { AiFavorite, AiSettings, AiSettingsPatch, TarefaComModelo } from "@yu-book/shared";
 import {
   FUSO_PADRAO,
   TETO_DIARIO_PADRAO_MICROS,
@@ -152,7 +153,12 @@ export async function desfavoritar(userId: string, favoriteId: string): Promise<
 async function taskModels(userId: string): Promise<AiSettings["taskModels"]> {
   const linhas = await prisma.aiTaskModel.findMany({ where: { userId } });
   const mapa: AiSettings["taskModels"] = {};
-  for (const linha of linhas) mapa[linha.task] = linha.modelId;
+  for (const linha of linhas) {
+    /// `rotina` não tem modelo próprio e não deveria ter linha aqui; se tiver
+    /// — gravada à mão —, não vira coluna fantasma na tela.
+    const tarefa = TAREFAS_COM_MODELO.find((t) => t === linha.task);
+    if (tarefa) mapa[tarefa] = linha.modelId;
+  }
   return mapa;
 }
 
@@ -163,7 +169,7 @@ async function taskModels(userId: string): Promise<AiSettings["taskModels"]> {
  */
 export async function definirModeloDaTarefa(
   userId: string,
-  task: AiTask,
+  task: TarefaComModelo,
   modelId: string | null,
 ): Promise<AiSettings["taskModels"]> {
   if (modelId === null) {
@@ -188,7 +194,7 @@ export async function definirModeloDaTarefa(
  * Quem escolheu o modelo — a tarefa, nos ajustes, ou um agente (Etapa D). Só
  * muda o texto da recusa: ele precisa apontar para a tela onde se conserta.
  */
-export type DonoDaEscolha = { tarefa: AiTask } | { agente: string };
+export type DonoDaEscolha = { tarefa: TarefaComModelo } | { agente: string };
 
 function ondeConsertar(dono: DonoDaEscolha): { sujeito: string; remedio: string } {
   if ("tarefa" in dono) {
@@ -251,7 +257,10 @@ export async function modeloPorId(
  * delega a conferência a `modeloPorId`, que é onde regra de escolha de modelo
  * mora — agente com modelo próprio não passa por aqui.
  */
-export async function modeloParaTarefa(userId: string, task: AiTask): Promise<AiFavorite> {
+export async function modeloParaTarefa(
+  userId: string,
+  task: TarefaComModelo,
+): Promise<AiFavorite> {
   const escolha = await prisma.aiTaskModel.findUnique({ where: { userId_task: { userId, task } } });
   if (!escolha) {
     /// A tarefa vai **no texto**. Sem ela a frase é "escolha um modelo para

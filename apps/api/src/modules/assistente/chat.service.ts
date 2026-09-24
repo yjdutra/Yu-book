@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { MAX_PASSOS_DO_LACO } from "@yu-book/shared";
 import type {
   AiCallUsage,
@@ -13,18 +12,16 @@ import { prisma } from "../../db.js";
 import { AppError } from "../../lib/errors.js";
 import * as agentes from "./agentes.service.js";
 import * as conversas from "./conversas.service.js";
-import {
-  custoDaResposta,
-  estimarCustoMicros,
-  garantirTeto,
-  MAX_SAIDA_TOKENS,
-  registrarUso,
-  tokensAproximados,
-} from "./custo.service.js";
+import { garantirTeto } from "./custo.service.js";
 import * as ferramentas from "./ferramentas.service.js";
-import { lerFluxo } from "./fluxo.js";
-import type { PedidoDeFerramenta } from "./fluxo.js";
-import { abrirNoProvedor, politicaDeDados } from "./openrouter.service.js";
+import {
+  estimarPasso,
+  motivoDaFalha,
+  paraToolCalls,
+  passoNoProvedor,
+  saidaDisponivel,
+} from "./passo.service.js";
+import type { MensagemDoProvedor, ResultadoDoPasso } from "./passo.service.js";
 import { modeloParaTarefa, modeloPorId, preferenciaDe } from "./preferencias.service.js";
 import type { PreferenciaDeIa } from "./preferencias.service.js";
 
@@ -51,39 +48,11 @@ import type { PreferenciaDeIa } from "./preferencias.service.js";
  * mover, mandar para a lixeira e restaurar continuam sem executor.
  */
 
-/// Geração de texto é lenta, e aqui ela acontece até cinco vezes — o orçamento
-/// é **por passo**, não pela mensagem inteira.
-const ORCAMENTO_MS = 60_000;
-const FOLGA_SAIDA_TOKENS = 512;
-/// Abaixo disto não sobra resposta: o histórico já não cabe no modelo.
-const MINIMO_SAIDA_TOKENS = 256;
-
 /// A mensagem `system` não mora mais aqui: desde a Etapa D ela sai de
 /// `montarContextoDoAgente`, que com a conversa sem agente devolve as regras
-/// de sempre para a lista inteira do chat (`instrucoesPara`).
-
-type MensagemDoProvedor =
-  | { role: "system" | "user"; content: string }
-  | { role: "assistant"; content: string; tool_calls?: unknown[] }
-  | { role: "tool"; tool_call_id: string; content: string };
-
-/** O que dizer ao modelo sobre a própria chamada malfeita. */
-function motivoDaFalha(erro: unknown): string {
-  if (erro instanceof z.ZodError) {
-    return erro.issues.map((i) => `${i.path.join(".") || "(raiz)"}: ${i.message}`).join("; ");
-  }
-  if (erro instanceof SyntaxError) return "os argumentos não são JSON válido";
-  if (erro instanceof AppError) return erro.message;
-  return "falha ao executar";
-}
-
-function paraToolCalls(pedidos: PedidoDeFerramenta[]): unknown[] {
-  return pedidos.map((p) => ({
-    id: p.id,
-    type: "function",
-    function: { name: p.nome, arguments: p.argumentos },
-  }));
-}
+/// de sempre para a lista inteira do chat (`instrucoesPara`). E o passo com o
+/// provedor — teto, fluxo, custo e uso — saiu para `passo.service.ts` na
+/// Etapa E, quando a rotina passou a precisar do mesmo.
 
 /**
  * O histórico da conversa na forma que o provedor espera.
@@ -303,14 +272,6 @@ export async function preparar(
   };
 }
 
-function charsDe(mensagens: MensagemDoProvedor[]): number {
-  return mensagens.reduce((soma, m) => soma + m.content.length, 0);
-}
-
-function estimarPasso(modelo: AiFavorite, mensagens: MensagemDoProvedor[]): number {
-  return estimarCustoMicros(modelo, charsDe(mensagens), MAX_SAIDA_TOKENS);
-}
-
 interface GravarMensagem {
   conversationId: string;
   role: "user" | "assistant" | "tool";
@@ -441,27 +402,42 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
 
   try {
     for (let passo = 1; passo <= MAX_PASSOS_DO_LACO; passo += 1) {
-      const tokensEntrada = tokensAproximados(charsDe(mensagens));
-      const maxTokens = Math.min(
-        MAX_SAIDA_TOKENS,
-        modelo.contextLength - tokensEntrada - FOLGA_SAIDA_TOKENS,
-      );
-      if (maxTokens < MINIMO_SAIDA_TOKENS) {
+      const saida = saidaDisponivel(modelo, mensagens);
+      if (saida.maxTokens === null) {
         yield {
           tipo: "erro",
           code: "VALIDATION_ERROR",
           mensagem:
-            `A conversa já não cabe em ${modelo.name}: ~${tokensEntrada} tokens contra um ` +
-            `contexto de ${modelo.contextLength}. Comece uma conversa nova ou escolha um modelo ` +
-            "com contexto maior.",
+            `A conversa já não cabe em ${modelo.name}: ~${saida.tokensEntrada} tokens contra ` +
+            `um contexto de ${modelo.contextLength}. Comece uma conversa nova ou escolha um ` +
+            "modelo com contexto maior.",
         };
         return;
       }
 
-      let localDay: string;
+      /// O teto é conferido **dentro** de `passoNoProvedor`, a cada passo e
+      /// antes de a conexão sair (INV-47). Recusa ali lança antes do primeiro
+      /// delta; as duas recusas se distinguem pelo código.
+      let resultado: ResultadoDoPasso;
       try {
-        const resumo = await garantirTeto(userId, preferencia, estimarPasso(modelo, mensagens));
-        localDay = resumo.localDay;
+        const passoAtual = passoNoProvedor({
+          userId,
+          preferencia,
+          modelo,
+          mensagens,
+          catalogo,
+          maxTokens: saida.maxTokens,
+          task: "chat",
+          vinculo: { conversationId },
+        });
+        while (true) {
+          const pedaco = await passoAtual.next();
+          if (pedaco.done) {
+            resultado = pedaco.value;
+            break;
+          }
+          yield { tipo: "delta", texto: pedaco.value };
+        }
       } catch (erro) {
         /// Corte no meio do laço: o que já foi gerado **fica**. Os passos
         /// anteriores custaram dinheiro e renderam alguma coisa, e um erro que
@@ -471,56 +447,6 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
           if (ultima) yield { tipo: "fim", mensagem: await anotarCriadosEm(ultima), usage: usos };
           return;
         }
-        throw erro;
-      }
-
-      const inicio = Date.now();
-      const registro = {
-        userId,
-        task: "chat" as const,
-        modelId: modelo.id,
-        localDay,
-        conversationId,
-      };
-
-      let resultado;
-      try {
-        const resposta = await abrirNoProvedor("/chat/completions", {
-          metodo: "POST",
-          orcamentoMs: ORCAMENTO_MS,
-          corpo: {
-            model: modelo.id,
-            max_tokens: maxTokens,
-            stream: true,
-            /// Sem isto o `usage` não vem, e todo passo gravaria custo
-            /// `desconhecido` — o teto viraria decorativo (INV-48).
-            stream_options: { include_usage: true },
-            messages: mensagens,
-            ...(catalogo.length > 0 && { tools: catalogo }),
-            ...politicaDeDados(preferencia.allowTraining),
-          },
-        });
-
-        const fluxo = lerFluxo(resposta);
-        while (true) {
-          const pedaco = await fluxo.next();
-          if (pedaco.done) {
-            resultado = pedaco.value;
-            break;
-          }
-          yield { tipo: "delta", texto: pedaco.value };
-        }
-      } catch (erro) {
-        await registrarUso({
-          ...registro,
-          promptTokens: 0,
-          completionTokens: 0,
-          costMicros: 0,
-          costSource: "desconhecido",
-          durationMs: Date.now() - inicio,
-          ok: false,
-          errorCode: erro instanceof AppError ? erro.code : "INTERNAL_ERROR",
-        });
         yield {
           tipo: "erro",
           code: erro instanceof AppError ? erro.code : "INTERNAL_ERROR",
@@ -530,23 +456,7 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
         return;
       }
 
-      const apurado = custoDaResposta(resultado.usage, modelo);
-      await registrarUso({
-        ...registro,
-        modelUsed: resultado.modelUsed,
-        generationId: resultado.generationId,
-        durationMs: Date.now() - inicio,
-        ok: true,
-        ...apurado,
-      });
-      usos.push({
-        modelId: modelo.id,
-        modelUsed: resultado.modelUsed,
-        promptTokens: apurado.promptTokens,
-        completionTokens: apurado.completionTokens,
-        costMicros: apurado.costMicros,
-        costSource: apurado.costSource,
-      });
+      usos.push(resultado.usage);
 
       /// A fala do assistente é gravada mesmo quando ela é só um pedido de
       /// ferramenta sem texto: é ela que carrega os `tool_calls` que o provedor

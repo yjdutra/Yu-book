@@ -37,6 +37,8 @@ const MARCA_MCP: AiMark = {
   author: null,
   conversationId: null,
   agentName: null,
+  routineName: null,
+  runId: null,
   revisedAt: null,
 };
 
@@ -48,6 +50,27 @@ const MARCA_DE_AGENTE: AiMark = {
   author: "modelo/x",
   conversationId: null,
   agentName: "Pesquisador",
+  routineName: null,
+  runId: null,
+  revisedAt: null,
+};
+
+/**
+ * Marca de rotina (Etapa E). Em produção só o **card** de saída a recebe — os
+ * passos têm só ferramentas de leitura (RN-16) —, mas a linha da marca é a
+ * mesma função para nota e card em `formato.ts`, e a nota é o caminho que este
+ * arnês já exercita pela tool e pelo resource. A rotina não é tool (RF-62); o
+ * que chega ao MCP é a marca.
+ */
+const NOTA_DE_ROTINA_ID = "66666666-6666-4666-8666-666666666666";
+const MARCA_DE_ROTINA: AiMark = {
+  generatedAt: AGORA,
+  via: "rotina",
+  author: "modelo/y",
+  conversationId: null,
+  agentName: "Revisor",
+  routineName: "Ideia a card",
+  runId: "77777777-7777-4777-8777-777777777777",
   revisedAt: null,
 };
 
@@ -121,6 +144,11 @@ beforeEach(() => {
     if (metodo === "GET" && String(url).endsWith(`/notes/${NOTA_DE_AGENTE_ID}`)) {
       return json(
         nota({ title: "Pauta", contentMd: "corpo" }, NOTA_DE_AGENTE_ID, MARCA_DE_AGENTE),
+      );
+    }
+    if (metodo === "GET" && String(url).endsWith(`/notes/${NOTA_DE_ROTINA_ID}`)) {
+      return json(
+        nota({ title: "Plano", contentMd: "corpo" }, NOTA_DE_ROTINA_ID, MARCA_DE_ROTINA),
       );
     }
     return json([]);
@@ -257,6 +285,27 @@ describe("a linha da marca na leitura (Etapa D)", () => {
       expect(texto(r)).toContain("gerada por IA · «Pesquisador» · modelo/x · via chat");
 
       const lido = await cliente.lerResource(`yubook://nota/${NOTA_DE_AGENTE_ID}`);
+      const corpo = lido.contents.map((c) => ("text" in c ? c.text : "")).join("\n");
+      expect(corpo).toBe(texto(r));
+    } finally {
+      await cliente.encerrar();
+    }
+  });
+});
+
+describe("a linha da marca na leitura (Etapa E)", () => {
+  it("get_note e yubook://nota/{id} nomeiam a rotina no lugar de 'via rotina' cru", async () => {
+    const cliente = await abrirCliente({ escrita: false }, identidade(["yubook:read"]));
+    try {
+      const r = await cliente.chamarTool("get_note", { id: NOTA_DE_ROTINA_ID });
+      expect(r.isError).toBeFalsy();
+      expect(texto(r)).toContain(
+        "gerada por IA · «Revisor» · modelo/y · via rotina «Ideia a card» · ",
+      );
+      // O runId é o "Ver execução" da interface; não há onde o modelo usá-lo.
+      expect(texto(r)).not.toContain(MARCA_DE_ROTINA.runId);
+
+      const lido = await cliente.lerResource(`yubook://nota/${NOTA_DE_ROTINA_ID}`);
       const corpo = lido.contents.map((c) => ("text" in c ? c.text : "")).join("\n");
       expect(corpo).toBe(texto(r));
     } finally {

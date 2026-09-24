@@ -105,6 +105,108 @@ const ROTULO_DETALHE: Record<LiveSourceDetail, string> = {
 };
 
 /**
+ * O estado de uma escolha de quadro e coluna: as listas e o que sumiu. Separado
+ * de `SeletorColuna` porque quem o usa também precisa dizer, fora dos campos,
+ * que a coluna escolhida não existe mais. As consultas são as mesmas do
+ * seletor, e o TanStack as partilha — chamar os dois não dobra requisição.
+ */
+export function useEscolhaDeColuna(boardId: string, columnId: string, sumiu = false) {
+  const { data: quadros } = useBoards(null);
+  const { data: quadro, isLoading } = useBoard(boardId || null);
+  const quadroSumiu = Boolean(boardId && quadros && !quadros.some((q) => q.id === boardId));
+  const colunaSumiu =
+    sumiu || Boolean(columnId && quadro && !quadro.columns.some((c) => c.id === columnId));
+  return { quadros, quadro, carregando: isLoading, quadroSumiu, colunaSumiu };
+}
+
+/**
+ * Quadro e coluna, em dois `<select>` — saiu de `LinhaFonte` na Etapa E, com o
+ * editor de rotinas como segundo consumidor. Devolve **os dois rótulos soltos**,
+ * sem invólucro: quem chama decide a grade (a fonte viva põe o botão de
+ * remover na mesma linha).
+ *
+ * `quadroFixo` esconde a escolha de quadro e oferece só as colunas dele — a
+ * coluna das ideias usadas de uma rotina, que precisa ser do quadro da entrada
+ * porque card não atravessa quadro (RN-04 da Fase 2). `excluir` tira colunas da
+ * lista sem apagar a escolha que já as cite.
+ */
+export function SeletorColuna({
+  boardId,
+  columnId,
+  onMudar,
+  rotuloQuadro,
+  rotuloColuna,
+  sumiu = false,
+  quadroFixo = false,
+  excluir = [],
+  semContagem = false,
+}: {
+  boardId: string;
+  columnId: string;
+  onMudar: (escolha: { boardId: string; columnId: string }) => void;
+  /** Nome acessível do campo de quadro. */
+  rotuloQuadro: string;
+  /** Nome acessível do campo de coluna. */
+  rotuloColuna: string;
+  sumiu?: boolean;
+  quadroFixo?: boolean;
+  excluir?: readonly string[];
+  /** Tira o "(3)" de cards de cada coluna. */
+  semContagem?: boolean;
+}) {
+  const { quadros, quadro, carregando, quadroSumiu, colunaSumiu } = useEscolhaDeColuna(
+    boardId,
+    columnId,
+    sumiu,
+  );
+  const colunas = quadro?.columns.filter((c) => c.id === columnId || !excluir.includes(c.id));
+
+  return (
+    <>
+      {!quadroFixo && (
+        <label className="block min-w-0">
+          <span className="text-miudo text-ink-400">Quadro</span>
+          <select
+            value={boardId}
+            onChange={(e) => onMudar({ boardId: e.target.value, columnId: "" })}
+            aria-label={rotuloQuadro}
+            aria-invalid={quadroSumiu || undefined}
+            className={`mt-0.5 ${CLASSE_CAMPO}`}
+          >
+            <option value="">Escolha…</option>
+            {quadroSumiu && <option value={boardId}>(quadro excluído)</option>}
+            {quadros?.map((q) => (
+              <option key={q.id} value={q.id}>
+                {q.name} · {q.workspaceName}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className="block min-w-0">
+        <span className="text-miudo text-ink-400">Coluna</span>
+        <select
+          value={columnId}
+          onChange={(e) => onMudar({ boardId, columnId: e.target.value })}
+          disabled={!boardId || carregando}
+          aria-label={rotuloColuna}
+          aria-invalid={colunaSumiu || undefined}
+          className={`mt-0.5 ${CLASSE_CAMPO}`}
+        >
+          <option value="">{carregando ? "Carregando…" : "Escolha…"}</option>
+          {colunaSumiu && columnId && <option value={columnId}>(coluna excluída)</option>}
+          {colunas?.map((c) => (
+            <option key={c.id} value={c.id}>
+              {semContagem ? c.name : `${c.name} (${c.cards.length})`}
+            </option>
+          ))}
+        </select>
+      </label>
+    </>
+  );
+}
+
+/**
  * Uma fonte viva: quadro, coluna, quantos cards e com que detalhe. A coluna
  * vem do quadro escolhido (`useBoard`), por isso a linha é um componente: cada
  * uma consulta o seu quadro.
@@ -120,61 +222,25 @@ export function LinhaFonte({
   onMudar: (f: FonteRascunho) => void;
   onRemover: () => void;
 }) {
-  const { data: quadros } = useBoards(null);
-  const { data: quadro, isLoading } = useBoard(fonte.boardId || null);
+  const { quadroSumiu, colunaSumiu } = useEscolhaDeColuna(
+    fonte.boardId,
+    fonte.columnId,
+    fonte.sumiu,
+  );
   const id = useId();
   const n = indice + 1;
-  const quadroSumiu = Boolean(
-    fonte.boardId && quadros && !quadros.some((q) => q.id === fonte.boardId),
-  );
-  const colunaSumiu =
-    fonte.sumiu ||
-    Boolean(fonte.columnId && quadro && !quadro.columns.some((c) => c.id === fonte.columnId));
 
   return (
     <li className="rounded-controle border border-ink-800 bg-ink-900/40 p-2.5">
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2">
-        <label className="block min-w-0">
-          <span className="text-miudo text-ink-400">Quadro</span>
-          <select
-            value={fonte.boardId}
-            onChange={(e) =>
-              onMudar({ ...fonte, boardId: e.target.value, columnId: "", sumiu: false })
-            }
-            aria-label={`Quadro da fonte ${n}`}
-            aria-invalid={quadroSumiu || undefined}
-            className={`mt-0.5 ${CLASSE_CAMPO}`}
-          >
-            <option value="">Escolha…</option>
-            {quadroSumiu && <option value={fonte.boardId}>(quadro excluído)</option>}
-            {quadros?.map((q) => (
-              <option key={q.id} value={q.id}>
-                {q.name} · {q.workspaceName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block min-w-0">
-          <span className="text-miudo text-ink-400">Coluna</span>
-          <select
-            value={fonte.columnId}
-            onChange={(e) => onMudar({ ...fonte, columnId: e.target.value, sumiu: false })}
-            disabled={!fonte.boardId || isLoading}
-            aria-label={`Coluna da fonte ${n}`}
-            aria-invalid={colunaSumiu || undefined}
-            className={`mt-0.5 ${CLASSE_CAMPO}`}
-          >
-            <option value="">{isLoading ? "Carregando…" : "Escolha…"}</option>
-            {colunaSumiu && fonte.columnId && (
-              <option value={fonte.columnId}>(coluna excluída)</option>
-            )}
-            {quadro?.columns.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.cards.length})
-              </option>
-            ))}
-          </select>
-        </label>
+        <SeletorColuna
+          boardId={fonte.boardId}
+          columnId={fonte.columnId}
+          sumiu={fonte.sumiu}
+          onMudar={(escolha) => onMudar({ ...fonte, ...escolha, sumiu: false })}
+          rotuloQuadro={`Quadro da fonte ${n}`}
+          rotuloColuna={`Coluna da fonte ${n}`}
+        />
         <BotaoIcone
           rotulo={`Remover a fonte ${n}`}
           icone={<IconeFechar className="size-3.5" />}

@@ -29,6 +29,12 @@ export interface AiMark {
   /// O agente que escreveu (Etapa D), guardado como texto: sobrevive à
   /// exclusão do agente. `null` fora de conversa com agente.
   agentName: string | null;
+  /// A rotina que criou (Etapa E), guardada como texto pelo mesmo motivo de
+  /// `agentName`. `null` fora de rotina.
+  routineName: string | null;
+  /// A execução que criou — é o "Ver execução" da faixa. Some se a execução for
+  /// apagada; a marca, não.
+  runId: string | null;
   revisedAt: string | null;
 }
 

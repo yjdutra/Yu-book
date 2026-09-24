@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import type { NoteKind, SearchResponse, SearchResult } from "@yu-book/shared";
+import type { AiVia, NoteKind, SearchResponse, SearchResult } from "@yu-book/shared";
 import { HL_END, HL_START, parseSearchQuery } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { paraMarca } from "../../lib/marca.js";
@@ -31,15 +31,18 @@ function marcaDe(apelido: "n" | "c"): Prisma.Sql {
   return Prisma.sql`
     ${t}.ai_generated_at AS "aiGeneratedAt", ${t}.ai_via::text AS "aiVia",
     ${t}.ai_author AS "aiAuthor", ${t}.ai_conversation_id AS "aiConversationId",
-    ${t}.ai_agent_name AS "aiAgentName", ${t}.ai_revised_at AS "aiRevisedAt"`;
+    ${t}.ai_agent_name AS "aiAgentName", ${t}.ai_run_id AS "aiRunId",
+    ${t}.ai_routine_name AS "aiRoutineName", ${t}.ai_revised_at AS "aiRevisedAt"`;
 }
 
 interface ColunasDaMarca {
   aiGeneratedAt: Date | null;
-  aiVia: "chat" | "mcp" | null;
+  aiVia: AiVia | null;
   aiAuthor: string | null;
   aiConversationId: string | null;
   aiAgentName: string | null;
+  aiRunId: string | null;
+  aiRoutineName: string | null;
   aiRevisedAt: Date | null;
 }
 

@@ -9,6 +9,131 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-24 — Frente de IA, Etapa E: rotinas, e o trabalho assíncrono que o Yu-book recusava
+
+Terceira etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md), entregue no mesmo dia da
+C e da D. O que mudou está na `[0.21.0]` do changelog, e os requisitos na seção 5.7 do PRD de IA.
+Aqui ficam as decisões.
+
+**O Yu-book passa a ter trabalho assíncrono, e isso revoga uma decisão registrada.** Três documentos
+diziam o contrário:
+
+- o roteiro de IA aplicada, na tabela que separa o Yu-book da mesa de trabalho: "Trabalho
+  assíncrono: nenhum, por decisão" (`applied-ai-read-trip.md:261`);
+- o PRD de IA, nas restrições técnicas, que previa a questão para a busca semântica (Fase 4 dele) e
+  exigia que "não entrasse por inércia";
+- a Q-03 do mesmo PRD, que perguntava como fazer o backfill sem fila de jobs.
+
+O operador decidiu que **a execução de uma rotina roda no servidor, desacoplada da aba**. "Rodar
+agora" responde `202` na hora, e a tela só acompanha: pode fechar e voltar. Os motivos:
+
+- **A rotina só toca o acervo.** O pior caso continua sendo o do caderno: um card ruim numa coluna.
+  Nada é publicado fora do Yu-book, e o que a mesa de trabalho arrisca ("publica no repositório
+  errado") não existe aqui.
+- **A escrita é do código, só na saída** (RN-16). Nos passos, o modelo só lê. O card de saída e o
+  destino da ideia são gravados pelo código, no fim de uma execução bem-sucedida. Um modelo
+  desgovernado no meio do fluxo não tem com o que escrever.
+- **Dois tetos cortam antes de cada chamada** (RN-17): o da execução e o diário. Uma execução sem
+  ninguém olhando não gasta mais do que alguém autorizou.
+- **Uma execução longa não pode depender da aba.** São até seis passos, cada um com até cinco
+  chamadas ao provedor. Amarrar isso a uma aba aberta faria o custo já pago se perder por um
+  fechamento acidental.
+
+A alternativa descartada foi a execução **dentro da requisição**, como o chat: um SSE que é a
+própria execução, cortado quando a aba fecha. Ela manteria a regra antiga, mas ao preço do motivo
+acima.
+
+**A decisão estava prevista para a Etapa F** (agendamento), no plano geral, e foi tomada na E. A F
+herda o mecanismo e não precisa mais decidir se há trabalho de fundo, só **quem dispara**.
+
+**O preço: a execução viva mora na memória da API.** Um `Map` de execuções vivas guarda o
+controlador de cancelamento, os assinantes do SSE e o texto parcial do passo em curso. O plano
+partia de "a API roda em instância única". **A Railway sobrepõe instâncias no deploy**: a nova sobe
+enquanto a antiga ainda atende, e o `Map` de uma não enxerga o da outra. O desenho foi feito para
+aguentar essa janela:
+
+- **Pulso** (`heartbeat_at`, a cada 10 s). É ele, e não "estar no meu `Map`", que diz se a execução
+  tem dono. A reconciliação só fecha execução de **pulso vencido** (45 s). Roda no boot, a cada 60 s
+  e ao iniciar outra execução. Fechar toda execução `em_andamento` no boot, como o plano propunha,
+  mataria as da instância antiga no meio de um deploy.
+- **Gravações condicionais.** Quem executa só grava o fim se a execução ainda está `em_andamento`, e
+  a reconciliação de outra instância não é sobrescrita.
+- **Cancelamento e SSE pelo banco.** O pedido de cancelar vira `cancel_requested_at`, que quem
+  executa confere no pulso e antes de cada passo. O SSE de uma execução que roda noutra instância
+  manda retratos lidos do banco em vez de eventos ao vivo.
+- **Índice único parcial para a RN-19**: `ai_routine_run_uma_em_andamento_idx`, em `user_id WHERE
+  status = 'em_andamento'`. Com duas instâncias, a conferência "já há uma em andamento?" em código
+  tem corrida. O índice não tem.
+- **SIGTERM** aborta as execuções vivas e espera cada uma gravar `interrompida` antes do
+  `app.close()`.
+
+**Uma execução perdida num redeploy fica `interrompida`, e a ideia volta a ser elegível.** Como a
+escrita só acontece no fim, uma execução interrompida não deixou nada no acervo, e o próximo "Rodar
+agora" pega a mesma ideia. O custo dela já foi pago e continua contando no teto diário.
+
+**Com o card criado, a execução é `concluida`.** Se o consumo da ideia (mover ou arquivar) falhar
+depois disso, ela termina com os avisos `CONSUMO_FALHOU` ou `FINALIZACAO_PARCIAL`, e não `falhou`.
+Marcá-la `falhou` com o card já na coluna tiraria da ideia o registro que a torna inelegível (RN-18),
+e a próxima execução geraria um segundo post da mesma ideia.
+
+**Risco residual, aceito e declarado.** Entre o último pulso e a gravação do card existe uma janela.
+Um laço de eventos parado por uns 45 s, ou relógios divergentes entre as duas instâncias, podem
+levar a outra instância a julgar a execução morta e liberar a ideia. Se a execução "morta" ainda
+gravar o card, a mesma ideia pode sair em **dois cards**. É o pior caso do caderno, visível na
+coluna, e não justifica trava distribuída.
+
+**A idempotência é pelo registro, e não pela posição da ideia** (RN-18). O plano geral dizia "a
+ideia consumida sai da coluna ou é marcada". Com a ação de consumo "manter", ela não sai. Um card com
+execução concluída ou em andamento desta rotina não é escolhido de novo, qualquer que seja a ação.
+Assim a idempotência não depende de o consumo ter dado certo.
+
+**O destino da ideia é configurado na rotina e executado pelo código**, e não pedido ao agente.
+Pela RN-14, texto não concede ferramenta. Além disso, `move_card` nem está no chat, e "o agente vai
+lembrar de mover" é o contrário de previsível.
+
+**`rotina` entrou em `AiTask` sem virar coluna de modelo.** O enum precisa do valor para o registro
+de uso, mas a rotina não tem modelo padrão próprio: cada passo usa o do agente ou o da tarefa
+`chat`. `TAREFAS_COM_MODELO`, em shared, mantém o quadro de modelos de `/ajustes` com as duas
+colunas de antes.
+
+**O passo com o provedor saiu do chat** (`passoNoProvedor`, em `passo.service.ts`), e o teto diário
+foi com ele. O teto da execução entra como `tetoExtra`. A alternativa, uma segunda cópia do passo
+no motor da rotina, deixaria duas conferências de teto que divergiriam caladas. O chat ficou com o
+mesmo comportamento, com uma exceção: uma falha de `garantirTeto` ou de `registrarUso` que não seja
+estouro do teto vira evento `erro`, em vez de escapar do laço. `abrirNoProvedor` ganhou `signal`,
+combinado ao timeout por `AbortSignal.any`. Antes o cancelamento não tinha como chegar ao fetch.
+
+**Dívida: a etapa foi entregue sem conferência de interface à mão**, como a C e a D. Os portões
+cobrem o servidor. O typecheck dos quatro pacotes e os 57 testes do MCP foram medidos no fechamento,
+e os 229 testes da API foram relatados pela sessão de implementação. Nenhum deles monta um
+componente. Roteiro de conferência, do plano da etapa:
+
+1. Estado vazio: montar a rotina a partir do modelo "Post do LinkedIn" e ver os blocos ligados, com
+   o "+" nos conectores.
+2. Inserir o Revisor pelo "+", reordenar por arraste e depois só por teclado, e remover pelo `Menu`.
+3. No painel lateral de cada bloco: escolher as colunas, ver a coluna de consumidas limitada ao
+   quadro da entrada e ver a estimativa de custo mudar.
+4. Com alteração pendente, "Rodar agora" fica desabilitado, com o motivo. Depois de salvar, rodar:
+   os blocos acendem em sequência, o texto chega, e custo e tokens aparecem.
+5. Fechar a aba no meio, voltar pelo histórico e ver o progresso continuar.
+6. Cancelar no meio: a ideia fica na entrada.
+7. Ao concluir: o card em "Aguardando publicar" com a faixa "via rotina", o botão "Ver execução" e a
+   seção Observações, e a ideia em "Usadas". Rodar de novo pega a próxima ideia.
+8. Teclado completo, foco devolvido, os dois temas e `prefers-reduced-motion`.
+
+**Ficou pendente:**
+
+- A conferência acima, e as das Etapas C e D, que seguem em aberto.
+- A Q-03 do PRD de IA (o backfill da busca semântica) foi anotada, mas não resolvida. Agora existe
+  mecanismo de trabalho de fundo no processo. Se ele serve a um backfill de embeddings, que é longo
+  e não tem teto por execução, é a Fase 4 do PRD que decide.
+- O `applied-ai-read-trip.md:261` continua dizendo "nenhum, por decisão". É um roteiro com data, e
+  esta entrada é o que o revoga.
+- `CLAUDE.md` e as skills ainda não falam de rotinas nem de trabalho de fundo. A atualização é do
+  `curador`.
+
+---
+
 ## 2026-09-24 — Frente de IA, Etapa D: agentes especialistas
 
 Segunda etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md), entregue no mesmo dia da

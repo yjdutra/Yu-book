@@ -157,7 +157,11 @@ function linhaDaMarca(ai: AiMark, fuso: string, genero: "a" | "o"): string {
   // texto foi escrito, e o modelo só diz quem o escreveu.
   if (ai.agentName) partes.push(`«${ai.agentName}»`);
   if (ai.author) partes.push(ai.author);
-  partes.push(`via ${ai.via}`, diaLocal(new Date(ai.generatedAt), fuso));
+  // Etapa E: a rotina tem nome, e é ele que diz de qual fluxo o texto saiu.
+  partes.push(
+    ai.via === "rotina" && ai.routineName ? `via rotina «${ai.routineName}»` : `via ${ai.via}`,
+    diaLocal(new Date(ai.generatedAt), fuso),
+  );
   if (ai.revisedAt) partes.push(`revisad${genero} em ${diaLocal(new Date(ai.revisedAt), fuso)}`);
   return partes.join(" · ");
 }

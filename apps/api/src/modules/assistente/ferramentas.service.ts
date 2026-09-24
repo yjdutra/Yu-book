@@ -14,6 +14,7 @@ import {
 } from "@yu-book/shared";
 import type { NomeDeFerramenta } from "@yu-book/shared";
 import { AppError } from "../../lib/errors.js";
+import type { OrigemDoAssistente } from "../../lib/marca.js";
 import * as dashboard from "../dashboard/dashboard.service.js";
 import * as kanban from "../kanban/kanban.service.js";
 import * as notes from "../notes/notes.service.js";
@@ -68,16 +69,12 @@ export interface ContextoDeFerramenta {
   /// valor padrão: cair no fuso do processo é o defeito que o MCP hospedado
   /// teve por semanas, relatando todo prazo um dia à frente.
   fuso: string;
-  /// Quem escreve, quando a ação cria alguma coisa. Montado pelo `chat.service`
-  /// a partir da conversa e do modelo — o modelo não tem como declarar a
-  /// própria origem, nem escapar da marca.
-  origem: {
-    via: "chat";
-    author: string | null;
-    conversationId: string;
-    /// O agente da conversa (Etapa D), para a marca dizer quem escreveu.
-    agentName?: string | null;
-  };
+  /// Quem escreve, quando a ação cria alguma coisa. Montado pelo servidor — o
+  /// chat a partir da conversa e do modelo, a rotina a partir da execução —,
+  /// nunca pelos argumentos: o modelo não tem como declarar a própria origem,
+  /// nem escapar da marca. A união é por `via` (INV-58): o chat não compila
+  /// sem `conversationId`, nem a rotina sem `runId` e `routineName`.
+  origem: OrigemDoAssistente;
   /**
    * O que **esta** conversa pode executar (Etapa D): a lista do agente, já
    * cortada por `FERRAMENTAS_DO_CHAT`. O Assistente sem agente passa a lista

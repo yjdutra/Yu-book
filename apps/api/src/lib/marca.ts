@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import type { AiMark } from "@yu-book/shared";
+import type { AiMark, AiVia } from "@yu-book/shared";
 
 /**
  * A marca de conteúdo gerado por IA (Etapa C da frente de IA), do lado do
@@ -14,15 +14,39 @@ import type { AiMark } from "@yu-book/shared";
  *
  * Chega ao service **por parâmetro**, nunca pelo corpo da nota: o chat o monta
  * a partir da própria conversa, e a rota do MCP o traduz de `origin`, que só
- * aceita `mcp`. É isso que faz a marca ser gravada só pelo servidor.
+ * aceita `mcp`. É isso que faz a marca ser gravada só pelo servidor. A rotina
+ * (Etapa E) a monta no motor, a partir da execução — o modelo não a declara.
+ *
+ * **União discriminada por `via`, e não um objeto de opcionais** (INV-58): é o
+ * compilador que obriga o chat a gravar a conversa e a rotina a gravar a
+ * execução. Com tudo opcional, uma origem `via: "chat"` sem `conversationId`
+ * compilava e gravava uma marca de chat que não aponta para conversa nenhuma.
  */
-export interface OrigemIA {
-  via: "chat" | "mcp";
-  author: string | null;
-  conversationId?: string | null;
-  /// O agente da conversa (Etapa D). Só o chat o conhece; o MCP não tem agente.
-  agentName?: string | null;
-}
+export type OrigemIA =
+  | {
+      via: "chat";
+      /// O modelo que respondeu.
+      author: string | null;
+      conversationId: string;
+      /// O agente da conversa (Etapa D); ausente no Assistente sem agente.
+      agentName?: string | null;
+    }
+  | {
+      via: "rotina";
+      /// O modelo do último passo que reescreveu.
+      author: string | null;
+      agentName: string | null;
+      runId: string;
+      routineName: string;
+    }
+  | {
+      /// O MCP não tem conversa, agente nem execução: `author` é o cliente.
+      via: "mcp";
+      author: string | null;
+    };
+
+/** A origem que o próprio assistente monta — nunca o MCP (Etapa E). */
+export type OrigemDoAssistente = Extract<OrigemIA, { via: "chat" | "rotina" }>;
 
 /** Os campos `ai*` de uma criação, iguais em nota e card. */
 export function camposDaOrigem(origem: OrigemIA | undefined) {
@@ -31,8 +55,10 @@ export function camposDaOrigem(origem: OrigemIA | undefined) {
     aiGeneratedAt: new Date(),
     aiVia: origem.via,
     aiAuthor: origem.author,
-    aiConversationId: origem.conversationId ?? null,
-    aiAgentName: origem.agentName ?? null,
+    aiConversationId: origem.via === "chat" ? origem.conversationId : null,
+    aiAgentName: origem.via === "mcp" ? null : (origem.agentName ?? null),
+    aiRunId: origem.via === "rotina" ? origem.runId : null,
+    aiRoutineName: origem.via === "rotina" ? origem.routineName : null,
   };
 }
 
@@ -43,15 +69,19 @@ export const CAMPOS_DA_MARCA = {
   aiAuthor: true,
   aiConversationId: true,
   aiAgentName: true,
+  aiRunId: true,
+  aiRoutineName: true,
   aiRevisedAt: true,
 } satisfies Prisma.NoteSelect & Prisma.CardSelect;
 
 interface LinhaDaMarca {
   aiGeneratedAt: Date | null;
-  aiVia: "chat" | "mcp" | null;
+  aiVia: AiVia | null;
   aiAuthor: string | null;
   aiConversationId: string | null;
   aiAgentName: string | null;
+  aiRunId: string | null;
+  aiRoutineName: string | null;
   aiRevisedAt: Date | null;
 }
 
@@ -64,6 +94,8 @@ export function paraMarca(linha: LinhaDaMarca): AiMark | null {
     author: linha.aiAuthor,
     conversationId: linha.aiConversationId,
     agentName: linha.aiAgentName,
+    routineName: linha.aiRoutineName,
+    runId: linha.aiRunId,
     revisedAt: linha.aiRevisedAt?.toISOString() ?? null,
   };
 }

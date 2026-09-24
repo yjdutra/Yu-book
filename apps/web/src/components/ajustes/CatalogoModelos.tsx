@@ -1,4 +1,4 @@
-import { AI_TASKS, FAIXAS_DE_PRECO_MICROS } from "@yu-book/shared";
+import { FAIXAS_DE_PRECO_MICROS, TAREFAS_COM_MODELO } from "@yu-book/shared";
 import type { AiModel, AiModelIndices, AiModelSort } from "@yu-book/shared";
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "../../lib/api";
@@ -91,7 +91,8 @@ export function CatalogoModelos({ onErro }: { onErro: (mensagem: string | null) 
   const modelos = catalogo.data?.items ?? [];
   const favoritos = ajustes.data?.favorites ?? [];
   const escolhidos = ajustes.data?.taskModels ?? {};
-  const tarefasDe = (modelId: string) => AI_TASKS.filter((t) => escolhidos[t] === modelId);
+  const tarefasDe = (modelId: string) =>
+    TAREFAS_COM_MODELO.filter((t) => escolhidos[t] === modelId);
 
   // Mantém o item destacado visível, como na paleta.
   useEffect(() => {

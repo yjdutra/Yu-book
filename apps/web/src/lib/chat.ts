@@ -149,10 +149,15 @@ export function invalidarCriados(qc: QueryClient, criados: ChatCreated[]): void 
  *   vir partido entre dois pedaços, e sem isto acentos viram `�`;
  * - o `signal` cancela de verdade: fechar o painel no meio de uma resposta
  *   precisa soltar a conexão, não deixá-la escrevendo em memória.
+ *
+ * Genérico no evento desde a Etapa E: o chat lê `ChatEvent`, a execução de
+ * rotina lê `RotinaEvent`. Bloco sem linha `data:` — o `: ping` de 15 em 15 s
+ * que segura a conexão da rotina aberta atrás de proxy — é comentário de SSE e
+ * é ignorado.
  */
-export async function lerEventos(
+export async function lerEventos<E = ChatEvent>(
   resposta: Response,
-  aoEvento: (evento: ChatEvent) => void,
+  aoEvento: (evento: E) => void,
 ): Promise<void> {
   const leitor = resposta.body?.getReader();
   if (!leitor) return;
@@ -172,7 +177,7 @@ export async function lerEventos(
       const linha = bloco.split("\n").find((l) => l.startsWith("data:"));
       if (!linha) continue;
       try {
-        aoEvento(JSON.parse(linha.slice("data:".length).trim()) as ChatEvent);
+        aoEvento(JSON.parse(linha.slice("data:".length).trim()) as E);
       } catch {
         /// Evento malformado não derruba a conversa inteira.
       }

@@ -19,12 +19,28 @@ export const LINK_KINDS = ["favorito", "depois"] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];
 
 /**
- * Tarefas de IA que consomem modelo. Espelha o enum `AiTask` do Prisma.
- * `chat` já entra aqui porque acrescentar valor a enum do Postgres é migration
- * à parte — e a etapa B precisaria dela só para existir.
+ * Tarefas de IA que gastam — é o que `ai_usage.task` registra. Espelha o enum
+ * `AiTask` do Prisma. `chat` já entrou na Etapa A porque acrescentar valor a
+ * enum do Postgres é migration à parte; `rotina` entrou na Etapa E.
+ *
+ * **Não é a lista de colunas do quadro de modelos.** Essa é
+ * `TAREFAS_COM_MODELO`, logo abaixo.
  */
-export const AI_TASKS = ["formatar", "chat"] as const;
+export const AI_TASKS = ["formatar", "chat", "rotina"] as const;
 export type AiTask = (typeof AI_TASKS)[number];
+
+/**
+ * As tarefas que têm modelo padrão escolhido em `/ajustes` — as colunas do
+ * quadro de modelos e os valores aceitos por `PATCH /ai/tasks/:task`.
+ *
+ * `rotina` fica de fora de propósito: cada passo de uma rotina usa o modelo do
+ * agente, ou o da tarefa `chat` quando o agente não tem um próprio. Uma coluna
+ * "rotina" no quadro seria um controle que não controla nada. Tarefa nova que
+ * **tenha** modelo próprio entra nas duas listas, e a tela precisa percorrê-la
+ * (INV-54).
+ */
+export const TAREFAS_COM_MODELO = ["formatar", "chat"] as const satisfies readonly AiTask[];
+export type TarefaComModelo = (typeof TAREFAS_COM_MODELO)[number];
 
 /**
  * Quem falou numa mensagem do chat. Espelha o enum `AiMessageRole` do Prisma.
@@ -50,8 +66,8 @@ export type AiCostSource = (typeof AI_COST_SOURCES)[number];
 
 /**
  * Por qual superfície um conteúdo gerado por IA entrou no acervo. Espelha o
- * enum `AiVia` do Prisma (Etapa C da frente de IA). Rotina e agente entram
- * aqui quando existirem — acrescentar valor a enum do Postgres é migration.
+ * enum `AiVia` do Prisma (Etapa C da frente de IA). `rotina` entrou na Etapa E;
+ * agente não é via — é quem escreveu, e vai em `AiMark.agentName`.
  */
-export const AI_VIAS = ["chat", "mcp"] as const;
+export const AI_VIAS = ["chat", "mcp", "rotina"] as const;
 export type AiVia = (typeof AI_VIAS)[number];

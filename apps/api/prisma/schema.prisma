@@ -45,9 +45,13 @@ enum LinkKind {
 
 /// Tarefas de IA que consomem modelo. `chat` entra junto porque acrescentar
 /// valor a enum do Postgres é migration à parte.
+/// `rotina` (Etapa E) só existe para o registro de uso: rotina não tem modelo
+/// padrão próprio — cada passo usa o do agente, ou o da tarefa `chat`. Por
+/// isso não vira coluna em `/ajustes` (`TAREFAS_COM_MODELO` em shared).
 enum AiTask {
   formatar
   chat
+  rotina
 }
 
 /// Quem falou numa mensagem do chat. `tool` é o resultado que o Yu-book
@@ -61,10 +65,12 @@ enum AiMessageRole {
 }
 
 /// Por qual superfície um conteúdo gerado por IA entrou no acervo (Etapa C da
-/// frente de IA). Rotina e agente entram por migration aditiva quando existirem.
+/// frente de IA). `rotina` entrou na Etapa E; o agente não é via — é quem
+/// escreveu, e mora em `aiAgentName`.
 enum AiVia {
   chat
   mcp
+  rotina
 }
 
 /// De onde veio o custo registrado. `desconhecido` é o degrau perigoso: grava
@@ -110,6 +116,8 @@ model User {
   aiUsages        AiUsage[]
   aiConversations AiConversation[]
   aiAgents        AiAgent[]
+  aiRoutines      AiRoutine[]
+  aiRoutineRuns   AiRoutineRun[]
 
   @@map("user")
 }
@@ -186,6 +194,11 @@ model Note {
   /// O agente que escreveu (Etapa D), gravado na criação. Texto e não chave
   /// estrangeira: excluir o agente não pode apagar quem escreveu.
   aiAgentName      String?   @map("ai_agent_name")
+  /// A execução de rotina que criou (Etapa E). `SetNull`: o histórico de
+  /// execuções pode ser podado sem apagar a marca. O nome da rotina vai como
+  /// texto pelo mesmo motivo de `aiAgentName`.
+  aiRunId          String?   @map("ai_run_id") @db.Uuid
+  aiRoutineName    String?   @map("ai_routine_name")
 
   /// Mantida por trigger (ver migration). Consultada via SQL cru.
   searchVector Unsupported("tsvector")? @map("search_vector")
@@ -200,6 +213,7 @@ model Note {
   aiUsages  AiUsage[]
   aiAttachments AiAttachment[]
   aiConversation AiConversation? @relation("NotasGeradas", fields: [aiConversationId], references: [id], onDelete: SetNull)
+  aiRun          AiRoutineRun?   @relation("NotasDaRotina", fields: [aiRunId], references: [id], onDelete: SetNull)
   aiAgentBases  AiAgentBaseNote[]
 
   @@index([userId, kind])
@@ -320,12 +334,20 @@ model Card {
   /// O agente que escreveu (Etapa D), gravado na criação. Texto e não chave
   /// estrangeira: excluir o agente não pode apagar quem escreveu.
   aiAgentName      String?   @map("ai_agent_name")
+  /// A execução de rotina que criou (Etapa E). `SetNull`: o histórico de
+  /// execuções pode ser podado sem apagar a marca. O nome da rotina vai como
+  /// texto pelo mesmo motivo de `aiAgentName`.
+  aiRunId          String?   @map("ai_run_id") @db.Uuid
+  aiRoutineName    String?   @map("ai_routine_name")
 
   column        BoardColumn    @relation(fields: [columnId], references: [id], onDelete: Cascade)
   note          Note?          @relation(fields: [noteId], references: [id], onDelete: SetNull)
   events        Event[]
   aiAttachments AiAttachment[]
   aiConversation AiConversation? @relation("CardsGerados", fields: [aiConversationId], references: [id], onDelete: SetNull)
+  aiRun          AiRoutineRun?   @relation("CardsDaRotina", fields: [aiRunId], references: [id], onDelete: SetNull)
+  runsComoIdeia  AiRoutineRun[]  @relation("IdeiaDaExecucao")
+  runsComoSaida  AiRoutineRun[]  @relation("SaidaDaExecucao")
 
   @@index([columnId, position])
   @@index([dueDate])
@@ -511,12 +533,16 @@ model AiUsage {
   /// Mesma regra, mesmo motivo: uma mensagem do chat custa até cinco chamadas,
   /// e apagar a conversa não pode zerar o que já foi gasto hoje.
   conversationId String? @map("conversation_id") @db.Uuid
+  /// A execução de rotina que gastou (Etapa E). Mesma regra: excluir a rotina
+  /// ou a execução não devolve ao teto o que já foi gasto hoje.
+  runId          String? @map("run_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at")
 
   user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   note         Note?           @relation(fields: [noteId], references: [id], onDelete: SetNull)
   conversation AiConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  run          AiRoutineRun?   @relation(fields: [runId], references: [id], onDelete: SetNull)
 
   @@index([userId, localDay])
   @@index([userId, createdAt(sort: Desc)])
@@ -653,6 +679,7 @@ model AiAgent {
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   baseNotes     AiAgentBaseNote[]
   conversations AiConversation[]
+  routineSteps  AiRoutineStep[]
 
   @@unique([userId, name])
   @@map("ai_agent")
@@ -671,4 +698,172 @@ model AiAgentBaseNote {
   @@id([agentId, noteId])
   @@index([noteId])
   @@map("ai_agent_base_note")
+}
+
+/// Status de uma execução de rotina (Etapa E). `interrompida` é a que o
+/// processo perdeu — redeploy ou queda —, reconciliada no boot: a execução
+/// mora num `Map` em memória, e sem o processo não há quem a termine.
+enum AiRunStatus {
+  em_andamento
+  concluida
+  falhou
+  cancelada
+  interrompida
+}
+
+enum AiRunStepStatus {
+  pendente
+  rodando
+  concluido
+  falhou
+  pulado
+}
+
+/// "reescreve" substitui o rascunho; "revisa" acumula observações e não mexe
+/// nele.
+enum AiStepMode {
+  reescreve
+  revisa
+}
+
+/// O que o código — e não o modelo — faz com a ideia depois de uma execução
+/// bem-sucedida.
+enum AiConsumeAction {
+  mover
+  arquivar
+  manter
+}
+
+/// De onde sai o título do card de saída.
+enum AiOutputTitle {
+  ideia
+  primeira_linha
+}
+
+/// Uma rotina (Etapa E da frente de IA): agentes encadeados numa sequência
+/// fixa, disparada à mão. Lê a próxima ideia de uma coluna, passa pelos
+/// passos e grava um card na coluna de saída.
+///
+/// As colunas não são chave estrangeira, como a fonte viva do agente: `card`
+/// e `board_column` não têm `user_id`, a posse é conferida pela cadeia ao
+/// gravar e de novo ao rodar, e coluna que sumiu deixa a rotina **inválida**
+/// com o motivo — não apaga a rotina nem vira erro de FK.
+model AiRoutine {
+  id              String          @id @default(uuid()) @db.Uuid
+  userId          String          @map("user_id") @db.Uuid
+  name            String
+  description     String          @default("")
+  inputBoardId    String          @map("input_board_id") @db.Uuid
+  inputColumnId   String          @map("input_column_id") @db.Uuid
+  outputColumnId  String          @map("output_column_id") @db.Uuid
+  outputTitle     AiOutputTitle   @default(ideia) @map("output_title")
+  includeNotes    Boolean         @default(true) @map("include_notes")
+  consumeAction   AiConsumeAction @map("consume_action")
+  /// Só com `mover`, e do mesmo quadro da entrada: `moverCard` não atravessa
+  /// quadro (RN-04 da Fase 2).
+  consumeColumnId String?         @map("consume_column_id") @db.Uuid
+  /// Teto por execução, em µUSD. Soma-se ao diário: os dois cortam.
+  runCapMicros    Int             @map("run_cap_micros")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steps AiRoutineStep[]
+  runs  AiRoutineRun[]
+
+  @@unique([userId, name])
+  @@map("ai_routine")
+}
+
+/// Um passo da rotina, em ordem.
+model AiRoutineStep {
+  id          String     @id @default(uuid()) @db.Uuid
+  routineId   String     @map("routine_id") @db.Uuid
+  position    Int
+  /// `SetNull`: excluir o agente não apaga o passo. A rotina fica inválida,
+  /// dizendo qual agente sumiu, e recusa rodar até alguém trocar.
+  agentId     String?    @map("agent_id") @db.Uuid
+  agentName   String     @map("agent_name")
+  mode        AiStepMode
+  instruction String     @default("")
+
+  routine AiRoutine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  agent   AiAgent?  @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  @@index([routineId, position])
+  @@index([agentId])
+  @@map("ai_routine_step")
+}
+
+/// Uma execução. Guarda o nome da rotina e o título da ideia como texto: o
+/// histórico sobrevive à exclusão da rotina e do card.
+model AiRoutineRun {
+  id           String      @id @default(uuid()) @db.Uuid
+  userId       String      @map("user_id") @db.Uuid
+  routineId    String?     @map("routine_id") @db.Uuid
+  routineName  String      @map("routine_name")
+  status       AiRunStatus @default(em_andamento)
+  inputCardId  String?     @map("input_card_id") @db.Uuid
+  inputTitle   String      @map("input_title")
+  outputCardId String?     @map("output_card_id") @db.Uuid
+  runCapMicros Int         @map("run_cap_micros")
+  costMicros   Int         @default(0) @map("cost_micros")
+  errorCode    String?     @map("error_code")
+  errorMessage String?     @map("error_message")
+  startedAt    DateTime    @default(now()) @map("started_at")
+  endedAt      DateTime?   @map("ended_at")
+  /// O pulso do processo que executa, renovado enquanto ela roda. Numa janela
+  /// de deploy duas instâncias convivem, e o `Map` de uma não enxerga o da
+  /// outra: é este carimbo, e não "estar no meu `Map`", que diz se a execução
+  /// tem dono. Só a de pulso vencido é reconciliada.
+  heartbeatAt       DateTime  @default(now()) @map("heartbeat_at")
+  /// Pedido de cancelamento vindo de qualquer instância. Quem executa o confere
+  /// no pulso e antes de cada passo e volta, e grava ele mesmo `cancelada`.
+  cancelRequestedAt DateTime? @map("cancel_requested_at")
+
+  user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  routine    AiRoutine?         @relation(fields: [routineId], references: [id], onDelete: SetNull)
+  inputCard  Card?              @relation("IdeiaDaExecucao", fields: [inputCardId], references: [id], onDelete: SetNull)
+  outputCard Card?              @relation("SaidaDaExecucao", fields: [outputCardId], references: [id], onDelete: SetNull)
+  steps      AiRoutineRunStep[]
+  usages     AiUsage[]
+  notas      Note[]             @relation("NotasDaRotina")
+  cards      Card[]             @relation("CardsDaRotina")
+
+  // RN-19 tem ainda um índice único parcial, `ai_routine_run_uma_em_andamento_idx`
+  // — `(user_id) WHERE status = 'em_andamento'`, na migration
+  // `20260924233000_ia_etapa_e_uma_execucao`. Índice com `WHERE` não se declara
+  // aqui; o Prisma não o introspecta nem tenta derrubá-lo (conferido com
+  // `prisma migrate diff`: vazio). Só a criação grava `em_andamento`.
+  @@index([userId, status])
+  @@index([routineId, startedAt(sort: Desc)])
+  @@index([inputCardId])
+  @@map("ai_routine_run")
+}
+
+/// Um passo executado. Cópia do passo da rotina no momento da execução: editar
+/// a rotina depois não reescreve o histórico.
+model AiRoutineRunStep {
+  id               String          @id @default(uuid()) @db.Uuid
+  runId            String          @map("run_id") @db.Uuid
+  position         Int
+  agentName        String          @map("agent_name")
+  mode             AiStepMode
+  instruction      String          @default("")
+  modelId          String?         @map("model_id")
+  modelUsed        String?         @map("model_used")
+  status           AiRunStepStatus @default(pendente)
+  text             String          @default("")
+  promptTokens     Int             @default(0) @map("prompt_tokens")
+  completionTokens Int             @default(0) @map("completion_tokens")
+  costMicros       Int             @default(0) @map("cost_micros")
+  durationMs       Int             @default(0) @map("duration_ms")
+  errorCode        String?         @map("error_code")
+  startedAt        DateTime?       @map("started_at")
+  endedAt          DateTime?       @map("ended_at")
+
+  run AiRoutineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, position])
+  @@map("ai_routine_run_step")
 }

@@ -31,6 +31,17 @@ export const ERROR_CODES = [
    * bandeira `supportsTools` do favorito diz quais são, desde a Etapa A.
    */
   "MODELO_SEM_FERRAMENTA",
+  /** Etapa E: já há uma execução de rotina em andamento nesta conta. */
+  "ROTINA_EM_ANDAMENTO",
+  /** Etapa E: nenhum card elegível na coluna de entrada da rotina. */
+  "SEM_IDEIA",
+  /**
+   * Etapa E: a rotina não pode rodar como está — agente de um passo excluído,
+   * coluna que sumiu. A mensagem diz qual; o detalhe da rotina lista todos.
+   */
+  "ROTINA_INVALIDA",
+  /** Etapa E: a próxima chamada estouraria o teto por execução da rotina. */
+  "TETO_DA_EXECUCAO",
   /** RN-06: o modelo alterou um [[wikilink]] — a resposta foi descartada. */
   "RESPOSTA_INVALIDA",
   "INTERNAL_ERROR",

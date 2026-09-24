@@ -18,7 +18,6 @@ import type {
   NomeDeFerramenta,
 } from "@yu-book/shared";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   useAgente,
@@ -38,6 +37,7 @@ import { Dialogo } from "../base/Dialogo";
 import { Etiqueta } from "../base/Etiqueta";
 import { Interruptor } from "../base/Interruptor";
 import { Menu } from "../base/Menu";
+import { Parte } from "../base/Parte";
 import { Tecla } from "../base/Tecla";
 import { CampoMarkdown } from "../CampoMarkdown";
 import {
@@ -168,48 +168,6 @@ function corpoSugerido(titulo: string, agente: string): string {
     `# ${titulo}\n\n` +
     `Esta nota é premissa do agente «${agente}»: tudo o que estiver aqui entra no contexto ` +
     `dele a cada mensagem.\n\nEscreva aqui…\n`
-  );
-}
-
-/** Um `Bloco` de formulário, com a descrição que ensina o campo. */
-function Parte({
-  titulo,
-  descricao,
-  acao,
-  variante = "padrao",
-  children,
-}: {
-  titulo: string;
-  descricao?: ReactNode;
-  acao?: ReactNode;
-  variante?: "padrao" | "ia";
-  children: ReactNode;
-}) {
-  const id = useId();
-  return (
-    <section
-      aria-labelledby={id}
-      // Sem `overflow-hidden`, ao contrário do `Bloco`: a lista do seletor de
-      // nota e os menus abrem para fora da seção, e seriam cortados.
-      className="relative min-w-0 rounded-cartao border border-ink-800 bg-superficie shadow-e1"
-    >
-      {variante === "ia" && (
-        <span
-          aria-hidden="true"
-          className="absolute inset-x-4 top-0 h-px bg-linear-to-r from-accent-500 to-ia-500"
-        />
-      )}
-      <header className="flex items-start gap-2 border-b border-ink-800 px-4 py-2.5">
-        <div className="min-w-0 flex-1">
-          <h3 id={id} className="rotulo">
-            {titulo}
-          </h3>
-          {descricao && <p className="mt-0.5 text-xs text-ink-400">{descricao}</p>}
-        </div>
-        {acao && <span className="shrink-0">{acao}</span>}
-      </header>
-      <div className="p-4">{children}</div>
-    </section>
   );
 }
 

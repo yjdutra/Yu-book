@@ -3,7 +3,11 @@ import { Botao } from "./base/Botao";
 import { Dialogo } from "./base/Dialogo";
 import { Tecla } from "./base/Tecla";
 
-const ATALHOS: { grupo: string; tecla: string; descricao: string }[] = [
+// A ordem dos grupos na tela. O tipo do atalho sai daqui: grupo que não está
+// nesta lista não compila, em vez de sumir da tela calado.
+const GRUPOS = ["Geral", "Nota", "Agente", "Rotina", "Board", "Links"] as const;
+
+const ATALHOS: { grupo: (typeof GRUPOS)[number]; tecla: string; descricao: string }[] = [
   { grupo: "Geral", tecla: "Ctrl+K", descricao: "Buscar em notas e cards" },
   { grupo: "Geral", tecla: "Ctrl+N", descricao: "Nova nota" },
   { grupo: "Geral", tecla: "Ctrl+Shift+B", descricao: "Ir para os boards" },
@@ -26,6 +30,13 @@ const ATALHOS: { grupo: string; tecla: string; descricao: string }[] = [
   { grupo: "Agente", tecla: "Ctrl+S", descricao: "Salvar o agente (no editor de agentes)" },
   { grupo: "Agente", tecla: "↑ ↓ Enter", descricao: "Escolher uma nota-base na lista" },
 
+  // Etapa E da IA: o editor de rotinas também salva só quando mandam, e o
+  // arraste dos passos segue o contrato do kanban.
+  { grupo: "Rotina", tecla: "Ctrl+S", descricao: "Salvar a rotina (no editor de rotinas)" },
+  { grupo: "Rotina", tecla: "Espaço", descricao: "Na alça de um passo, pegar e soltar" },
+  { grupo: "Rotina", tecla: "← →", descricao: "Levar o passo pego para outra posição" },
+  { grupo: "Rotina", tecla: "Esc", descricao: "Cancelar o movimento e devolver o passo" },
+
   { grupo: "Board", tecla: "N", descricao: "Novo card na coluna com foco" },
   { grupo: "Board", tecla: "Espaço", descricao: "Pegar e soltar o card com foco" },
   { grupo: "Board", tecla: "↑ ↓ ← →", descricao: "Mover o card pego entre posições e colunas" },
@@ -39,7 +50,6 @@ const ATALHOS: { grupo: string; tecla: string; descricao: string }[] = [
   { grupo: "Links", tecla: "Ctrl+V", descricao: "Colar uma URL na aba visível" },
 ];
 
-const GRUPOS = ["Geral", "Nota", "Agente", "Board", "Links"] as const;
 
 export function Atalhos({ aberto, onFechar }: { aberto: boolean; onFechar: () => void }) {
   // O foco começa no título, não no primeiro botão: o único botão é "Fechar",
