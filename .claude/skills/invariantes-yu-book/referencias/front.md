@@ -40,11 +40,13 @@ arraste.
 **INV-30 — O teclado do arraste é remapeado.** `Espaço` pega e solta, `Esc` cancela
 (`Quadro.tsx:215`), porque `Enter` está reservado para abrir o card. O `PointerSensor` exige 4 px de
 deslocamento (`:210`) para que clique continue sendo clique. O quadro de modelos copia o mapa e a
-folga (`apps/web/src/components/ajustes/QuadroDeModelos.tsx:230,233`).
+folga (`apps/web/src/components/ajustes/QuadroDeModelos.tsx:230,233`), e o fluxo do editor de
+rotinas também (`apps/web/src/components/rotinas/FluxoEditavel.tsx:382-385`).
 
 **A origem do arraste some com `opacity-0`, nunca com `visibility`**, em todo arraste:
-`ColunaQuadro.tsx:83` (razão em `:59-61`) e o cartão numa coluna de tarefa do quadro de modelos
-(`QuadroDeModelos.tsx:494`, razão em `:492-493`). O elemento que some guarda o foco e é nele que o
+`ColunaQuadro.tsx:83` (razão em `:59-61`), o cartão numa coluna de tarefa do quadro de modelos
+(`QuadroDeModelos.tsx:497`, razão em `:495-496`) e o passo no fluxo de rotina
+(`FluxoEditavel.tsx:228`). O elemento que some guarda o foco e é nele que o
 `KeyboardSensor` escuta; `visibility: hidden` o tira da árvore de foco e mata o arraste por teclado.
 Parece detalhe de estilo e derruba INV-30 — e **não existe teste de front neste projeto**, então cai
 em silêncio. Arraste novo entra nesta lista.
@@ -210,9 +212,9 @@ A armadilha vizinha:
 
 **INV-53 — Painel montado por `{estado && <X aberto … />}` nunca recebe `aberto: false`.** Ele
 **desmonta**. As duas formas convivem em `apps/web/src/components/Aplicacao.tsx` e a diferença não
-aparece em nenhuma assinatura: `Paleta` recebe a prop viva (`aberta={paletaAberta}`, `:564`) e
-continua montada o tempo todo, enquanto `GavetaLinks` é montada dentro de um `&&` (`:546`) com
-`aberta` **literal** (`:549`).
+aparece em nenhuma assinatura: `Paleta` recebe a prop viva (`aberta={paletaAberta}`, `:606`) e
+continua montada o tempo todo, enquanto `GavetaLinks` é montada dentro de um `&&` (`:588`) com
+`aberta` **literal** (`:591`).
 
 A consequência é toda na limpeza. Num painel do segundo grupo, `useEffect(() => { if (!aberto) … })`
 **nunca roda o corpo de fechamento** — `aberto` é sempre `true` enquanto o efeito existe. Só a
@@ -231,7 +233,7 @@ efeito que depende de `ativo` (`apps/web/src/lib/foco.ts:65-70`), que roda quand
 e quando o componente desmonta. Por isso `Dialogo` (`components/base/Dialogo.tsx`) aceita as duas
 montagens. Painel novo que precise de fechamento imita essa forma.
 
-Há uma terceira: `PainelAssistente` também nasce num `&&` (`Aplicacao.tsx:494-498`), mas **sem
+Há uma terceira: `PainelAssistente` também nasce num `&&` (`Aplicacao.tsx:536-540`), mas **sem
 prop `aberto`**, porque o estado dele mora fora, na sessão do chat. O fechamento que faz trabalho é
 uma ação chamada antes do desmonte, não efeito do painel — e o que ela garante é o INV-56.
 
@@ -246,7 +248,7 @@ deixou de ser uma limpeza de efeito e virou cinco pontos, cada um fechando um ca
 1. **Fechar o painel para o fluxo:** `fecharPainel` chama `parar()` antes de desmontar
    (`sessaoChat.tsx:278-279`).
 2. **O logout aborta:** sair da sessão desmonta o provedor, e a limpeza aborta (`sessaoChat.tsx:205`).
-3. **Sair da tela do chat com fluxo em curso reabre o painel** (`Aplicacao.tsx:172-177`, lendo
+3. **Sair da tela do chat com fluxo em curso reabre o painel** (`Aplicacao.tsx:185-190`, lendo
    `temFluxo()`, `sessaoChat.tsx:220`). Sem isso a resposta seguiria em tela nenhuma.
 4. **O `AbortController` nasce antes de criar a conversa** (`sessaoChat.tsx:304-305`, razão em
    `:184-190`), e enquanto ele existe outro envio não começa (`:302`). Nascido depois do
@@ -258,10 +260,11 @@ deixou de ser uma limpeza de efeito e virou cinco pontos, cada um fechando um ca
    pedido que chega à tela do chat (`pages/AssistentePage.tsx:40-64`).
 
 **"Tela do chat" é `naTelaDoChat` (`sessaoChat.tsx:91`), não a área `/assistente`.** Desde a Etapa D
-a área tem a galeria e o editor de agentes (`/assistente/agentes…`), e neles o painel existe.
+a área tem a galeria e o editor de agentes (`/assistente/agentes…`), e desde a E as rotinas
+(`/assistente/rotinas…`, `/assistente/execucoes/:runId`); em todas elas o painel existe.
 `pathname.startsWith("/assistente")` faria a resposta sumir ao ir do chat para a galeria —
 nenhuma superfície à vista, o laço pagando. Quem decide "o painel existe aqui?" chama a função:
-a casca (`Aplicacao.tsx:164`), o trilho (`casca/Trilho.tsx:254`) e a conversa (`Conversa.tsx:191`).
+a casca (`Aplicacao.tsx:177`), o trilho (`casca/Trilho.tsx:254`) e a conversa (`Conversa.tsx:191`).
 Os três perguntavam pela área até a Etapa D. `areaDe` (`casca/PainelContexto.tsx:18`) continua por
 prefixo, e está certo: ali a pergunta é qual painel contextual mostrar, não se o chat está à vista.
 
@@ -286,7 +289,7 @@ todo chamador pelo mesmo desvio de `avisoDeEspera`.
 **O avesso: na tela do chat, nada alterna o painel.** Lá o painel não existe, mas `painelAberto`
 continua valendo, e `alternarPainel` com ele `true` é `fecharPainel` — `parar()` na resposta que
 está na tela. Todo caminho que alterna faz o desvio `emAssistente ? focarCampo() : alternarPainel()`:
-o atalho (`Aplicacao.tsx:286`) e o comando da paleta (`:374`); o botão do trilho escapa por não
+o atalho (`Aplicacao.tsx:299`) e o comando da paleta (`:399`); o botão do trilho escapa por não
 existir ali (`casca/Trilho.tsx:254`). Caminho novo que alterne o painel entra nesta lista.
 
 A armadilha vizinha: **os dois contextos da sessão não se fundem.** `useAcoesChat`
@@ -299,31 +302,38 @@ funciona, só fica lento.
 ## Enums que a interface precisa percorrer
 
 **INV-54 — Membro de enum que exige escolha do usuário só existe se a tela o percorrer.** O quadro
-de modelos deriva uma coluna por tarefa de `AI_TASKS` (`apps/web/src/components/ajustes/QuadroDeModelos.tsx:458`,
-e a grade conta as colunas em `:384`) e tira os rótulos de um `Record<AiTask, …>` **total**
+de modelos deriva uma coluna por tarefa de `TAREFAS_COM_MODELO`
+(`apps/web/src/components/ajustes/QuadroDeModelos.tsx:461`, e a grade conta as colunas em `:387`) e
+tira os rótulos de um `Record<TarefaComModelo, …>` **total**
 (`apps/web/src/components/ajustes/comum.ts:25`, razão em `:15-24`). As duas metades fazem
 trabalho diferente: o `Record` faz o **compilador** cobrar a tarefa nova — é o portão que o front
 compra no lugar do teste que não existe — e o `.map` faz a coluna nascer sozinha.
 
+**A lista percorrida é a das tarefas que pedem escolha, não a das que gastam** (Etapa E).
+`AI_TASKS` (`packages/shared/src/enums.ts:29`) é o que `ai_usage.task` registra e ganhou `rotina`;
+`TAREFAS_COM_MODELO` (`:42`, razão em `:32-41`) é o subconjunto com modelo padrão em `/ajustes`, e
+`rotina` fica fora porque cada passo usa o modelo do agente, ou o do chat. Percorrer `AI_TASKS`
+poria na tela uma coluna que não controla nada. Tarefa nova com modelo próprio entra nas duas.
+
 A Etapa B mostrou o custo de citar em vez de percorrer. `chat` entrou em
-`packages/shared/src/enums.ts:26`, no enum `AiTask` do Prisma, na rota e no service; a tela ficou
+`AI_TASKS`, no enum `AiTask` do Prisma, na rota e no service; a tela ficou
 com `const TAREFA: AiTask = "formatar"`, que compila para sempre. O servidor **exige** escolha por
-tarefa (`modeloParaTarefa`, `apps/api/src/modules/assistente/preferencias.service.ts:251`), então o
+tarefa (`modeloParaTarefa`, `apps/api/src/modules/assistente/preferencias.service.ts:260`), então o
 chat recusava toda mensagem com `MODELO_NAO_ESCOLHIDO`, pedindo uma escolha que não tinha onde ser
 feita: entidade no banco, rota aceitando, funcionalidade inalcançável, typecheck e suíte da API
-verdes. Por isso a mensagem de erro **nomeia a tarefa** (`:254-263`) — sem o nome, quem está na tela
+verdes. Por isso a mensagem de erro **nomeia a tarefa** (`:266-276`) — sem o nome, quem está na tela
 vendo um modelo marcado conclui que o erro é falso.
 
 **Não vale para todo enum: vale para o enum cujo membro pede configuração.** `LINK_KINDS` é citado à
 mão de propósito em `apps/web/src/components/ZonasDeSoltura.tsx:123-134` — cada zona tem texto e
 ícone próprios, e ali o enum só discrimina. Enum que rotula ou discrimina pode ser citado (é também
-o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:416` já
+o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:449` já
 mantém total); enum cujo membro exige um valor que **só a interface** coleta, não.
 
 O resto da tela também percorre, e cada um é um `.map` que o typecheck não cobra: os itens "Usar
-para…" do menu de cada favorito (`QuadroDeModelos.tsx:430-435`), as etiquetas de uso do cartão
-(`:398`, `:443-447`), o "Usado por…" de cada coluna (`:467`), que substituiu o rodapé-legenda, e a
-recusa do catálogo (`CatalogoModelos.tsx:107-109`). Frase escrita à mão com os nomes é o mesmo furo
+para…" do menu de cada favorito (`QuadroDeModelos.tsx:433-438`), as etiquetas de uso do cartão
+(`:401`, `:446-450`), o "Usado por…" de cada coluna (`:470`), que substituiu o rodapé-legenda, e a
+recusa do catálogo (`CatalogoModelos.tsx:95`, `:108-110`). Frase escrita à mão com os nomes é o mesmo furo
 em texto — acesso a chave conhecida não é erro de tipo.
 
 ## Filtros de notas na URL
@@ -334,13 +344,13 @@ e a URL é o único lugar em que eles existem. Um `navigate` para `/n/<id>` sem 
 recorte**: a lista volta a "todas" no mesmo clique que abriu a nota, sem erro nem aviso. Os pontos
 que carregam hoje:
 
-- abrir nota: `abrirNota` (`apps/web/src/components/Aplicacao.tsx:243-250`, o `navigate` em `:247`),
+- abrir nota: `abrirNota` (`apps/web/src/components/Aplicacao.tsx:256-263`, o `navigate` em `:260`),
   que serve também a paleta e ao chat;
-- criar nota: `novaNota` (`Aplicacao.tsx:252`), que também tira o tipo da nota nova do filtro
-  (`:260`);
+- criar nota: `novaNota` (`Aplicacao.tsx:265`), que também tira o tipo da nota nova do filtro
+  (`:273`);
 - fechar nota: `onFechar` (`apps/web/src/pages/NotasPage.tsx:55`);
-- voltar à lista de outra área: o trilho navega para `ultimaListaNotas` (`Aplicacao.tsx:146-149`,
-  `:404`), e o comando "Ir para Notas" da paleta (`:320`), a última `/n?…` visitada.
+- voltar à lista de outra área: o trilho navega para `ultimaListaNotas` (`Aplicacao.tsx:159-162`,
+  `:429`), e o comando "Ir para Notas" da paleta (`:333`), a última `/n?…` visitada.
 
 **O `search` só viaja quando se está em `/n`** (`emNotas ? search : ""`): fora dali a query string
 é de outra rota, e um filtro esquecido não pode decidir o tipo de uma nota criada no board. Não
@@ -357,5 +367,6 @@ isso que `CartaoModelo` recebe `alca` e `acoes` como encaixes (razão em
 `apps/web/src/components/ajustes/CartaoModelo.tsx:20-22`). Espalhar os `listeners` no nó — a forma
 do card do kanban (`ColunaQuadro.tsx:69-70`), que não tem controle dentro — faz o `Espaço` no botão do
 menu virar "pegar": o menu deixa de abrir pelo teclado, e o mouse continua funcionando. Nenhum portão
-executa arraste. Arrastável novo com controle dentro segue a alça, como já faz a coluna do kanban
-(`ColunaQuadro.tsx:201-205`).
+executa arraste. Arrastável novo com controle dentro segue a alça, como já fazem a coluna do kanban
+(`ColunaQuadro.tsx:201-205`) e o passo do fluxo de rotina, que tem botão e menu dentro
+(`components/rotinas/FluxoEditavel.tsx:242-244`, razão em `:43-46`).

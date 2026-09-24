@@ -288,9 +288,9 @@ Diante de um campo, entidade ou filtro novo no domínio, percorra:
 - [ ] **`src/verificar.ts`** — vale reportar no diagnóstico?
 
 Se a resposta for "nada muda", **diga isso explicitamente**. Silêncio é indistinguível de
-esquecimento. **As funções da frente de IA — chat, agentes — não viram tool** (NO3 e RF-53 do PRD
-de IA): quem usa o MCP já traz o próprio modelo. O que propaga é o **dado** que elas gravam — a
-marca, com o agente que escreveu, chega às tools por `formato.ts` sem nada neste pacote mudar.
+esquecimento. **As funções da frente de IA — chat, agentes, rotinas — não viram tool** (NO3, RF-53 e
+RF-62 do PRD de IA): quem usa o MCP já traz o próprio modelo. O que propaga é o **dado** que gravam —
+a marca, com agente e rotina, chega às tools por `formato.ts`; o `runId` não é impresso.
 
 ## 15. Como verificar
 

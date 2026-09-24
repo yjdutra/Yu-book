@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e chat, sem portão sobre o texto). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
+description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
 ---
 
 # O contrato compartilhado
@@ -134,7 +134,7 @@ formata por `Intl` com `timeZone`. **O parâmetro `fuso` não tem valor padrão,
 principal** — um padrão traria de volta exatamente o defeito que a Etapa B consertou, o fuso do
 *processo* passando por fuso do usuário. Quem chama declara de qual fuso está falando: o MCP
 pergunta à API (`apps/mcp/src/fuso.ts:43`) e o chat recebe o `fuso` no contexto da ferramenta
-(`apps/api/src/modules/assistente/ferramentas.service.ts:67-70`). As quatro funções escritas à mão
+(`apps/api/src/modules/assistente/ferramentas.service.ts:68-71`). As quatro funções escritas à mão
 viraram duas, num lugar só.
 
 **O lado do front não fechou.** `paraCampoData` (`apps/web/src/components/PainelCard.tsx:21`) e
@@ -165,8 +165,8 @@ exatamente o que a doutrina manda. O risco mudou de forma, não de tamanho.
   `kanban-escrita.ts`, `notas-escrita.ts`) — a `descricao` é o contrato de conversa do servidor MCP
   com qualquer modelo que se conecte;
 - `apps/api` o oferece ao provedor no campo `tools` de **todo turno** do chat
-  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:250`, só as de
-  `FERRAMENTAS_DO_CHAT`, estreitadas pela lista do agente da conversa) — ali a `descricao` é
+  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:242`, só as de
+  `FERRAMENTAS_DO_CHAT`, estreitadas pela lista do agente — e, num passo de rotina, só a leitura dele) — ali a `descricao` é
   contrato **e** custo por turno.
 
 Editar uma `descricao` para melhorar o chat muda o que o MCP publica, e encarece ou barateia todo
@@ -178,8 +178,8 @@ sobre o `tools/list` em bytes.
 definição e dois consumidores — tools e resources do MCP, executores do chat (§7 da skill
 `servidor-mcp-yu-book`) — e ali o texto não é só contrato: é o **resultado** sobre o qual o modelo
 decide continuar ou desistir. `formatarBusca` diz, no caso vazio, que a busca é por palavra sobre
-título e corpo e manda tentar o substantivo sozinho (`:203-204`); o argumento e o episódio que o
-motivou estão no comentário ao lado (`:194-202`). Mudar uma dessas frases muda as duas superfícies,
+título e corpo e manda tentar o substantivo sozinho (`:207-208`); o argumento e o episódio que o
+motivou estão no comentário ao lado (`:198-206`). Mudar uma dessas frases muda as duas superfícies,
 e nenhum teste fica vermelho.
 
 Então, ao tocar em `ferramentas.ts`: diga no relato que as duas superfícies mudaram, e **meça** o

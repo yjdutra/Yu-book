@@ -17,7 +17,16 @@ pnpm --filter @yu-book/api test          # a suíte fala com o Postgres de verda
 ```
 
 Nome de migration em `snake_case` descrevendo a entrega, no padrão já usado:
-`notas_fase_1`, `busca_aproximada`, `kanban_fase_2`, `links_fase_3`, `duracao_do_link`.
+`notas_fase_1`, `busca_aproximada`, `kanban_fase_2`, `links_fase_3`, `ia_etapa_e_rotinas`.
+
+**O banco de desenvolvimento é de verdade.** O `DATABASE_URL` de `apps/api/.env` aponta para
+`yubook`, que guarda a conta real do operador — e é nele que a suíte da API roda.
+
+- **`prisma migrate reset` não é seguro**: apaga a conta junto.
+- **Migration já aplicada não se edita** — nem em dev. Mudou de ideia depois de aplicar? Migration
+  nova, aditiva: a Etapa E fechou com três (`ia_etapa_e_rotinas`, `_pulso`, `_uma_execucao`).
+- **Não rode `prisma format`.** Ele reformata o `schema.prisma` inteiro, não só o trecho novo, e o
+  diff da entrega vira ruído. Alinhe à mão, como os vizinhos.
 
 ## 2. Convenções do schema
 
@@ -40,6 +49,11 @@ Estes objetos existem só nos arquivos `migration.sql`. O `schema.prisma` não o
 | `public.immutable_unaccent(text)` | `20260814004639_notas_fase_1` | Wrapper `IMMUTABLE`; **sem ele nada é indexável** |
 | `note_title_unico_idx` | `20260814004639_notas_fase_1:24` | `UNIQUE (user_id, lower(immutable_unaccent(title))) WHERE deleted_at IS NULL` |
 | Índices GIN trigram em `note.title` e `card.title` | `busca_aproximada`, `kanban_fase_2` | Tolerância a erro de digitação |
+| `ai_routine_run_uma_em_andamento_idx` | `20260924233000_ia_etapa_e_uma_execucao` | `UNIQUE (user_id) WHERE status = 'em_andamento'` — RN-19, uma execução por conta (INV-04) |
+
+**Índice parcial não aparece no `schema.prisma`, e o Prisma 6 nem o introspecta nem o derruba**:
+`prisma migrate diff` sai vazio com ele no banco (conferido ao criar a migration, comentário no
+`migration.sql` dela). Quem lê só o schema não sabe que a regra existe — por isso a tabela acima.
 
 **`immutable_unaccent` é o eixo de tudo.** Ele aparece no índice único, nos índices trigram e em
 quase todo SQL cru. E precisa continuar espelhando `normalizarTitulo` de
@@ -66,7 +80,10 @@ await prisma.$queryRaw`SELECT id FROM note WHERE user_id = ${userId}::uuid LIMIT
 
 `P2002` é traduzido por um helper local (`ehDuplicado`, `ehViolacaoDeTitulo`) para um `AppError` 409
 com mensagem em português. A violação de título é detectada por `meta.target` conter `"title"`,
-porque o Prisma reporta a expressão do índice e não o nome dele.
+porque o Prisma reporta a expressão do índice e não o nome dele. **Índice parcial sobre coluna
+simples** reporta as colunas: `ehOutraEmAndamento`
+(`apps/api/src/modules/assistente/execucao.service.ts:136-147`) casa `meta.target = ["user_id"]`
+**e** `meta.modelName`, para que o `P2002` de outro único do mesmo modelo suba como é.
 
 ## 6. Antes de fechar
 
@@ -74,4 +91,5 @@ porque o Prisma reporta a expressão do índice e não o nome dele.
 - [ ] `pnpm typecheck` passa
 - [ ] `pnpm --filter @yu-book/api test` passa
 - [ ] Se criou objeto SQL fora do Prisma, ele está no `migration.sql` e não só no banco local
+- [ ] Nenhuma migration já aplicada foi editada; nenhum `prisma format` no diff
 - [ ] Se mexeu em índice de busca, a busca sem acento e a busca aproximada continuam funcionando

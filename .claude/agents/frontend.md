@@ -43,12 +43,13 @@ estado: todo `navigate` dentro de `/n` carrega o `search`, ou o recorte some (IN
 
 O chat tem **duas superfícies e uma sessão**: o painel lateral (`components/assistente/`) e a tela
 do chat em `/assistente` só desenham; estado e fluxo moram em `lib/sessaoChat.tsx`, sempre montado.
-A área Assistente tem também galeria e editor de agentes (`/assistente/agentes…`), onde o painel
-existe: "estou na tela do chat?" é `naTelaDoChat`, nunca o prefixo da rota. Quem só abre o chat —
-casca, editor, card — usa `useAcoesChat`; `useSessaoChat` é das superfícies. O laço do servidor não
-pode rodar sem superfície visível, e isso depende de pontos espalhados em código de front sem teste
-(INV-56, em `referencias/front.md`) — leia antes de tocar em sessão, painel, rota ou troca de
-conversa.
+A área Assistente tem também agentes (`/assistente/agentes…`) e rotinas (`/assistente/rotinas…`,
+`/assistente/execucoes/:runId`), onde o painel existe: "estou na tela do chat?" é `naTelaDoChat`,
+nunca o prefixo da rota. SSE novo lê por `lerEventos<E>` (`lib/chat.ts`), não por leitor próprio.
+Quem só abre o chat — casca, editor, card — usa `useAcoesChat`; `useSessaoChat` é das superfícies. O
+laço do servidor não pode rodar sem superfície visível, e isso depende de pontos espalhados em
+código de front sem teste (INV-56, em `referencias/front.md`) — leia antes de tocar em sessão,
+painel, rota ou troca de conversa.
 
 **Gaveta de links, paleta e atalhos são `Dialogo`**, montados em `Aplicacao.tsx`: a gaveta
 (`posicao="lateral"`) dentro de um `&&`, a paleta por prop viva — e o grupo decide onde mora a

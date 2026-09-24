@@ -25,13 +25,21 @@ mensagem. A **Etapa C** (2026-09-24) trouxe a marca de conteúdo gerado por IA, 
 servidor, e com ela o chat passou a **criar** card e nota a pedido — não move, não apaga, não edita.
 A **Etapa D** (2026-09-24) trouxe os **agentes especialistas**: instruções, notas-base, fontes vivas,
 modelo e ferramentas próprios, fixos por conversa, numa área dentro de Assistente
-(`/assistente/agentes`), sem item no trilho. A Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
+(`/assistente/agentes`), sem item no trilho. A **Etapa E** (2026-09-24) trouxe as **rotinas**
+(`/assistente/rotinas`): agentes encadeados numa sequência fixa, disparada à mão, que pegam uma
+ideia de uma coluna e deixam um card noutra — os passos só leem; quem escreve é o código, na
+saída. A execução roda **no servidor, destacada da requisição**: é o primeiro trabalho de fundo da
+API, e revoga a decisão de "sem trabalho assíncrono" (motivo e custo na entrada de 2026-09-24 de
+`docs/historico.md`). No deploy da Railway duas instâncias da API convivem; o motor decide pelo
+banco, nunca pela memória do processo (INV-60). A Fase 6 de produto (Google Calendar) segue sendo o
+item de menor prioridade.
 
 **Cinco numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
 identidade) foi entregue em 2026-09-01; o **roteiro de IA aplicada** tem fases próprias, e a 5 dele é
 a frente de IA; dentro dessa frente, o **PRD de IA** tem as suas, de 1 a 4, entregues em etapas com
-letra — a Etapa A cobriu as fases 1 e 2 dele, a Etapa B a fase 3, e as Etapas C e D não são fase dele (§5.5, §5.6); e o **redesenho de UI/UX** de
+letra — a Etapa A cobriu as fases 1 e 2 dele, a Etapa B a fase 3, e as Etapas C, D e E não são fase
+dele (§5.5–§5.7); e o **redesenho de UI/UX** de
 `apps/web` tem cinco etapas próprias, entregues em 2026-09-24 sem conferência na tela a cada etapa e
 conferidas à mão pelo usuário no fechamento — relato, não checklist item por item (registro em
 `docs/historico.md`); essa numeração está fechada. "Etapa 4" não é

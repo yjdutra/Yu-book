@@ -64,11 +64,15 @@ essa separação.
 - **`card` e `board_column` não têm `user_id`.** A posse resolve pela cadeia até `board.userId`,
   dentro da própria query. Id alheio devolve **404, não 403**.
 - **`porSimilaridade` repete o termo inline.** Movê-lo para um CTE faz o planner perder o índice —
-  há comentário em `modules/notes/search.service.ts:308` registrando a verificação.
+  há comentário em `modules/notes/search.service.ts:311` registrando a verificação.
 - **`left(content_md, ${N}::int)` precisa do cast** porque o Prisma envia número como `bigint`.
 - **O limite de WIP não é validado.** É sinalização visual, por decisão de produto.
 - **O recálculo de wikilinks é condicional** (`mesmosLinks`), e por isso criar, renomear e restaurar
   precisam chamar `reconstruirEntradas`.
+- **A API tem trabalho de fundo desde a Etapa E** (o motor de rotinas, `execucao.service.ts`), e
+  no deploy da Railway duas instâncias convivem: o que decide sobre uma execução pergunta ao banco,
+  nunca ao `Map` em memória (INV-60). Quem chama o provedor passa por `passoNoProvedor`, onde mora
+  o teto (INV-47).
 
 Antes de alterar qualquer um desses pontos, leia o comentário que os acompanha e confirme com o
 operador. Carregue a skill `invariantes-yu-book` e abra `referencias/servidor.md` — a skill traz

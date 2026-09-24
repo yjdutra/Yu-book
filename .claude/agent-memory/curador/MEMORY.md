@@ -22,6 +22,7 @@
 - **Skill registra o que o código faz, nunca o que a fase pretende.** Do PRD só argumento pronto.
 - Cruza arquivo → catálogo; sítio único com comentário ao lado → fica na linha.
 - **Ponteiro não é duplicação; cópia do argumento é.**
+- Sítio único com muitas cláusulas que parecem limpeza → INV como mapa de ponteiros, sem o porquê.
 - **Número medido é memória de agente, não skill.** Grave a receita, não o número.
 - **Skill no limite: comprima o recém-escrito e o censo antes de cortar doutrina**; extraia só o
   que se lê *depois* de escrever.
