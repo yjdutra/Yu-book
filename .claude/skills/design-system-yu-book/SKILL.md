@@ -1,6 +1,6 @@
 ---
 name: design-system-yu-book
-description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), os primitivos de components/base/ (Botao, Bloco, Aviso, Dialogo com foco preso e o que ele deixa de fora, Menu, Etiqueta, Toast), a casca de trilho e painel contextual recolhível, /ajustes em seções, os três arrastes (kanban, favoritos e quadro de modelos) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo e não é modal (e o Esc do Dialogo aberto dentro dele), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA), ícones SVG desenhados à mão em Icones.tsx e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web.
+description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), os primitivos de components/base/ (Botao, Bloco, Aviso, Dialogo com foco preso e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, a casca de trilho e painel contextual recolhível, /ajustes em seções, os três arrastes (kanban, favoritos e quadro de modelos) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não na área de agentes (e o Esc do Dialogo aberto dentro dele), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA), ícones SVG desenhados à mão em Icones.tsx e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web.
 ---
 
 # Design system do Yu-book
@@ -8,10 +8,8 @@ description: Design system manual do Yu-book — rampa de cor semântica ink/acc
 Tudo aqui é feito à mão. **Não existe shadcn, Radix, Headless UI, Material nem biblioteca de
 ícones**, e isso é decisão registrada em comentário no código. Não instale nenhuma.
 
-**A única exceção é o CodeMirror 6**, e ela é estreita: motor de edição de texto não é biblioteca
-de UI nem de ícones, e o operador autorizou nominalmente essa dependência e nenhuma outra — a
-decisão e seus limites estão na §12/D-01 de `docs/old/prd-fase-5-refino.md`. Ela não abre precedente:
-componente que já existe aqui continua sendo escrito à mão.
+**A única exceção é o CodeMirror 6**, autorizado nominalmente e sem abrir precedente — motor de
+edição não é biblioteca de UI (§12/D-01 de `docs/old/prd-fase-5-refino.md`).
 
 ## 1. A rampa de cor é semântica
 
@@ -28,8 +26,9 @@ valores e preserva o significado.
 | `--color-accent-500` / `400` | Destaque e interação |
 | `--color-superficie` | Cartão que se ergue sobre o painel — o degrau que a rampa `ink` não tinha |
 | `--color-ia-500` | Só fecha o gradiente `accent-500 → ia-500` das áreas de IA; não é cor de texto |
+| `--color-agente-*` | Seis fundos de avatar de agente (`AGENT_COLORS`), com texto branco por cima |
 
-Os contrastes calculados de `superficie` e `ia-500` estão no comentário ao lado
+Os contrastes calculados de `superficie`, `ia-500` e `agente-*` estão no comentário ao lado
 (`apps/web/src/index.css:22-26`). Não copie os números para cá.
 
 ## 2. O tema não existe em React
@@ -41,10 +40,9 @@ nenhum componente tem condicional de tema. O mecanismo é:
    `localStorage["yb:tema"]` (caindo para `prefers-color-scheme`) e define
    `document.documentElement.dataset.tema`.
 2. `index.css` redefine **as mesmas variáveis** sob `:root[data-tema="claro"]`.
-3. `apps/web/src/lib/tema.ts` apenas **lê** o que o script já aplicou, e só grava na primeira
-   troca manual. `useTema` é **um armazenamento só** para a aplicação (`useSyncExternalStore`,
-   `tema.ts:33`): trilho e paleta trocam o tema e um vê a troca do outro. Não crie `useState` de
-   tema num componente — o porquê está em `tema.ts:7-9`.
+3. `apps/web/src/lib/tema.ts` só **lê** o que o script aplicou e grava na primeira troca manual.
+   `useTema` é **um armazenamento só** (`useSyncExternalStore`, `tema.ts:33`): trilho e paleta veem
+   a troca um do outro. Não crie `useState` de tema num componente (porquê em `tema.ts:7-9`).
 
 Consequências obrigatórias:
 
@@ -53,8 +51,8 @@ Consequências obrigatórias:
 - **Sombra não segue essa regra do jeito ingênuo.** O Tailwind v4 **copia** o valor de `--shadow-*`
   para dentro da utilidade no build; redefinir `--shadow-e2` no bloco claro não muda nada. Sombra
   que troca com o tema mora em `--sombra-*` em `:root` **e** no bloco claro, e o `@theme` só aponta
-  para ela (`--shadow-e1: var(--sombra-e1)`, `apps/web/src/index.css:49`). Sombra feita só de
-  `color-mix` sobre token de cor (`--sombra-brilho-ia`, `:111-113`) já troca sozinha e fica só em `:root`.
+  para ela (`--shadow-e1: var(--sombra-e1)`, `apps/web/src/index.css:61`). Sombra feita só de
+  `color-mix` sobre token de cor (`--sombra-brilho-ia`, `:123-125`) já troca sozinha e fica só em `:root`.
 - Cores de estado (`red`, `amber`, `emerald`, `sky`, `rose`, `violet`) têm valores próprios no tema
   claro — um vermelho calibrado para fundo escuro reprova em contraste sobre fundo claro.
 - **Não mova a decisão de tema para o React.** O comentário em `index.html` registra que isso
@@ -76,9 +74,9 @@ redeclara**. As cópias locais divergiriam do traço sem ninguém notar.
 `ICONE_TIPO` mapeia `NoteKind` para ícone e precisa continuar total — um `kind` novo no enum exige
 entrada nova ali.
 
-Grepe `export function Icone` antes de desenhar: a Etapa 5 trouxe relógio, check, clipe, recarregar
-e o chevron. Ícone que só muda de orientação ganha prop, não cópia — `IconeChevron({ direcao })`
-(`Icones.tsx:300-310`).
+Grepe `export function Icone` antes de desenhar. Ícone que só muda de orientação ganha prop, não
+cópia — `IconeChevron({ direcao })`
+(`Icones.tsx:324-334`).
 
 **Glifo unicode que é sigla fica glifo.** As siglas de prazo e de prioridade (`!`, `◷`, `▤`, `⬆`,
 `⬇`) em `CartaoCard.tsx:19-30` e `pages/DashboardPage.tsx:19-23` são texto de propósito,
@@ -91,7 +89,7 @@ não depende de cor (§4): não as troque por SVG nem as apague como resíduo.
   letra (`A/P/T/W/L`), o prazo tem símbolo, o link quebrado tem sublinhado tracejado **e** o sufixo
   `(criar)`.
 - Foco visível é global e incondicional. Não remova `outline` de nada. O `:focus-visible` global
-  **não leva `border-radius`** (`index.css:221`): fora de camada ele vencia o `rounded-*` e o botão
+  **não leva `border-radius`** (`index.css:241`): fora de camada ele vencia o `rounded-*` e o botão
   mudava de forma ao receber foco. Não o devolva.
 - Ícone sem texto leva rótulo `sr-only`.
 - Erro usa `role="alert"`; status de salvamento usa `aria-live="polite"`.
@@ -129,12 +127,12 @@ de navegação, no lugar da antiga barra lateral única:
   Topo comum: workspace e busca. Mora na coluna `yb:col-nav`, a mesma da barra antiga, para a largura
   já ajustada sobreviver. `Item`, `Titulo`, `Secao` e `CartaoTags` estão em `casca/partes.tsx`.
 - **O painel recolhe** (`Ctrl+\`, chave `yb:contexto-recolhido`) e é desmontado, não escondido
-  (`Aplicacao.tsx:390-396`). O foco que ele levava junto vai para o botão que o traz de volta,
-  `ID_MOSTRAR_CONTEXTO` (`Aplicacao.tsx:116-129`).
+  (`Aplicacao.tsx:413-419`). O foco que ele levava junto vai para o botão que o traz de volta,
+  `ID_MOSTRAR_CONTEXTO` (`Aplicacao.tsx:125-138`).
 - **Recolhido, o trilho herda a regra da seção fechada:** o ponto de filtro ativo em Notas
-  (`Trilho.tsx:193-201`, com o texto no `aria-label`, `:189`) e o selo do workspace ativo
-  (`:274-289`).
-  O ponto é calculado da última lista `/n?…` visitada (`Aplicacao.tsx:378`), não da rota atual —
+  (`Trilho.tsx:194-202`, com o texto no `aria-label`, `:190`) e o selo do workspace ativo
+  (`:276-291`).
+  O ponto é calculado da última lista `/n?…` visitada (`Aplicacao.tsx:401`), não da rota atual —
   vale também fora de Notas. Controle novo no painel que filtre algo ganha sinal no trilho.
 - **`/ajustes` é uma casca de rotas internas** (Etapa 4): `pages/AjustesPage.tsx` só tem o
   cabeçalho comum e as rotas `modelos`, `provedor` e `gasto`; as seções moram em
@@ -144,31 +142,32 @@ de navegação, no lugar da antiga barra lateral única:
   mesma linha flex, **empurra** o conteúdo em vez de cobri-lo e segue aberto enquanto se navega.
   **Não é modal** (RNF-05 da Fase 1): sem véu, sem foco preso, e por isso não é `Dialogo`. O `Esc`
   global (`fecharTudo`) não o fecha; o `Esc` só vale com o foco dentro (`onKeyDown` do `<aside>`,
-  `:57-61`), e quem tem `Esc` próprio lá dentro — menu do `@` no `Compositor`, `Menu`, renomear
+  `:60-64`), e quem tem `Esc` próprio lá dentro — menu do `@` no `Compositor`, `Menu`, renomear
   conversa — para a propagação. **`Dialogo` lá dentro é o avesso**: o `Esc` dele mora no
   `document`, e `stopPropagation` o calaria; ele vai num wrapper `contents` com `preventDefault`,
-  e o `<aside>` ignora o `Esc` já tratado (`Conversa.tsx:510-518`; `PainelAssistente.tsx:58`). Fechar devolve o foco à origem ou, sem ela, ao botão do trilho
-  `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:216-225`). `Ctrl+Shift+Y` e o comando da paleta alternam;
-  em `/assistente`, onde o painel não existe, focam o campo — alternar ali fecharia a sessão na tela
-  (INV-56). Fechar no meio de uma resposta para o fluxo. **`/assistente` não tem id de conversa**:
-  levar a uma conversa é `selecionar(id)` e `abrirPainel()`, como a faixa da marca de IA
-  (`MarcaIA.tsx:112-115`).
+  e o `<aside>` ignora o `Esc` já tratado (`Conversa.tsx:530-538`; `PainelAssistente.tsx:61`).
+  Fechar devolve o foco à origem ou ao botão do trilho `ID_BOTAO_PAINEL`
+  (`lib/sessaoChat.tsx:278-287`). `Ctrl+Shift+Y` e o comando da paleta alternam; na tela do chat,
+  onde o painel não existe, focam o campo (INV-56). **A tela do chat não tem id de conversa**:
+  levar a uma é `selecionar(id)` e `abrirPainel()`, como a faixa da marca (`MarcaIA.tsx:124-127`).
+- **A área Assistente tem três telas, e o painel existe em duas** (Etapa D): o chat em `/assistente`
+  e, em `/assistente/agentes…`, galeria e editor de agentes, sem item novo no trilho. "Estou na
+  tela do chat?" é `naTelaDoChat`, nunca o prefixo da rota (INV-56).
 - **Levar texto ao assistente preenche e abre; nunca envia, e abre conversa nova.** Uma mensagem são
   até cinco chamadas pagas, e quem digitou ainda não viu modelo nem teto. Assim fazem o "Pergunte ao
   seu acervo" (`pages/DashboardPage.tsx:114-131`) e o "Perguntar ao assistente" da paleta
-  (`Aplicacao.tsx:537-551`). Atalho novo para o chat segue os dois.
+  (`Aplicacao.tsx:569-583`). Atalho novo para o chat segue os dois.
 
 ## 6. Chaves de `localStorage`
 
-Prefixo `yb:`. Hoje: `yb:tema`, `yb:workspace`, `yb:modo-nota`, `yb:secao:<chave>`, `yb:col-nav`,
-`yb:col-lista`, `yb:col-card`, `yb:contexto-recolhido`, `yb:col-chat`, `yb:chat-aberto`.
+Prefixo `yb:`, sempre — grepe `"yb:` em `apps/web/src` antes de criar uma, para não colidir.
 
 **Filtro de lista não é preferência de dispositivo:** os de notas moram na URL
 (`lib/filtrosUrl.ts`), para o Voltar desfazer e o filtro virar link — e toda navegação em `/n`
 precisa carregá-los (INV-55).
 
 O princípio: **preferência com formato de dispositivo mora em `localStorage`; dado com formato de
-conta mora no banco.** Chave nova segue o prefixo.
+conta mora no banco.**
 
 ## 7. Atalhos de teclado
 
@@ -181,10 +180,14 @@ Atalho global entra em **dois lugares**: o ouvinte único de `window`, `useAtalh
 `stopPropagation()` quando o atalho for local a um campo — `preventDefault()` sozinho não impede o
 listener de `window` de receber o evento (INV-39 mostra onde isso já custou caro).
 
-**A paleta também executa comandos** (Etapa 5): a lista mora em `Aplicacao.tsx:296-371`, e `>` no
+**A paleta também executa comandos** (Etapa 5): a lista mora em `Aplicacao.tsx:307-394`, e `>` no
 início troca a busca por só comandos (`Paleta.tsx:31-32`, `:72-75`). O `atalho` de um comando é só
 exibido (`Paleta.tsx:14-17`) — o atalho continua entrando nos dois lugares acima. Ação nova do
 trilho ou de atalho ganha comando. O `Enter` espera a busca responder (`Paleta.tsx:137-142`).
+
+**Atalho de uma tela vale só com o foco dentro dela.** O `Ctrl+S` do editor de agentes ouve no
+`document` e confere se o foco está na raiz — com o painel do assistente ao lado, `Ctrl+S` no
+compositor não salva o agente, e o diálogo em portal fica de fora (`EditorAgente.tsx:482-513`).
 
 **No editor de notas o atalho entra em dois lugares ou em nenhum**: a `<textarea>` casa a tecla à
 mão em `Editor.tsx`, e o modo ao vivo declara no `keymap` de `editorMd.ts`. Cobrir só um faz o
@@ -206,19 +209,18 @@ avulsos antigos migram quando o arquivo é tocado.
 |---|---|
 | `font-sans` / `font-mono` | Inter, com a pilha de sistema como recuo; `mono` para tecla e código |
 | `text-miudo` | 11/16 — o degrau abaixo de `text-xs` |
-| `rotulo` (`@utility`, `index.css:195`) | Título de seção: miúdo, caixa alta, `ink-400` |
+| `rotulo` (`@utility`, `index.css:215`) | Título de seção: miúdo, caixa alta, `ink-400` |
 | `rounded-etiqueta` / `controle` / `cartao` / `dialogo` | Raio por papel |
 | `shadow-e1` … `e4`, `shadow-brilho-ia` | Elevação crescente; o brilho só em área de IA |
 | `ease-saida` / `ease-padrao` | Curvas de entrada e de transição comum |
 | `animate-surgir` / `animate-surgir-veu` | Entrada de caixa flutuante e do véu atrás dela |
-| `animate-deslizar-esquerda` | Entrada de painel que surge da direita (o do assistente) |
-| `animate-deslizar-direita` | Entrada do `Dialogo` lateral, que surge da esquerda (a gaveta) |
+| `animate-deslizar-esquerda` / `-direita` | Painel que surge da direita (assistente) / `Dialogo` lateral que surge da esquerda (gaveta) |
 | `animate-subir` | Entrada de `Toast` na pilha do pé da tela |
 | `--veu` | Fundo atrás de diálogo — variável em `:root`, fora do `@theme`, porque não é cor de texto |
-| `--z-popover` < `veu` < `dialogo` < `soltura` < `toast` | A escala de camadas (`index.css:117-121`); `z-(--z-dialogo)`, não `z-50` avulso |
+| `--z-popover` < `veu` < `dialogo` < `soltura` < `toast` | A escala de camadas (`index.css:129-133`); `z-(--z-dialogo)`, não `z-50` avulso |
 
 - **`text-[10px]` e `text-[11px]` estão proibidos.** São `text-miudo`. 10px fica ilegível em Inter.
-- **Toda animação nova passa pelo bloco `prefers-reduced-motion`** (`index.css:206`), que zera
+- **Toda animação nova passa pelo bloco `prefers-reduced-motion`** (`index.css:226`), que zera
   duração de animação e transição. Ele usa `0.01ms`, não `none`, para o `animationend` continuar
   disparando — não "simplifique". **Animação feita em JS o CSS não alcança**: ela lê
   `useMovimentoReduzido` (`lib/movimento.ts`) — hoje a soltura do `DragOverlay` do quadro de
@@ -234,19 +236,24 @@ cópias à mão tinham divergido (o porquê está em `components/base/Botao.tsx:
 | Arquivo | Exporta |
 |---|---|
 | `Botao.tsx` | `Botao` (variantes `primario`, `secundario`, `fantasma`, `perigo`, `ia`; `carregando`) e `BotaoIcone`, cujo `rotulo` vira nome acessível e dica, com `tamanho` `p`/`m`/`g` |
-| `Bloco.tsx` | `Bloco` (variante `ia` com fio de gradiente), `Vazio`, `Esqueleto` de altura fixa |
+| `Bloco.tsx` | `Bloco` (variante `ia` com fio de gradiente), `Vazio`, `Esqueleto` de altura fixa. **Tem `overflow-hidden`**: lista ou menu que abre para fora é cortado — o editor de agentes usa `Parte` local sem ele (`EditorAgente.tsx:174-214`, razão em `:192-193`) |
 | `Aviso.tsx` | Aviso inline, tom `erro`/`alerta`/`info`, glifo sempre; `urgente` promove `status` a `alert` |
 | `IndicadorSalvamento.tsx` | Estado do autosave com texto, único para nota e card |
 | `Dialogo.tsx` | Modal com véu, portal, `Esc`, foco preso; `posicao` `centro`, `topo` (paleta) ou `lateral` (gaveta, encostada no trilho, altura toda) |
 | `Toast.tsx` | `PilhaFlutuante`, o pé da tela que empilha o que flutua, e `Toast` (`role="status"`, uma ação no máximo); erro ali dentro continua `Aviso` |
 | `Tecla.tsx` | Combinação de teclas partida em `<kbd>` |
-| `Menu.tsx` | Menu de ações com gatilho por render prop; ↑/↓/Home/End, `Esc` para ali e devolve o foco; `lado` inclui `baixo-fim`, alinhado à direita do gatilho |
+| `Menu.tsx` | Menu de ações com gatilho por render prop; ↑/↓/Home/End, `Esc` para ali e devolve o foco; `lado` inclui `baixo-fim`, alinhado à direita do gatilho, e `cima`, para gatilho no pé |
 | `Etiqueta.tsx` | Pílula de informação, tom `neutro`/`destaque`/`ia`; vira `<button>` só com `como="button"` |
+| `Interruptor.tsx` | Liga/desliga: `<button role="switch">`, `aria-checked`, rótulo e descrição acessíveis, e "ligado"/"desligado" escrito à vista |
 
 - **Primitivo só nasce na etapa que tem consumidor.** `Menu` nasceu na Etapa 2 com o trilho,
-  `Etiqueta` na 3 com o chat, `Toast` na 5 com o desfazer do link; Campo e Dica estão previstos e
-  não existem — não os crie antecipados nem "por completude".
-- Botão novo é `Botao`, não `<button>` com classes copiadas.
+  `Etiqueta` na 3 com o chat, `Toast` na 5 com o desfazer do link, `Interruptor` na Etapa D da IA
+  com o editor de agentes; Campo e Dica não existem — não os crie antecipados.
+- Botão novo é `Botao`, não `<button>` com classes copiadas. **Fora de `base/` também se reusa**:
+  `CampoMarkdown` (textarea com prévia sanitizada), `SeletorDeNota` (combobox local sobre
+  `useTitulos()`) e `agentes/AvatarAgente`, o único jeito de mostrar um agente.
+- **Formulário de salvar explícito usa `useGuardaDeSaida`** (`lib/guardaDeSaida.ts`): sem
+  `useBlocker` no `BrowserRouter`, ela intercepta o `navigator`, e o Voltar fica de fora (`:16-20`).
 - **O que a base já define não se varia por `className`.** O Tailwind v4 ordena utilitários da
   mesma propriedade pelo nome no CSS gerado, não pela ordem no atributo: um `size-6` ou uma cor
   passados a `Botao`/`BotaoIcone` perdem para os da base, calados (`Botao.tsx:76-80`). Tamanho é
@@ -259,7 +266,7 @@ cópias à mão tinham divergido (o porquê está em `components/base/Botao.tsx:
 - **O que flutua fora de um `Dialogo` aberto fica inalcançável** por teclado e por leitor de tela:
   foco preso e `aria-modal`. Ação que precisa existir com ele aberto mora dentro dele — o desfazer
   do link aparece na gaveta (`GavetaLinks.tsx:453-463`) e a casca esconde o `Toast` enquanto ela
-  está aberta (`Aplicacao.tsx:479-481`).
+  está aberta (`Aplicacao.tsx:511-513`).
 - **Handler do conteúdo de um `Dialogo` não pega o foco que está na caixa.** Ela tem
   `tabIndex={-1}` (`Dialogo.tsx:70`) e o recebe num clique em área vazia; dali o evento não passa
   por filho nenhum. Tecla de lista vai num wrapper e só vale com o foco num filho (`Paleta.tsx:191`);
@@ -287,8 +294,7 @@ kanban sem compartilhar código com ele** (`:42-55`). Arraste novo copia o mesmo
 
 ## 12. A marca de conteúdo gerado por IA
 
-Nota e card com `ai` não nulo (Etapa C da frente de IA) se mostram por `components/MarcaIA.tsx`, e
-só por ele: `MarcaIA` é a pílula das listas (`Etiqueta tom="ia"`, `curta` onde não cabe
-"· revisada") e `FaixaIA` a linha sob o cabeçalho de nota e card, com "Abrir conversa". A tela só
-**mostra**: a marca vem do servidor (INV-58). Sem cor como único sinal — faísca **e** palavra, e
-"revisada" é texto (RNF-09 da IA). Superfície nova que liste nota ou card usa uma das duas.
+Nota e card com `ai` não nulo (Etapa C da IA) se mostram só por `components/MarcaIA.tsx`: a
+pílula `MarcaIA` nas listas (`curta` onde não cabe "· revisada") e a `FaixaIA` sob o cabeçalho, com
+o agente que escreveu (Etapa D) e "Abrir conversa". A tela só **mostra** (INV-58); faísca **e**
+palavra, nunca só cor (RNF-09 da IA). Superfície nova que liste nota ou card usa uma das duas.

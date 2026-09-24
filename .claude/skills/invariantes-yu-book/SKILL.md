@@ -90,7 +90,7 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-53 | Painel montado dentro de `&&` nunca recebe `aberto: false` — ele desmonta |
 | INV-54 | Membro de enum que exige escolha do usuário só existe se a tela o percorrer |
 | INV-55 | Toda navegação dentro de `/n` carrega o `search`, onde moram os filtros |
-| INV-56 | O laço do chat não roda sem superfície visível; em `/assistente`, nada alterna o painel |
+| INV-56 | O laço do chat não roda sem superfície visível; na tela do chat, nada alterna o painel |
 | INV-57 | No quadro de modelos a alça é o único ativador do arraste; menu e botão ficam fora |
 
 ---
@@ -184,6 +184,15 @@ usuário, e o modelo passou a escrevê-lo. Ela **estreitou INV-52**: "o chat nã
 escrita" deixou de valer, e a primeira condição trocou de `FERRAMENTAS_DE_LEITURA` para uma lista
 explícita, conferida também na execução. O censo foi o que envelheceu — "nove ações", "as quatro de
 escrita" —, em skill, agente e `CLAUDE.md` ao mesmo tempo.
+
+A **Etapa D da frente de IA** (2026-09-24, §5.6 do PRD de IA) trouxe os agentes especialistas e
+nenhuma invariante nova: **estreitou quatro**. INV-52 ganhou a terceira condição (`permitidas`, sem
+padrão) e a vizinha RN-13; INV-59 chegou a agente, nota-base e coluna, com três estreitamentos que
+parecem furo; INV-47, a cláusula do contexto que vai em todo passo; INV-56, o quinto ponto e a
+troca de `/assistente` por `naTelaDoChat`. Esta última é a lição: **um predicado usado como nome**
+— "está no assistente" — morava em três arquivos, e uma rota nova dentro da área mudou o que ele
+significava sem mudar uma letra dele. Quando a resposta certa depende de *para quê* se pergunta
+(qual painel contextual? o chat está à vista?), são duas funções.
 
 O que ainda não tem código: **busca semântica** (§5.4). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
 **menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece:

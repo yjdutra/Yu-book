@@ -85,10 +85,11 @@ está: fases 1 a 5 em `docs/old/prd-fase-*.md`, fase nova em `docs/prd-fase-*.md
 escreve **não** renumera nem inventa prefixo de fase para desambiguar — o código inteiro já cita
 assim, e mudar metade dele é pior que a ambiguidade.
 
-**Nem todo PRD é de fase.** O `RF-xx` de `apps/api/src/modules/assistente/`, de
-`packages/shared/src/ia.ts` e da tela `/ajustes` resolve para `docs/prd-ia-no-yu-book.md`, que tem
-**fases próprias de 1 a 4** dentro dele (§5.1 a §5.4) e foi entregue em etapas com letra. "Fase 2"
-num comentário do módulo de IA é *Formatar nota*, não a Fase 2 de produto.
+**Nem todo PRD é de fase.** O `RF-xx` de todo código que serve o assistente, em qualquer pacote —
+`modules/assistente/`, `/ajustes`, agentes, a marca de IA — resolve para
+`docs/prd-ia-no-yu-book.md`, que tem **fases próprias de 1 a 4** (§5.1 a §5.4) e seções de etapa
+sem fase (§5.5 em diante), entregues em etapas com letra. "Fase 2" num comentário do módulo de IA é
+*Formatar nota*, não a Fase 2 de produto.
 
 ```ts
 // RF-15. Ctrl+L puro é a barra de endereço do navegador — daí o Shift.
@@ -107,6 +108,12 @@ Sem barris (`index.ts` reexportador) em `apps/web`, inclusive nas subpastas: imp
 `components/` admite **subpasta por papel** — primitivos em `base/`, a casca em `casca/`, e uma
 por área que cresceu além de um arquivo, como `assistente/` e `ajustes/`. `lib/` mistura hooks,
 utilitários puros e módulos de query — não reorganize.
+
+**Caractere invisível ou de controle vai no fonte como escape `\uXXXX`, nunca literal** — em
+regex inclusive (`[\u0300-\u036f]`, `U+2028`, `U+FEFF`). Literal não se vê na revisão, e `U+2028`
+dentro de regex é quebra de linha para o parser. As ferramentas de edição de agente já gravaram o
+literal no lugar do escape: grave por script e confira com
+`grep -nP '[\x{0001}-\x{0008}\x{007f}-\x{009f}\x{0300}-\x{036f}\x{2028}\x{2029}\x{feff}]'`.
 
 ## 6. Verificação
 

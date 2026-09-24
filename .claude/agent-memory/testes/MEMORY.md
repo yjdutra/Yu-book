@@ -5,27 +5,26 @@
 
 ## Onde ficam as coisas
 
-- Duas suítes vitest desde 2026-09-01: `apps/api/tests/` (integração, exige Postgres) e
-  `apps/mcp/tests/` (unitária, não exige nada no ar). Seu escopo declarado é só a primeira.
-- Arnês JSON-RPC em memória: `apps/mcp/tests/arnes.ts`. Não usa o `Client` do SDK de propósito —
-  ele não manda `authInfo` por mensagem, e `InMemoryTransport.send(msg, { authInfo })` manda. É o
-  fio para testar autorização por chamada.
+- Duas suítes vitest: `apps/api/tests/` (integração, Postgres) e `apps/mcp/tests/` (nada no ar).
+- Arnês JSON-RPC do MCP: `apps/mcp/tests/arnes.ts` — sem o `Client` do SDK, que não manda
+  `authInfo` por mensagem; é o fio para testar autorização por chamada.
+- Dublê SSE do provedor: `apps/api/tests/provedor.ts`, de `chat.test.ts` e `agentes.test.ts`.
 
 ## O que já nos mordeu
 
-- **Duas rodadas de `pnpm --filter @yu-book/api test` contra o mesmo Postgres se derrubam**: o
-  `limpar()` de uma apaga os usuários da outra (`apps/api/tests/apoio.ts:26`). Medido 2026-09-23 —
-  sozinha 3/3 verdes, com rival em paralelo 2/3 caem com `response destroyed before completion`.
-  **Não é defeito de código** e o sintoma aponta para o lugar errado: antes de caçar falha
-  intermitente, pergunte se um agente está rodando o portão.
-- Irmã dela, `EADDRINUSE` em 127.0.0.1:39333 após rodada interrompida: descrita na entrada de
-  2026-09-23 de `docs/historico.md`. Também parece defeito do chat.
-- O SDK MCP valida os argumentos **antes** do handler: guarda dentro do handler nunca é alcançada
-  por chamada malformada, e um teste que chame com `{}` prova a coisa errada. `argumentosMinimos`
-  deriva do `inputSchema` (`apps/mcp/tests/escrita.test.ts:65`).
+- Duas rodadas da suíte da API no mesmo Postgres se derrubam: o `limpar()` de uma apaga os usuários
+  da outra (`apps/api/tests/apoio.ts:26`); antes de caçar falha intermitente, pergunte quem roda o portão.
+- Irmã: `EADDRINUSE` em 127.0.0.1:39333 após rodada interrompida (`docs/historico.md`, 2026-09-23).
+- O SDK MCP valida argumentos **antes** do handler: chamar com `{}` prova a coisa errada.
+  `argumentosMinimos` deriva do `inputSchema` (`apps/mcp/tests/escrita.test.ts:65`).
+- `chamar` faz `JSON.parse` do corpo (`apoio.ts:63`): rota que não devolve JSON, como o export
+  do agente, vai por `app.inject` direto (`agentes.test.ts:1088`).
 
 ## Decisões em vigor
 
-- Lista que o teste enumera à mão herda o furo que ele fecha: derive-a do sistema. E lista derivada
-  por **diferença** tem cegueira — o item que vaza para os dois lados é subtraído e some do exame.
-  Pague com a asserção inversa (`apps/mcp/tests/escrita.test.ts:109`).
+- Lista que o teste enumera à mão herda o furo que fecha: derive-a. Lista derivada por diferença
+  cega o que vaza dos dois lados — pague com a asserção inversa (`escrita.test.ts:109`).
+- Dublê de resposta da API tipado pelo tipo de `shared` (`AiMark`), nunca literal solto: campo
+  novo quebra o typecheck (`apps/mcp/tests/marca.test.ts:29-41`).
+- Corrida sem depender de tempo: `vi.spyOn(...).mockImplementationOnce` que chama o original e
+  age no meio (`apps/api/tests/agentes.test.ts:977`).

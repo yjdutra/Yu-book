@@ -288,13 +288,13 @@ Diante de um campo, entidade ou filtro novo no domínio, percorra:
 - [ ] **`src/verificar.ts`** — vale reportar no diagnóstico?
 
 Se a resposta for "nada muda", **diga isso explicitamente**. Silêncio é indistinguível de
-esquecimento.
+esquecimento. **As funções da frente de IA — chat, agentes — não viram tool** (NO3 e RF-53 do PRD
+de IA): quem usa o MCP já traz o próprio modelo. O que propaga é o **dado** que elas gravam — a
+marca, com o agente que escreveu, chega às tools por `formato.ts` sem nada neste pacote mudar.
 
 ## 15. Como verificar
 
-`pnpm --filter @yu-book/mcp test` é o **quarto portão** do projeto e não precisa de banco nem de API
-no ar. Desde o arnês em memória (`tests/arnes.ts`) ele fala JSON-RPC e vê a **superfície** de tools;
-desde `tests/fuso.test.ts` ele executa também a **formatação**, com o `fetch` dublado — foi ali que
-INV-40 ganhou portão. O que continua sem portão: o **texto** das `description` e o tamanho do
-`tools/list` (§4.6 de `contrato-compartilhado`). O que ele cobre, os comandos, o ambiente local de
-escrita e as duas provas de progresso estão em **`referencias/verificacao.md`**.
+`pnpm --filter @yu-book/mcp test` é o **quarto portão** e não precisa de banco nem de API no ar:
+pelo arnês em memória (`tests/arnes.ts`) fala JSON-RPC e, com o `fetch` dublado, executa a
+formatação. Sem portão: o **texto** das `description` e o tamanho do `tools/list` (§4.6 de
+`contrato-compartilhado`). Cobertura, comandos e ambiente em **`referencias/verificacao.md`**.

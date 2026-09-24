@@ -64,7 +64,7 @@ essa separação.
 - **`card` e `board_column` não têm `user_id`.** A posse resolve pela cadeia até `board.userId`,
   dentro da própria query. Id alheio devolve **404, não 403**.
 - **`porSimilaridade` repete o termo inline.** Movê-lo para um CTE faz o planner perder o índice —
-  há comentário em `modules/notes/search.service.ts:307` registrando a verificação.
+  há comentário em `modules/notes/search.service.ts:308` registrando a verificação.
 - **`left(content_md, ${N}::int)` precisa do cast** porque o Prisma envia número como `bigint`.
 - **O limite de WIP não é validado.** É sinalização visual, por decisão de produto.
 - **O recálculo de wikilinks é condicional** (`mesmosLinks`), e por isso criar, renomear e restaurar

@@ -33,6 +33,10 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    entra no `.omit`, ou vira editável por PATCH sem ninguém ter decidido.
 6. Se o módulo novo **constrói valor em escopo de módulo** — objeto, array, `z.object(...)`,
    qualquer coisa que não seja só `type`/`interface` —, confira o bundle do front antes de fechar.
+   A flag abaixo só poda o que ninguém importa: **valor importado entra**, com o que o módulo
+   dele constrói. Módulo do front que está no bundle inicial importa de `shared` só `import type`
+   quando o valor traria schema ou metadado — `apps/web/src/lib/agentes.ts:16-18`, lido pelo
+   painel contextual.
 
 **`"sideEffects": false` no `package.json` de `shared` não é enfeite, e não se remove.** Sem ele o
 bundler não pode presumir que importar `@yu-book/shared` é inócuo, e **todo** módulo do pacote entra
@@ -161,8 +165,9 @@ exatamente o que a doutrina manda. O risco mudou de forma, não de tamanho.
   `kanban-escrita.ts`, `notas-escrita.ts`) — a `descricao` é o contrato de conversa do servidor MCP
   com qualquer modelo que se conecte;
 - `apps/api` o oferece ao provedor no campo `tools` de **todo turno** do chat
-  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:231`, só as de
-  `FERRAMENTAS_DO_CHAT`) — ali a `descricao` é contrato **e** custo por turno.
+  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:250`, só as de
+  `FERRAMENTAS_DO_CHAT`, estreitadas pela lista do agente da conversa) — ali a `descricao` é
+  contrato **e** custo por turno.
 
 Editar uma `descricao` para melhorar o chat muda o que o MCP publica, e encarece ou barateia todo
 turno. **Nenhum teste fica vermelho.** `apps/mcp/tests/escrita.test.ts` confere **quais** tools são
@@ -173,8 +178,8 @@ sobre o `tools/list` em bytes.
 definição e dois consumidores — tools e resources do MCP, executores do chat (§7 da skill
 `servidor-mcp-yu-book`) — e ali o texto não é só contrato: é o **resultado** sobre o qual o modelo
 decide continuar ou desistir. `formatarBusca` diz, no caso vazio, que a busca é por palavra sobre
-título e corpo e manda tentar o substantivo sozinho (`:200-201`); o argumento e o episódio que o
-motivou estão no comentário ao lado (`:191-199`). Mudar uma dessas frases muda as duas superfícies,
+título e corpo e manda tentar o substantivo sozinho (`:203-204`); o argumento e o episódio que o
+motivou estão no comentário ao lado (`:194-202`). Mudar uma dessas frases muda as duas superfícies,
 e nenhum teste fica vermelho.
 
 Então, ao tocar em `ferramentas.ts`: diga no relato que as duas superfícies mudaram, e **meça** o
