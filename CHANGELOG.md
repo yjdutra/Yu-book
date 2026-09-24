@@ -13,6 +13,360 @@ _Nada pendente._
 
 ---
 
+## [0.18.0] — 2026-09-24
+
+**Etapa 5 de 5 do redesenho de UI/UX, a última: polimento.** Os primitivos e os tokens da Etapa 1
+chegam às telas que ainda não os usavam: dashboard, notas, kanban, card, boards, gaveta de links,
+paleta, login e os seletores. O dashboard e a paleta ganham conteúdo novo. A gaveta e a paleta viram
+diálogos com foco preso. **Com esta entrada o redesenho está concluído**, e o fechamento das cinco
+etapas vem logo abaixo. Ela leva também um ajuste de ordem na seção Modelos, da Etapa 4, feito no
+fechamento.
+
+**Entrada separada da `[0.17.0]`**, pelo mesmo precedente das anteriores: cada etapa do redesenho
+tem plano, revisão e dívida de conferência próprios. Só **`apps/web` vai de `0.13.0` para
+`0.14.0`**; `apps/api` fica em `0.9.1`, `packages/shared` em `0.7.0`, `apps/mcp` em `0.10.0`. Nada
+fora de `apps/web` foi tocado.
+
+Portões, medidos nesta árvore: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo nos
+quatro pacotes e `vite build` ok. As suítes da API e do MCP não foram rodadas: nada do que elas
+exercitam mudou. O revisor não achou invariante violada. Suas observações foram corrigidas antes
+desta entrada.
+
+**Entregue sem conferência de interface à mão, pela quinta etapa seguida, e conferida no
+fechamento.** Nenhuma das cinco etapas foi vista na tela antes de ser dada como entregue. Depois da
+Etapa 5, ainda em 2026-09-24, **o usuário fez a conferência à mão das cinco etapas, `[0.14.0]` a
+`[0.18.0]`, e relatou que tudo funcionou**. Isso inclui as correções desta entrada: o arraste de
+cards do kanban e de favoritos da gaveta pelo teclado, e as duas mensagens de
+`MODELO_NAO_ESCOLHIDO`. O registro é o relato do usuário, não um checklist marcado item por item.
+`apps/web` continua sem runner de teste: a conferência vale para esta árvore e não vigia a próxima.
+
+**O redesenho inteiro**, de 2026-09-24, cinco etapas, `[0.14.0]` a `[0.18.0]`, com `apps/web` de
+`0.9.0` a `0.14.0` e `apps/api` em `0.9.1`:
+
+1. **Fundação visual** (`[0.14.0]`): fonte Inter, tokens, texto miúdo a 11 px e os primeiros
+   primitivos em `components/base/`.
+2. **Casca e navegação** (`[0.15.0]`): trilho de áreas, painel contextual recolhível e os filtros de
+   notas na URL.
+3. **Assistente** (`[0.16.0]`): painel lateral que empurra o conteúdo e rota `/assistente`, duas
+   vistas da mesma conversa.
+4. **Ajustes** (`[0.17.0]`): `/ajustes` em três seções e o quadro de modelos arrastável.
+5. **Polimento** (esta entrada).
+
+O que fica em aberto, somado: **a janela de concorrência do arraste do kanban** e **a ausência de
+runner de teste em `apps/web`**. O `useMoverCard` tem a mesma janela de mutação otimista que o
+quadro de modelos fechou na Etapa 4, e não foi mexido.
+
+### Adicionado
+- **Saudação no dashboard**, pelo período do dia e com o nome, mais a data por extenso e o
+  workspace ativo.
+- **Bloco "Pergunte ao seu acervo" no dashboard.** Ele abre o painel do assistente numa conversa
+  nova, com o texto no campo e sem enviar.
+- **Bloco Boards no dashboard**, e a tela passa a uma grade: Prazos ao lado de Onde você parou, Ver
+  depois ao lado de Boards. O esqueleto de carregamento segue a mesma grade.
+- **Prazos com ícone e etiqueta de prioridade.** O leitor de tela ouve "Vencido:" antes de um prazo
+  vencido, e o card que vence hoje diz "vence hoje".
+- **Comandos na paleta (`Ctrl+K`)**: ir para cada área, nova nota, salvar link, painel do
+  assistente, alternar tema e lista de atalhos. Começar a busca com `>` mostra só os comandos.
+- **"Perguntar ao assistente: «texto»"**, último item da paleta. Ele abre uma conversa nova com o
+  texto digitado, sem enviar.
+- **Barra de ações única no editor de nota**: os quatro modos num controle segmentado, Formatar,
+  Copiar, Assistente, o indicador de salvamento, favoritar e fechar.
+- Cinco ícones novos, desenhados à mão: relógio, check, clipe, chevron e recarregar.
+
+### Alterado
+- **A gaveta de links vira um diálogo lateral**, com o foco preso enquanto está aberta e devolvido
+  a quem o tinha ao fechar. O "Desfazer" da remoção de um link aparece dentro da gaveta enquanto
+  ela está aberta.
+- **A paleta vira um diálogo no topo da tela.** O `Enter` espera os resultados da busca chegarem,
+  para não executar um comando por engano. Em `/assistente`, o comando do painel não interrompe a
+  resposta em curso, como o atalho.
+- **O tema segue o sistema até a primeira troca manual.** Antes, a primeira carga já gravava o tema
+  do sistema como escolha, e mudar o sistema depois não tinha mais efeito. Agora só a troca pelo
+  usuário é gravada, como pedem o RF-20 e o RF-21 da Fase 4. O tema continua aplicado antes da
+  primeira pintura, sem piscar.
+- **Lista de notas**: itens arredondados, o ativo em superfície com uma barra, tags em etiqueta, e o
+  esqueleto na medida nova.
+- **Erros do editor em aviso, o desfazer em aviso informativo e foco visível no título.**
+- **Kanban**: colunas e cards com os tokens novos, glifos trocados por ícones e foco visível nos
+  campos. O arraste funciona como antes.
+- **Em Ajustes → Modelos, o catálogo do provedor vem antes do quadro "Modelo de cada tarefa"**
+  (ajuste da Etapa 4). Quem favorita primeiro e arrasta depois lê a página de cima para baixo. Os
+  textos que apontam de um para o outro acompanham: "Favorite modelos no catálogo acima" no quadro
+  sem favoritos, e "Tire-o da tarefa no quadro abaixo" no catálogo.
+- O painel do card, a lista de boards e o board usam os botões, avisos, esqueletos e ícones da
+  Etapa 1. As zonas de soltura, o seletor de workspace, o seletor de tags, o login e o popover do
+  editor passam aos tokens e aos ícones.
+
+### Corrigido
+- **O arraste de cards do kanban pelo teclado nunca começava** (RF-25 da Fase 2). O `Espaço` não
+  pegava o card. O defeito vinha desde a Fase 2, que deu o requisito como entregue. A mecânica do
+  arraste não mudou.
+- **Na gaveta de links, o arraste de favoritos pelo teclado nunca começava.** Agora começa com
+  `Espaço`, e durante o gesto as setas movem o favorito em vez de trocar de aba.
+- **O botão do assistente no card não mostrava a cor dele.**
+- **Trocar o tema pela paleta deixava o botão do trilho com o ícone antigo**, e o clique seguinte
+  nele não fazia nada.
+- **O aviso de erro ao criar e o toast de desfazer se sobrepunham.** Agora empilham.
+
+---
+
+## [0.17.0] — 2026-09-24
+
+**Etapa 4 de 5 do redesenho de UI/UX: `/ajustes` em seções, com o quadro de modelos arrastáveis.**
+A página única de ajustes vira três seções, Modelos, Provedor e Gasto, com um cabeçalho comum. A
+tabela «Seus modelos», com um botão de rádio por tarefa, dá lugar a um **quadro**: os favoritos
+numa coluna e uma coluna por tarefa, e o modelo vai para a tarefa arrastado ou pelo menu.
+
+**Entrada separada da `[0.16.0]`**, pelo mesmo precedente das anteriores: cada etapa do redesenho
+tem plano, revisão e dívida de conferência próprios. **`apps/web` vai de `0.12.0` para `0.13.0`**
+e **`apps/api` de `0.9.0` para `0.9.1`**; `packages/shared` fica em `0.7.0`, `apps/mcp` em
+`0.10.0`. Fora de `apps/web`, só mudou o texto das duas mensagens de um erro da API, que mandavam
+marcar o modelo na tabela que esta entrada remove. O quadro usa os endpoints de tarefa e de favorito que já existiam.
+
+Portões, medidos nesta árvore: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo e
+`vite build` ok. O `@dnd-kit` ficou num chunk compartilhado com o kanban, e o bundle inicial não
+cresceu. As suítes da API e do MCP não foram rodadas. Na API, o que mudou foi só o texto de duas
+mensagens, e nenhum teste confere esse texto.
+
+**Sem conferência de interface à mão, pela quarta etapa seguida.** Nada disto foi visto na tela: o
+arraste por mouse e por teclado; a recusa do chat; o menu "Usar para…"; o erro de rede com
+rollback; o movimento reduzido; o catálogo; as seções e o medidor. `apps/web` continua sem runner
+de teste.
+
+_Emenda, no mesmo dia: o usuário conferiu esta etapa à mão no fechamento do redesenho e relatou
+que tudo funcionou. Ver a `[0.18.0]`._
+
+### Adicionado
+- **Seções `/ajustes/modelos`, `/ajustes/provedor` e `/ajustes/gasto`**, listadas no painel
+  contextual. `/ajustes` e qualquer caminho desconhecido abaixo dele levam a Modelos. Não há seção
+  de aparência: o tema continua no trilho.
+- **Cabeçalho comum às três seções**: o aviso de que o conteúdo sai da máquina, o **medidor do
+  gasto de hoje** (barra e o texto "US$ x de y"), o aviso de chamadas sem custo, o aviso de
+  provedor sem chave (RNF-03 do PRD de IA) e o erro da seção.
+- **Quadro de modelos**, com uma coluna «Seus favoritos» e uma coluna por tarefa, cada tarefa com
+  um lugar:
+  - arrastar um favorito para uma tarefa a atribui, e o favorito continua na coluna;
+  - arrastar o modelo de uma tarefa para outra o move;
+  - arrastar o modelo de uma tarefa de volta para os favoritos o tira da tarefa;
+  - a tarefa que precisa de ferramentas diz isso numa etiqueta sempre visível, e **o chat recusa
+    modelo sem ferramentas**: durante o arraste, a coluna fica tracejada, com ícone e texto, e
+    soltar ali não faz nada;
+  - o arraste começa só pela alça do cartão.
+- **Alternativa sem arraste**: o menu "Usar para…" de cada favorito, com as tarefas impedidas
+  desabilitadas e o motivo, e "Remover dos favoritos"; e o botão "Tirar de tarefa" em cada lugar
+  ocupado.
+- **Arraste por teclado no quadro**: `Espaço` pega e solta, as setas pulam de coluna em coluna e
+  `Esc` cancela, com anúncios em português para leitor de tela. Depois de tirar, remover ou mover,
+  o foco vai para a coluna onde a mudança aconteceu.
+- **O quadro responde antes da rede**: a atribuição aparece na hora e volta atrás se o servidor
+  recusar. Com várias mudanças seguidas, o quadro se acerta com o servidor quando a última termina.
+- **Catálogo em grade de cartões**, cada um com as tarefas que o modelo serve, e um estado de erro
+  com "Tentar de novo".
+- Dois ícones novos, desenhados à mão: alça de arraste e opções.
+
+### Alterado
+- **No catálogo, `Enter` ou clique num favorito o desfavorita**; antes, só favoritava.
+- **Um favorito em uso por alguma tarefa não sai pelo catálogo.** Aparece uma mensagem pedindo
+  que ele seja tirado da tarefa no quadro antes, porque desfavoritar também limpa a tarefa.
+- **Com movimento reduzido, o cartão arrastado não anima.**
+- O cartão navegado pelo teclado no catálogo não fica mais escondido sob a barra de filtros fixa.
+- O link de ajustes do assistente, no aviso sem modelo de chat, leva direto a `/ajustes/modelos`.
+- **As duas mensagens do erro `MODELO_NAO_ESCOLHIDO` mandam arrastar um modelo para a coluna da
+  tarefa, em Ajustes → Modelos**: a de tarefa sem modelo e a de modelo que saiu dos favoritos.
+  Antes, uma mandava marcar o modelo na coluna de «Seus modelos», tabela que não existe mais, e a
+  outra mandava "marcar outro nos ajustes".
+
+### Corrigido
+- **O campo do teto diário aparecia vazio ou com o valor antigo** quando a página abria antes de
+  os ajustes chegarem do servidor.
+
+### Removido
+- **A tabela «Seus modelos»** com um botão de rádio por tarefa, substituída pelo quadro.
+
+---
+
+## [0.16.0] — 2026-09-24
+
+**Etapa 3 de 5 do redesenho de UI/UX: o assistente em painel lateral e em tela cheia.** O chat
+modal da Etapa B da frente de IA sai de cena. No lugar dele, a mesma conversa tem duas vistas: um
+**painel à direita** que empurra o conteúdo, sem cobri-lo, e a rota **`/assistente`** em tela
+cheia. Passar de uma para a outra não interrompe a resposta em curso.
+
+**Entrada separada da `[0.15.0]`**, pelo mesmo precedente que separou aquela da `[0.14.0]`: cada
+etapa do redesenho tem plano, revisão e dívida de conferência próprios. Só **`apps/web` vai de
+`0.11.0` para `0.12.0`**; `apps/api` fica em `0.9.0`, `packages/shared` em `0.7.0`, `apps/mcp` em
+`0.10.0`. Nada fora de `apps/web` foi tocado.
+
+Portões, medidos nesta árvore: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo e
+`vite build` ok, com a conversa, o painel e a página do assistente em chunks próprios. As suítes da
+API e do MCP não foram rodadas: nada do que elas exercitam mudou.
+
+**Sem conferência de interface à mão, pela terceira etapa seguida.** Nada disto foi visto na tela:
+o painel empurrando o conteúdo; expandir para `/assistente` e sair dela sem interromper a resposta;
+fechar o painel cancelando o `fetch`; o botão Parar; a sugestão de contexto; o `Esc` no editor e no
+painel; renomear conversa pelo teclado; e o aviso sem modelo de chat. `apps/web` continua sem
+runner de teste.
+
+_Emenda, no mesmo dia: o usuário conferiu esta etapa à mão no fechamento do redesenho e relatou
+que tudo funcionou. Ver a `[0.18.0]`._
+
+### Adicionado
+- **Painel do assistente** à direita, com 400 px de largura, redimensionável entre 320 e 640 px, e
+  a largura lembrada entre sessões. Ele empurra o conteúdo e não é modal. O `Esc` fecha o painel
+  só quando o foco está dentro dele, e o foco volta para onde estava ou para o botão do trilho.
+- **Rota `/assistente`**, com a mesma conversa em tela cheia, um convite e três sugestões de
+  pergunta. Expandir o painel para ela não interrompe a resposta em curso. Sair dela com resposta
+  em curso abre o painel, para que a resposta continue à vista.
+- **Lista de conversas agrupada** em Hoje, 7 dias e Antes, com **renomear** (RF-24, que até aqui
+  não tinha tela) e excluir. As duas ações aparecem também com o foco do teclado, não só com o
+  mouse.
+- **Falas com avatar**, modelo e fontes consultadas em etiquetas, e um botão **Copiar** em cada
+  resposta.
+- **Botão Parar** no compositor, enquanto a resposta chega.
+- **Sugestão de contexto**: com uma nota ou um card aberto, o compositor oferece anexá-lo. É só
+  uma oferta: nada é anexado sem que se clique nela.
+- **Sem provedor ou sem modelo de chat**, o compositor mostra um aviso com link para Ajustes e o
+  campo fica desabilitado (RNF-03 do PRD de IA).
+- **"Perguntar ao assistente"** no cabeçalho do editor de nota, depois de Formatar e Copiar, e no
+  do card. O botão abre o painel com a nota ou o card já anexado.
+- **Botão "Painel do assistente"** na base do trilho, que liga e desliga o painel e some em
+  `/assistente`.
+- **Conversas recentes no Início**, e a área Assistente ganha conteúdo próprio no painel contextual.
+- Quatro ícones novos, desenhados à mão: conversas, painel direito, expandir e lápis.
+
+### Alterado
+- **O item Assistente do trilho leva a `/assistente`**, em vez de abrir o chat modal.
+- **"Conversar", no menu "+", abre o painel com uma conversa nova.**
+- **`Ctrl+Shift+Y` alterna o painel**, e em `/assistente` põe o foco no campo de mensagem.
+- **O `Esc` global não fecha mais o chat.**
+- **A resposta em curso só aparece na conversa a que pertence.** Trocar de conversa durante o
+  streaming não mostra mais a resposta da outra.
+- O modo de edição da nota passa a usar o ícone de lápis.
+
+### Corrigido
+- **Fechar o chat logo depois de enviar a primeira mensagem de uma conversa nova não interrompia a
+  resposta**, e um segundo `Enter` nesse intervalo criava duas conversas. O defeito já existia no
+  chat da Etapa B da frente de IA.
+
+### Removido
+- **O chat modal**, substituído pelo painel e pela rota `/assistente`.
+
+---
+
+## [0.15.0] — 2026-09-24
+
+**Etapa 2 de 5 do redesenho de UI/UX: a casca e a navegação.** A barra lateral única dá lugar a um
+**trilho de áreas** de 56 px e a um **painel contextual** ao lado dele, cujo conteúdo muda com a
+área em que se está. Os **filtros da lista de notas passam a morar na URL**: o Voltar do navegador
+desfaz um filtro, recarregar não o perde, e um recorte vira link. O assistente continua abrindo o
+chat modal de hoje — painel lateral e rota `/assistente` são da Etapa 3.
+
+**Entrada separada da `[0.14.0]`**, embora as duas movam o mesmo pacote e nenhuma tenha sido
+publicada: é o precedente da Fase 5, cujas Etapas B e C, ambas só em `apps/web`, ficaram em
+`[0.5.0]` e `[0.6.0]`. Cada etapa do redesenho tem plano, revisão e dívida de conferência próprios,
+e fundidas não se saberia qual delas deixou o quê sem ver. Só **`apps/web` vai de `0.10.0` para
+`0.11.0`**; `apps/api` fica em `0.9.0`, `packages/shared` em `0.7.0`, `apps/mcp` em `0.10.0`. Nada
+fora de `apps/web` foi tocado.
+
+Portões, medidos nesta árvore: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo e
+`vite build` ok. As suítes da API e do MCP não foram rodadas: nada do que elas exercitam mudou.
+
+**Sem conferência de interface à mão, pela segunda etapa seguida.** Nada disto foi visto na tela: o
+trilho e o painel nos dois temas, o menu "+" e o do avatar operados só por teclado, os filtros com
+Voltar e com recarga da página, recolher e mostrar o painel (pelo botão e por `Ctrl+\`), o badge de
+links, a lista de atalhos e a troca de workspace. `apps/web` continua sem runner de teste.
+
+_Emenda, no mesmo dia: o usuário conferiu esta etapa à mão no fechamento do redesenho e relatou
+que tudo funcionou. Ver a `[0.18.0]`._
+
+### Adicionado
+- **Trilho de áreas** à esquerda, com Início, Notas, Boards, **Assistente em destaque**, Links e
+  Ajustes. No topo, a marca, Buscar e um menu **"+"** para criar nota, criar board, salvar link ou
+  conversar; na base, atalhos, tema e o avatar com o menu **Sair**.
+- **Painel contextual** ao lado do trilho, com o seletor de workspace e a busca no topo e, embaixo,
+  o que a área pede: favoritas e boards no Início, filtros em Notas, a lista em Boards.
+- **O painel recolhe** com `Ctrl+\` ou pelo botão, e a escolha sobrevive à recarga. Recolhido, o
+  trilho mostra o workspace ativo e um ponto sobre Notas quando há filtro valendo que saiu de vista;
+  o foco vai para o botão que mostra o painel de volta.
+- **Filtros de notas na URL** — tipo, tags, favoritas, lixeira, busca e ordem (`/n?tipo=…&tags=…`).
+  Trocar filtro entra no histórico e o Voltar desfaz; a busca atualiza no lugar, sem encher o
+  histórico. Abrir, fechar e criar nota preservam o recorte. O workspace **não** vai para a URL
+  (RF-02 da Fase 2).
+- **Chips removíveis** no topo da lista de notas, um por filtro ativo.
+- **O item Notas do trilho volta à última lista visitada**, com os filtros dela.
+- **O item Links mostra quantos links estão marcados para ver depois.**
+- **"Novo board", no menu "+", já chega com o cursor no campo de nome.**
+- Quatro ícones novos, desenhados à mão: busca, mais, recolher e teclado.
+
+### Alterado
+- **A barra lateral única some**; o que ela oferecia se divide entre trilho e painel contextual.
+- **`Ctrl+N` fora da lista de notas cria uma nota livre**, em vez de herdar o tipo que estava
+  filtrado. Dentro de `/n`, continua herdando.
+- A lista de atalhos (`Ctrl+/`) ganha `Ctrl+\`.
+- O título "Yu-book" sai da vista e fica só para leitor de tela; a marca "Yu" do trilho o substitui.
+
+### Removido
+- O ícone de conversa, sem uso depois que o assistente passou a ter ícone próprio.
+
+---
+
+## [0.14.0] — 2026-09-24
+
+**Etapa 1 de 5 do redesenho de UI/UX: a fundação visual.** Tokens, fonte e seis primitivos de
+interface em `apps/web`, e as telas que já tinham consumidor para eles passando a usá-los. Nenhuma
+tela foi redesenhada ainda — isso é das etapas seguintes. O que muda à vista é a tipografia, o
+tamanho mínimo de texto, a forma do foco e o diálogo de atalhos.
+
+O redesenho é uma **quinta numeração**, aprovada em 2026-09-24 e posta **antes** da Etapa C da
+frente de IA: 1 fundação visual, 2 casca e navegação, 3 assistente em painel lateral e em
+`/assistente`, 4 `/ajustes` com o quadro de modelos por tarefa, 5 polimento das telas. "Etapa 1" daqui
+não é Etapa A ou B da frente de IA, nem etapa do MCP (que segue na **4 de 5**), nem fase de produto
+(0 a 5 fechadas). Também não é o "Redesenho da navegação" de 2026-08-20, que foi outra coisa.
+
+**Entrada separada da `[0.13.0]`**, embora nenhuma das duas tenha sido publicada: aquela moveu os
+quatro pacotes, esta só `apps/web`. Só **`apps/web` vai de `0.9.0` para `0.10.0`**; `apps/api`
+fica em `0.9.0`, `packages/shared` em `0.7.0`, `apps/mcp` em `0.10.0`. Nada em `packages/shared`,
+na API ou no MCP foi tocado.
+
+Portões, medidos nesta árvore: `pnpm --filter @yu-book/shared build` ok e `pnpm typecheck` limpo.
+Um `vite build` conferiu que todas as utilidades novas são geradas e que `.shadow-e1` resolve para
+`var(--sombra-e1)`. As suítes da API e do MCP não foram rodadas: nada do que elas exercitam mudou.
+
+**Sem conferência de interface à mão.** Não havia como entrar no app sem as credenciais do operador.
+Nada disto foi visto na tela: a Inter carregando e o recuo para a fonte de sistema sem rede, o modo
+ao vivo do CodeMirror com a métrica de fonte nova, os dois temas, a trava de foco do diálogo de
+atalhos e o movimento reduzido. `apps/web` continua sem runner de teste.
+
+_Emenda, no mesmo dia: o usuário conferiu esta etapa à mão no fechamento do redesenho e relatou
+que tudo funcionou. Ver a `[0.18.0]`._
+
+### Adicionado
+- **Fonte Inter** na interface inteira, carregada do Google Fonts com `display=swap`. Sem rede, a
+  interface cai na fonte de sistema de antes.
+- **Movimento reduzido respeitado**: com `prefers-reduced-motion`, animação e transição somem.
+- **O diálogo de atalhos (`Ctrl+/`) prende o foco**: `Tab` não escapa para a página de trás, o
+  foco começa no título e volta a quem o tinha ao fechar (RNF-06 da Fase 1).
+- **O dashboard mostra um esqueleto com a forma da tela pronta** enquanto carrega, com o mesmo
+  cabeçalho, em vez de a página saltar quando os dados chegam (RNF-11 da Fase 1).
+- Três ícones novos, desenhados à mão como os outros: assistente, fechar e alerta.
+
+### Alterado
+- **Texto miúdo sobe para 11 px.** Os rótulos e metadados escritos em 10 px, ilegíveis em Inter,
+  passam a 11/16 — são noventa ocorrências, em quase todas as telas.
+- **O contorno de foco acompanha o raio do elemento.** Antes ele trazia um raio próprio de 2 px que
+  vencia o do botão, e o botão mudava de forma ao receber foco.
+- **O botão de tema anuncia "Tema claro", pressionado ou não**, em vez de um rótulo que trocava com
+  o estado e, lido junto do `aria-pressed`, dizia duas coisas contraditórias.
+- Os avisos de `/ajustes` e o indicador de salvamento da nota e do card passam a ter a mesma forma
+  nos dois lugares, e o código de bloco em Markdown usa a mesma pilha monoespaçada do resto.
+
+### Segurança
+- **A página passa a fazer requisição a uma origem de terceiros**, `fonts.googleapis.com` e
+  `fonts.gstatic.com`, a cada carga sem cache: o Google vê o IP de quem abre o Yu-book. Até aqui a
+  SPA só falava com a própria API. Decisão aceita, com o motivo em `docs/historico.md`.
+
+---
+
 ## [0.13.0] — 2026-09-23
 
 **Etapa B da frente de IA: o chat que lê.** Até esta entrada o Yu-book mandava um texto ao modelo e

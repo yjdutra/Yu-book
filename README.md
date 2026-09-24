@@ -39,8 +39,8 @@ Ainda em **2026-09-23** veio a **Etapa B, o chat que lê**: painel por `Ctrl+Shi
 streaming, conversas persistidas, anexo de nota, card ou quadro pelo `@` e, o que muda a natureza da
 coisa, **um laço de ferramenta** — o assistente chama até cinco das nove ações do acervo para
 responder, em vez de só falar sobre o que foi anexado. São as **mesmas nove** que o servidor MCP
-publica, agora definidas uma vez só em `packages/shared`. Para usá-lo é preciso **marcar um modelo
-na coluna `chat` de «Seus modelos», em `/ajustes`**, e ele precisa saber chamar ferramenta.
+publica, agora definidas uma vez só em `packages/shared`. Para usá-lo é preciso **pôr um modelo na
+tarefa de chat, no quadro de `/ajustes/modelos`**, e ele precisa saber chamar ferramenta.
 
 **Esta é a primeira entrega em sete com conferência de interface à mão — e a conferência cobrou na
 hora.** A sequência sem conferência parou em seis: ao usar o chat pela primeira vez, o operador
@@ -50,6 +50,34 @@ assistente desistir numa volta só. Os dois foram corrigidos. **A conferência f
 painel, a escolha de modelo, o laço e o gasto do dia foram vistos funcionando; o anexo pelo `@`, os
 chips de origem, o corte pelo teto, renomear/excluir conversa e o atalho `Ctrl+Shift+Y` **continuam
 sem execução**. `apps/web` segue sem runner de teste.
+
+Em **2026-09-24** foi feito, e concluído no mesmo dia, um **redesenho de UI/UX** de `apps/web`,
+em cinco etapas e posto **antes da Etapa C** da frente de IA: 1 fundação visual, 2 casca e
+navegação, 3 assistente em painel lateral e em `/assistente`, 4 `/ajustes` com quadro de modelos
+por tarefa, 5 polimento das telas. É uma **quinta numeração**, que não se converte nas outras. A **Etapa 1** está entregue: fonte Inter
+(servida pelo Google Fonts), tokens de superfície, raio, sombra e movimento nos dois temas, texto
+miúdo a 11 px e os primeiros primitivos de interface em `apps/web/src/components/base/`. A **Etapa
+2** também: trilho de áreas com painel contextual recolhível no lugar da barra lateral, e os filtros
+de notas na URL — o workspace continua fora dela. A **Etapa 3** também: o chat modal deu lugar a um
+**painel do assistente** à direita, que empurra o conteúdo, e à rota **`/assistente`** em tela
+cheia, duas vistas da mesma conversa. Passar de uma à outra não interrompe a resposta, e fechar o
+painel interrompe. A **Etapa 4** também: `/ajustes` virou três seções (modelos, provedor e gasto)
+com o gasto do dia no cabeçalho, e o modelo de cada tarefa se escolhe num **quadro arrastável**, com
+menu como alternativa sem arraste e o chat recusando modelo sem ferramentas. A **Etapa 5**, a
+última, levou os primitivos e os tokens às telas antigas. O dashboard ganhou saudação, o bloco
+"Pergunte ao seu acervo" e o bloco de boards. A paleta (`Ctrl+K`) ganhou comandos, com `>` para
+ver só eles. A gaveta de links virou diálogo lateral. Sem escolha manual, o tema passa a seguir o
+sistema a cada carga.
+
+**O redesenho está concluído e foi conferido à mão no fechamento.** As cinco etapas foram entregues
+sem que ninguém visse a tela. Depois da última, ainda em 2026-09-24, o usuário fez a conferência de
+interface das cinco e relatou que tudo funcionou. É um relato, não um checklist marcado item por
+item; o alcance está no fechamento, em [`docs/historico.md`](docs/historico.md). A Etapa 5 achou
+que **mover card pelo teclado nunca funcionou**, desde a Fase 2, embora a lista abaixo o dê como
+entregue. O defeito foi corrigido, e a correção está entre o que foi conferido. Ficam duas dívidas:
+o arraste do kanban tem a janela de concorrência de mutação otimista que o quadro de modelos já
+fechou, e `apps/web` segue sem runner de teste.
+O próximo passo da frente de IA é a **Etapa C**.
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
@@ -491,15 +519,16 @@ em vez de engolir o que você acabou de escrever.
 
 - **O conteúdo da nota sai da sua máquina.** O provedor é de nuvem — o Ollama saiu do escopo porque
   a API roda na Railway, sem GPU. O aviso está na tela de ajustes, e é para ser lido.
-- **O que o provedor faz com esse conteúdo é escolha sua**, num interruptor em `/ajustes`,
+- **O que o provedor faz com esse conteúdo é escolha sua**, num interruptor em `/ajustes/provedor`,
   **desligado por padrão**: desligado, o servidor pede que ele não guarde o texto para treino. O
   preço de deixar assim é que **os modelos gratuitos ficam indisponíveis** — os endpoints deles
   treinam com os dados, e exigir que não treinem faz o roteamento não achar endpoint nenhum, o 404
   medido em 2026-09-23.
 - **`[[wikilinks]]` são intocáveis.** A resposta do modelo é conferida antes de ser aplicada: se o
   conjunto de alvos mudar, ela é recusada. Não é instrução no prompt, é código.
-- **Ajustes em `/ajustes`**: estado do provedor, catálogo buscável, favoritos, o modelo padrão de
-  cada tarefa, o teto diário (US$ 0,20 por padrão) e o gasto de hoje.
+- **Ajustes em `/ajustes`**, em três seções: **modelos** (catálogo buscável e o quadro em que se
+  arrasta um favorito para cada tarefa, ou se usa o menu "Usar para…"), **provedor** e **gasto**
+  (o teto diário, US$ 0,20 por padrão). O gasto de hoje fica no cabeçalho, visível nas três.
 - **O catálogo não mostra tudo que o provedor mostra.** Ficam de fora as variantes `:batch`, que o
   provedor recusa na chamada que fazemos; os modelos que devolvem imagem ou áudio, que não servem à
   tarefa; e os apelidos `…-latest`, porque o favorito guarda uma **cópia** do preço e ela ficaria
@@ -518,7 +547,7 @@ quadro, ver o dashboard, criar card, mover card, mandar nota para a lixeira, res
 executa e devolve o resultado, e ele decide se já pode responder. São as **mesmas nove ações** que o
 servidor MCP publica, definidas uma vez só.
 
-- **Escolha um modelo de chat em `/ajustes` antes**, e ele precisa saber chamar ferramenta. Sem
+- **Escolha um modelo de chat em `/ajustes/modelos` antes**, e ele precisa saber chamar ferramenta. Sem
   isso o painel recusa, dizendo qual dos dois falta.
 - **No máximo cinco passos por pergunta.** Não é economia: é o que impede um modelo em ciclo de
   gastar o teto do dia numa pergunta só.

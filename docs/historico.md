@@ -9,6 +9,530 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-24 — Redesenho de UI concluído: cinco etapas entregues sem ver a tela, e conferidas no fechamento
+
+O redesenho de UI/UX de `apps/web`, aprovado hoje de manhã e posto antes da Etapa C da frente de
+IA, fechou com a Etapa 5. São cinco entradas no changelog, `[0.14.0]` a `[0.18.0]`. `apps/web` foi
+de `0.9.0` a `0.14.0`, com um minor por etapa, e `apps/api` ganhou um patch, `0.9.1`, na Etapa 4.
+Resumo, com a decisão central de cada uma (o detalhe está na entrada da etapa, logo abaixo):
+
+1. **Fundação visual.** Revogou a regra de não ter primitivo genérico: `components/base/` nasceu,
+   sem biblioteca de UI atrás, e cada primitivo só entrou quando havia consumidor. Também trouxe a
+   Inter pelo Google Fonts, com o IP do operador como preço aceito.
+2. **Casca e navegação.** Os filtros de notas foram para a URL e o workspace ficou fora dela
+   (RF-02 da Fase 2).
+3. **Assistente.** A conversa saiu da vista e foi para uma sessão, porque há duas vistas e expandir
+   não pode interromper. A regra do fluxo virou o INV-56.
+4. **Ajustes.** No quadro de modelos, o favorito é cópia e o slot de tarefa é o que se move. A
+   primeira mutação otimista com concorrência tratada (`onSettled` com `isMutating`).
+5. **Polimento.** Primitivos e tokens nas telas antigas, e a gaveta e a paleta viraram `Dialogo`.
+   O foco preso obrigou a levar o desfazer para dentro da gaveta.
+
+**As cinco etapas foram entregues sem conferência na tela, e a conferência veio no fechamento.**
+Enquanto elas eram entregues, nenhuma foi vista: os portões provam que compila e que o bundle se
+forma, e nenhum deles monta um componente, dispara um sensor do `@dnd-kit` ou vê uma cor. A última
+entrega conferida à mão antes disso, a Etapa B da frente de IA, tinha achado em minutos um defeito
+que nenhum portão via. Por isso a primeira versão desta entrada tratava a conferência como a dívida
+maior do redesenho e pedia que ele não fosse dado como pronto antes dela.
+
+**Depois da Etapa 5, ainda em 2026-09-24, o usuário fez a conferência de interface à mão das cinco
+etapas (`[0.14.0]` a `[0.18.0]`) e relatou: "Tudo funcionou perfeitamente."** A passada cobre as
+correções da Etapa 5: o arraste de cards do kanban e de favoritos da gaveta pelo teclado, e as duas
+mensagens de `MODELO_NAO_ESCOLHIDO`. O alcance do registro é esse relato. Não há checklist marcado
+item por item, e esta entrada não diz quais itens das listas "O que fica aberto" abaixo foram
+exercitados um a um. As listas ficam como estavam, com uma emenda que remete para cá, porque são o
+retrato do que cada etapa deixou sem ver quando foi entregue. Os restos da Etapa B da frente de IA
+que não pertencem ao redesenho, como o corte pelo teto no meio de uma resposta, não fazem parte
+deste relato.
+
+**O arraste de cards por teclado nunca tinha sido exercitado.** O RF-25 da Fase 2 foi dado como
+entregue na Fase 2 e de novo na Etapa B da Fase 5, e o card nunca saiu do lugar pelo teclado: o
+`Espaço` não chegava ao sensor (entrada da Etapa 5, abaixo). A correção entrou na Etapa 5 sem ser
+vista na tela, e está entre o que o usuário conferiu no fechamento. Fica o aviso: "entregue" sem
+ninguém exercitar pode significar "nunca funcionou", e aqui significou desde a Fase 2.
+
+**No fechamento, o catálogo passou a vir antes do quadro em Ajustes → Modelos.** O ajuste é do
+usuário, sobre a Etapa 4. A ordem da Etapa 4 punha o quadro "Modelo de cada tarefa" em cima e o
+catálogo embaixo. O quadro só tem o que arrastar depois que há favoritos, e os favoritos saem do
+catálogo. Quem favorita primeiro e arrasta depois agora lê a página de cima para baixo. Os textos
+que apontam de uma seção para a outra mudaram junto: "Favorite modelos no catálogo acima", no
+quadro sem favoritos, e "Tire-o da tarefa no quadro abaixo", no catálogo. Não há bump novo: a
+mudança entrou na `[0.18.0]`, que não foi publicada.
+
+**Dívida técnica que fica:**
+
+- **A janela de concorrência do arraste do kanban.** `useMoverCard` (`lib/kanban.ts`) é otimista
+  sem `mutationKey` nem o `onSettled` condicionado a `isMutating`. Dois arrastes seguidos com a
+  rede lenta podem ter o rollback de um restaurando o estado otimista do outro, exatamente o caso
+  que a Etapa 4 fechou no quadro de modelos. Não foi mexido porque a Etapa 5 tinha como regra não
+  tocar na mecânica do arraste (INV-30, INV-33, INV-36), e a correção merece entrega própria, com o
+  kanban conferido à mão antes e depois.
+- **`apps/web` continua sem runner de teste.** O redesenho não mudou isso. A conferência do
+  fechamento vale para esta árvore e não vigia a próxima mudança.
+
+A quinta numeração se encerra aqui. O próximo passo da frente de IA é a Etapa C.
+
+---
+
+## 2026-09-24 — Redesenho de UI, Etapa 5: polimento, e o que o foco preso obrigou a mudar
+
+A última etapa levou os primitivos de `components/base/` e os tokens às telas que ainda escreviam
+botão, aviso e esqueleto à mão: dashboard, notas, kanban, card, boards, gaveta de links, paleta,
+login e os seletores. É o que a Etapa 1 previa ("as telas migram quando forem redesenhadas, não
+numa varredura"). O que mudou está na `[0.18.0]` do changelog; aqui ficam as decisões.
+
+**A gaveta de links virou `Dialogo` lateral, e o desfazer foi junto para dentro dela.** Com o
+`Dialogo`, a gaveta ganhou o foco preso e devolvido que ele faz por todos, em vez de uma versão
+própria. O efeito colateral apareceu na revisão. O "Desfazer" da remoção era um toast fixo fora da
+gaveta, e com o foco preso ele ficava visível e inalcançável pelo teclado. Soltar a trava enquanto
+o toast existe foi a alternativa descartada, porque ela desfaria o motivo de usar o `Dialogo`. Por
+isso, enquanto a gaveta está aberta, o desfazer aparece dentro dela.
+
+**O colar da gaveta passou a ser ouvido no documento.** O `onPaste` morava na caixa da gaveta.
+Com o `Dialogo`, a caixa dele passou a envolver o conteúdo, e o `onPaste` ficou num filho. Um
+clique em área vazia deixa o foco na caixa do `Dialogo`, e o evento de colar não passa por filho
+nenhum. Colar URL falhava justamente depois do clique que o usuário dá para colar. A regressão
+nasceu e morreu nesta etapa, achada pelo revisor, e por isso não está no changelog. O ouvinte no
+`document` vive só enquanto a gaveta está montada, e a gaveta só é montada aberta.
+
+**O arraste de favoritos por teclado nunca tinha funcionado.** O item espalhava os `listeners` do
+`useSortable` e depois declarava o próprio `onKeyDown`, o do `Delete`, que sobrescrevia o do
+sensor. O `Espaço` nunca chegava ao `KeyboardSensor`. Agora os dois handlers são compostos: o do
+item roda e depois chama o do sensor. Uma ref (`arrastando`), e não estado, porque só é lida dentro
+do handler, impede que as setas do arraste troquem de aba (RF-18 da Fase 3) no meio do gesto. O
+defeito é anterior ao redesenho. Nenhum portão o via, e só a leitura do revisor o achou.
+
+**O kanban tinha o mesmo defeito, desde o primeiro commit dele.** Em `ColunaQuadro.tsx`, o card
+espalha `{...listeners}` e depois declara o `onKeyDown` do `Enter`, que abre o card. Está assim
+desde `9ce64cc` (2026-08-14, Fase 2). O `Espaço` nunca chegou ao `KeyboardSensor`, e mover card só
+pelo teclado, que é o RF-25 da Fase 2, nunca funcionou. A correção é a mesma da gaveta: o handler
+do card trata o `Enter` e depois chama o do sensor. A mecânica protegida (INV-30, INV-33, INV-36)
+não foi tocada. O remapeamento de teclas, a colisão pelo ponteiro e a renumeração são os de antes.
+O que mudou foi só o `Espaço` passar a chegar ao sensor. **Todas as fases desde a 2 davam o arraste
+por teclado como entregue**, e a Fase 5, Etapa B, mexeu na precisão do arraste sem notar. É o mesmo
+padrão de `{...listeners}` seguido de `onKeyDown`. Qualquer item arrastável novo que precise de
+tecla própria tem que compor os dois handlers.
+
+**A paleta ganhou comandos, e o `>` separa comando de busca.** Sem prefixo, comandos e resultados
+convivem na mesma lista. Com `>`, só comandos, que é a convenção de editores de código. O último
+item, "Perguntar ao assistente: «texto»", é o gancho da busca semântica da frente de IA. Ele abre
+uma **conversa nova** e **não envia**, pelos mesmos dois motivos do bloco "Pergunte ao seu acervo"
+do dashboard. Enviar sozinho mandaria ao provedor, com custo, um texto que o usuário digitou para
+buscar e não para perguntar. E cair na conversa aberta misturaria a pergunta a um assunto alheio.
+
+**O `Enter` da paleta espera a busca.** Com os resultados ainda a caminho, a lista mostrava só os
+comandos, e um `Enter` rápido executava o primeiro comando em vez de abrir a nota procurada.
+
+**O comando do painel respeita `/assistente`, como o atalho.** Pelo INV-56, fechar o painel chama
+`parar()`. Em `/assistente`, alternar o painel pela paleta interromperia a resposta na tela. Por
+isso o comando faz ali o mesmo que `Ctrl+Shift+Y`: põe o foco no campo de mensagem.
+
+**`PilhaFlutuante`, em `base/Toast.tsx`, empilha o que flutua.** O aviso persistente do erro de
+criação e o toast de desfazer eram dois `fixed` na mesma posição e se sobrepunham. Um contêiner
+único empilha os dois.
+
+**`BotaoIcone` ganhou `tamanho` porque `className` não sobrescreve.** No Tailwind v4, entre duas
+utilidades da mesma propriedade vence a que vem depois no CSS gerado, e não a que vem depois no
+atributo `class`. Um `h-8` ou uma cor passados por `className` perdiam para os da base, calados.
+Tamanho virou prop (`p`, `m`, `g`), e a cor vai no ícone, não no botão. Foi assim que apareceu o
+botão do assistente no card, cuja cor nunca tinha aparecido. Serve para qualquer primitivo de
+`base/`: variar por `className` o que a base já define não funciona.
+
+**`useTema` virou um armazenamento único (`useSyncExternalStore`), e o comportamento mudou.** Com
+um `useState` por componente, trocar o tema pela paleta deixava o botão do trilho com o valor
+velho. O hook antigo tinha outro efeito, que a reescrita expôs: gravava o tema no `localStorage` já
+na primeira carga, e com isso a preferência do sistema ficava congelada como se fosse escolha. O
+novo só grava na troca manual. É o que o RF-20 e o RF-21 da Fase 4 pedem: o sistema na primeira
+visita, e só a escolha manual persistida. O script do `index.html` continua decidindo o valor
+inicial antes da primeira pintura, e o hook só lê o que ele aplicou. **Num navegador que já abriu
+o Yu-book, nada muda:** a chave `yb:tema` já foi gravada pelo hook antigo e segue valendo como
+escolha. Para voltar a seguir o sistema, é preciso apagar a chave. Não há migração, e o CA-14 da
+Fase 4 só se observa num navegador limpo.
+
+**A saudação usa a hora do navegador.** É cortesia de tela e não precisa concordar com o servidor,
+ao contrário do dia do prazo, que tem fuso decidido em `packages/shared`.
+
+O revisor leu o diff e não achou invariante violada. Suas observações foram corrigidas antes desta
+entrada: o comando do painel em `/assistente`, o desfazer inalcançável, o `tamanho` ignorado, o
+`Enter` precoce, o arraste da gaveta, o colar, o "vencido" que o leitor de tela não ouvia, a
+pergunta caindo na conversa aberta e o comentário do tema.
+
+### O que fica aberto
+
+**Pela quinta etapa seguida, nada foi conferido à mão.** Fica como dívida, para conferir na tela:
+
+- o dashboard: saudação, "Pergunte ao seu acervo", a grade, os prazos com "vencido" lido pelo leitor
+  de tela e o esqueleto;
+- as notas, nos quatro modos do editor e com a barra de ações;
+- o kanban, por mouse e por teclado. O teclado nunca tinha funcionado, e esta é a primeira vez que
+  haveria o que ver;
+- a gaveta lateral: colar com o foco na caixa, desfazer dentro dela, arraste de favoritos por
+  teclado;
+- a paleta com comandos, o `>`, a pergunta ao assistente e o `Enter` com a busca lenta;
+- os toasts empilhados;
+- o login;
+- o tema: a troca pela paleta com o trilho acompanhando, e um navegador sem `yb:tema` seguindo o
+  sistema.
+
+A janela de concorrência do `useMoverCard` foi vista e não mexida. O motivo está no fechamento
+acima.
+
+> **Emenda, no mesmo dia.** O usuário conferiu esta etapa à mão no fechamento do redesenho e
+> relatou que tudo funcionou. O alcance desse relato está na entrada do fechamento, no topo.
+
+---
+
+## 2026-09-24 — Redesenho de UI, Etapa 4: o quadro de modelos, em que o favorito é cópia e o arraste move
+
+`/ajustes` deixou de ser uma página única. `pages/AjustesPage.tsx` virou uma casca de rotas para
+três seções, e a lógica foi para `components/ajustes/`. A tabela «Seus modelos», com um botão de
+rádio por tarefa, deu lugar a um quadro arrastável (`QuadroDeModelos.tsx` e `CartaoModelo.tsx`),
+que era o pedido explícito do usuário para esta etapa. O que mudou está na `[0.17.0]` do
+changelog; aqui ficam as decisões.
+
+**Três seções, e nenhuma de aparência.** O tema já mora no trilho desde a Etapa 2. Uma seção
+"Aparência" em Ajustes criaria um segundo lugar para a mesma escolha.
+
+**O que precisa ser visto em qualquer seção ficou no cabeçalho, e não numa delas.** São o aviso
+de que o conteúdo sai da máquina, o gasto do dia, as chamadas sem custo, o aviso de provedor sem
+chave (RNF-03 do PRD de IA) e o erro. Na primeira versão, o RNF-03 só aparecia em Provedor. Como
+`/ajustes` abre em Modelos, quem não tinha chave montava o quadro sem saber que nada ia funcionar.
+Foi um dos achados do revisor.
+
+**No quadro, o favorito é cópia, e o slot de tarefa é o item que se move.** O kanban move o card
+de uma coluna para outra, e seguir esse modelo aqui faria o favorito sumir da coluna ao ser
+atribuído. Não serve, por duas regras do servidor: um modelo pode servir várias tarefas ao mesmo
+tempo, e o modelo de uma tarefa tem que ser um favorito. Se o favorito saísse da coluna ao ser
+atribuído, a tela contradiria o dado. Por isso a coluna «Seus favoritos» nunca perde item por
+arraste. Arrastar um slot é outra coisa: para outra tarefa, move; para os favoritos, tira da
+tarefa.
+
+**Mover um slot faz o PATCH no destino primeiro e só depois grava `null` na origem.** Na ordem
+inversa, uma falha no segundo passo deixaria o modelo fora das duas tarefas. Nesta ordem, o pior
+caso é o modelo ficar nas duas, que é um estado válido e visível no quadro. O revisor também
+apontou um PATCH redundante nesse caminho, e ele foi retirado.
+
+**A recusa do chat é soltar sem efeito, e não um erro depois.** A tarefa de chat exige modelo que
+chame ferramenta. O quadro sabe disso antes do soltar e marca a coluna com tracejado, ícone e
+texto, não só com cor (RNF-09). Soltar ali não dispara requisição. A alternativa era deixar o
+servidor recusar e mostrar o erro, e ela foi descartada porque a regra já é conhecida no cliente.
+Mandar a requisição só produziria um erro previsível.
+
+**A alça é o único ativador do arraste**, porque o cartão tem menu e botões. Com o cartão
+inteiro arrastável, clicar em "Usar para…" disputaria o gesto com o sensor. O menu e o botão
+"Tirar de tarefa" são também a alternativa sem arraste que a acessibilidade exige.
+
+**O teclado tem um `coordinateGetter` próprio** (`coordenadasPorColuna`, em
+`QuadroDeModelos.tsx`). O `sortableKeyboardCoordinates` do kanban anda por item dentro de uma lista
+ordenável, e aqui não há ordem dentro da coluna: o que existe é escolher a coluna. Por isso as
+setas pulam de coluna em coluna. `Espaço` e `Esc` seguem o remapeamento do kanban (INV-30), e a
+origem do slot usa `opacity-0` pelo mesmo motivo. O kanban não foi tocado: o quadro copia o
+padrão, não o reaproveita. Com movimento reduzido, o `DragOverlay` não anima (`lib/movimento.ts`,
+`useMovimentoReduzido`, novo).
+
+**`useDefinirModeloDaTarefa` ficou otimista**, com `onMutate` e rollback em `onError`, porque
+arrastar e ver o cartão voltar ao lugar até a rede responder parece defeito. **Não é a primeira
+mutação otimista do front**, como dizia o relato da etapa: `useMoverCard` (`lib/kanban.ts`) e a
+criação de link (`lib/links.ts`) já seguiam esse padrão. É a primeira da frente de IA. O que ela
+tem de novo é a concorrência. Dois arrastes seguidos antes da resposta podem ter as respostas
+fora de ordem, e o rollback de um pode restaurar o estado otimista do outro. Daí a `mutationKey`
+e o `onSettled`, que só invalida quando `isMutating` diz que é a última (`lib/ia.ts`). Enquanto
+houver mutação no ar, o cache fica com a versão otimista, e quem decide no fim é o servidor.
+
+**No catálogo, o favorito virou interruptor, com uma trava.** `Enter` ou clique num favorito o
+desfavorita. Só que desfavoritar também limpa, no servidor, toda tarefa que apontava para o
+modelo (`apps/api/src/modules/assistente/preferencias.service.ts`, `desfavoritar`). Do catálogo
+esse efeito não se vê. Por isso, favorito em uso por uma tarefa não sai por ali: aparece uma
+mensagem mandando tirá-lo da tarefa no quadro primeiro. Pedir confirmação num diálogo foi a
+alternativa descartada. O usuário confirmaria sem ver qual tarefa perderia o modelo, e o quadro,
+onde isso se vê, fica a um passo. Foi o achado do "interruptor perigoso" do revisor.
+
+**O campo do teto ganhou `key`.** Ele é não controlado (`defaultValue`), e na página única também
+já era. Se a página montava antes de os ajustes chegarem, o campo nascia vazio e ficava assim. A
+`key` com o valor salvo remonta o campo quando o dado chega. O defeito vinha da Etapa A da frente
+de IA e foi corrigido aqui porque o código foi reescrito.
+
+O revisor leu o diff e não achou invariante violada. Fez sete observações, e as sete foram
+corrigidas antes desta entrada: o RNF-03 atrás de uma aba, o interruptor perigoso, as mutações
+concorrentes, o foco perdido depois de tirar, remover ou mover (agora vai para a coluna), a rolagem
+sob a barra de filtros fixa (`scroll-margin`), um `h3` que devia ser `h4`, os anúncios de teclado
+que não batiam com o gesto e o PATCH redundante.
+
+### O que fica aberto
+
+**Pela quarta etapa seguida, nada foi conferido à mão.** E esta etapa tem o componente mais
+dependente de gesto do redesenho: nenhum portão chega a disparar um sensor do `@dnd-kit`. Fica
+como dívida, para conferir na tela:
+
+- o arraste por mouse e por teclado, nos três sentidos (atribuir, mover, tirar);
+- a recusa do chat a modelo sem ferramentas;
+- o menu "Usar para…", com as tarefas impedidas e o motivo;
+- o erro de rede com rollback, e dois arrastes seguidos com a rede lenta;
+- o movimento reduzido;
+- o catálogo, inclusive o favorito em uso que não sai;
+- as seções e o medidor.
+
+Somam-se ao checklist das Etapas 1 a 3 deste redesenho e ao que a Etapa B da frente de IA deixou
+sem execução.
+
+> **Emenda, no mesmo dia.** O usuário conferiu esta etapa à mão no fechamento do redesenho e
+> relatou que tudo funcionou. O alcance desse relato está na entrada do fechamento, no topo.
+
+---
+
+## 2026-09-24 — Redesenho de UI, Etapa 3: uma conversa, duas vistas, e a regra que substitui o INV-53 no chat
+
+O chat modal da Etapa B da frente de IA (`PainelChat.tsx`) foi apagado. No lugar dele, a mesma
+conversa aparece em duas vistas: o painel lateral (`components/assistente/PainelAssistente.tsx`, na
+coluna `yb:col-chat`) e a rota `/assistente` (`pages/AssistentePage.tsx`). O que mudou está na
+`[0.16.0]` do changelog; aqui ficam as decisões.
+
+**O estado e o fluxo da conversa saíram do componente e foram para uma sessão**
+(`lib/sessaoChat.tsx`, com `ProvedorSessaoChat` em `App.tsx`). No modal, a conversa morria com o
+componente, e era isso que o INV-53 protegia: desmontar abortava o `fetch`. Com duas vistas, a
+conversa não pode pertencer a nenhuma delas, porque expandir o painel para `/assistente` desmonta
+uma e monta a outra no meio da resposta. Se o fluxo morasse na vista, expandir interromperia a
+resposta.
+
+**A sessão tem dois contextos, estado e ações, e não um só.** O estado muda a cada tecla e a cada
+delta do streaming. As ações (abrir, anexar, parar) são estáveis. Quem só abre o chat, que são a
+casca, o editor e o card, consome só as ações e não re-renderiza durante o streaming. Com um
+contexto único, o editor inteiro repintaria a cada pedaço de resposta. Foi um dos achados do
+revisor.
+
+**A regra do fluxo, que para o chat substitui o INV-53:**
+
+- fechar o painel chama `parar()`. Fechar continua significando "não quero mais essa resposta",
+  como no modal;
+- o logout desmonta o provedor, e a limpeza dele aborta;
+- sair de `/assistente` com resposta em curso abre o painel, para que a resposta continue
+  à vista;
+- expandir para `/assistente` não toca no fluxo.
+
+O INV-53 continua valendo para os outros painéis montados por `&&`. A regra do chat virou
+invariante própria, o INV-56 da skill `invariantes-yu-book`, porque o mecanismo mudou: não é
+mais o desmonte que aborta.
+
+**O `AbortController` nasce antes de a conversa ser criada.** No HEAD, o controle só nascia
+depois do `POST` que cria a conversa (`PainelChat.tsx:298` e `:313`). Fechar o chat nesse
+intervalo não tinha o que abortar, e a resposta seguia no servidor. Um segundo `Enter` no mesmo intervalo também criava uma segunda
+conversa, porque nada marcava o envio em curso. O defeito já vinha da Etapa B. O revisor o
+encontrou nesta etapa e ele foi corrigido aqui, e não numa entrega separada, porque o código que o
+continha foi reescrito.
+
+**A sugestão de contexto oferece e nunca anexa sozinha.** Com uma nota ou um card aberto, o
+compositor sugere anexá-los. Anexar sem que se peça mandaria ao provedor, a cada mensagem, texto
+que o usuário não escolheu enviar, e a política de dados da frente de IA é uma escolha dele.
+
+**O painel contextual não recolhe sozinho quando card e chat estão abertos juntos.** Com o painel
+contextual, o card e o chat abertos, a área útil fica estreita. A alternativa, recolher o painel
+contextual automaticamente, mudaria um estado que o usuário escolheu e persiste em
+`localStorage`, e ele voltaria recolhido depois de fechar o chat sem que ninguém tivesse pedido.
+`Ctrl+\` resolve em um gesto. A decisão está registrada no plano da etapa.
+
+**O `Esc` global não fecha mais o chat, e o do painel só vale com o foco dentro dele.** Com o
+painel ao lado do editor, um `Esc` dado no editor ou num menu fecharia o chat e, pela regra
+acima, interromperia a resposta.
+
+**`Etiqueta` entrou em `components/base/`** para o modelo e as fontes de cada resposta. `Menu`
+ganhou o lado `"baixo-fim"`, porque o menu de cada conversa, aberto perto da borda direita, saía
+cortado. `PainelRedimensionavel` ganhou mínimo e máximo, de 320 a 640 px no chat.
+
+O revisor leu o diff: nenhuma invariante violada, sete observações, as sete corrigidas antes desta
+entrada. Foram a janela de criação, o desempenho do contexto, a fala na conversa errada, o menu
+cortado, o foco ao fechar, a menção que sobrevivia ao envio e o foco na renomeação.
+
+### O que fica aberto
+
+**Pela terceira etapa seguida, nada foi conferido à mão, e desta vez o que não foi visto inclui
+cancelamento de rede.** Os portões dizem que compila. Fica como dívida, para conferir na tela:
+
+- o painel empurrando o conteúdo;
+- expandir para `/assistente` e sair dela sem interromper a resposta;
+- fechar o painel cancelando o `fetch`, conferido na aba de rede;
+- o botão Parar;
+- a sugestão de contexto;
+- o `Esc` no editor e no painel;
+- renomear conversa pelo teclado;
+- o aviso sem modelo de chat.
+
+Somam-se ao que a Etapa B da frente de IA já deixou sem execução (o anexo pelo `@`, os chips de
+origem, o corte pelo teto) e ao checklist das Etapas 1 e 2 deste redesenho.
+
+> **Emenda, no mesmo dia.** O usuário conferiu esta etapa à mão no fechamento do redesenho e
+> relatou que tudo funcionou. O alcance desse relato está na entrada do fechamento, no topo.
+
+---
+
+## 2026-09-24 — Redesenho de UI, Etapa 2: a casca, os filtros na URL e o workspace que fica fora dela
+
+A barra lateral única (`Navegacao.tsx`) foi apagada e deu lugar a um trilho de áreas de 56 px
+(`components/casca/Trilho.tsx`) e a um painel contextual (`casca/PainelContexto.tsx` e
+`casca/contexto/*`) que ocupa a mesma coluna redimensionável, `yb:col-nav`. O que mudou está na
+`[0.15.0]` do changelog; aqui ficam as decisões.
+
+**Os filtros da lista de notas saíram do `useState` da casca e foram para a URL**
+(`lib/filtrosUrl.ts`, `/n?tipo&tags&favoritas&lixeira&q&ordem`). No estado, o Voltar do navegador
+não desfazia um filtro e recarregar o perdia; na URL, os dois vêm de graça e o recorte vira link.
+Valor fora do enum some calado, para que link velho não quebre a tela. Dois modos de escrita, por
+intenção: **trocar filtro empilha** no histórico, porque é um passo que o usuário quer poder
+desfazer; **a busca troca no lugar**, com debounce de 200 ms, porque cada tecla empilhada faria do
+Voltar uma borracha letra a letra. O debounce ignora o eco da própria transição do react-router — sem
+isso, a URL recém-escrita voltava ao campo e atropelava o que tinha sido digitado nesse meio-tempo.
+Abrir, fechar e criar nota levam a query string junto; a primeira versão perdia os filtros ao criar
+nota, e foi o revisor quem pegou.
+
+**O workspace fica fora da URL, de propósito** (RF-02 da Fase 2). Ele não é filtro da lista de notas,
+é o contexto da aplicação inteira — escolhido no seletor global, vale para boards, dashboard e
+paleta, e persiste em `yb:workspace`. Pô-lo em `/n?ws=…` criaria duas fontes de verdade que
+discordariam na primeira vez em que alguém abrisse um link antigo com outro workspace ativo.
+
+**Mudança deliberada de comportamento: `Ctrl+N` fora de `/n` não herda mais o tipo filtrado.** Com o
+filtro na URL, "o filtro atual" fora da lista passaria a ser o da última lista lembrada, e um filtro
+esquecido lá atrás decidiria o tipo de uma nota criada do board. Dentro de `/n` a herança continua;
+fora, a nota nasce livre.
+
+**A última lista de notas é lembrada em memória, não em `localStorage`.** O item Notas do trilho volta
+para `/n` com a query da última visita, porque sair para os boards e voltar não pode perder o recorte
+— era o que o `useState` antigo garantia de graça. O estado mora em `Aplicacao.tsx` e morre com a
+aba; a alternativa, persistir, faria um filtro de semana passada reaparecer numa sessão nova sem
+aviso. O recorte que sobrevive a recarga é o da URL, e só ele.
+
+**O selo do workspace, que aparece no trilho com o painel recolhido, leva a cor do workspace na
+borda, não no fundo.** A cor é escolhida pelo usuário, e texto sobre ela não tem contraste
+garantido; a inicial fica em `ink-200` sobre `ink-800`, que tem. É a mesma razão pela qual a Etapa 1
+calculou o contraste das cores novas em vez de escolhê-las a olho — aqui não há o que calcular,
+então a cor sai do caminho do texto. O selo existe porque, recolhido o painel, o seletor de workspace
+sumia junto e nada na tela dizia em que workspace se estava; foi um dos achados do revisor.
+
+**O ponto sobre Notas no trilho é a regra da seção recolhida estendida ao painel inteiro.** A barra
+antiga já dizia, no cartão de tags fechado, quantas tags estavam valendo: recolher esconde os itens,
+mas um filtro ativo não pode sumir da vista sem deixar de valer. Recolher o painel contextual é o
+mesmo gesto em escala maior, então o trilho mostra um ponto sobre Notas quando a última lista tem
+filtro e o painel está fechado, e o rótulo acessível passa a "Notas, com filtro ativo" — o ponto é
+`aria-hidden`, o texto é que carrega a informação.
+
+**`Menu` entrou em `components/base/` porque nasceu com dois consumidores**, o "+" de criar e o menu
+do avatar, dentro desta mesma etapa — a regra da Etapa 1 de só fazer primitivo com consumidor. Setas,
+Home/End, `Tab` fecha, e o `Esc` para a propagação e devolve o foco ao gatilho: sem o
+`stopPropagation`, o mesmo `Esc` chegava ao atalho global e fechava também a paleta ou a gaveta
+abertas atrás — o seletor de workspace já fazia assim.
+
+Os atalhos globais saíram de `Aplicacao.tsx` para `lib/atalhosGlobais.ts`, sem mudança de
+comportamento; `Ctrl+\` é o único novo. O revisor leu o diff: nenhuma invariante violada, oito
+achados, os oito corrigidos antes desta entrada.
+
+### O que fica aberto
+
+**Busca digitada nos 200 ms antes de clicar numa nota se perde.** A `NotasPage` remonta entre `/n`
+e `/n/:id`, e o debounce pendente morre com ela antes de escrever na URL. Resolver pede ou que a
+página não remonte na transição, ou que o debounce descarregue ao desmontar; nenhum dos dois foi
+feito.
+
+**A contagem de entregas sem conferência à mão sobe para duas, e de novo nada foi visto.** Os
+portões — `shared build`, `typecheck`, `vite build` — dizem que compila. Fica como dívida, para ser
+conferido na tela: o trilho e o painel nos dois temas; os dois menus operados só por teclado (setas,
+Home/End, `Esc` devolvendo foco, `Tab` fechando); os filtros com Voltar, com recarga e com link
+colado; recolher e mostrar o painel pelo botão e por `Ctrl+\`, e para onde vai o foco; o ponto de
+filtro e o selo do workspace com o painel recolhido; o badge de links; a lista de atalhos; e a troca
+de workspace com filtros na URL. A Etapa 3 vai pôr o assistente dentro desta casca sem que ela, ou a
+fundação da Etapa 1, tenha sido olhada.
+
+> **Emenda, no mesmo dia.** O usuário conferiu esta etapa à mão no fechamento do redesenho e
+> relatou que tudo funcionou. O alcance desse relato está na entrada do fechamento, no topo.
+
+---
+
+## 2026-09-24 — Redesenho de UI, Etapa 1: a fundação visual, e o primitivo que o projeto recusava
+
+O operador aprovou hoje um redesenho de UI/UX de `apps/web` em cinco etapas — 1 fundação visual,
+2 casca e navegação (trilho de ícones com painel contextual, filtros de notas na URL), 3 assistente
+em painel lateral e na rota `/assistente`, 4 `/ajustes` com quadro de arraste de modelos por tarefa,
+5 polimento das telas —, cada uma com plano próprio, e **pôs o redesenho antes da Etapa C da frente
+de IA**. As etapas 3 e 4 mexem exatamente nas telas que a frente de IA criou, e redesenhar depois
+seria refazer o que a Etapa C tivesse acabado de construir.
+
+**É uma quinta numeração, e não se converte nas outras quatro.** Etapa 1 do redesenho não é Etapa A
+da frente de IA, nem etapa do MCP, nem fase de produto, nem fase do roteiro de IA. Também não é
+continuação do "Redesenho da navegação" de 2026-08-20, que mexeu em quatro arquivos e em nenhum
+token. Vale a mesma regra da entrada de 2026-08-26: não unificar, não renumerar.
+
+**Revogada a prática de não ter `Button` nem `Modal` genéricos.** Até aqui cada tela escrevia o
+próprio botão e o próprio diálogo, e a regra se sustentava enquanto a repetição era de classes. Ela
+deixou de se sustentar quando a repetição passou a ser de **comportamento**: `Bloco`/`Vazio`
+duplicados em Dashboard e Ajustes, `IndicadorSalvamento` em PainelEditor e PainelCard, o `TRACO`
+dos ícones copiado em três arquivos, e — o que decidiu — um diálogo que precisa prender foco,
+devolvê-lo e fechar no `Esc`, coisa que escrita à mão em cada tela sai diferente em cada uma. Os
+primitivos moram em `apps/web/src/components/base/` (`Botao`/`BotaoIcone`, `Bloco`/`Vazio`/
+`Esqueleto`, `Aviso`, `IndicadorSalvamento`, `Dialogo`, `Tecla`) e em `lib/foco.ts`. **O que
+continua valendo, e não foi tocado:** nada de biblioteca de UI. Os primitivos são nossos, pequenos,
+e sem Radix atrás.
+
+**Primitivo só onde tem consumidor.** Nenhum dos seis nasceu sem uma tela que o usasse nesta mesma
+etapa: `Dialogo` e `Tecla` em Atalhos, `BotaoIcone` no seletor de tema, `Esqueleto` no dashboard,
+`Aviso` em Ajustes, `Bloco`/`Vazio` e `IndicadorSalvamento` onde já estavam duplicados. A
+alternativa era desenhar a biblioteca inteira agora, antes das telas — recusada pelo mesmo motivo
+de 2026-09-22: abstração sem segundo caso é abstração desenhada para o caso errado. As telas que
+ainda têm botão à mão migram quando forem redesenhadas, não numa varredura.
+
+**A sombra passa por `--sombra-*`, não por `--shadow-*` direto.** O caminho óbvio era declarar
+`--shadow-e1` no `@theme` e sobrescrevê-lo em `:root[data-tema="claro"]`, como se faz com cor. Não
+funciona: o Tailwind v4 **copia o valor** da sombra para dentro da utilidade no build, e a
+sobrescrita no tema claro não chega a `.shadow-e1`. O `@theme` só aponta — `--shadow-e1:
+var(--sombra-e1)` — e o valor mora em `:root`, onde troca com o tema como qualquer variável. O
+`vite build` conferiu que a utilidade gerada resolve `var(--sombra-e1)`. É um espelhamento a mais
+para quem acrescentar sombra: token no `@theme` **e** as duas definições de `--sombra-*`.
+
+**Duas cores novas com contraste calculado, não escolhido a olho.** `superficie` é o degrau que a
+rampa `ink` não tinha — o cartão acima do painel —; `ia-500` existe só para fechar o gradiente das
+áreas de IA. Texto branco sobre `ia-500` e sobre `accent-500` fica entre 4,80:1 e 6,31:1 nos dois
+temas, acima do AA. Cada uma entrou no `@theme` e em `:root[data-tema="claro"]`, como manda o
+design system.
+
+**O `:focus-visible` perdeu o `border-radius: 2px`.** Fora de camada, ele vencia os `rounded-*` dos
+elementos, e um botão arredondado virava quadrado ao receber foco. Sem o raio próprio, o contorno
+segue o do elemento.
+
+**Os 10 px sobem para 11 px, e isso é decisão, não efeito colateral.** A varredura trocou noventa
+`text-[10px]`/`text-[11px]` por `text-miudo` (11/16) ou pela utilidade `rotulo`. Manter 10 px
+exigiria um segundo degrau abaixo de `text-xs`, e 10 px em Inter é ilegível. Toda tela ficou um
+pouco mais alta onde tinha rótulo miúdo.
+
+**Inter pelo Google Fonts, e o preço é o IP do operador.** Até esta etapa a SPA só falava com a
+própria API; agora cada carga sem cache pede a folha de estilo a `fonts.googleapis.com` e a fonte a
+`fonts.gstatic.com`, e o Google fica sabendo de onde e quando o Yu-book foi aberto. A alternativa
+era **servir a Inter do próprio bundle** — sem terceiro, sem dependência de rede — e custa um
+arquivo de fonte versionado no repositório e o recorte de pesos feito à mão. Para um app
+single-user cujo operador é o próprio usuário, o custo foi julgado maior que a exposição; está
+registrado para que a troca seja uma decisão consciente, se um dia deixar de ser. O `<link>` fica
+**depois** do script de tema no `index.html`: a fonte pode chegar atrasada (`swap`), o tema não, e
+sem rede a interface cai na pilha de sistema de `--font-sans`.
+
+**A devolução de foco mora na limpeza do efeito**, em `useFocoPreso`, e não num ramo `if (!ativo)`.
+É a mesma armadilha da montagem condicional de painéis: quem monta `{aberto && <Dialogo aberto />}`
+desmonta o diálogo com a prop ainda `true`, e um ramo que esperasse `false` nunca rodaria.
+
+O `revisor` leu o diff: nenhuma invariante violada, seis achados, os seis corrigidos antes desta
+entrada.
+
+### O que fica aberto
+
+**A contagem de entregas sem conferência à mão, que parou em seis na `[0.13.0]`, recomeça em uma —
+e desta vez nenhuma parte foi vista.** Não havia
+como entrar no app sem as credenciais do operador. Os portões que passaram — `shared build`,
+`typecheck` e um `vite build` — dizem que o CSS é gerado e que o código compila; nenhum deles abre
+uma tela. **Sem execução nenhuma:** a Inter carregando e o recuo para a fonte de sistema sem rede;
+o modo ao vivo do CodeMirror com a métrica de fonte nova, que é o ponto mais provável de regressão
+silenciosa, porque o editor mede a posição do cursor pela fonte e a entrega que o criou também não
+chegou a instanciar uma `EditorView`; os dois temas com as sombras e as cores novas; a trava de foco
+do diálogo de atalhos; e o movimento reduzido. `apps/web` segue sem runner de teste, e a Etapa 2
+vai construir por cima desta fundação sem que ela tenha sido olhada.
+
+> **Emenda, no mesmo dia.** O usuário conferiu esta etapa à mão no fechamento do redesenho e
+> relatou que tudo funcionou. O alcance desse relato está na entrada do fechamento, no topo.
+
+---
+
 ## 2026-09-23 — O chat usado pela primeira vez: a tela sem a tarefa, a busca que desistia, e a conferência que cobrou
 
 Esta entrada não abre versão nova. A Etapa B ainda não foi publicada, então tudo aqui cabe dentro da
