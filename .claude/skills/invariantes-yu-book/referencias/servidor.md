@@ -10,7 +10,7 @@ string ou de parâmetro de rota. `request.userId` é preenchido exclusivamente p
 `apps/api/src/lib/authenticate.ts`. Toda query filtra por ele.
 
 **INV-02 — Id de outro usuário devolve 404, não 403.** Existência de recurso alheio não é revelada.
-Documentado em `apps/api/src/modules/kanban/kanban.service.ts:42` (RNF-15).
+Documentado em `apps/api/src/modules/kanban/kanban.service.ts:44` (RNF-15).
 
 **INV-03 — Posse do kanban resolve por cadeia, na mesma query.** `card` e `board_column` **não têm
 coluna `user_id`**. A posse vem de `card → column → board.userId`, dentro do próprio `where` — nunca
@@ -19,7 +19,7 @@ conveniência.
 
 **INV-04 — Escrita condicional em vez de checar-depois-agir.** Mutação usa
 `updateMany`/`deleteMany` com o escopo no `where` e testa `count === 0` para lançar 404. Elimina a
-corrida entre checagem e efeito. O argumento inteiro está em `conversas.service.ts:111-116`, que
+corrida entre checagem e efeito. O argumento inteiro está em `conversas.service.ts:115-121`, que
 adotou a forma atômica de propósito: a forma checar-depois-agir deixa a posse como **disciplina de
 quem escreve a próxima função**; a atômica a deixa no tipo da consulta.
 
@@ -73,14 +73,23 @@ classe; não existe meia defesa. Contar pontos de saída nunca foi a invariante,
 esteve errada aqui.
 
 **INV-10 — Destaque de busca usa caracteres de controle, não HTML.** `HL_START` e `HL_END` são
-os caracteres de controle `U+0001` e `U+0002` (`packages/shared/src/busca.ts:9-10`), para que
+os caracteres de controle `U+0001` e `U+0002` (`packages/shared/src/busca.ts:10-11`), para que
 nenhuma nota consiga forjar marcação. O front nunca renderiza HTML de resultado de busca.
+
+**INV-59 — Id de entidade relacionada vindo do cliente é conferido contra o usuário; a FK só
+garante que existe.** `conferirWorkspace` (`apps/api/src/modules/notes/notes.service.ts:115`) roda
+na criação e na edição de nota (`:232`, `:311`), como `criarBoard` já fazia
+(`kanban.service.ts:209-214`). Antes dela, o `workspaceId` de outra conta era aceito e a resposta
+devolvia o nome do workspace alheio; o inexistente caía em violação de FK, distinguível do alheio.
+Os dois dão o mesmo 404 (INV-02). Com o chat criando nota, o id chega também dos argumentos que o
+**modelo** escreveu. Porta nova que grave nota — ou qualquer FK vinda de fora — confere a posse.
+Coberto em `apps/api/tests/marca-ia.test.ts:520`.
 
 ## Integridade de dados
 
 **INV-11 — Posições são contíguas, sempre.** `position` é reescrito como `0,1,2…` num único
 `UPDATE … FROM (VALUES …)` dentro de transação: `renumerarCards`
-(`apps/api/src/modules/kanban/kanban.service.ts:88`), `renumerarColunas` (`:98`) e
+(`apps/api/src/modules/kanban/kanban.service.ts:90`), `renumerarColunas` (`:100`) e
 `renumerarFavoritos` (`apps/api/src/modules/links/links.service.ts`). Não existe empate nem buraco.
 Posição fora do intervalo é **clampada**, não recusada.
 
@@ -90,7 +99,7 @@ Posição fora do intervalo é **clampada**, não recusada.
 **fim** da mesma coluna. Arquivado não move, não aparece em busca, não conta em contador nem em prazo.
 
 **INV-14 — Excluir coluna com cards exige destino.** Sem `moveCardsTo` nem `deleteCards`, a API
-recusa com 409 `COLUNA_COM_CARDS` (`kanban.service.ts:401`). Cards movidos vão para o fim do destino
+recusa com 409 `COLUNA_COM_CARDS` (`kanban.service.ts:404`). Cards movidos vão para o fim do destino
 preservando a ordem relativa.
 
 **INV-15 — Limite de WIP avisa e não bloqueia.** A API armazena `wipLimit` e **nunca o valida**. É
@@ -107,13 +116,13 @@ e por isso restaurar pode falhar com 409.
 no padrão exato entre colchetes.
 
 **INV-18 — O recálculo de links é condicional, e isso tem consequência.** Só roda quando o conjunto
-de alvos muda (`mesmosLinks`, `apps/api/src/modules/notes/notes.service.ts:193`). Por causa dessa
-otimização, criar, renomear e restaurar precisam chamar `reconstruirEntradas` (`:178`) para religar
+de alvos muda (`mesmosLinks`, `apps/api/src/modules/notes/notes.service.ts:217`). Por causa dessa
+otimização, criar, renomear e restaurar precisam chamar `reconstruirEntradas` (`:202`) para religar
 quem já apontava para aquele título — inclusive quando a nota-alvo nasce **depois** do `[[…]]`.
 
 **INV-19 — Excluir nota desfaz dois vínculos; restaurar refaz um só.** O soft delete apaga os
 `note_link` nos dois sentidos **e** zera o `noteId` dos cards. Restaurar
-(`apps/api/src/modules/notes/notes.service.ts:359-363`) chama `recalcularLinks` e
+(`apps/api/src/modules/notes/notes.service.ts:401-403`) chama `recalcularLinks` e
 `reconstruirEntradas`, então **os `[[…]]` voltam nos dois sentidos**; o `noteId` do card **não**
 volta, e refazer é manual, um card por vez (RN-07). Não junte os dois numa frase só: juntar já
 produziu uma afirmação errada na `description` de `trash_note`, que teve de ser corrigida.
@@ -134,8 +143,8 @@ e tentar mover dá 422.
 ## SQL e planner
 
 **INV-31 — Duas armadilhas de planner no SQL.** `porSimilaridade`
-(`apps/api/src/modules/notes/search.service.ts:274`) repete o termo inline de propósito: movê-lo para
-um CTE faz o planner perder o índice (comentário em `:282`). E `left(content_md, N::int)` precisa do
+(`apps/api/src/modules/notes/search.service.ts:299`) repete o termo inline de propósito: movê-lo para
+um CTE faz o planner perder o índice (comentário em `:307`). E `left(content_md, N::int)` precisa do
 cast porque o Prisma envia número como `bigint`.
 
 **INV-32 — Listagem de notas nunca carrega o corpo inteiro.** O trecho é truncado **no banco** em 600
@@ -155,14 +164,14 @@ status 402 não distingue os dois mundos. A mesma técnica prova que `saude` sem
 conexão nenhuma (`:118`, CA-02).
 
 **"Qualquer conexão" é por passo, não por mensagem — a Etapa B mudou a unidade.** Uma mensagem do
-chat é até `MAX_PASSOS_DO_LACO = 5` (`packages/shared/src/chat.ts:24`) chamadas ao provedor, e o
-`garantirTeto` de dentro do laço (`chat.service.ts:390`) **não** é redundância do que roda antes
-dele (`:249`): o histórico cresce a cada passo, então o passo 4 custa mais que o passo 1, e um teto
+chat é até `MAX_PASSOS_DO_LACO = 5` (`packages/shared/src/chat.ts:25`) chamadas ao provedor, e o
+`garantirTeto` de dentro do laço (`chat.service.ts:429`) **não** é redundância do que roda antes
+dele (`:256`): o histórico cresce a cada passo, então o passo 4 custa mais que o passo 1, e um teto
 conferido uma vez pagaria os outros quatro sem olhar. Hoistar a conferência para fora do laço é a
 mudança que parece limpeza e derruba **só** o teste do corte no meio
-(`apps/api/tests/chat.test.ts:381`) — o do gasto por linha continua verde. O fim declarado do laço
+(`apps/api/tests/chat.test.ts:389`) — o do gasto por linha continua verde. O fim declarado do laço
 é a segunda metade da mesma defesa: sem ele, modelo em ciclo (buscar, não achar, buscar de novo)
-gasta um teto inteiro numa pergunta só (`chat.test.ts:336`). Quem acrescentar uma terceira
+gasta um teto inteiro numa pergunta só (`chat.test.ts:344`). Quem acrescentar uma terceira
 superfície de IA responde primeiro qual é a unidade que ela paga.
 
 **INV-48 — A cascata de custo tem três degraus, o degrau escolhido é gravado, e o terceiro grava
@@ -182,14 +191,14 @@ chamada **já foi paga** quando esta função roda. Prompt é pedido; esta funç
 
 **INV-50 — `ai_usage.local_day` é gravado, não calculado na consulta.** A janela do teto é o dia do
 **usuário**: `diaLocal(instante, fuso)` (`packages/shared/src/ia.ts:39`) com o fuso de
-`ai_preference.timezone` (`apps/api/prisma/schema.prisma:351`), nunca `getDate()` do processo nem
+`ai_preference.timezone` (`apps/api/prisma/schema.prisma:402`), nunca `getDate()` do processo nem
 `.slice(0, 10)` do ISO — a API roda em UTC na Railway e o operador não. `garantirTeto` devolve o
 `localDay` que a linha de uso vai gravar (`custo.service.ts:99`), para que o dia do corte e o do
 registro sejam o mesmo, ainda que a chamada atravesse a meia-noite. A coluna é `local_day`
-(`schema.prisma:431`), com índice `(userId, localDay)` (`:441`). Trocar a gravação por um `WHERE`
+(`schema.prisma:487`), com índice `(userId, localDay)` (`:501`). Trocar a gravação por um `WHERE`
 sobre `createdAt` zera o teto três horas cedo, todo dia, sem erro nenhum.
 
-**INV-51 — `AiUsage.noteId` é `SetNull`.** `apps/api/prisma/schema.prisma:439`, como em
+**INV-51 — `AiUsage.noteId` é `SetNull`.** `apps/api/prisma/schema.prisma:498`, como em
 `Event.noteId`. Apagar a nota **não** apaga o registro de gasto: com `Cascade`, o teto diário viraria
 contornável por exclusão de nota, e a trilha de auditoria sumiria junto com o que a explica. Coberto
 em `apps/api/tests/assistente.test.ts:341`. O registro é escrito **inclusive quando a chamada falha**
@@ -197,24 +206,58 @@ em `apps/api/tests/assistente.test.ts:341`. O registro é escrito **inclusive qu
 
 **INV-52 — A fronteira do chat com o modelo é fechada pelo compilador, nos dois sentidos.** No
 sentido de ida, `EXECUTORES` é `Record<NomeDeFerramenta, Executor | undefined>`
-(`apps/api/src/modules/assistente/ferramentas.service.ts:82`) — **não** um `Partial`, e o
-`| undefined` é a invariante: as quatro ações de escrita estão lá escritas como `undefined`
-(`:134-137`), e uma ação nova em `packages/shared/src/ferramentas.ts` **não compila** sem alguém
+(`apps/api/src/modules/assistente/ferramentas.service.ts:113`) — **não** um `Partial`, e o
+`| undefined` é a invariante: as ações que o chat não faz estão lá escritas como `undefined`
+(`:206-208`), e uma ação nova em `packages/shared/src/ferramentas.ts` **não compila** sem alguém
 decidir. É a técnica do rótulo do INV-41: o tipo cobra a decisão em cada sítio novo, em vez de
-deixar o padrão ser o permissivo. O chat da Etapa B não tem executor de escrita, e são duas
-condições para uma ação aparecer ao modelo — `catalogoParaProvedor` filtra por `EXECUTORES[nome]`
-(`:158`) **além** de partir de `FERRAMENTAS_DE_LEITURA`. Trocar o tipo por `Partial` ou por um mapa
-solto não quebra nada hoje e apaga as duas. No sentido de volta, `argumentos` chega `unknown` e
-passa por `conferir` (`:67-79`), que revalida com o **mesmo** schema que o provedor recebeu: o
-modelo é terceiro que devolve JSON conforme um schema que pode ignorar, e o `parse` também é o que
-aplica os padrões declarados. Cast no lugar do `parse` compila.
+deixar o padrão ser o permissivo. Desde a Etapa C o chat **cria** (`create_card`, `create_note`) e
+não move, não apaga, não edita; são duas condições para uma ação chegar ao modelo, e as duas valem
+também na **execução**. A primeira é `FERRAMENTAS_DO_CHAT` (`packages/shared/src/ferramentas.ts:330`),
+lista **explícita** — não "todas menos algumas", para que ação nova não entre no chat só por
+existir; a segunda, `EXECUTORES[nome]`. `catalogoParaProvedor` confere as duas (`:231`) e
+`executar` confere de novo (`:262-263`): o catálogo diz o que se oferece, `executar` o que se
+executa, e sem a segunda conferência um executor escrito para outra superfície ficaria executável
+por quem adivinhasse o nome. Os três casos — nome desconhecido, fora da lista, sem executor —
+respondem igual, "não existe". Trocar o tipo por `Partial`, a lista por um filtro de exclusão ou
+tirar a conferência de `executar` não quebra nada hoje e apaga uma das duas. No sentido de volta,
+`argumentos` chega `unknown` e passa por `conferir` (`:90-95`), que revalida com o **mesmo** schema
+que o provedor recebeu: o modelo é terceiro que devolve JSON conforme um schema que pode ignorar, e
+o `parse` também é o que aplica os padrões declarados. Cast no lugar do `parse` compila.
+
+**INV-58 — A marca de conteúdo gerado é gravada só pelo servidor, e nunca some.** Os campos `ai*` de
+`Note` e `Card` (Etapa C, §5.5 do PRD de IA) nascem na criação por `camposDaOrigem`
+(`apps/api/src/lib/marca.ts:26`), e a origem chega ao service **por parâmetro**, nunca pelo corpo:
+
+- o `origin` do corpo só aceita `via: "mcp"` (`packages/shared/src/marca.ts:39-42`) — aceitar
+  `chat` deixaria um cliente HTTP se passar pelo assistente, com `conversationId` alheio. O
+  servidor MCP o manda em toda tool que cria (`origemDoCliente`, `apps/mcp/src/autor.ts:49`); tool
+  nova que crie sem ele grava conteúdo de modelo como humano, e nada acusa;
+- `updateNoteSchema` e `cardUpdateSchema` **omitem** `origin` (`packages/shared/src/notes.ts:42`,
+  `kanban.ts:128`), e as rotas de criação o desestruturam antes do service
+  (`notes.routes.ts:39`, `kanban.routes.ts:88`), porque `origin` não é coluna;
+- o chat monta a origem a partir da conversa (`ContextoDeFerramenta.origem`,
+  `ferramentas.service.ts:74`, montado em `chat.service.ts:555`), e "virar nota" tira corpo,
+  modelo e conversa da `AiMessage` **gravada** — do cliente vêm só título, tipo e workspace
+  (`conversas.service.ts:155-187`).
+
+**Nunca some:** nenhuma rota a remove, e editar só preenche `aiRevisedAt` — "gerada · revisada",
+não "deixou de ser gerada". Revisão é **mudança de fato** de título ou corpo na nota
+(`notes.service.ts:305-307`) e de título ou descrição no card (`kanban.service.ts:530-540`): o
+autosave e o painel reenviam campo inalterado, e mover, favoritar ou mudar tag não conta. Formatar
+com IA grava pelo autosave e **conta** como revisão — aceito, é edição que o usuário iniciou.
+
+A leitura tem duas fontes e a segunda é frágil: o `select` do Prisma usa `CAMPOS_DA_MARCA`
+(`marca.ts:37`), e as consultas cruas da busca usam `marcaDe("n" | "c")`
+(`apps/api/src/modules/notes/search.service.ts:28`) nas cinco consultas. O tipo de `$queryRaw` é
+afirmação, não conferência: consulta nova sem `marcaDe` compila e devolve `ai: null` para conteúdo
+gerado — a marca some da busca, calada. Coberto por `apps/api/tests/marca-ia.test.ts`.
 
 ## Servidor MCP
 
 **INV-40 — `formatarQuadro` imprime o id de cada coluna, e é o único lugar que imprime.**
-`packages/shared/src/formato.ts:246` — o arquivo **mudou de pacote** na Etapa B (era
+`packages/shared/src/formato.ts:291` — o arquivo **mudou de pacote** na Etapa B (era
 `apps/mcp/src/formato.ts`), e a mesma função agora serve duas superfícies: as tools e resources do
-MCP e o executor `get_board` do chat (`apps/api/src/modules/assistente/ferramentas.service.ts:118`).
+MCP e o executor `get_board` do chat (`apps/api/src/modules/assistente/ferramentas.service.ts:148`).
 `create_card` e `move_card` endereçam por `columnId`, e nenhuma outra saída expõe esse id — as
 `description` das duas mandam chamar `get_board` justamente por isso. Custa 36 caracteres por
 coluna, com teto de 20 colunas por quadro (~1 KB no pior caso), e é o primeiro candidato a
@@ -290,7 +333,7 @@ entre dois `tools/list` em vez de listá-lo à mão.
 `apps/mcp/src/http.ts:300`: se `escritaPermitida` do token atual diverge do `escrita` com que a
 sessão foi montada, o par é fechado e a resposta é 404. **O furo é real, não hipotético:**
 `exchangeRefreshToken` (`apps/mcp/src/auth/provedor.ts:367`) aceita `scope` e filtra o concedido,
-então um cliente renova pedindo só leitura e segue no mesmo `mcp-session-id` com as nove tools
+então um cliente renova pedindo só leitura e segue no mesmo `mcp-session-id` com as dez tools
 anunciadas. Ganhar o escopo encerra tanto quanto perder, de propósito: o catálogo que o modelo vê
 nunca anuncia tool que vai recusar nem esconde tool que já pode usar. Quem garante que a escrita não
 acontece nesse intervalo é INV-45; esta invariante garante que a **superfície** não mente.

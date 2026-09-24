@@ -56,7 +56,7 @@ Use exatamente estas três severidades. Só a primeira bloqueia.
 Formato de cada achado:
 
 ```
-[Violação de invariante] INV-23 — apps/web/src/lib/notas.ts:198
+[Violação de invariante] INV-23 — apps/web/src/lib/notas.ts:206
 O salvamento de corpo passou a chamar invalidateQueries amplo. Isso devolve o autosave
 de 1 para 6 requisições por pausa de digitação.
 ```

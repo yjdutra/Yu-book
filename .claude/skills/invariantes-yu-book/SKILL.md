@@ -1,6 +1,6 @@
 ---
 name: invariantes-yu-book
-description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, as defesas de saída decididas pela origem do alvo (SSRF só onde a URL vem do usuário), escopo por usuário, a precisão do arraste do kanban e a alça única do quadro de modelos, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna impresso num lugar só — hoje em packages/shared —, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda, e a frente de IA — teto de gasto conferido antes de cada conexão e a cada passo do laço de ferramenta, cascata de custo de três degraus, guarda de wikilink por conjunto, o dia local gravado em vez de calculado e a fronteira do chat com o modelo fechada pelo compilador nos dois sentidos —, e a montagem condicional de painel no front, que nunca entrega aberto: false, o laço do chat que não roda sem superfície visível, o enum cuja escolha só existe se a tela o percorrer, e os filtros de notas na URL, que toda navegação em /n precisa carregar. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
+description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, as defesas de saída decididas pela origem do alvo (SSRF só onde a URL vem do usuário), escopo por usuário, a precisão do arraste do kanban e a alça única do quadro de modelos, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna impresso num lugar só — hoje em packages/shared —, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda, e a frente de IA — teto de gasto conferido antes de cada conexão e a cada passo do laço de ferramenta, cascata de custo de três degraus, guarda de wikilink por conjunto, o dia local gravado em vez de calculado, a fronteira do chat com o modelo fechada pelo compilador nos dois sentidos e a marca de conteúdo gerado, gravada só pelo servidor e que nunca some —, o id relacionado vindo do cliente conferido contra o usuário, e a montagem condicional de painel no front, que nunca entrega aberto: false, o laço do chat que não roda sem superfície visível, o enum cuja escolha só existe se a tela o percorrer, e os filtros de notas na URL, que toda navegação em /n precisa carregar. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
 ---
 
 # Invariantes do Yu-book
@@ -64,6 +64,8 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-50 | `ai_usage.local_day` é gravado, não calculado na consulta |
 | INV-51 | `AiUsage.noteId` é `SetNull`, e o registro de gasto sobrevive à nota |
 | INV-52 | A fronteira do chat com o modelo é fechada pelo compilador, nos dois sentidos |
+| INV-58 | A marca de conteúdo gerado é gravada só pelo servidor, e nunca some |
+| INV-59 | Id relacionado vindo do cliente é conferido contra o usuário; a FK só garante que existe |
 
 ### Índice — front
 
@@ -174,6 +176,14 @@ modelos por um arraste novo: INV-54 mudou de arquivo inteiro, INV-30 ganhou o se
 nasceu INV-57. A **Etapa 5** (2026-09-24), a última, pôs gaveta e paleta dentro do `Dialogo`: o
 `return null` que INV-53 citava nos dois saiu deles. INV-30 ganhou a composição do `onKeyDown` — o
 defeito dos favoritos, e o mesmo ainda aberto no card do kanban — e INV-56 o avesso em `/assistente`.
+
+A **Etapa C da frente de IA** (2026-09-24, §5.5 do PRD de IA — etapa sem fase dele) trouxe a marca
+de conteúdo gerado e ligou a escrita do chat: ele passou a **criar** card e nota, a pedido. Daí
+INV-58 e INV-59, esta achada de carona — o `workspaceId` da nota nunca tinha sido conferido contra o
+usuário, e o modelo passou a escrevê-lo. Ela **estreitou INV-52**: "o chat não tem executor de
+escrita" deixou de valer, e a primeira condição trocou de `FERRAMENTAS_DE_LEITURA` para uma lista
+explícita, conferida também na execução. O censo foi o que envelheceu — "nove ações", "as quatro de
+escrita" —, em skill, agente e `CLAUDE.md` ao mesmo tempo.
 
 O que ainda não tem código: **busca semântica** (§5.4). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
 **menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece:

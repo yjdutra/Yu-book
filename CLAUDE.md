@@ -21,13 +21,15 @@ está registrada em `docs/historico.md`, e no caso do editor nenhum portão cheg
 `EditorView`. Desde 2026-09-22 a **frente de IA** tem código, não só documento: a Etapa A entregou o
 provedor OpenRouter, teto de gasto diário, a tela `/ajustes` e o botão de formatar nota, e a **Etapa
 B** (2026-09-23) o chat ancorado, que lê o acervo por um laço de até cinco chamadas ao provedor por
-mensagem. A Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
+mensagem. A **Etapa C** (2026-09-24) trouxe a marca de conteúdo gerado por IA, gravada só pelo
+servidor, e com ela o chat passou a **criar** card e nota a pedido — não move, não apaga, não edita.
+A Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
 
 **Cinco numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
 identidade) foi entregue em 2026-09-01; o **roteiro de IA aplicada** tem fases próprias, e a 5 dele é
 a frente de IA; dentro dessa frente, o **PRD de IA** tem as suas, de 1 a 4, entregues em etapas com
-letra — a Etapa A cobriu as fases 1 e 2 dele, e a Etapa B a fase 3; e o **redesenho de UI/UX** de
+letra — a Etapa A cobriu as fases 1 e 2 dele, a Etapa B a fase 3, e a Etapa C não é fase dele (§5.5); e o **redesenho de UI/UX** de
 `apps/web` tem cinco etapas próprias, entregues em 2026-09-24 sem conferência na tela a cada etapa e
 conferidas à mão pelo usuário no fechamento — relato, não checklist item por item (registro em
 `docs/historico.md`); essa numeração está fechada. "Etapa 4" não é
@@ -45,8 +47,8 @@ fases.** `RF-19` é o tema claro em `apps/web/src/lib/tema.ts` e é a colisão p
   função. Não "padronize" para inglês.
 - **`packages/shared` é fonte única de verdade.** Se a API e o front precisam concordar sobre algo,
   mora lá. Rode `pnpm --filter @yu-book/shared build` antes de qualquer typecheck dos apps.
-  **E não é mais só API e front:** `packages/shared/src/ferramentas.ts` guarda o metadado das nove
-  ações do acervo, e editar uma `descricao` ali muda ao mesmo tempo o que o servidor MCP publica em
+  **E não é mais só API e front:** `packages/shared/src/ferramentas.ts` guarda o metadado das ações
+  do acervo, e editar uma `descricao` ali muda ao mesmo tempo o que o servidor MCP publica em
   `tools/list` e o que o chat paga em todo turno. Nenhum teste fica vermelho. O mesmo vale para
   `packages/shared/src/formato.ts`, que imprime o texto das duas superfícies.
 - **Não existe ESLint, Prettier, Biome nem CI.** Estilo se aprende por imitação: 2 espaços, aspas

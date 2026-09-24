@@ -1,6 +1,6 @@
 ---
 name: servidor-mcp-yu-book
-description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os dois transportes (stdio e StreamableHTTP) com uma montagem só, de onde vem a identidade em cada um e por que a escrita é liberada por eixos diferentes (URL local no stdio, escopo do token em HTTP), o servidor de autorização OAuth 2.1 próprio sem estado durável, cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, a formatação que saiu deste pacote para packages/shared e hoje serve também o chat da API, de onde vem o fuso horário do usuário e por que na leitura ele recua e na escrita falha alto, a description como contrato de conversa com o modelo, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, antes de tocar em transporte, sessão, autenticação, formatação de texto ou qualquer conversão de data, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
+description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os dois transportes (stdio e StreamableHTTP) com uma montagem só, de onde vem a identidade em cada um e por que a escrita é liberada por eixos diferentes (URL local no stdio, escopo do token em HTTP), o servidor de autorização OAuth 2.1 próprio sem estado durável, cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, a formatação que saiu deste pacote para packages/shared e hoje serve também o chat da API, de onde vem o fuso horário do usuário e por que na leitura ele recua e na escrita falha alto, a description como contrato de conversa com o modelo, o origin que toda tool que cria manda para a marca de conteúdo gerado, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, antes de tocar em transporte, sessão, autenticação, formatação de texto ou qualquer conversão de data, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
 ---
 
 # O servidor MCP do Yu-book
@@ -14,7 +14,7 @@ deliberado. Não "corrija" para o padrão sem ler o porquê.
 ## 0. Dois transportes, e a diferença é quem é você
 
 Desde a Etapa 4 há **dois**, com uma montagem só: `criarServidor` (`src/servidor.ts`) registra as
-mesmas nove tools, resources e prompts para ambos — dois caminhos de registro divergiriam calados.
+mesmas tools, resources e prompts para ambos — dois caminhos de registro divergiriam calados.
 
 | | `stdio` | `http` (StreamableHTTP, com sessão) |
 |---|---|---|
@@ -138,19 +138,19 @@ Verificação: ler `yubook://nota/{id}` e chamar `get_note` com o mesmo id devem
 
 ### 7.1 O dia de um prazo vem do usuário, e o recuo nunca é o processo
 
-Os formatadores que imprimem prazo **exigem** um `fuso`, sem valor padrão; quem o obtém é
-`fusoDoUsuario` (`src/fuso.ts:42`), que pergunta `GET /ai/settings` — a mesma
-`ai_preference.timezone` que decide a janela do teto diário de IA. Ler o fuso do **processo**
-(`getMonth()`, `new Date("…T23:59:59")`) acerta por acaso em stdio e erra sempre hospedado,
-relatando todo prazo um dia à frente, calado.
+Os formatadores que imprimem data — prazo, e desde a Etapa C o dia da marca em `formatarNota` —
+**exigem** um `fuso`, sem padrão; quem o obtém é `fusoDoUsuario` (`src/fuso.ts:43`), que pergunta
+`GET /ai/settings` — a `ai_preference.timezone` que decide a janela do teto de IA. Ler o fuso do
+**processo** (`getMonth()`, `new Date("…T23:59:59")`) acerta por acaso em stdio e erra sempre
+hospedado, relatando todo prazo um dia à frente, calado.
 
 **A assimetria é decidida, e você a escolhe ao escrever a tool.** Tool que só **lê** e imprime data
 usa `exigir: false` — recuar para `FUSO_PADRAO` custa no máximo uma linha com o dia de outro fuso.
 Tool que **escreve** data (`create_card` com `dueDate`) usa `exigir: true`, e busca o fuso **antes**
-do POST (`src/tools/kanban-escrita.ts:36`): ali o fuso vira o instante gravado no banco, e recuar
+do POST (`src/tools/kanban-escrita.ts:37-47`): ali o fuso vira o instante gravado no banco, e recuar
 gravaria prazo errado em silêncio.
 
-Sem cache, deliberadamente — o argumento e o custo medido estão em `src/fuso.ts:5-29`, e ele
+Sem cache, deliberadamente — o argumento e o custo medido estão em `src/fuso.ts:5-31`, e ele
 responde pelo nome à proposta de um mapa por credencial. **Não acrescente `TZ` ao
 `apps/mcp/railway.json`**: hoje a variável é **inerte** (§4.5 de `contrato-compartilhado`).
 
@@ -166,12 +166,11 @@ responde pelo nome à proposta de um mapa por credencial. **Não acrescente `TZ`
 
 ## 9. Escrita: nasce desligada, e o nome carrega o domínio
 
-Quatro tools mudam dado: `create_card`, `move_card` (`src/tools/kanban-escrita.ts`), `trash_note` e
-`restore_note` (`src/tools/notas-escrita.ts`). Vivem em arquivos separados das de leitura de
-propósito — risco diferente, revisão diferente.
+Tools que mudam dado vivem em `src/tools/*-escrita.ts`, longe das de leitura: risco diferente.
+**Tool que cria manda `origin`** (`src/autor.ts`): sem ele, texto de modelo vira humano (INV-58).
 
 **O que libera a escrita é outro em cada transporte, e são eixos diferentes de propósito.** Quem
-recebe a decisão pronta é `criarServidor({ escrita })` — as quatro ou são registradas na montagem
+recebe a decisão pronta é `criarServidor({ escrita })` — elas ou são registradas na montagem
 ou não existem naquela sessão, e não há como registrá-las no meio. Quem a toma:
 
 - **stdio — a URL da API.** `env.escritaLiberada` é verdadeiro só contra host local, e
@@ -226,8 +225,8 @@ descrição fraca custa uma chamada inútil; numa de escrita, custa dado errado 
 
 **O contrapeso: não descreva o que o modelo não pode agir.** A `description` é cobrada em **todo
 turno**, não por chamada. Transformação silenciosa que o modelo não tem como evitar sai do texto —
-a normalização de tags do servidor (minúsculas, corte em 24, fusão de repetidas) foi retirada por
-isso (`src/tools/kanban-escrita.ts:76`). O critério é a pergunta: *sabendo disto, o modelo faria
+a normalização de tags do servidor (minúsculas, corte em 24, fusão de repetidas) saiu por isso
+(`packages/shared/src/ferramentas.ts:189`). O critério é a pergunta: *sabendo disto, o modelo faria
 algo diferente?* Se não, é custo puro. Vale o §3: **meça o `tools/list`**, não estime.
 
 ## 11. A via de volta: log e progresso
@@ -251,7 +250,9 @@ O que **não** está no código e custa caro descobrir:
 ## 12. Erro é texto que o modelo vai tentar contornar
 
 Toda falha passa por `comErro` ou `comErroDeResource` (`src/erros.ts`), que traduz o código estável
-da API em instrução acionável. Ramifica-se por `code`, nunca por `message`.
+da API em instrução acionável. Ramifica-se por `code`, nunca por `message`. **A tradução genérica
+supõe quem escolheu o valor**: `TITULO_DUPLICADO` manda renomear a *outra* nota, certo em
+`restore_note`; em `create_note` o título é do modelo, e a tool intercepta (`notas-escrita.ts:55`).
 
 Resource **lança** em vez de devolver `isError` — o cliente precisa distinguir "não encontrei" de
 "aqui está, e está vazio".
@@ -278,9 +279,8 @@ Diante de um campo, entidade ou filtro novo no domínio, percorra:
       sem limite e tiver endereço próprio.
 - [ ] **Prompts** — algum fluxo existente fica melhor, ou pior, com o campo novo?
 - [ ] **Orçamento** — o item ficou mais caro? Meça, não estime (§3).
-- [ ] **Tools de escrita** — a mudança altera o que `create_card`, `move_card`, `trash_note` ou
-      `restore_note` **fazem** ou **deixam de fazer**? Se altera, a `description` mente até ser
-      reescrita (§10), e reescrevê-la mexe nas duas superfícies (§4.6 de `contrato-compartilhado`).
+- [ ] **Tools de escrita** — a mudança altera o que alguma **faz** ou **deixa de fazer**? A
+      `description` mente até ser reescrita (§10), nas duas superfícies (§4.6 do contrato).
 - [ ] **`annotations`** — o risco da operação mudou? `destructiveHint` acompanha o domínio.
 - [ ] **Log e progresso** — passo real novo, ou passo que deixou de existir? (§11)
 - [ ] **Transporte** — a mudança vale nos dois? Regra que dependa de **quem** está chamando só tem

@@ -102,7 +102,7 @@ Ao ser chamado neste modo:
   não expõe, **reporte** ao operador com o que falta e por quê. Quem mexe lá é o especialista de
   cada pacote.
 - **`packages/shared` deixou de ser só "dos outros", e por isso exige mais cuidado, não menos.** O
-  metadado das nove tools (`src/ferramentas.ts`) e os formatadores (`src/formato.ts`) moram lá
+  metadado das tools (`src/ferramentas.ts`) e os formatadores (`src/formato.ts`) moram lá
   desde a Etapa B: editar uma `descricao` ou um formatador muda **ao mesmo tempo** o que este
   servidor publica e o que o chat da `apps/api` imprime e paga por turno, e **nenhum teste fica
   vermelho**. Não toque nesses dois arquivos sem dizer no relato que as duas superfícies mudaram;

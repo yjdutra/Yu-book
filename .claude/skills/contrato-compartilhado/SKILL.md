@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das nove ferramentas, uma definição só com dois consumidores, MCP e chat, sem portão sobre o texto). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
+description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e chat, sem portão sobre o texto). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
 ---
 
 # O contrato compartilhado
@@ -28,7 +28,10 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
 3. `pnpm --filter @yu-book/shared build` — o pacote aponta para `./dist`, então os apps só veem o
    que foi compilado. **Typecheck dos apps sem esse build falha ou usa código velho.**
 4. Só então `pnpm typecheck`.
-5. Se o módulo novo **constrói valor em escopo de módulo** — objeto, array, `z.object(...)`,
+5. **Schema de atualização deriva do de criação** (`updateNoteSchema`, `notes.ts:41-42`;
+   `cardUpdateSchema`, `kanban.ts:127-128`). Campo que só vale ao criar — `origin`, a marca de IA —
+   entra no `.omit`, ou vira editável por PATCH sem ninguém ter decidido.
+6. Se o módulo novo **constrói valor em escopo de módulo** — objeto, array, `z.object(...)`,
    qualquer coisa que não seja só `type`/`interface` —, confira o bundle do front antes de fechar.
 
 **`"sideEffects": false` no `package.json` de `shared` não é enfeite, e não se remove.** Sem ele o
@@ -95,10 +98,10 @@ Se divergirem: o front deixa de detectar duplicata que o banco recusa, ou vice-v
 
 ### 4.4 `normalizarTag` ↔ a normalização do card no servidor
 
-`normalizarTag` (`packages/shared/src/kanban.ts:48`) é chamada **nos dois lados**: o front normaliza
+`normalizarTag` (`packages/shared/src/kanban.ts:50`) é chamada **nos dois lados**: o front normaliza
 para montar o catálogo e comparar (`apps/web/src/components/SeletorDeTags.tsx:52,64`) e
 `normalizarTags` normaliza de novo antes de gravar
-(`apps/api/src/modules/kanban/kanban.service.ts:136`). Corta espaço, remove `#` inicial, colapsa
+(`apps/api/src/modules/kanban/kanban.service.ts:138`). Corta espaço, remove `#` inicial, colapsa
 espaço interno, baixa a caixa e trunca em `MAX_TAG_TEXTO` — **não remove acento**: `revisão` é
 gravada `revisão`.
 
@@ -122,16 +125,16 @@ string relata **o dia errado, um dia à frente, em todo card com prazo**. Nada f
 string continua seguro para `createdAt`/`updatedAt`, que são instantes; para prazo, não.
 
 **O lado do servidor fechou.** A conversão mora em `packages/shared/src/formato.ts`: `diaDoPrazo`
-(`:65`) e `diaParaPrazo` (`:112`), as duas sobre `diaLocal` (`packages/shared/src/ia.ts:39`), que
+(`:66`) e `diaParaPrazo` (`:113`), as duas sobre `diaLocal` (`packages/shared/src/ia.ts:39`), que
 formata por `Intl` com `timeZone`. **O parâmetro `fuso` não tem valor padrão, e é a peça
 principal** — um padrão traria de volta exatamente o defeito que a Etapa B consertou, o fuso do
 *processo* passando por fuso do usuário. Quem chama declara de qual fuso está falando: o MCP
-pergunta à API (`apps/mcp/src/fuso.ts:42`) e o chat recebe o `fuso` no contexto da ferramenta
-(`apps/api/src/modules/assistente/ferramentas.service.ts:56-59`). As quatro funções escritas à mão
+pergunta à API (`apps/mcp/src/fuso.ts:43`) e o chat recebe o `fuso` no contexto da ferramenta
+(`apps/api/src/modules/assistente/ferramentas.service.ts:67-70`). As quatro funções escritas à mão
 viraram duas, num lugar só.
 
-**O lado do front não fechou.** `paraCampoData` (`apps/web/src/components/PainelCard.tsx:20`) e
-`paraData` (`:29`) continuam usando `getMonth()`/`getDate()` e um `new Date("…T23:59:59")` cru —
+**O lado do front não fechou.** `paraCampoData` (`apps/web/src/components/PainelCard.tsx:21`) e
+`paraData` (`:30`) continuam usando `getMonth()`/`getDate()` e um `new Date("…T23:59:59")` cru —
 isto é, o fuso do **navegador**, não `ai_preference.timezone`. Enquanto os dois coincidem, ninguém
 vê nada. Quando divergem — operador viajando, navegador com outro fuso, ou o usuário mudando o fuso
 em `/ajustes` sem mudar o do sistema —, a interface e tudo o que passa por `shared` (MCP, chat)
@@ -148,7 +151,7 @@ servidor MCP lê mais o fuso do processo. Não a acrescente para "explicar" um p
 
 ### 4.6 Uma definição, dois consumidores — e nenhum portão sobre o texto
 
-O caso invertido: aqui **não** há duas implementações. O metadado das nove ações do acervo — nome,
+O caso invertido: aqui **não** há duas implementações. O metadado das ações do acervo — nome,
 título, `descricao` e schema de entrada — mora só em `packages/shared/src/ferramentas.ts`, e é
 exatamente o que a doutrina manda. O risco mudou de forma, não de tamanho.
 
@@ -158,8 +161,8 @@ exatamente o que a doutrina manda. O risco mudou de forma, não de tamanho.
   `kanban-escrita.ts`, `notas-escrita.ts`) — a `descricao` é o contrato de conversa do servidor MCP
   com qualquer modelo que se conecte;
 - `apps/api` o oferece ao provedor no campo `tools` de **todo turno** do chat
-  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:158`) — ali a `descricao`
-  é contrato **e** custo por turno.
+  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:231`, só as de
+  `FERRAMENTAS_DO_CHAT`) — ali a `descricao` é contrato **e** custo por turno.
 
 Editar uma `descricao` para melhorar o chat muda o que o MCP publica, e encarece ou barateia todo
 turno. **Nenhum teste fica vermelho.** `apps/mcp/tests/escrita.test.ts` confere **quais** tools são
@@ -170,8 +173,8 @@ sobre o `tools/list` em bytes.
 definição e dois consumidores — tools e resources do MCP, executores do chat (§7 da skill
 `servidor-mcp-yu-book`) — e ali o texto não é só contrato: é o **resultado** sobre o qual o modelo
 decide continuar ou desistir. `formatarBusca` diz, no caso vazio, que a busca é por palavra sobre
-título e corpo e manda tentar o substantivo sozinho (`:172-173`); o argumento e o episódio que o
-motivou estão no comentário ao lado (`:163-171`). Mudar uma dessas frases muda as duas superfícies,
+título e corpo e manda tentar o substantivo sozinho (`:200-201`); o argumento e o episódio que o
+motivou estão no comentário ao lado (`:191-199`). Mudar uma dessas frases muda as duas superfícies,
 e nenhum teste fica vermelho.
 
 Então, ao tocar em `ferramentas.ts`: diga no relato que as duas superfícies mudaram, e **meça** o

@@ -65,7 +65,7 @@ no schema da API.
 
 ## Sessão: o que o SDK não faz por você
 
-`sessionIdGenerator` definido mantém o SSE aberto, e com ele o log e o progresso das quatro tools
+`sessionIdGenerator` definido mantém o SSE aberto, e com ele o log e o progresso das tools
 de escrita — a única trilha de auditoria que chega ao usuário. O preço está declarado no
 `http.ts`: **com duas instâncias isto quebra**, porque o POST da chamada e o GET do SSE podem cair
 em máquinas diferentes. Uma instância, sempre.

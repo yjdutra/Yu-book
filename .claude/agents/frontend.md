@@ -56,7 +56,7 @@ estão na §10 da skill `design-system-yu-book`.
 
 ## O que é deliberado e não se "corrige"
 
-- **A cirurgia de cache do autosave.** `useAtualizarNota` (`lib/notas.ts:190`) compara o cache com a
+- **A cirurgia de cache do autosave.** `useAtualizarNota` (`lib/notas.ts:198`) compara o cache com a
   resposta e invalida só o que mudou; salvamento de corpo invalida **nada**, apenas costura a
   resposta nas listas. Levou o autosave de 6 requisições por pausa para 1. Trocar por
   `invalidateQueries` amplo é regressão. O `useInvalidar()` genérico serve só a criar, excluir e
@@ -97,7 +97,7 @@ repetindo a requisição, com renovação de voo único — requisições parale
 porque rotações concorrentes se invalidariam.
 
 **Mutação otimista** é `onMutate` (cancela, guarda o anterior, escreve) e `onError` (devolve o
-anterior) — `useMoverCard` em `lib/kanban.ts:270`, criar link em `lib/links.ts:34`. Se duas da
+anterior) — `useMoverCard` em `lib/kanban.ts:286`, criar link em `lib/links.ts:34`. Se duas da
 mesma chave podem estar em voo, o rollback de uma restaura a mudança otimista da outra: dê
 `mutationKey` e invalide no `onSettled` só quando `isMutating(...) <= 1`, isto é, quando a última
 termina (`useDefinirModeloDaTarefa`, `lib/ia.ts:98-131`, razão em `:122-124`).

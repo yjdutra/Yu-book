@@ -6,13 +6,13 @@ O servidor e o contrato estão em `referencias/servidor.md`.
 ## Autosave e cache
 
 **INV-23 — O autosave faz cirurgia de cache, não invalidação.** `useAtualizarNota`
-(`apps/web/src/lib/notas.ts:190`) compara o `NoteDetail` em cache com a resposta e invalida só o que
+(`apps/web/src/lib/notas.ts:198`) compara o `NoteDetail` em cache com a resposta e invalida só o que
 mudou de fato; salvamento de corpo — o caso comum, a cada 800 ms — invalida **nada**, apenas costura
-a resposta nas listas (`costurarNasListas`, `:153`). Levou o autosave de 6 requisições por pausa para
+a resposta nas listas (`costurarNasListas`, `:161`). Levou o autosave de 6 requisições por pausa para
 1. Trocar isso por `invalidateQueries` amplo é regressão de desempenho, não simplificação.
 
 **INV-24 — `refetchType: "none"` é idioma do projeto.** Marca `search` e `dashboard` como obsoletos
-sem refazer a requisição (`notas.ts:124,230`). Aparece também em `kanban.ts` e `links.ts`.
+sem refazer a requisição (`notas.ts:129,238`). Aparece também em `kanban.ts` e `links.ts`.
 
 **INV-25 — Renomear nota invalida tudo.** Se o título mudou, invalida `titles` e **todas** as notas,
 porque o servidor reescreveu `[[…]]` em outras notas (RN-03).
@@ -138,7 +138,7 @@ Duas consequências que economizam busca:
   (`catalogoDeTags`, `apps/web/src/lib/tags.ts:46`).
 - **O filtro de tag do board é OU; o do painel contextual de notas é E.** `cardCasaFiltro`
   (`apps/web/src/lib/tags.ts:66`) usa `some`; as notas usam `AND` no Prisma
-  (`apps/api/src/modules/notes/notes.service.ts:396`). Divergência de propósito, com razão escrita
+  (`apps/api/src/modules/notes/notes.service.ts:438`). Divergência de propósito, com razão escrita
   em `apps/web/src/components/BarraDeTags.tsx:17-23`: na barra lateral se estreita até achar uma
   nota; no board se agrega assunto espalhado por colunas, e E esvaziaria o quadro na segunda tag.
   **Não é bug de consistência.**
@@ -210,9 +210,9 @@ A armadilha vizinha:
 
 **INV-53 — Painel montado por `{estado && <X aberto … />}` nunca recebe `aberto: false`.** Ele
 **desmonta**. As duas formas convivem em `apps/web/src/components/Aplicacao.tsx` e a diferença não
-aparece em nenhuma assinatura: `Paleta` recebe a prop viva (`aberta={paletaAberta}`, `:501`) e
-continua montada o tempo todo, enquanto `GavetaLinks` é montada dentro de um `&&` (`:483`) com
-`aberta` **literal** (`:486`).
+aparece em nenhuma assinatura: `Paleta` recebe a prop viva (`aberta={paletaAberta}`, `:532`) e
+continua montada o tempo todo, enquanto `GavetaLinks` é montada dentro de um `&&` (`:514`) com
+`aberta` **literal** (`:517`).
 
 A consequência é toda na limpeza. Num painel do segundo grupo, `useEffect(() => { if (!aberto) … })`
 **nunca roda o corpo de fechamento** — `aberto` é sempre `true` enquanto o efeito existe. Só a
@@ -231,7 +231,7 @@ efeito que depende de `ativo` (`apps/web/src/lib/foco.ts:65-70`), que roda quand
 e quando o componente desmonta. Por isso `Dialogo` (`components/base/Dialogo.tsx`) aceita as duas
 montagens. Painel novo que precise de fechamento imita essa forma.
 
-Há uma terceira: `PainelAssistente` também nasce num `&&` (`Aplicacao.tsx:449-453`), mas **sem
+Há uma terceira: `PainelAssistente` também nasce num `&&` (`Aplicacao.tsx:462-466`), mas **sem
 prop `aberto`**, porque o estado dele mora fora, na sessão do chat. O fechamento que faz trabalho é
 uma ação chamada antes do desmonte, não efeito do painel — e o que ela garante é o INV-56.
 
@@ -239,22 +239,22 @@ uma ação chamada antes do desmonte, não efeito do painel — e o que ela gara
 
 **INV-56 — O laço do servidor não roda sem superfície visível.** Uma mensagem do chat são até cinco
 chamadas ao provedor, cada uma gravando contra o teto do dia (INV-47). Desde a Etapa 3 do redesenho
-de UI o fluxo mora em `ProvedorSessaoChat` (`apps/web/src/lib/sessaoChat.tsx:99`), montado acima da
+de UI o fluxo mora em `ProvedorSessaoChat` (`apps/web/src/lib/sessaoChat.tsx:113`), montado acima da
 casca (`apps/web/src/App.tsx:38-40`) — **desmontar a superfície não solta a conexão.** A garantia
 deixou de ser uma limpeza de efeito e virou quatro pontos, cada um fechando um caminho:
 
 1. **Fechar o painel para o fluxo:** `fecharPainel` chama `parar()` antes de desmontar
-   (`sessaoChat.tsx:198-199`).
-2. **O logout aborta:** sair da sessão desmonta o provedor, e a limpeza aborta (`sessaoChat.tsx:137`).
+   (`sessaoChat.tsx:216-217`).
+2. **O logout aborta:** sair da sessão desmonta o provedor, e a limpeza aborta (`sessaoChat.tsx:152`).
 3. **Sair de `/assistente` com fluxo em curso reabre o painel** (`Aplicacao.tsx:161-166`, lendo
-   `temFluxo()`, `sessaoChat.tsx:152`). Sem isso a resposta seguiria em tela nenhuma.
-4. **O `AbortController` nasce antes de criar a conversa** (`sessaoChat.tsx:219-220`, razão em
-   `:116-122`), e enquanto ele existe outro envio não começa (`:217`). Nascido depois do
-   `criar.mutateAsync` (`:239`), fechar nessa janela chamava um `parar()` sem nada para parar; a
-   conferência de `:245` é o que segura o fluxo ali.
+   `temFluxo()`, `sessaoChat.tsx:167`). Sem isso a resposta seguiria em tela nenhuma.
+4. **O `AbortController` nasce antes de criar a conversa** (`sessaoChat.tsx:237-238`, razão em
+   `:131-137`), e enquanto ele existe outro envio não começa (`:235`). Nascido depois do
+   `criar.mutateAsync` (`:258`), fechar nessa janela chamava um `parar()` sem nada para parar; a
+   conferência de `:264` é o que segura o fluxo ali.
 
 **Expandir para `/assistente` não toca no fluxo**: trocar de superfície não é fechar
-(`sessaoChat.tsx:191-192`), e a rota não passa por `fecharPainel`. Caminho novo que esconda a
+(`sessaoChat.tsx:209-210`), e a rota não passa por `fecharPainel`. Caminho novo que esconda a
 última superfície visível — outra rota, outro atalho, outro "fechar" — chama `fecharPainel` ou
 entra nesta lista. Nenhum portão executa o front: a quebra aparece como gasto no teto sem resposta
 na tela.
@@ -262,12 +262,12 @@ na tela.
 **O avesso: em `/assistente`, nada alterna o painel.** Lá o painel não existe, mas `painelAberto`
 continua valendo, e `alternarPainel` com ele `true` é `fecharPainel` — `parar()` na resposta que
 está na tela. Todo caminho que alterna faz o desvio `emAssistente ? focarCampo() : alternarPainel()`:
-o atalho (`Aplicacao.tsx:262`) e o comando da paleta (`:338`); o botão do trilho escapa por não
+o atalho (`Aplicacao.tsx:275`) e o comando da paleta (`:351`); o botão do trilho escapa por não
 existir ali (`casca/Trilho.tsx:252`). Caminho novo que alterne o painel entra nesta lista.
 
-A armadilha vizinha: **os dois contextos da sessão não se fundem.** `useAcoesChat` (`:346`) dá as
-ações e `painelAberto` a quem só abre o chat — casca, editor, card —; `useSessaoChat` (`:353`) dá o
-estado, que muda a cada delta do streaming, e é só das superfícies (razão em `:30-34`). Fundir os
+A armadilha vizinha: **os dois contextos da sessão não se fundem.** `useAcoesChat` (`:376`) dá as
+ações e `painelAberto` a quem só abre o chat — casca, editor, card —; `useSessaoChat` (`:383`) dá o
+estado, que muda a cada delta do streaming, e é só das superfícies (razão em `:31-35`). Fundir os
 dois, ou assinar `useSessaoChat` fora de `components/assistente/`, faz quadro e editor
 re-renderizarem dezenas de vezes por segundo durante a resposta. Compila, funciona, só fica lento.
 
@@ -292,7 +292,7 @@ vendo um modelo marcado conclui que o erro é falso.
 **Não vale para todo enum: vale para o enum cujo membro pede configuração.** `LINK_KINDS` é citado à
 mão de propósito em `apps/web/src/components/ZonasDeSoltura.tsx:123-134` — cada zona tem texto e
 ícone próprios, e ali o enum só discrimina. Enum que rotula ou discrimina pode ser citado (é também
-o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:377` já
+o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:392` já
 mantém total); enum cujo membro exige um valor que **só a interface** coleta, não.
 
 O resto da tela também percorre, e cada um é um `.map` que o typecheck não cobra: os itens "Usar
@@ -304,23 +304,23 @@ em texto — acesso a chave conhecida não é erro de tipo.
 ## Filtros de notas na URL
 
 **INV-55 — Toda navegação dentro de `/n` carrega o `search`.** Desde a Etapa 2 do redesenho de UI
-os filtros da lista moram na query string (`useFiltrosDaUrl`, `apps/web/src/lib/filtrosUrl.ts:60`),
+os filtros da lista moram na query string (`useFiltrosDaUrl`, `apps/web/src/lib/filtrosUrl.ts:62`),
 e a URL é o único lugar em que eles existem. Um `navigate` para `/n/<id>` sem `search` **apaga o
 recorte**: a lista volta a "todas" no mesmo clique que abriu a nota, sem erro nem aviso. Os pontos
 que carregam hoje:
 
-- abrir nota: `abrirNota` (`apps/web/src/components/Aplicacao.tsx:219-226`, o `navigate` em `:223`),
+- abrir nota: `abrirNota` (`apps/web/src/components/Aplicacao.tsx:232-239`, o `navigate` em `:236`),
   que serve também a paleta e ao chat;
-- criar nota: `novaNota` (`Aplicacao.tsx:228`), que também tira o tipo da nota nova do filtro
-  (`:236`);
+- criar nota: `novaNota` (`Aplicacao.tsx:241`), que também tira o tipo da nota nova do filtro
+  (`:249`);
 - fechar nota: `onFechar` (`apps/web/src/pages/NotasPage.tsx:55`);
 - voltar à lista de outra área: o trilho navega para `ultimaListaNotas` (`Aplicacao.tsx:137-140`,
-  `:368`), e o comando "Ir para Notas" da paleta (`:296`), a última `/n?…` visitada.
+  `:381`), e o comando "Ir para Notas" da paleta (`:309`), a última `/n?…` visitada.
 
 **O `search` só viaja quando se está em `/n`** (`emNotas ? search : ""`): fora dali a query string
 é de outra rota, e um filtro esquecido não pode decidir o tipo de uma nota criada no board. Não
 "simplifique" para sempre carregar. O workspace fica **fora** da URL de propósito
-(`filtrosUrl.ts:53-54`). Caminho novo que abra, feche ou crie nota a partir da lista entra nesta
+(`filtrosUrl.ts:55-56`). Caminho novo que abra, feche ou crie nota a partir da lista entra nesta
 lista — **nenhum portão executa navegação**, e o sintoma só aparece com um filtro ligado.
 
 ## Quadro de modelos

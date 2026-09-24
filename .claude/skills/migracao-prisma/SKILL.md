@@ -54,6 +54,8 @@ await prisma.$queryRaw`SELECT id FROM note WHERE user_id = ${userId}::uuid LIMIT
 ```
 
 - **Nunca concatene string.** Fragmento composto usa `Prisma.sql`, `Prisma.join` e `Prisma.empty`.
+  `Prisma.raw` só com literal do código — o apelido de tabela de `marcaDe`
+  (`apps/api/src/modules/notes/search.service.ts:28-30`) —, nunca com entrada.
 - **`count(*)` volta como `bigint`** — envolva em `Number()`.
 - **Cast em número é obrigatório** quando o valor entra numa função que espera `int`: o Prisma envia
   número como `bigint`. É o motivo de `left(content_md, ${N}::int)`.
