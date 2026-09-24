@@ -201,8 +201,8 @@ export async function modeloParaTarefa(userId: string, task: AiTask): Promise<Ai
     throw new AppError(
       422,
       "MODELO_NAO_ESCOLHIDO",
-      `Nenhum modelo escolhido para a tarefa "${task}". Marque um na coluna ${task} ` +
-        "de «Seus modelos», nos ajustes de IA.",
+      `Nenhum modelo escolhido para a tarefa "${task}". Arraste um favorito para a coluna ` +
+        `${task} em Ajustes → Modelos.`,
     );
   }
 
@@ -213,7 +213,8 @@ export async function modeloParaTarefa(userId: string, task: AiTask): Promise<Ai
     throw new AppError(
       422,
       "MODELO_NAO_ESCOLHIDO",
-      `O modelo escolhido para a tarefa "${task}" saiu dos favoritos. Marque outro nos ajustes.`,
+      `O modelo escolhido para a tarefa "${task}" saiu dos favoritos. ` +
+        `Arraste outro para a coluna ${task} em Ajustes → Modelos.`,
     );
   }
 
