@@ -15,6 +15,7 @@ import { IndicadorSalvamento } from "./base/IndicadorSalvamento";
 import { IconeAssistente, IconeChevron, IconeClipe, IconeFechar } from "./Icones";
 import { RotuloTipo } from "./RotuloTipo";
 import { SeletorDeTags } from "./SeletorDeTags";
+import { FaixaIA } from "./MarcaIA";
 
 /** O `input type="date"` fala yyyy-mm-dd local; o banco fala ISO. */
 function paraCampoData(iso: string | null): string {
@@ -198,6 +199,13 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
             <IndicadorSalvamento estado={estado} />
           </span>
         </div>
+
+        {/* Etapa C da frente de IA: o card que o assistente criou diz de onde veio. */}
+        {card.ai && (
+          <div className="mt-2">
+            <FaixaIA marca={card.ai} />
+          </div>
+        )}
 
         {erro && (
           <Aviso tom="erro" onFechar={() => setErro(null)} className="mt-2">

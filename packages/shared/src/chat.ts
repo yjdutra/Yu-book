@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { AiCallUsage } from "./ia.js";
 import type { AiMessageRole } from "./enums.js";
+import { noteKindSchema, tituloSchema } from "./notes.js";
 
 /**
  * O chat ancorado — Etapa B da frente de IA, RF-17 a RF-26 de
@@ -36,6 +37,17 @@ export interface ChatSource {
   title: string;
 }
 
+/**
+ * Algo que uma resposta **criou** no acervo (Etapa C da frente de IA). Forma de
+ * `ChatSource` sem quadro: o chat cria nota e card, nunca quadro. Nasce
+ * marcado como gerado por IA, e o chat oferece desfazer.
+ */
+export interface ChatCreated {
+  kind: "note" | "card";
+  id: string;
+  title: string;
+}
+
 export interface ChatAttachment {
   id: string;
   noteId: string | null;
@@ -58,6 +70,8 @@ export interface ChatMessage {
   toolName: string | null;
   /// O que o turno consultou, na fala que o fecha. Vazio nas demais.
   sources: ChatSource[];
+  /// O que o turno criou, na fala que o fecha. Vazio nas demais.
+  created: ChatCreated[];
   createdAt: string;
   attachments: ChatAttachment[];
 }
@@ -101,6 +115,9 @@ export type ChatEvent =
   /// O que aquela ação consultou (RN-05). Determinístico: não depende de o
   /// modelo citar.
   | { tipo: "fontes"; fontes: ChatSource[] }
+  /// O que aquela ação criou no acervo, já gravado e marcado como gerado por
+  /// IA. Chega ao vivo para o painel oferecer "desfazer" antes do fim.
+  | { tipo: "criado"; criados: ChatCreated[] }
   /**
    * O teto diário cortou **no meio** do laço. O que já foi gerado fica: os
    * passos anteriores custaram dinheiro e renderam alguma coisa, e o usuário
@@ -145,6 +162,18 @@ export const chatMessageInputSchema = z.object({
   attachments: z.array(chatAttachmentSchema).max(MAX_ANEXOS_POR_MENSAGEM).default([]),
 });
 
+/**
+ * "Virar nota": a resposta do assistente vira nota marcada (Etapa C). O corpo
+ * **não** vem do cliente — o servidor lê a `AiMessage` gravada, de onde saem o
+ * conteúdo, o modelo e a conversa. O cliente só escolhe onde ela mora.
+ */
+export const messageToNoteSchema = z.object({
+  title: tituloSchema,
+  kind: noteKindSchema.default("livre"),
+  workspaceId: z.string().uuid().nullable().default(null),
+});
+
+export type MessageToNoteInput = z.input<typeof messageToNoteSchema>;
 export type ConversationInput = z.infer<typeof conversationInputSchema>;
 export type ChatAttachmentInput = z.infer<typeof chatAttachmentSchema>;
 export type ChatMessageInput = z.infer<typeof chatMessageInputSchema>;

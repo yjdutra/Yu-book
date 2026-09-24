@@ -56,6 +56,21 @@ export function IconeNotas(p: IconeProps) {
   );
 }
 
+/**
+ * Folha com um "+" no canto — virar nota (Etapa C da IA): a resposta do
+ * assistente vira nota nova. A folha é a de `IconeNotas`, aberta embaixo à
+ * direita para o sinal caber.
+ */
+export function IconeVirarNota(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M12 8.2V5L9 2H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h4.4" />
+      <path d="M9 2v3h3M5.5 8.5h3.5M5.5 11h2" />
+      <path d="M12.4 10.4v4.2M10.3 12.5h4.2" />
+    </Icone>
+  );
+}
+
 export function IconeEstrela(p: IconeProps) {
   return (
     <Icone {...p}>

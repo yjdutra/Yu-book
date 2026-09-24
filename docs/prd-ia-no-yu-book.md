@@ -1,7 +1,7 @@
 # PRD — IA dentro do Yu-book
 
-**Versão:** v0.1 (draft) · **Autor:** yjdutra · **Data:** 2026-08-24 · **Status:** Etapa A entregue
-em 2026-09-22
+**Versão:** v0.1 (draft) · **Autor:** yjdutra · **Data:** 2026-08-24 · **Status:** Etapas A e B entregues;
+Etapa C (marca de conteúdo gerado) em 2026-09-24
 
 > **A Etapa A revogou seis afirmações deste documento.** Elas ficam abaixo, marcadas onde estão, em
 > vez de reescritas — o que se pensava em 2026-08-24 é parte do registro. São: **RN-01** e
@@ -72,10 +72,10 @@ A busca semântica, aliás, não é ideia nova: estava na proposta original do p
 - **NO1** — Não construir um chat de propósito geral. O chat responde sobre o que foi **anexado**;
   sem contexto anexado ele é um assistente pior que qualquer aba do navegador, e não é para isso que
   existe.
-- **NO2** — **Revisto em 2026-09-22, sem código ainda.** Nota gerada por IA passa a ser permitida
+- **NO2** — **Revisto em 2026-09-22.** Nota gerada por IA passa a ser permitida
   **desde que marcada no dado** — o que o NO2 protegia (texto sintético indistinguível no acervo)
-  é atendido pela marca, não pela proibição. A marca é da **Etapa C**; até ela existir, não se gera
-  nota. Texto original: não gerar nota do zero por IA, porque o Yu-book guarda o que **você**
+  é atendido pela marca, não pela proibição. **A marca foi entregue na Etapa C, em 2026-09-24**
+  (seção 5.5). Texto original: não gerar nota do zero por IA, porque o Yu-book guarda o que **você**
   pensou.
 - **NO3** — Não expor nenhuma dessas funções pelo servidor MCP. Quem usa o MCP já tem um modelo do
   outro lado — oferecer um segundo seria redundância de verdade.
@@ -199,6 +199,28 @@ Um usuário, um papel. Sem hierarquia, como no resto do projeto.
   nunca torna uma nota invisível.
 - **RF-34** — Nota na lixeira não entra em resultado semântico, como já não entra na busca atual.
 
+### 5.5 Etapa C — Marca de conteúdo gerado
+
+Esta seção não é uma fase da numeração 1–4 acima: é a primeira das etapas do
+[plano de agentes de acervo](plano-agentes-de-acervo.md), que continua as letras da frente de IA.
+
+- **RF-35** — Nota e card carregam no dado uma **marca de origem**: quando foram gerados por IA, por
+  qual superfície (`chat` ou `mcp`), por quem (o modelo que respondeu, ou o nome do cliente MCP),
+  de que conversa vieram, quando houver, e quando foram revisados à mão pela última vez.
+- **RF-36** — O chat **cria card e nota** a pedido do usuário, pelas ações `create_card` e
+  `create_note`. Mover, apagar, restaurar e editar continuam fora do chat.
+- **RF-37** — A resposta do chat mostra o que criou, com link para o item e um **Desfazer** que manda
+  a nota para a lixeira ou exclui o card.
+- **RF-38** — Toda resposta do assistente tem a ação **"Virar nota"**. O servidor cria a nota a partir
+  da mensagem gravada: o conteúdo e o modelo saem do banco, não do cliente. Resolve a Q-04.
+- **RF-39** — O servidor MCP cria nota (`create_note`, nova) e card informando o nome do cliente
+  que chamou, e o que ele cria nasce marcado com `via mcp`.
+- **RF-40** — A marca aparece na lista de notas, no editor, no card do kanban, no painel do card, na
+  paleta de busca e no Início; o texto que o MCP e o chat leem (`formato.ts`) também a traz.
+- **RF-41** — A lista de notas filtra por **"Geradas por IA"**, com contagem na barra lateral.
+- **RF-42** — O que o assistente formata **não** recebe marca: formatar reorganiza o texto do
+  usuário, não gera texto novo (S-03).
+
 ---
 
 ## 6. Requisitos não-funcionais
@@ -225,6 +247,8 @@ Um usuário, um papel. Sem hierarquia, como no resto do projeto.
   nenhum estado é comunicado só por cor.
 - **RNF-08 Convenções** — Domínio em português, fronteira da API em inglês, imports com `.js`,
   comentário citando `RF-xx`. Sem biblioteca de UI e sem `dark:`.
+- **RNF-09 Marca sem depender de cor** — A marca de conteúdo gerado é lida por ícone e texto ("IA",
+  "revisada"); a cor de IA é reforço, nunca o único sinal. Vale nos dois temas.
 
 ---
 
@@ -287,7 +311,9 @@ card ↔ nota já faz.
 - **RN-02 A chamada sai do servidor.** O front nunca fala com provedor. É a mesma lição do
   `VITE_API_URL`: o que o front conhece, o bundle publica.
 - **RN-03 IA não escreve nota sozinha.** Toda alteração de conteúdo por modelo é iniciada pelo
-  usuário e reversível por ele.
+  usuário e reversível por ele. **Emendada em 2026-09-24, na Etapa C:** o chat cria nota e card
+  quando o usuário pede, e isso cumpre a regra — o pedido é a iniciativa, o Desfazer da resposta é a
+  reversão, e a marca (RN-10) é o que impede o texto criado de se confundir com o do usuário.
 - **RN-04 O chat responde sobre o anexado.** **Revogada em 2026-09-23**, com o RF-21 e o CA-09. O
   laço de ferramenta substitui "pedir contexto" por "ir buscar". A regra que sobrevive, e que é a
   que importava, é a RN-05.
@@ -298,6 +324,15 @@ card ↔ nota já faz.
 - **RN-08 Embedding é derivado.** Perder todos os embeddings não perde nenhum dado: o backfill os
   reconstrói a partir das notas.
 - **RN-09 A IA é opcional.** Nenhuma função existente passa a depender de provedor.
+- **RN-10 Nada gerado entra sem marca.** Todo caminho pelo qual um modelo cria nota ou card grava a
+  marca **no servidor**: o chat a passa ao service por parâmetro, e o "virar nota" a tira da
+  mensagem gravada. O front nunca afirma origem.
+- **RN-11 A marca nunca some.** Nenhuma rota a remove. Editar à mão título ou corpo de algo gerado
+  registra a revisão (`revisada em`), sem apagar de onde veio. Favoritar, mover, etiquetar ou mudar
+  de workspace não é revisão.
+- **RN-12 Nem toda escrita é do chat.** O catálogo do chat é uma lista explícita — as leituras mais
+  `create_card` e `create_note`. Ação de escrita nova no catálogo compartilhado não chega ao chat
+  por existir lá.
 
 ---
 
@@ -338,6 +373,18 @@ card ↔ nota já faz.
   embedding, então os dois números são iguais.
 - **CA-16** (RNF-06) — Dada uma conversa de outra conta, quando se tenta acessá-la, então a resposta é
   404, não 403.
+- **CA-17** (RF-35, RN-10) — Dado que o chat cria um card a pedido, quando se lê o card, então ele
+  traz `via chat`, o modelo que respondeu e a conversa de origem.
+- **CA-18** (RF-38, RNF-06) — Dada uma mensagem de outra conta, quando se pede para virá-la nota,
+  então a resposta é 404; dada uma mensagem do próprio usuário (papel `user`), então é recusada.
+- **CA-19** (RN-11) — Dada uma nota gerada, quando o corpo é editado à mão, então ela passa a
+  "revisada" e continua marcada; quando só é favoritada, então nada muda na marca.
+- **CA-20** (RF-41) — Dadas duas notas geradas e uma escrita à mão, quando se filtra por "Geradas
+  por IA", então vêm as duas, e a contagem diz 2.
+- **CA-21** (RN-12) — Dado o catálogo oferecido ao provedor, quando se listam os nomes, então são
+  sete e não incluem `move_card`, `trash_note` nem `restore_note`.
+- **CA-22** (RNF-09) — Dada a marca em qualquer superfície, quando se remove a cor (escala de
+  cinza), então ela continua legível pelo ícone e pelo texto.
 
 ---
 
@@ -405,9 +452,10 @@ ser declarada, não presumida — o agente `mcp` roda no modo de propagação e 
   a Fase 4 precisa de outro caminho ou sai do escopo. Verificar **antes** de começar a Fase 4.
 - **Q-03** — Como o backfill roda sem introduzir uma fila de jobs? Impacto: decide se a Fase 4 é
   simples ou traz infraestrutura nova. Responsável: operador, na Fase 4.
-- **Q-04** — A conversa deve poder virar nota? Aproveitaria que nota já é a entidade forte do
+- **Q-04** — ~~A conversa deve poder virar nota? Aproveitaria que nota já é a entidade forte do
   projeto, mas conflita com NO2, que proíbe texto sintético no acervo. Responsável: operador, depois
-  de usar o chat.
+  de usar o chat.~~ **Resolvida em 2026-09-24, na Etapa C: sim, por resposta**, com a marca que o
+  NO2 revisto exige (RF-38).
 - **Q-05** — ~~O limite de contexto do chat é por número de anexos, por bytes, ou os dois?~~
   **Resolvida em 2026-09-23, na Etapa B: os dois, e cada um resolve uma coisa.** O corte que vale é
   por **caracteres**, no mesmo `MAX_CONTEUDO_IA` de 60 000 que a formatação já usa, e ele corta por

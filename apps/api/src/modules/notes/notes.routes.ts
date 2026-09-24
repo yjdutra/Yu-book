@@ -35,8 +35,9 @@ export async function notesRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/notes", async (request, reply) => {
-    const input = createNoteSchema.parse(request.body);
-    const nota = await notes.criar(request.userId, input);
+    // `origin` não é campo da nota: vira a marca de IA, e só o MCP o envia.
+    const { origin, ...input } = createNoteSchema.parse(request.body);
+    const nota = await notes.criar(request.userId, input, origin);
     return reply.status(201).send(nota);
   });
 

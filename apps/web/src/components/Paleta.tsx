@@ -8,6 +8,7 @@ import { useWorkspaceAtivo } from "../lib/workspace";
 import { Dialogo } from "./base/Dialogo";
 import { Tecla } from "./base/Tecla";
 import { IconeAssistente, IconeBusca } from "./Icones";
+import { MarcaIA } from "./MarcaIA";
 import { RotuloTipo } from "./RotuloTipo";
 
 /**
@@ -275,7 +276,16 @@ export function Paleta({
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm text-titulo">{r.title}</span>
                       {/* RF-41: card se identifica como card e diz de que board é. */}
-                      <RotuloTipo tipo={r.kind ?? "card"} className="ml-auto shrink-0" />
+                      {/* Etapa C da frente de IA: gerado se distingue antes de abrir. */}
+                      {r.ai && (
+                        <span className="ml-auto shrink-0">
+                          <MarcaIA marca={r.ai} />
+                        </span>
+                      )}
+                      <RotuloTipo
+                        tipo={r.kind ?? "card"}
+                        className={`shrink-0 ${r.ai ? "" : "ml-auto"}`}
+                      />
                       {r.type === "card" ? (
                         <span className="shrink-0 text-miudo text-ink-400">
                           {r.boardName} · {r.columnName}

@@ -31,9 +31,13 @@ export function registrarConteudo(server: McpServer): void {
       mimeType: "text/markdown",
     },
     comErroDeResource(async (uri, { id }) => {
-      const nota = await api.get<NoteDetail>(`/notes/${id}`);
+      // Igual a `get_note`, e tem de ser: os dois textos saem idênticos (§7).
+      const [nota, fuso] = await Promise.all([
+        api.get<NoteDetail>(`/notes/${id}`),
+        fusoDoUsuario(),
+      ]);
       return {
-        contents: [{ uri: uri.href, mimeType: "text/markdown", text: formatarNota(nota) }],
+        contents: [{ uri: uri.href, mimeType: "text/markdown", text: formatarNota(nota, fuso) }],
       };
     }),
   );

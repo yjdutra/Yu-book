@@ -31,6 +31,8 @@ export interface Filtros {
    */
   workspaceId: string | null;
   favorite: boolean;
+  /** Só as geradas por IA (Etapa C da frente de IA) — `GET /notes?ai=true`. */
+  ai: boolean;
   sort: NoteSort;
   trash: boolean;
 }
@@ -41,6 +43,7 @@ export const FILTROS_VAZIOS: Filtros = {
   tags: [],
   workspaceId: null,
   favorite: false,
+  ai: false,
   sort: "updatedAt",
   trash: false,
 };
@@ -52,6 +55,7 @@ function queryString(filtros: Filtros, cursor?: string): string {
   if (filtros.tags.length) p.set("tags", filtros.tags.join(","));
   if (filtros.workspaceId) p.set("workspaceId", filtros.workspaceId);
   if (filtros.favorite) p.set("favorite", "true");
+  if (filtros.ai) p.set("ai", "true");
   if (filtros.trash) p.set("trash", "true");
   p.set("sort", filtros.sort);
   if (cursor) p.set("cursor", cursor);
@@ -110,10 +114,11 @@ export function useBusca(termo: string, ativo: boolean, workspaceId: string | nu
  * Invalida tudo que depende do conjunto de notas.
  *
  * Serve para criar, excluir e restaurar — operações pontuais, em que refazer
- * meia dúzia de consultas é irrelevante. **Não** serve para o autosave: ali o
+ * meia dúzia de consultas é irrelevante. Exportado para o "virar nota" do chat
+ * (`chat.ts`), que é criar por outra rota. **Não** serve para o autosave: ali o
  * custo é por pausa de digitação (ver `useAtualizarNota`).
  */
-function useInvalidar() {
+export function useInvalidar() {
   const qc = useQueryClient();
   return () => {
     void qc.invalidateQueries({ queryKey: ["notes"] });
@@ -140,6 +145,9 @@ function paraResumo(nota: NoteDetail): NoteSummary {
     updatedAt: nota.updatedAt,
     createdAt: nota.createdAt,
     deletedAt: nota.deletedAt,
+    // Sem copiar a marca, o autosave a apagaria da lista na primeira pausa; e é
+    // a resposta do PATCH que traz o `revisedAt` novo, sem refetch.
+    ai: nota.ai,
   };
 }
 

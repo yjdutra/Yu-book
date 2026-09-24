@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { CardPriority } from "./enums.js";
+import type { AiMark } from "./marca.js";
 import type { NoteSummary } from "./notes.js";
 
 /** Quantos itens cada bloco mostra antes de resumir o resto (RF-12, RF-13, RF-16). */
@@ -23,6 +24,7 @@ export interface CardComPrazo {
   boardId: string;
   boardName: string;
   columnName: string;
+  ai: AiMark | null;
 }
 
 export interface LinkResumo {

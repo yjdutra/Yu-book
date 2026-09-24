@@ -4,6 +4,7 @@ import type {
   AiCallUsage,
   ChatEvent,
   ChatMessage,
+  ChatCreated,
   ChatMessageInput,
   ChatSource,
 } from "@yu-book/shared";
@@ -43,8 +44,9 @@ import type { PreferenciaDeIa } from "./preferencias.service.js";
  *   buscar, não achar, buscar de novo — é o caso que gasta um teto inteiro numa
  *   pergunta.
  *
- * O laço nasce **só com leitura**: quem decide o que pode ser executado é
- * `ferramentas.service.ts`, e lá as quatro ações de escrita não têm executor.
+ * Quem decide o que pode ser executado é `ferramentas.service.ts`. Desde a
+ * Etapa C o chat **cria** nota e card, marcados como gerados por IA, e só isso:
+ * mover, mandar para a lixeira e restaurar continuam sem executor.
  */
 
 /// Geração de texto é lenta, e aqui ela acontece até cinco vezes — o orçamento
@@ -60,7 +62,7 @@ const INSTRUCOES = [
   "Você é o assistente do Yu-book, o segundo cérebro do usuário. " +
     "Responda em português do Brasil.",
   "",
-  "Você tem ferramentas de **leitura** do acervo dele. Use-as:",
+  "Você tem ferramentas de leitura do acervo dele, e duas de criação. Use as de leitura:",
   "- Procure sozinho quando a pergunta for sobre o acervo. Não peça ao usuário o que você " +
     "pode buscar.",
   "- `search_notes` acha; `get_note` lê uma nota inteira. Buscar é barato, ler é caro — " +
@@ -70,7 +72,12 @@ const INSTRUCOES = [
   "Regras da resposta:",
   "- **Cite a origem**: toda afirmação sobre uma nota ou um card nomeia a nota ou o card.",
   "- Não altere nada entre colchetes duplos ao citar: `[[assim]]` é um link interno do usuário.",
-  "- Você não consegue criar, alterar nem apagar nada. Se pedirem, diga que só sabe ler.",
+  "",
+  "Criação (`create_note`, `create_card`):",
+  "- Crie nota ou card **só quando o usuário pedir explicitamente**. Nunca por iniciativa sua.",
+  "- Depois de criar, confirme pelo nome o que criou.",
+  "- Você não move, não apaga nem edita nada. Se pedirem, diga que isso se faz no aplicativo.",
+  "- O que você cria fica marcado como gerado por IA.",
 ].join("\n");
 
 type MensagemDoProvedor =
@@ -283,6 +290,7 @@ interface GravarMensagem {
   toolCallId?: string | null;
   toolCalls?: unknown[] | null;
   sources?: ChatSource[];
+  created?: ChatCreated[];
   anexos?: conversas.AnexoResolvido[];
 }
 
@@ -298,6 +306,7 @@ async function gravarMensagem(dados: GravarMensagem): Promise<ChatMessage> {
       toolCallId: dados.toolCallId ?? null,
       ...(dados.toolCalls?.length && { toolCalls: dados.toolCalls as never }),
       ...(dados.sources?.length && { sources: dados.sources as never }),
+      ...(dados.created?.length && { created: dados.created as never }),
       attachments: {
         create: (dados.anexos ?? []).map((a) => ({
           noteId: a.entrada.noteId ?? null,
@@ -324,6 +333,7 @@ async function gravarMensagem(dados: GravarMensagem): Promise<ChatMessage> {
     modelUsed: linha.modelUsed,
     toolName: linha.toolName,
     sources: Array.isArray(linha.sources) ? (linha.sources as unknown as ChatSource[]) : [],
+    created: Array.isArray(linha.created) ? (linha.created as unknown as ChatCreated[]) : [],
     createdAt: linha.createdAt.toISOString(),
     attachments: linha.attachments.map((a) => ({
       id: a.id,
@@ -365,195 +375,243 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
       return [];
     },
   );
+  /**
+   * O que o turno criou no acervo (Etapa C), acumulado como `fontesDoTurno` e
+   * gravado na mesma fala. É o que permite ao histórico oferecer "desfazer"
+   * depois de recarregar a página.
+   */
+  const criadosDoTurno: ChatCreated[] = [];
   let ultima: ChatMessage | null = null;
 
-  for (let passo = 1; passo <= MAX_PASSOS_DO_LACO; passo += 1) {
-    const tokensEntrada = tokensAproximados(charsDe(mensagens));
-    const maxTokens = Math.min(
-      MAX_SAIDA_TOKENS,
-      modelo.contextLength - tokensEntrada - FOLGA_SAIDA_TOKENS,
-    );
-    if (maxTokens < MINIMO_SAIDA_TOKENS) {
-      yield {
-        tipo: "erro",
-        code: "VALIDATION_ERROR",
-        mensagem:
-          `A conversa já não cabe em ${modelo.name}: ~${tokensEntrada} tokens contra um ` +
-          `contexto de ${modelo.contextLength}. Comece uma conversa nova ou escolha um modelo ` +
-          "com contexto maior.",
-      };
-      return;
-    }
+  /** Se `criadosDoTurno` já está gravado em alguma fala — o `finally` confere. */
+  let criadosGravados = false;
 
-    let localDay: string;
-    try {
-      const resumo = await garantirTeto(userId, preferencia, estimarPasso(modelo, mensagens));
-      localDay = resumo.localDay;
-    } catch (erro) {
-      /// Corte no meio do laço: o que já foi gerado **fica**. Os passos
-      /// anteriores custaram dinheiro e renderam alguma coisa, e um erro que
-      /// apagasse tudo faria o usuário pagar por nada.
-      if (erro instanceof AppError && erro.code === "TETO_DIARIO_ATINGIDO") {
-        yield { tipo: "teto", mensagem: erro.message };
-        if (ultima) yield { tipo: "fim", mensagem: ultima, usage: usos };
-        return;
-      }
-      throw erro;
-    }
-
-    const inicio = Date.now();
-    const registro = {
-      userId,
-      task: "chat" as const,
-      modelId: modelo.id,
-      localDay,
-      conversationId,
-    };
-
-    let resultado;
-    try {
-      const resposta = await abrirNoProvedor("/chat/completions", {
-        metodo: "POST",
-        orcamentoMs: ORCAMENTO_MS,
-        corpo: {
-          model: modelo.id,
-          max_tokens: maxTokens,
-          stream: true,
-          /// Sem isto o `usage` não vem, e todo passo gravaria custo
-          /// `desconhecido` — o teto viraria decorativo (INV-48).
-          stream_options: { include_usage: true },
-          messages: mensagens,
-          tools: ferramentas.catalogoParaProvedor(),
-          ...politicaDeDados(preferencia.allowTraining),
-        },
-      });
-
-      const fluxo = lerFluxo(resposta);
-      while (true) {
-        const pedaco = await fluxo.next();
-        if (pedaco.done) {
-          resultado = pedaco.value;
-          break;
-        }
-        yield { tipo: "delta", texto: pedaco.value };
-      }
-    } catch (erro) {
-      await registrarUso({
-        ...registro,
-        promptTokens: 0,
-        completionTokens: 0,
-        costMicros: 0,
-        costSource: "desconhecido",
-        durationMs: Date.now() - inicio,
-        ok: false,
-        errorCode: erro instanceof AppError ? erro.code : "INTERNAL_ERROR",
-      });
-      yield {
-        tipo: "erro",
-        code: erro instanceof AppError ? erro.code : "INTERNAL_ERROR",
-        mensagem:
-          erro instanceof AppError ? erro.message : "Falha ao falar com o provedor de IA.",
-      };
-      return;
-    }
-
-    const apurado = custoDaResposta(resultado.usage, modelo);
-    await registrarUso({
-      ...registro,
-      modelUsed: resultado.modelUsed,
-      generationId: resultado.generationId,
-      durationMs: Date.now() - inicio,
-      ok: true,
-      ...apurado,
+  /**
+   * O turno terminou **sem** a fala que fecha: teto no meio, passos esgotados,
+   * erro do provedor, exceção qualquer ou o cliente que fechou a conexão (o
+   * `Readable` chama `return()` no gerador, e o `finally` roda). O que já foi
+   * criado existe no acervo e precisa continuar desfazível pelo histórico,
+   * então vai para a última fala do assistente gravada. Ela sempre existe
+   * quando há criado: a ferramenta só roda depois de gravada a fala que a
+   * pediu.
+   */
+  async function anotarCriadosEm(mensagem: ChatMessage): Promise<ChatMessage> {
+    criadosGravados = true;
+    if (criadosDoTurno.length === 0) return mensagem;
+    await prisma.aiMessage.update({
+      where: { id: mensagem.id },
+      data: { created: criadosDoTurno as never },
     });
-    usos.push({
-      modelId: modelo.id,
-      modelUsed: resultado.modelUsed,
-      promptTokens: apurado.promptTokens,
-      completionTokens: apurado.completionTokens,
-      costMicros: apurado.costMicros,
-      costSource: apurado.costSource,
-    });
-
-    /// A fala do assistente é gravada mesmo quando ela é só um pedido de
-    /// ferramenta sem texto: é ela que carrega os `tool_calls` que o provedor
-    /// exige ver antes dos resultados, no turno seguinte.
-    ultima = await gravarMensagem({
-      conversationId,
-      role: "assistant",
-      content: resultado.texto,
-      modelId: modelo.id,
-      modelUsed: resultado.modelUsed,
-      toolCalls: resultado.pedidos.length ? paraToolCalls(resultado.pedidos) : null,
-      /// Só na fala que fecha: repetir a lista em cada passo intermediário
-      /// mostraria a mesma nota três vezes na tela.
-      ...(resultado.pedidos.length === 0 && { sources: fontesDoTurno }),
-    });
-    mensagens.push({
-      role: "assistant",
-      content: resultado.texto,
-      ...(resultado.pedidos.length && { tool_calls: paraToolCalls(resultado.pedidos) }),
-    });
-
-    if (resultado.pedidos.length === 0) {
-      yield { tipo: "fim", mensagem: ultima, usage: usos };
-      return;
-    }
-
-    for (const pedido of resultado.pedidos) {
-      yield { tipo: "ferramenta", nome: pedido.nome, passo };
-
-      let texto: string;
-      try {
-        const argumentos = pedido.argumentos.trim() ? JSON.parse(pedido.argumentos) : {};
-        const saida = await ferramentas.executar(pedido.nome, argumentos, {
-          userId,
-          fuso: preferencia.timezone,
-        });
-        texto = saida.texto;
-        if (saida.fontes.length) {
-          const fontes = saida.fontes.map((f) => ({ kind: f.tipo, id: f.id, title: f.titulo }));
-          /// Sem repetir: duas ferramentas costumam tocar a mesma nota — buscar
-          /// e depois lê-la é o caminho normal.
-          for (const fonte of fontes) {
-            if (!fontesDoTurno.some((j) => j.kind === fonte.kind && j.id === fonte.id)) {
-              fontesDoTurno.push(fonte);
-            }
-          }
-          yield { tipo: "fontes", fontes };
-        }
-      } catch (erro) {
-        /// O erro da ferramenta volta **ao modelo**, não ao usuário: id que não
-        /// existe, argumento inválido e nota na lixeira são coisas que ele pode
-        /// corrigir na volta seguinte. Derrubar a conversa por isso desperdiça
-        /// os passos já pagos.
-        ///
-        /// O `ZodError` entra com as falhas campo a campo de propósito: é o
-        /// único erro daqui que o modelo consegue consertar sozinho, e "erro
-        /// em search_notes" sem dizer qual campo o faria repetir a mesma
-        /// chamada errada até o teto de passos.
-        texto = `Erro em ${pedido.nome}: ${motivoDaFalha(erro)}`;
-      }
-
-      await gravarMensagem({
-        conversationId,
-        role: "tool",
-        content: texto,
-        toolName: pedido.nome,
-        toolCallId: pedido.id,
-      });
-      mensagens.push({ role: "tool", tool_call_id: pedido.id, content: texto });
-    }
+    return { ...mensagem, created: [...criadosDoTurno] };
   }
 
-  /// Chegou ao teto de passos com o modelo ainda pedindo ferramenta. Não é erro
-  /// do usuário e não é silêncio: ele precisa saber que a resposta parou por
-  /// limite, não por ter acabado.
-  yield {
-    tipo: "erro",
-    code: "RESPOSTA_INVALIDA",
-    mensagem:
-      `O assistente consultou o acervo ${MAX_PASSOS_DO_LACO} vezes e não fechou uma resposta. ` +
-      "Tente perguntar de forma mais específica.",
-  };
+  try {
+    for (let passo = 1; passo <= MAX_PASSOS_DO_LACO; passo += 1) {
+      const tokensEntrada = tokensAproximados(charsDe(mensagens));
+      const maxTokens = Math.min(
+        MAX_SAIDA_TOKENS,
+        modelo.contextLength - tokensEntrada - FOLGA_SAIDA_TOKENS,
+      );
+      if (maxTokens < MINIMO_SAIDA_TOKENS) {
+        yield {
+          tipo: "erro",
+          code: "VALIDATION_ERROR",
+          mensagem:
+            `A conversa já não cabe em ${modelo.name}: ~${tokensEntrada} tokens contra um ` +
+            `contexto de ${modelo.contextLength}. Comece uma conversa nova ou escolha um modelo ` +
+            "com contexto maior.",
+        };
+        return;
+      }
+
+      let localDay: string;
+      try {
+        const resumo = await garantirTeto(userId, preferencia, estimarPasso(modelo, mensagens));
+        localDay = resumo.localDay;
+      } catch (erro) {
+        /// Corte no meio do laço: o que já foi gerado **fica**. Os passos
+        /// anteriores custaram dinheiro e renderam alguma coisa, e um erro que
+        /// apagasse tudo faria o usuário pagar por nada.
+        if (erro instanceof AppError && erro.code === "TETO_DIARIO_ATINGIDO") {
+          yield { tipo: "teto", mensagem: erro.message };
+          if (ultima) yield { tipo: "fim", mensagem: await anotarCriadosEm(ultima), usage: usos };
+          return;
+        }
+        throw erro;
+      }
+
+      const inicio = Date.now();
+      const registro = {
+        userId,
+        task: "chat" as const,
+        modelId: modelo.id,
+        localDay,
+        conversationId,
+      };
+
+      let resultado;
+      try {
+        const resposta = await abrirNoProvedor("/chat/completions", {
+          metodo: "POST",
+          orcamentoMs: ORCAMENTO_MS,
+          corpo: {
+            model: modelo.id,
+            max_tokens: maxTokens,
+            stream: true,
+            /// Sem isto o `usage` não vem, e todo passo gravaria custo
+            /// `desconhecido` — o teto viraria decorativo (INV-48).
+            stream_options: { include_usage: true },
+            messages: mensagens,
+            tools: ferramentas.catalogoParaProvedor(),
+            ...politicaDeDados(preferencia.allowTraining),
+          },
+        });
+
+        const fluxo = lerFluxo(resposta);
+        while (true) {
+          const pedaco = await fluxo.next();
+          if (pedaco.done) {
+            resultado = pedaco.value;
+            break;
+          }
+          yield { tipo: "delta", texto: pedaco.value };
+        }
+      } catch (erro) {
+        await registrarUso({
+          ...registro,
+          promptTokens: 0,
+          completionTokens: 0,
+          costMicros: 0,
+          costSource: "desconhecido",
+          durationMs: Date.now() - inicio,
+          ok: false,
+          errorCode: erro instanceof AppError ? erro.code : "INTERNAL_ERROR",
+        });
+        yield {
+          tipo: "erro",
+          code: erro instanceof AppError ? erro.code : "INTERNAL_ERROR",
+          mensagem:
+            erro instanceof AppError ? erro.message : "Falha ao falar com o provedor de IA.",
+        };
+        return;
+      }
+
+      const apurado = custoDaResposta(resultado.usage, modelo);
+      await registrarUso({
+        ...registro,
+        modelUsed: resultado.modelUsed,
+        generationId: resultado.generationId,
+        durationMs: Date.now() - inicio,
+        ok: true,
+        ...apurado,
+      });
+      usos.push({
+        modelId: modelo.id,
+        modelUsed: resultado.modelUsed,
+        promptTokens: apurado.promptTokens,
+        completionTokens: apurado.completionTokens,
+        costMicros: apurado.costMicros,
+        costSource: apurado.costSource,
+      });
+
+      /// A fala do assistente é gravada mesmo quando ela é só um pedido de
+      /// ferramenta sem texto: é ela que carrega os `tool_calls` que o provedor
+      /// exige ver antes dos resultados, no turno seguinte.
+      ultima = await gravarMensagem({
+        conversationId,
+        role: "assistant",
+        content: resultado.texto,
+        modelId: modelo.id,
+        modelUsed: resultado.modelUsed,
+        toolCalls: resultado.pedidos.length ? paraToolCalls(resultado.pedidos) : null,
+        /// Só na fala que fecha: repetir a lista em cada passo intermediário
+        /// mostraria a mesma nota três vezes na tela.
+        ...(resultado.pedidos.length === 0 && { sources: fontesDoTurno, created: criadosDoTurno }),
+      });
+      if (resultado.pedidos.length === 0) criadosGravados = true;
+      mensagens.push({
+        role: "assistant",
+        content: resultado.texto,
+        ...(resultado.pedidos.length && { tool_calls: paraToolCalls(resultado.pedidos) }),
+      });
+
+      if (resultado.pedidos.length === 0) {
+        yield { tipo: "fim", mensagem: ultima, usage: usos };
+        return;
+      }
+
+      for (const pedido of resultado.pedidos) {
+        yield { tipo: "ferramenta", nome: pedido.nome, passo };
+
+        let texto: string;
+        try {
+          const argumentos = pedido.argumentos.trim() ? JSON.parse(pedido.argumentos) : {};
+          const saida = await ferramentas.executar(pedido.nome, argumentos, {
+            userId,
+            fuso: preferencia.timezone,
+            /// A origem do que for criado: o modelo que **de fato** respondeu
+            /// (o roteamento do provedor pode trocar), e a conversa. Montada aqui,
+            /// nunca pelos argumentos — o modelo não declara a própria marca.
+            origem: {
+              via: "chat",
+              author: resultado.modelUsed ?? modelo.id,
+              conversationId,
+            },
+          });
+          texto = saida.texto;
+          if (saida.criados.length) {
+            const criados = saida.criados.flatMap((c): ChatCreated[] =>
+              c.tipo === "board" ? [] : [{ kind: c.tipo, id: c.id, title: c.titulo }],
+            );
+            criadosDoTurno.push(...criados);
+            yield { tipo: "criado", criados };
+          }
+          if (saida.fontes.length) {
+            const fontes = saida.fontes.map((f) => ({ kind: f.tipo, id: f.id, title: f.titulo }));
+            /// Sem repetir: duas ferramentas costumam tocar a mesma nota — buscar
+            /// e depois lê-la é o caminho normal.
+            for (const fonte of fontes) {
+              if (!fontesDoTurno.some((j) => j.kind === fonte.kind && j.id === fonte.id)) {
+                fontesDoTurno.push(fonte);
+              }
+            }
+            yield { tipo: "fontes", fontes };
+          }
+        } catch (erro) {
+          /// O erro da ferramenta volta **ao modelo**, não ao usuário: id que não
+          /// existe, argumento inválido e nota na lixeira são coisas que ele pode
+          /// corrigir na volta seguinte. Derrubar a conversa por isso desperdiça
+          /// os passos já pagos.
+          ///
+          /// O `ZodError` entra com as falhas campo a campo de propósito: é o
+          /// único erro daqui que o modelo consegue consertar sozinho, e "erro
+          /// em search_notes" sem dizer qual campo o faria repetir a mesma
+          /// chamada errada até o teto de passos.
+          texto = `Erro em ${pedido.nome}: ${motivoDaFalha(erro)}`;
+        }
+
+        await gravarMensagem({
+          conversationId,
+          role: "tool",
+          content: texto,
+          toolName: pedido.nome,
+          toolCallId: pedido.id,
+        });
+        mensagens.push({ role: "tool", tool_call_id: pedido.id, content: texto });
+      }
+    }
+
+    /// Chegou ao teto de passos com o modelo ainda pedindo ferramenta. Não é erro
+    /// do usuário e não é silêncio: ele precisa saber que a resposta parou por
+    /// limite, não por ter acabado.
+    yield {
+      tipo: "erro",
+      code: "RESPOSTA_INVALIDA",
+      mensagem:
+        `O assistente consultou o acervo ${MAX_PASSOS_DO_LACO} vezes e não fechou uma resposta. ` +
+        "Tente perguntar de forma mais específica.",
+    };
+  } finally {
+    if (!criadosGravados && ultima) await anotarCriadosEm(ultima);
+  }
 }

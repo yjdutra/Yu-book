@@ -47,6 +47,20 @@ export function useCard(id: string | null) {
 }
 
 /**
+ * O card pelo id, fora de um componente — pela mesma chave de `useCard`, então
+ * o painel que abrir em seguida já o encontra em cache.
+ *
+ * Existe para o que conhece o card e não o quadro: o que o chat criou chega só
+ * com o id, e card não tem rota sem o quadro (`/b/:boardId/c/:cardId`).
+ */
+export function carregarCard(qc: QueryClient, id: string): Promise<CardDetail> {
+  return qc.fetchQuery({
+    queryKey: ["card", id],
+    queryFn: () => api.get<CardDetail>(`/cards/${id}`),
+  });
+}
+
+/**
  * Invalida o que depende do conteúdo de um board.
  *
  * `workspaces` entra porque a contagem de cards por workspace alimenta a
@@ -167,6 +181,8 @@ function paraFace(card: CardDetail): CardSummary {
     tags: card.tags,
     note: card.note,
     updatedAt: card.updatedAt,
+    // A face mostra "IA"; sem copiar, salvar o card a apagaria do quadro.
+    ai: card.ai,
   };
 }
 

@@ -77,7 +77,16 @@ que **mover card pelo teclado nunca funcionou**, desde a Fase 2, embora a lista 
 entregue. O defeito foi corrigido, e a correção está entre o que foi conferido. Ficam duas dívidas:
 o arraste do kanban tem a janela de concorrência de mutação otimista que o quadro de modelos já
 fechou, e `apps/web` segue sem runner de teste.
-O próximo passo da frente de IA é a **Etapa C**.
+
+Ainda em **2026-09-24** veio a **Etapa C da frente de IA, a marca de conteúdo gerado**. Nota e card
+guardam no dado se foram escritos por um modelo, por qual superfície (chat ou MCP), por quem e
+quando foram revisados à mão. **Com a marca, o chat passou a escrever.** Ele cria card e nota quando
+você pede, mostra o que criou e oferece desfazer, e qualquer resposta dele pode **virar nota**. O
+servidor MCP ganhou `create_note` e tem **dez tools**. A lista de notas filtra por "Geradas por IA".
+É a primeira etapa do [plano de agentes de acervo](docs/plano-agentes-de-acervo.md), que vai de C a
+G. **Foi entregue sem conferência de interface à mão**, e o roteiro está em
+[`docs/historico.md`](docs/historico.md). O próximo passo da frente de IA é a **Etapa D**, agentes
+especialistas.
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
@@ -141,7 +150,7 @@ falhar no boot é melhor que rodar inseguro.
 
 ### O segundo ambiente, para as tools de escrita do MCP
 
-O servidor MCP escreve — cria card, move card, manda nota para a lixeira. Escrever no banco de
+O servidor MCP escreve — cria card e nota, move card, manda nota para a lixeira. Escrever no banco de
 desenvolvimento misturaria dado de teste com o que você usa, e escrever em produção não tem
 desfazer. Por isso existe um **terceiro par banco+API**, paralelo e descartável:
 
@@ -539,13 +548,19 @@ em vez de engolir o que você acabou de escrever.
 - **Chamada sem custo informado pelo provedor aparece contada na tela.** Ela grava zero e não move
   o teto; esconder isso faria o teto mentir.
 
-### O chat que lê
+### O chat que lê, e cria quando você pede
 
 `Ctrl+Shift+Y` abre um painel de conversa que **consulta o acervo por conta própria**. Você pergunta;
 o modelo chama as ferramentas de que precisa — buscar notas, abrir nota, listar quadros, abrir
-quadro, ver o dashboard, criar card, mover card, mandar nota para a lixeira, restaurar —, o Yu-book
-executa e devolve o resultado, e ele decide se já pode responder. São as **mesmas nove ações** que o
-servidor MCP publica, definidas uma vez só.
+quadro, ver o dashboard e, desde a Etapa C, criar card e criar nota —, o Yu-book executa e devolve o
+resultado, e ele decide se já pode responder. São sete das **dez ações** que o servidor MCP publica,
+definidas uma vez só. Mover card, mandar nota para a lixeira e restaurar ficam fora do chat.
+
+- **O que ele cria nasce marcado como gerado por IA**, com o modelo e a conversa de origem. A
+  resposta mostra o que foi criado, com **Desfazer**: a nota vai para a lixeira, o card é excluído.
+  Editar à mão o título ou o corpo muda a marca para "revisada", e ela nunca some.
+- **"Virar nota"** transforma uma resposta em nota marcada. O conteúdo sai da conversa gravada, não
+  do navegador.
 
 - **Escolha um modelo de chat em `/ajustes/modelos` antes**, e ele precisa saber chamar ferramenta. Sem
   isso o painel recusa, dizendo qual dos dois falta.

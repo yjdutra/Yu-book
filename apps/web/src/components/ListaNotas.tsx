@@ -6,7 +6,8 @@ import { useFiltrosDaUrl } from "../lib/filtrosUrl";
 import { useNotas } from "../lib/notas";
 import { Botao } from "./base/Botao";
 import { Etiqueta } from "./base/Etiqueta";
-import { IconeEstrela, IconeFechar } from "./Icones";
+import { IconeAssistente, IconeEstrela, IconeFechar } from "./Icones";
+import { MarcaIA } from "./MarcaIA";
 import { RotuloTipo } from "./RotuloTipo";
 
 const ROTULO_ORDEM: Record<NoteSort, string> = {
@@ -145,7 +146,11 @@ export function ListaNotas({
         </select>
       </header>
 
-      {(filtros.kind || filtros.favorite || filtros.trash || filtros.tags.length > 0) && (
+      {(filtros.kind ||
+        filtros.favorite ||
+        filtros.ai ||
+        filtros.trash ||
+        filtros.tags.length > 0) && (
         <div className="flex shrink-0 flex-wrap gap-1 border-b border-ink-800 px-3 py-2">
           {filtros.kind && (
             <Chip rotulo={`tipo ${filtros.kind}`} onRemover={() => definir({ kind: null })}>
@@ -155,6 +160,12 @@ export function ListaNotas({
           {filtros.favorite && (
             <Chip rotulo="favoritas" onRemover={() => definir({ favorite: false })}>
               Favoritas
+            </Chip>
+          )}
+          {filtros.ai && (
+            <Chip rotulo="geradas por IA" onRemover={() => definir({ ai: false })}>
+              <IconeAssistente className="size-3" />
+              Geradas por IA
             </Chip>
           )}
           {filtros.trash && (
@@ -198,11 +209,27 @@ export function ListaNotas({
           <div className="px-4 py-10 text-center">
             {filtros.trash ? (
               <p className="text-sm text-ink-400">A lixeira está vazia.</p>
+            ) : filtros.ai && !filtros.q && !filtros.kind && filtros.tags.length === 0 ? (
+              // O recorte de IA vazio tem saída própria: o caminho para uma nota
+              // gerada é o chat, e dizer isso é mais útil que "nada com esses filtros".
+              <div className="flex flex-col items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="flex size-8 items-center justify-center rounded-full bg-linear-to-br
+                             from-accent-500/20 to-ia-500/20 text-accent-400"
+                >
+                  <IconeAssistente className="size-4" />
+                </span>
+                <p className="max-w-[28ch] text-sm text-ink-400">
+                  Nenhuma nota gerada por IA ainda — peça ao assistente para transformar uma
+                  resposta em nota.
+                </p>
+              </div>
             ) : filtros.q ? (
               <p className="text-sm text-ink-400">
                 Nada encontrado para <span className="text-ink-200">“{filtros.q}”</span>.
               </p>
-            ) : filtros.kind || filtros.tags.length > 0 || filtros.favorite ? (
+            ) : filtros.kind || filtros.tags.length > 0 || filtros.favorite || filtros.ai ? (
               <p className="text-sm text-ink-400">Nenhuma nota com esses filtros.</p>
             ) : (
               // Workspace ativo e vazio ainda é um estado acionável: a nota
@@ -267,6 +294,7 @@ export function ListaNotas({
 
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <RotuloTipo tipo={n.kind} />
+                    {n.ai && <MarcaIA marca={n.ai} />}
                     {n.workspaceName && (
                       <span className="text-miudo text-ink-400">#{n.workspaceName}</span>
                     )}

@@ -1,7 +1,8 @@
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import {
-  FERRAMENTAS_DE_LEITURA,
+  FERRAMENTAS_DO_CHAT,
+  FUSO_PADRAO,
   MAX_PASSOS_DO_LACO,
   formatarNota,
 } from "@yu-book/shared";
@@ -53,7 +54,9 @@ const MODELOS = [
 /** Um turno roteirizado do provedor. */
 type Turno =
   | { tipo: "texto"; texto: string; custoMicros?: number }
-  | { tipo: "ferramenta"; nome: string; argumentos: string; custoMicros?: number };
+  | { tipo: "ferramenta"; nome: string; argumentos: string; custoMicros?: number }
+  /// O provedor respondendo 500 — o passo morre antes do primeiro byte do fluxo.
+  | { tipo: "falha" };
 
 /**
  * O turno no formato `text/event-stream`, **na forma real do provedor**
@@ -67,7 +70,7 @@ type Turno =
  * Um dublê que mandasse tudo junto passaria com um parser ingênuo, que é
  * exatamente o parser que quebraria em produção.
  */
-function comoSse(turno: Turno): string {
+function comoSse(turno: Exclude<Turno, { tipo: "falha" }>): string {
   const id = "gen-teste";
   const base = { id, object: "chat.completion.chunk", model: "estudio/conversa" };
   const eventos: unknown[] = [];
@@ -160,6 +163,11 @@ beforeAll(async () => {
       if (url.endsWith("/chat/completions")) {
         const turno = estado.roteiro.shift() ?? { tipo: "texto" as const, texto: "pronto." };
         if (estado.roteiro.length === 0) estado.roteiro.push(turno);
+        if (turno.tipo === "falha") {
+          res.writeHead(500, { "content-type": "application/json" });
+          res.end(JSON.stringify({ error: { message: "falha roteirizada" } }));
+          return;
+        }
         res.writeHead(200, { "content-type": "text/event-stream" });
         res.end(comoSse(turno));
         return;
@@ -414,6 +422,38 @@ describe("o teto por passo", () => {
     expect(await prisma.aiMessage.count({ where: { conversationId: conversa } })).toBeGreaterThan(1);
   });
 
+  test("o provedor falha depois de uma criação: o criado fica gravado na conversa", async () => {
+    // Etapa C: o que o turno criou existe no acervo, e o "desfazer" do
+    // histórico só o encontra se estiver numa fala gravada — mesmo quando o
+    // turno termina em erro, e não na fala que fecha.
+    const usuario = await comChat("falha-apos-criar");
+    const conversa = await novaConversa(usuario);
+    dublê.roteiro = [
+      {
+        tipo: "ferramenta",
+        nome: "create_note",
+        argumentos: JSON.stringify({ title: "Criada antes da falha", contentMd: "corpo" }),
+      },
+      { tipo: "falha" },
+    ];
+
+    const r = await enviar(usuario, conversa, { content: "crie uma nota" });
+
+    expect(tipos(r)).toContain("criado");
+    expect(tipos(r).at(-1)).toBe("erro");
+
+    const nota = await prisma.note.findFirstOrThrow({
+      where: { userId: usuario.id, title: "Criada antes da falha" },
+    });
+    const falas = await prisma.aiMessage.findMany({
+      where: { conversationId: conversa, role: "assistant" },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(falas.at(-1)?.created).toEqual([
+      { kind: "note", id: nota.id, title: "Criada antes da falha" },
+    ]);
+  });
+
   test("um par assistant/tool quebrado não envenena a conversa para sempre", async () => {
     // A fala que pede ferramenta é gravada antes de a ferramenta rodar. Se o
     // fluxo parar no meio — cliente desconecta, processo cai —, sobra um
@@ -514,9 +554,10 @@ describe("o teto por passo", () => {
 });
 
 describe("o que o modelo pode pedir", () => {
-  test("o catálogo oferecido ao provedor não tem nenhuma ação de escrita", async () => {
-    // A Etapa B nasce só com leitura. Uma ferramenta de escrita a mais neste
-    // corpo é a diferença entre um chat que lê e um que apaga nota.
+  test("o catálogo oferecido ao provedor escreve só criando", async () => {
+    // Desde a Etapa C o chat cria nota e card, e só isso. Uma ferramenta de
+    // escrita a mais neste corpo é a diferença entre um chat que cria a pedido
+    // e um que apaga nota.
     const usuario = await comChat("catalogo");
     const conversa = await novaConversa(usuario);
     dublê.roteiro = [{ tipo: "texto", texto: "oi" }];
@@ -525,9 +566,10 @@ describe("o que o modelo pode pedir", () => {
 
     const corpo = dublê.corpos.at(-1) as { tools?: { function: { name: string } }[] };
     const nomes = (corpo.tools ?? []).map((f) => f.function.name).sort();
-    expect(nomes).toEqual([...FERRAMENTAS_DE_LEITURA].sort());
+    expect(nomes).toEqual([...FERRAMENTAS_DO_CHAT].sort());
     expect(nomes).not.toContain("trash_note");
-    expect(nomes).not.toContain("create_card");
+    expect(nomes).not.toContain("move_card");
+    expect(nomes).not.toContain("restore_note");
   });
 
   test("pedir uma ação de escrita responde 'não existe', e nada é executado", async () => {
@@ -677,7 +719,8 @@ describe("o contexto anexado", () => {
       url: `/notes/${nota}`,
       headers: { authorization: `Bearer ${usuario.token}` },
     });
-    const esperado = formatarNota(JSON.parse(detalhe.body) as NoteDetail);
+    // O usuário do teste não escolheu fuso, então vale o padrão da preferência.
+    const esperado = formatarNota(JSON.parse(detalhe.body) as NoteDetail, FUSO_PADRAO);
     const corpo = dublê.corpos.at(-1) as { messages: { role: string; content: string }[] };
     const turno = corpo.messages.at(-1)?.content ?? "";
     expect(turno).toContain(esperado);

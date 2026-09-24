@@ -8,6 +8,7 @@ import {
   conversationInputSchema,
   formatNoteSchema,
   listAiModelsQuerySchema,
+  messageToNoteSchema,
 } from "@yu-book/shared";
 import type { ChatEvent } from "@yu-book/shared";
 import type { FastifyInstance } from "fastify";
@@ -30,6 +31,11 @@ const favoritoParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
 const tarefaParamsSchema = z.object({ task: z.enum(AI_TASKS) });
 const notaParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
 const conversaParamsSchema = z.object({ id: z.string().uuid("Id inválido") });
+/// `:id` é a conversa, como em todas as rotas de `/ai/conversations/…`.
+const mensagemParamsSchema = z.object({
+  id: z.string().uuid("Id inválido"),
+  messageId: z.string().uuid("Id inválido"),
+});
 
 /**
  * Um evento no formato `text/event-stream`.
@@ -109,6 +115,15 @@ export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
     const { id } = conversaParamsSchema.parse(request.params);
     const { title } = conversationInputSchema.parse(request.body);
     return conversas.renomear(request.userId, id, title);
+  });
+
+  /// Etapa C: a resposta do assistente vira nota marcada. O corpo da nota sai
+  /// da mensagem gravada, nunca do cliente.
+  app.post("/ai/conversations/:id/messages/:messageId/note", async (request, reply) => {
+    const { id, messageId } = mensagemParamsSchema.parse(request.params);
+    const entrada = messageToNoteSchema.parse(request.body);
+    const nota = await conversas.virarNota(request.userId, id, messageId, entrada);
+    return reply.status(201).send(nota);
   });
 
   /// RF-24: apagar a conversa não toca em nota nem em card.

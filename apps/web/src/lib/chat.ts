@@ -1,11 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import type {
   ChatAttachmentInput,
+  ChatCreated,
   ChatEvent,
   Conversation,
   ConversationDetail,
+  MessageToNoteInput,
+  NoteDetail,
 } from "@yu-book/shared";
 import { api, apiStream } from "./api";
+import { useInvalidar } from "./notas";
 
 /**
  * O chat ancorado (Etapa B da frente de IA).
@@ -79,6 +84,55 @@ export function useExcluirConversa() {
       qc.invalidateQueries({ queryKey: CONVERSAS });
     },
   });
+}
+
+/**
+ * "Virar nota" (Etapa C da frente de IA): a resposta gravada vira nota marcada.
+ * O corpo **não** vai daqui — o servidor lê a mensagem, e o cliente só escolhe
+ * título, tipo e workspace. Criar nota por outra rota ainda é criar nota: a
+ * invalidação é a mesma de `useCriarNota`.
+ */
+export function useVirarNota() {
+  const invalidar = useInvalidar();
+  return useMutation({
+    mutationFn: ({
+      conversationId,
+      messageId,
+      input,
+    }: {
+      conversationId: string;
+      messageId: string;
+      input: MessageToNoteInput;
+    }) =>
+      api.post<NoteDetail>(
+        `/ai/conversations/${conversationId}/messages/${messageId}/note`,
+        input,
+      ),
+    onSuccess: invalidar,
+  });
+}
+
+/**
+ * O chat acabou de gravar no acervo (evento `criado`): as listas que mostram
+ * nota e card ficaram velhas. O quadro vai inteiro — o evento não diz em qual
+ * o card caiu, e é raro o bastante para não pesar.
+ */
+export function invalidarCriados(qc: QueryClient, criados: ChatCreated[]): void {
+  if (criados.some((c) => c.kind === "note")) {
+    void qc.invalidateQueries({ queryKey: ["notes"] });
+    void qc.invalidateQueries({ queryKey: ["counts"] });
+    void qc.invalidateQueries({ queryKey: ["titles"] });
+    void qc.invalidateQueries({ queryKey: ["tags"] });
+  }
+  if (criados.some((c) => c.kind === "card")) {
+    void qc.invalidateQueries({ queryKey: ["board"] });
+    void qc.invalidateQueries({ queryKey: ["boards"] });
+  }
+  void qc.invalidateQueries({ queryKey: ["search"], refetchType: "none" });
+  // Sem o `refetchType: "none"` do autosave de propósito: aqui o Início pode
+  // estar na tela ao lado do painel, e o card com prazo precisa aparecer nele.
+  // Desmontado, o padrão (`active`) também não custa rede.
+  void qc.invalidateQueries({ queryKey: ["dashboard"] });
 }
 
 /**

@@ -16,6 +16,7 @@ import { useFormatarNota } from "../lib/ia";
 import { useModoNota } from "../lib/modoNota";
 import { Editor } from "./Editor";
 import type { FocoDoCorpo } from "./Editor";
+import { FaixaIA } from "./MarcaIA";
 import { SeletorModo } from "./ModoNota";
 import { useAcoesChat } from "../lib/sessaoChat";
 import { Aviso } from "./base/Aviso";
@@ -364,6 +365,15 @@ export function PainelEditor({
             />
           </div>
         </div>
+
+        {/* Etapa C da frente de IA: de onde veio o texto. Lê do detalhe em cache,
+            que o PATCH do autosave substitui — a primeira edição troca a faixa
+            para "revisada" sem refetch. */}
+        {nota.ai && (
+          <div className="mt-2">
+            <FaixaIA marca={nota.ai} />
+          </div>
+        )}
 
         {/* RF-11: some sozinho em 8 s. É informação, não erro — `status`, que
             o `Aviso` de tom `info` já é. */}

@@ -84,8 +84,9 @@ export async function kanbanRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post("/cards", async (request, reply) => {
-    const input = cardInputSchema.parse(request.body);
-    const card = await service.criarCard(request.userId, input);
+    // `origin` não é campo do card: vira a marca de IA, e só o MCP o envia.
+    const { origin, ...input } = cardInputSchema.parse(request.body);
+    const card = await service.criarCard(request.userId, input, origin);
     return reply.status(201).send(card);
   });
 

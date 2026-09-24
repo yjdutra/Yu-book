@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { diaParaPrazo, FERRAMENTAS_DO_ACERVO, formatarCardDetalhe } from "@yu-book/shared";
 import type { CardDetail } from "@yu-book/shared";
+import { origemDoCliente } from "../autor.js";
 import { api } from "../cliente.js";
 import { comErroDeEscrita } from "../erros.js";
 import { fusoDoUsuario } from "../fuso.js";
@@ -40,7 +41,10 @@ export function registrarEscritaDeKanban(server: McpServer): void {
       // rótulo na confirmação, e recuar é inofensivo; com prazo ele vira o
       // instante gravado no banco, e recuar em silêncio deixaria uma data
       // errada num lugar que não morre junto com a conversa.
-      const fuso = await fusoDoUsuario({ exigir: dueDate !== undefined });
+      const [fuso, origin] = await Promise.all([
+        fusoDoUsuario({ exigir: dueDate !== undefined }),
+        origemDoCliente(server, extra),
+      ]);
 
       const card = await api.post<CardDetail>("/cards", {
         columnId,
@@ -55,6 +59,9 @@ export function registrarEscritaDeKanban(server: McpServer): void {
         ...(priority !== undefined && { priority }),
         ...(tags !== undefined && { tags }),
         ...(noteId !== undefined && { noteId }),
+        // A marca de conteúdo gerado (Etapa C da frente de IA). Todo card que
+        // entra por aqui foi pedido por um modelo, então vai sempre.
+        origin,
       });
 
       await relato.passo("card criado");

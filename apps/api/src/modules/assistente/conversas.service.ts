@@ -7,10 +7,13 @@ import {
 import type {
   ChatAttachment,
   ChatAttachmentInput,
+  ChatCreated,
   ChatMessage,
   ChatSource,
   Conversation,
   ConversationDetail,
+  MessageToNoteInput,
+  NoteDetail,
 } from "@yu-book/shared";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../../db.js";
@@ -44,6 +47,7 @@ function toMensagem(m: MensagemNoBanco): ChatMessage {
     modelUsed: m.modelUsed,
     toolName: m.toolName,
     sources: Array.isArray(m.sources) ? (m.sources as unknown as ChatSource[]) : [],
+    created: Array.isArray(m.created) ? (m.created as unknown as ChatCreated[]) : [],
     createdAt: m.createdAt.toISOString(),
     attachments: m.attachments.map(toAnexo),
   };
@@ -134,6 +138,54 @@ export async function excluir(userId: string, id: string): Promise<void> {
   if (count === 0) throw notFound("Conversa não encontrada");
 }
 
+/**
+ * "Virar nota": uma resposta do assistente vira nota marcada como gerada por
+ * IA (Etapa C da frente de IA, Q-04 do PRD).
+ *
+ * **O cliente não afirma nada sobre o conteúdo.** Corpo, modelo e conversa
+ * saem da `AiMessage` gravada; do corpo da requisição vêm só título, tipo e
+ * workspace. Aceitar o texto do cliente deixaria qualquer um gravar nota com a
+ * marca de um modelo que nunca a escreveu.
+ *
+ * A posse vem pela cadeia mensagem → conversa → usuário, **no mesmo `where`**
+ * (INV-03 aplicado à conversa): mensagem de outra conta é 404, como conversa
+ * de outra conta. Título repetido sobe como `TITULO_DUPLICADO` pelo service de
+ * notas, sem tradução aqui.
+ */
+export async function virarNota(
+  userId: string,
+  conversationId: string,
+  messageId: string,
+  entrada: MessageToNoteInput,
+): Promise<NoteDetail> {
+  const mensagem = await prisma.aiMessage.findFirst({
+    where: { id: messageId, conversationId, conversation: { userId } },
+    select: { role: true, content: true, modelId: true, modelUsed: true },
+  });
+  if (!mensagem) throw notFound("Mensagem não encontrada");
+
+  /// Só a fala do assistente tem autor-modelo. A do usuário já é dele, e
+  /// marcá-la como gerada por IA seria mentir no dado; a de `tool` é texto
+  /// formatado para o modelo, não para ser lido.
+  if (mensagem.role !== "assistant") {
+    throw new AppError(422, "VALIDATION_ERROR", "Só uma resposta do assistente vira nota");
+  }
+  if (!mensagem.content.trim()) {
+    throw new AppError(422, "VALIDATION_ERROR", "Esta resposta não tem texto para virar nota");
+  }
+
+  return notes.criar(
+    userId,
+    {
+      title: entrada.title,
+      contentMd: mensagem.content,
+      ...(entrada.kind !== undefined && { kind: entrada.kind }),
+      ...(entrada.workspaceId !== undefined && { workspaceId: entrada.workspaceId }),
+    },
+    { via: "chat", author: mensagem.modelUsed ?? mensagem.modelId, conversationId },
+  );
+}
+
 export interface AnexoResolvido {
   entrada: ChatAttachmentInput;
   titulo: string;
@@ -161,7 +213,7 @@ export async function resolverAnexos(
     anexos.map(async (entrada): Promise<AnexoResolvido> => {
       if (entrada.noteId) {
         const nota = await notes.buscarPorId(userId, entrada.noteId);
-        return { entrada, titulo: nota.title, texto: formatarNota(nota) };
+        return { entrada, titulo: nota.title, texto: formatarNota(nota, fuso) };
       }
       if (entrada.boardId) {
         const board = await kanban.buscarBoard(userId, entrada.boardId);

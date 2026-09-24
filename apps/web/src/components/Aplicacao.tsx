@@ -1,4 +1,4 @@
-import type { Link, LinkKind } from "@yu-book/shared";
+import type { Link, LinkKind, NoteDetail } from "@yu-book/shared";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ApiError } from "../lib/api";
@@ -208,6 +208,19 @@ export function Aplicacao() {
     },
     [excluirLink],
   );
+
+  /**
+   * "Virar nota" no chat (Etapa C da IA) avisa aqui, e não na conversa: o que
+   * flutua mora na pilha da casca, para não cobrir o desfazer do link. Some em
+   * 8 s, como ele; a nota continua na lista, então perder o aviso não perde nada.
+   */
+  const [notaDoChat, setNotaDoChat] = useState<NoteDetail | null>(null);
+  const timerNotaDoChat = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const avisarNotaDoChat = useCallback((nota: NoteDetail) => {
+    setNotaDoChat(nota);
+    if (timerNotaDoChat.current) clearTimeout(timerNotaDoChat.current);
+    timerNotaDoChat.current = setTimeout(() => setNotaDoChat(null), 8000);
+  }, []);
 
   const desfazerRemocao = useCallback(() => {
     if (!desfazivel) return;
@@ -429,7 +442,7 @@ export function Aplicacao() {
           path="/assistente"
           element={
             <Suspense fallback={<CarregandoTela />}>
-              <AssistentePage onAbrirNota={abrirNota} />
+              <AssistentePage onAbrirNota={abrirNota} onNotaCriada={avisarNotaDoChat} />
             </Suspense>
           }
         />
@@ -448,7 +461,7 @@ export function Aplicacao() {
           cobre. Sem prop `aberto` — o estado mora na sessão. */}
       {sessao.painelAberto && !emAssistente && (
         <Suspense fallback={null}>
-          <PainelAssistente onAbrirNota={abrirNota} />
+          <PainelAssistente onAbrirNota={abrirNota} onNotaCriada={avisarNotaDoChat} />
         </Suspense>
       )}
 
@@ -474,6 +487,24 @@ export function Aplicacao() {
             }
           >
             “{desfazivel.title}” saiu da gaveta
+          </Toast>
+        )}
+
+        {notaDoChat && !gavetaAberta && (
+          <Toast
+            acao={
+              <Botao
+                variante="fantasma"
+                onClick={() => {
+                  abrirNota(notaDoChat.id);
+                  setNotaDoChat(null);
+                }}
+              >
+                Abrir
+              </Botao>
+            }
+          >
+            Nota criada: “{notaDoChat.title}”
           </Toast>
         )}
       </PilhaFlutuante>

@@ -7,7 +7,7 @@ escrita, sobre **dois transportes**. A Etapa 5 é a mesa de trabalho multi-repos
 
 ## Dois modos de operação, e a diferença é quem é você
 
-O mesmo servidor, a mesma montagem (`src/servidor.ts`), as mesmas nove tools. O que muda é **como o
+O mesmo servidor, a mesma montagem (`src/servidor.ts`), as mesmas dez tools. O que muda é **como o
 servidor sabe de quem é a requisição** — e isso muda tudo o que vem depois.
 
 | | `stdio` | `http` |
@@ -70,7 +70,7 @@ esse o ponto.
 navegador em `/authorize`, e volta com um `code` que troca por tokens com PKCE.
 
 **O que você faz:** na página que abre, digita email e senha da sua conta no Yu-book e marca — ou
-não — a caixa de escrita. Marcada, o token vem com `yubook:write` e a sessão registra as nove tools;
+não — a caixa de escrita. Marcada, o token vem com `yubook:write` e a sessão registra as dez tools;
 desmarcada, cinco.
 
 O servidor **não guarda estado durável**. Cliente registrado, código de autorização e refresh token
@@ -152,7 +152,8 @@ Escrita — em stdio só contra API local; em HTTP, com escopo `yubook:write`:
 
 | Tool | Faz | Desfaz com |
 |---|---|---|
-| `create_card` | Cria um card no **fim** de uma coluna | (o aplicativo) |
+| `create_card` | Cria um card no **fim** de uma coluna, marcado como gerado por IA | (o aplicativo) |
+| `create_note` | Cria uma nota, marcada como gerada por IA | `trash_note` |
 | `move_card` | Move de coluna ou reordena dentro dela | outro `move_card` |
 | `trash_note` | Manda a nota para a lixeira | `restore_note` — **menos o vínculo dos cards** |
 | `restore_note` | Tira a nota da lixeira | `trash_note` |
@@ -229,8 +230,9 @@ Agora `diaDoPrazo` exige o fuso como argumento, sem valor padrão, e `src/fuso.t
 - **O recuo é `FUSO_PADRAO`, nunca o fuso do processo.** Cair no processo é o defeito de volta.
 - **Não há cache, de propósito.** Um mapa por credencial é a forma do mapa de sessões de `http.ts`,
   que precisou de cinco guardas para não vazar calado. Uma requisição a mais é custo previsível.
-  O custo medido: +1 em `get_board`, `get_dashboard`, `create_card`, `move_card` e
-  `yubook://board/{id}`; zero nas outras cinco superfícies, e quatro das cinco pagam em paralelo.
+  O custo medido: +1 em `get_board`, `get_dashboard`, `create_card`, `move_card`,
+  `yubook://board/{id}` e — desde a marca de IA, que data a linha "gerada por IA" — `get_note` e
+  `yubook://nota/{id}`; todas em paralelo, menos `create_card`, que precisa do fuso antes do POST.
 - **Na escrita o recuo não é silencioso.** `create_card` com prazo **falha** se não conseguir ler o
   fuso, porque ali ele vira o instante gravado no banco — não um rótulo que morre com a conversa.
 
@@ -281,7 +283,7 @@ O que é interno segue o resto do repositório e fica em português (`registrarT
 
 ## Onde a superfície mora agora
 
-Desde a Etapa B da frente de IA (2026-09-23), **o metadado das nove tools não fica neste pacote**.
+Desde a Etapa B da frente de IA (2026-09-23), **o metadado das dez tools não fica neste pacote**.
 Título, descrição e schema vivem em [`packages/shared/src/ferramentas.ts`](../../packages/shared/src/ferramentas.ts),
 e a formatação do acervo em [`packages/shared/src/formato.ts`](../../packages/shared/src/formato.ts)
 — o `src/formato.ts` daqui deixou de existir. O motivo é que existe um **segundo consumidor**: o

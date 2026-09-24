@@ -1,12 +1,15 @@
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import {
-  FERRAMENTAS_DE_LEITURA,
+  diaParaPrazo,
   FERRAMENTAS_DO_ACERVO,
+  FERRAMENTAS_DO_CHAT,
   formatarBusca,
+  formatarCardDetalhe,
   formatarDashboard,
   formatarListaDeQuadros,
   formatarNota,
+  formatarNotaBreve,
   formatarQuadro,
 } from "@yu-book/shared";
 import type { NomeDeFerramenta } from "@yu-book/shared";
@@ -25,10 +28,12 @@ import * as search from "../notes/search.service.js";
  * CA-11 (o texto de uma nota pelo chat é idêntico ao de `yubook://nota/{id}`)
  * valer por construção, e não por alguém lembrar de conferir.
  *
- * **O laço nasce só com leitura.** As quatro ações de escrita existem no
- * catálogo com `escrita: true` e **nenhum executor aqui** — a Etapa C é que
- * decide faixas de risco e registro. Um executor a mais neste mapa é a
- * diferença entre um chat que lê e um que apaga nota.
+ * **O chat lê e cria; não move, não apaga, não edita.** Desde a Etapa C da
+ * frente de IA, `create_card` e `create_note` têm executor, e o que eles criam
+ * nasce com a marca de conteúdo gerado — a origem vem do contexto, montado pelo
+ * servidor a partir da conversa, nunca dos argumentos do modelo. As outras três
+ * ações de escrita seguem **sem executor**: um executor a mais neste mapa é a
+ * diferença entre um chat que cria a pedido e um que apaga nota.
  */
 
 export interface Fonte {
@@ -49,6 +54,12 @@ export interface ResultadoDeFerramenta {
    * texto nomeie a nota; as duas camadas resolvem coisas diferentes.
    */
   fontes: Fonte[];
+  /**
+   * O que a ação criou no acervo (Etapa C). Vazio nas de leitura. Vira o
+   * evento `criado` e é gravado em `AiMessage.created`, para o chat mostrar
+   * e oferecer desfazer. `board` nunca aparece aqui: o chat não cria quadro.
+   */
+  criados: Fonte[];
 }
 
 export interface ContextoDeFerramenta {
@@ -57,6 +68,10 @@ export interface ContextoDeFerramenta {
   /// valor padrão: cair no fuso do processo é o defeito que o MCP hospedado
   /// teve por semanas, relatando todo prazo um dia à frente.
   fuso: string;
+  /// Quem escreve, quando a ação cria alguma coisa. Montado pelo `chat.service`
+  /// a partir da conversa e do modelo — o modelo não tem como declarar a
+  /// própria origem, nem escapar da marca.
+  origem: { via: "chat"; author: string | null; conversationId: string };
 }
 
 type Executor = (
@@ -79,6 +94,22 @@ function conferir<T extends z.ZodRawShape>(
   return z.object(entrada).parse(argumentos ?? {});
 }
 
+/**
+ * O dia `AAAA-MM-DD` do modelo vira o fim daquele dia no fuso do usuário — a
+ * mesma conversão do MCP (`diaParaPrazo`, §4.5 da skill do contrato).
+ *
+ * O `Error` cru dela vira `AppError` aqui porque o laço só repassa ao modelo a
+ * mensagem de `AppError` e de `ZodError`; qualquer outro vira "falha ao
+ * executar", e `2026-02-30` é justamente o erro que o modelo sabe consertar.
+ */
+function prazoDoDia(dia: string, fuso: string): Date {
+  try {
+    return new Date(diaParaPrazo(dia, fuso));
+  } catch (erro) {
+    throw new AppError(422, "VALIDATION_ERROR", erro instanceof Error ? erro.message : dia);
+  }
+}
+
 const EXECUTORES: Record<NomeDeFerramenta, Executor | undefined> = {
   search_notes: async (argumentos, { userId }) => {
     const { q, limit } = conferir(FERRAMENTAS_DO_ACERVO.search_notes.entrada, argumentos);
@@ -90,15 +121,17 @@ const EXECUTORES: Record<NomeDeFerramenta, Executor | undefined> = {
         id: r.id,
         titulo: r.title,
       })),
+      criados: [],
     };
   },
 
-  get_note: async (argumentos, { userId }) => {
+  get_note: async (argumentos, { userId, fuso }) => {
     const { id } = conferir(FERRAMENTAS_DO_ACERVO.get_note.entrada, argumentos);
     const nota = await notes.buscarPorId(userId, id);
     return {
-      texto: formatarNota(nota),
+      texto: formatarNota(nota, fuso),
       fontes: [{ tipo: "note", id: nota.id, titulo: nota.title }],
+      criados: [],
     };
   },
 
@@ -108,6 +141,7 @@ const EXECUTORES: Record<NomeDeFerramenta, Executor | undefined> = {
     return {
       texto: formatarListaDeQuadros(boards),
       fontes: boards.map((b) => ({ tipo: "board" as const, id: b.id, titulo: b.name })),
+      criados: [],
     };
   },
 
@@ -117,6 +151,7 @@ const EXECUTORES: Record<NomeDeFerramenta, Executor | undefined> = {
     return {
       texto: formatarQuadro(board, fuso),
       fontes: [{ tipo: "board", id: board.id, titulo: board.name }],
+      criados: [],
     };
   },
 
@@ -128,10 +163,46 @@ const EXECUTORES: Record<NomeDeFerramenta, Executor | undefined> = {
       /// O painel agrega vários quadros e não é um recurso abrível: citar
       /// "o painel" não leva a lugar nenhum. As notas dele, sim.
       fontes: dados.notas.map((n) => ({ tipo: "note" as const, id: n.id, titulo: n.title })),
+      criados: [],
     };
   },
 
-  create_card: undefined,
+  create_card: async (argumentos, { userId, fuso, origem }) => {
+    const entrada = conferir(FERRAMENTAS_DO_ACERVO.create_card.entrada, argumentos);
+    const card = await kanban.criarCard(
+      userId,
+      {
+        columnId: entrada.columnId,
+        title: entrada.title,
+        ...(entrada.descriptionMd !== undefined && { descriptionMd: entrada.descriptionMd }),
+        ...(entrada.dueDate !== undefined && { dueDate: prazoDoDia(entrada.dueDate, fuso) }),
+        ...(entrada.priority !== undefined && { priority: entrada.priority }),
+        ...(entrada.tags !== undefined && { tags: entrada.tags }),
+        ...(entrada.noteId !== undefined && { noteId: entrada.noteId }),
+      },
+      origem,
+    );
+    const criado = { tipo: "card" as const, id: card.id, titulo: card.title };
+    return { texto: formatarCardDetalhe(card, fuso), fontes: [], criados: [criado] };
+  },
+
+  create_note: async (argumentos, { userId, origem }) => {
+    const entrada = conferir(FERRAMENTAS_DO_ACERVO.create_note.entrada, argumentos);
+    const nota = await notes.criar(
+      userId,
+      {
+        title: entrada.title,
+        contentMd: entrada.contentMd,
+        ...(entrada.kind !== undefined && { kind: entrada.kind }),
+        ...(entrada.workspaceId !== undefined && { workspaceId: entrada.workspaceId }),
+        ...(entrada.tags !== undefined && { tags: entrada.tags }),
+      },
+      origem,
+    );
+    const criado = { tipo: "note" as const, id: nota.id, titulo: nota.title };
+    return { texto: formatarNotaBreve(nota), fontes: [], criados: [criado] };
+  },
+
   move_card: undefined,
   trash_note: undefined,
   restore_note: undefined,
@@ -146,16 +217,18 @@ export interface FerramentaParaProvedor {
 /**
  * O catálogo oferecido ao modelo — **só o que tem executor**.
  *
- * A fonte da lista é `FERRAMENTAS_DE_LEITURA`, e o `EXECUTORES[nome]` é
- * conferido de novo aqui de propósito: são duas condições para uma ação de
- * escrita aparecer, e as duas teriam que falhar juntas.
+ * A fonte da lista é `FERRAMENTAS_DO_CHAT` — as leituras mais `create_card` e
+ * `create_note` —, e o `EXECUTORES[nome]` é conferido de novo aqui de
+ * propósito: são duas condições para uma ação de escrita aparecer, e as duas
+ * teriam que falhar juntas. Mover card e mandar nota para a lixeira falham nas
+ * duas.
  *
  * O JSON Schema sai do mesmo `ZodRawShape` que o SDK do MCP converte para
  * publicar `tools/list`, pela mesma biblioteca — as duas superfícies descrevem
- * as nove ações pelo mesmo código, não por duas traduções parecidas.
+ * as ações pelo mesmo código, não por duas traduções parecidas.
  */
 export function catalogoParaProvedor(): FerramentaParaProvedor[] {
-  return FERRAMENTAS_DE_LEITURA.filter((nome) => EXECUTORES[nome]).map((nome) => {
+  return FERRAMENTAS_DO_CHAT.filter((nome) => EXECUTORES[nome]).map((nome) => {
     const definicao = FERRAMENTAS_DO_ACERVO[nome];
     return {
       type: "function",
@@ -171,16 +244,23 @@ export function catalogoParaProvedor(): FerramentaParaProvedor[] {
 /**
  * Executa o que o modelo pediu.
  *
- * Nome desconhecido e nome de escrita caem no **mesmo** ramo, e de propósito:
- * os dois são "esta ação não existe para você". Distinguir diria ao modelo que
- * a ação existe e está trancada, que é um convite a insistir.
+ * Nome desconhecido, nome fora de `FERRAMENTAS_DO_CHAT` e nome sem executor
+ * caem no **mesmo** ramo, e de propósito: os três são "esta ação não existe
+ * para você". Distinguir diria ao modelo que a ação existe e está trancada, que
+ * é um convite a insistir.
+ *
+ * A lista é conferida aqui, e não só em `catalogoParaProvedor`: o catálogo diz
+ * o que se **oferece**, esta checagem diz o que se **executa**. Sem ela, um
+ * executor escrito amanhã para outra ação — um `move_card` para outra
+ * superfície — ficaria executável pelo chat a quem adivinhasse o nome.
  */
 export async function executar(
   nome: string,
   argumentos: unknown,
   contexto: ContextoDeFerramenta,
 ): Promise<ResultadoDeFerramenta> {
-  const executor = EXECUTORES[nome as NomeDeFerramenta];
+  const permitida = FERRAMENTAS_DO_CHAT.includes(nome as NomeDeFerramenta);
+  const executor = permitida ? EXECUTORES[nome as NomeDeFerramenta] : undefined;
   if (!executor) {
     throw new AppError(422, "VALIDATION_ERROR", `Ferramenta desconhecida: ${nome}`);
   }

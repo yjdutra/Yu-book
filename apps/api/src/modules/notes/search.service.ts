@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { NoteKind, SearchResponse, SearchResult } from "@yu-book/shared";
 import { HL_END, HL_START, parseSearchQuery } from "@yu-book/shared";
 import { prisma } from "../../db.js";
+import { paraMarca } from "../../lib/marca.js";
 
 /**
  * Opções do `ts_headline`. Vai como parâmetro (não concatenado) e usa os
@@ -19,7 +20,29 @@ const HEADLINE_OPTS = [
 
 const CONFIG = "pt_unaccent";
 
-interface LinhaBruta {
+/**
+ * As colunas da marca de IA (Etapa C), com o nome que `paraMarca` espera. Um
+ * fragmento só para as cinco consultas: `n` e `c` são os apelidos de nota e
+ * card em todas elas.
+ */
+function marcaDe(apelido: "n" | "c"): Prisma.Sql {
+  // `Prisma.raw` só com um dos dois literais acima — nunca com entrada.
+  const t = Prisma.raw(apelido);
+  return Prisma.sql`
+    ${t}.ai_generated_at AS "aiGeneratedAt", ${t}.ai_via::text AS "aiVia",
+    ${t}.ai_author AS "aiAuthor", ${t}.ai_conversation_id AS "aiConversationId",
+    ${t}.ai_revised_at AS "aiRevisedAt"`;
+}
+
+interface ColunasDaMarca {
+  aiGeneratedAt: Date | null;
+  aiVia: "chat" | "mcp" | null;
+  aiAuthor: string | null;
+  aiConversationId: string | null;
+  aiRevisedAt: Date | null;
+}
+
+interface LinhaBruta extends ColunasDaMarca {
   id: string;
   title: string;
   kind: NoteKind;
@@ -41,10 +64,11 @@ function toResult(linha: LinhaBruta, approximate: boolean): SearchResult {
     updatedAt: linha.updated_at.toISOString(),
     snippet: linha.snippet ?? "",
     approximate,
+    ai: paraMarca(linha),
   };
 }
 
-interface LinhaCard {
+interface LinhaCard extends ColunasDaMarca {
   id: string;
   title: string;
   updated_at: Date;
@@ -68,6 +92,7 @@ function toResultCard(linha: LinhaCard): SearchResult {
     updatedAt: linha.updated_at.toISOString(),
     snippet: linha.snippet ?? "",
     approximate: false,
+    ai: paraMarca(linha),
   };
 }
 
@@ -77,7 +102,7 @@ const CARDS_JUNTO = 5;
 /** Últimas notas editadas — o que a paleta mostra de campo vazio (RF-37). */
 async function recentes(userId: string, limit: number): Promise<LinhaBruta[]> {
   return prisma.$queryRaw<LinhaBruta[]>`
-    SELECT n.id, n.title, n.kind, n.updated_at, w.name AS workspace_name,
+    SELECT n.id, n.title, n.kind, n.updated_at, w.name AS workspace_name, ${marcaDe("n")},
            left(regexp_replace(n.content_md, '\s+', ' ', 'g'), 160) AS snippet
     FROM note n
     LEFT JOIN workspace w ON w.id = n.workspace_id
@@ -170,7 +195,7 @@ async function buscarCards(
     : Prisma.empty;
 
   return prisma.$queryRaw<LinhaCard[]>`
-    SELECT c.id, c.title, c.updated_at,
+    SELECT c.id, c.title, c.updated_at, ${marcaDe("c")},
            w.name AS workspace_name,
            b.id AS board_id, b.name AS board_name, bc.name AS column_name,
            left(regexp_replace(c.description_md, '\s+', ' ', 'g'), 160) AS snippet
@@ -231,7 +256,7 @@ async function comFiltros(
   // Sem termo textual: nem tsquery nem headline, só filtro + recentes.
   if (texto === undefined) {
     return prisma.$queryRaw<LinhaBruta[]>`
-      SELECT n.id, n.title, n.kind, n.updated_at, w.name AS workspace_name,
+      SELECT n.id, n.title, n.kind, n.updated_at, w.name AS workspace_name, ${marcaDe("n")},
              left(regexp_replace(n.content_md, '\s+', ' ', 'g'), 160) AS snippet
       FROM note n
       LEFT JOIN workspace w ON w.id = n.workspace_id
@@ -246,7 +271,7 @@ async function comFiltros(
   // OR e - já são a sintaxe dele. Vai como parâmetro, nunca concatenado.
   return prisma.$queryRaw<LinhaBruta[]>`
     WITH q AS (SELECT websearch_to_tsquery(${CONFIG}::regconfig, ${texto}) AS query)
-    SELECT n.id, n.title, n.kind, n.updated_at, w.name AS workspace_name,
+    SELECT n.id, n.title, n.kind, n.updated_at, w.name AS workspace_name, ${marcaDe("n")},
            ts_headline(${CONFIG}::regconfig, n.content_md, q.query, ${HEADLINE_OPTS}) AS snippet
     FROM note n
     CROSS JOIN q
@@ -283,7 +308,7 @@ async function porSimilaridade(
   // faz o planner perder o índice e cair em varredura sequencial. Verificado
   // por EXPLAIN — com a expressão inline ele usa note_title_trgm_unaccent_idx.
   return prisma.$queryRaw<LinhaBruta[]>`
-    SELECT n.id, n.title, n.kind, n.updated_at, w.name AS workspace_name,
+    SELECT n.id, n.title, n.kind, n.updated_at, w.name AS workspace_name, ${marcaDe("n")},
            left(regexp_replace(n.content_md, '\s+', ' ', 'g'), 160) AS snippet
     FROM note n
     LEFT JOIN workspace w ON w.id = n.workspace_id

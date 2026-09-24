@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import type { ChatAttachmentInput, ChatSource } from "@yu-book/shared";
+import type { ChatAttachmentInput, ChatCreated, ChatSource } from "@yu-book/shared";
 import {
   createContext,
   useCallback,
@@ -16,6 +16,7 @@ import {
   CHAVE_CONVERSAS,
   chaveDaConversa,
   enviarMensagem,
+  invalidarCriados,
   useCriarConversa,
 } from "./chat";
 
@@ -57,8 +58,13 @@ export interface EmCurso {
   texto: string;
   ferramenta: string | null;
   fontes: ChatSource[];
+  /** O que a resposta já gravou no acervo (Etapa C da IA) — chega antes do fim. */
+  criados: ChatCreated[];
   cortados: string[];
 }
+
+/** Identidade de um item criado — nota e card vivem em tabelas diferentes. */
+export const chaveCriado = (c: ChatCreated) => `${c.kind}:${c.id}`;
 
 const CHAVE_ABERTO = "yb:chat-aberto";
 
@@ -71,6 +77,13 @@ interface EstadoChat {
   anexos: Anexo[];
   emCurso: EmCurso | null;
   erro: string | null;
+  /**
+   * O que o usuário desfez do que o chat criou (RN-03 da IA). Mora aqui, e não
+   * na superfície, para sobreviver à troca entre painel e `/assistente` e à
+   * passagem da fala em curso para a gravada: um "Desfazer" que reaparecesse
+   * mandaria apagar de novo o que já não existe.
+   */
+  desfeitos: ReadonlySet<string>;
 }
 
 interface AcoesChat {
@@ -88,6 +101,7 @@ interface AcoesChat {
   alternarPainel: () => void;
   /** Há resposta sendo gerada agora — lido na hora, sem assinar o estado. */
   temFluxo: () => boolean;
+  marcarDesfeito: (chave: string) => void;
   /** O campo da superfície visível — é ele que o atalho e o "abrir" focam. */
   registrarCampo: (ref: RefObject<HTMLTextAreaElement | null>) => () => void;
   focarCampo: () => void;
@@ -108,6 +122,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [emCurso, setEmCurso] = useState<EmCurso | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [desfeitos, setDesfeitos] = useState<ReadonlySet<string>>(() => new Set());
 
   /// As ações leem o estado por aqui, para continuarem as mesmas entre renders.
   const atual = useRef({ painelAberto, conversaId, texto, anexos });
@@ -150,6 +165,9 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
 
   const parar = useCallback(() => abortarRef.current?.abort(), []);
   const temFluxo = useCallback(() => abortarRef.current !== null, []);
+  const marcarDesfeito = useCallback((chave: string) => {
+    setDesfeitos((atual) => new Set(atual).add(chave));
+  }, []);
 
   const novaConversa = useCallback(() => {
     setConversaId(null);
@@ -228,6 +246,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       texto: "",
       ferramenta: null,
       fontes: [],
+      criados: [],
       cortados: [],
     });
 
@@ -269,6 +288,12 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
                 );
                 return novas.length ? { ...f, fontes: [...f.fontes, ...novas] } : f;
               }
+              case "criado": {
+                const novos = evento.criados.filter(
+                  (x) => !f.criados.some((j) => chaveCriado(j) === chaveCriado(x)),
+                );
+                return novos.length ? { ...f, criados: [...f.criados, ...novos] } : f;
+              }
               default:
                 return f;
             }
@@ -277,6 +302,9 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
           /// Fora do updater de propósito: com o `StrictMode` ligado ele roda
           /// duas vezes, e um updater que produz efeito deixa de ser puro.
           if (evento.tipo === "teto" || evento.tipo === "erro") setErro(evento.mensagem);
+          /// O acervo mudou agora, não no fim: o quadro aberto ao lado mostra o
+          /// card assim que ele existe.
+          if (evento.tipo === "criado") invalidarCriados(qc, evento.criados);
         },
       });
     } catch (e) {
@@ -296,8 +324,8 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
   }, [criar, qc]);
 
   const estado = useMemo<EstadoChat>(
-    () => ({ conversaId, texto, anexos, emCurso, erro }),
-    [conversaId, texto, anexos, emCurso, erro],
+    () => ({ conversaId, texto, anexos, emCurso, erro, desfeitos }),
+    [conversaId, texto, anexos, emCurso, erro, desfeitos],
   );
 
   const acoes = useMemo<AcoesChat>(
@@ -315,6 +343,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       fecharPainel,
       alternarPainel,
       temFluxo,
+      marcarDesfeito,
       registrarCampo,
       focarCampo,
     }),
@@ -330,6 +359,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       fecharPainel,
       alternarPainel,
       temFluxo,
+      marcarDesfeito,
       registrarCampo,
       focarCampo,
     ],

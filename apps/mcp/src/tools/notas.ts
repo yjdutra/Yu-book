@@ -3,6 +3,7 @@ import { FERRAMENTAS_DO_ACERVO, formatarBusca, formatarNota } from "@yu-book/sha
 import type { NoteDetail, SearchResponse } from "@yu-book/shared";
 import { api } from "../cliente.js";
 import { comErro } from "../erros.js";
+import { fusoDoUsuario } from "../fuso.js";
 
 /**
  * O metadado das tools — nome, título, descrição e schema — vem de
@@ -31,8 +32,13 @@ export function registrarToolsDeNotas(server: McpServer): void {
     "get_note",
     { title: nota.titulo, description: nota.descricao, inputSchema: nota.entrada },
     comErro(async ({ id }) => {
-      const dados = await api.get<NoteDetail>(`/notes/${id}`);
-      return { content: [{ type: "text", text: formatarNota(dados) }] };
+      // O fuso só data a linha da marca de IA: na leitura ele recua, e em
+      // paralelo porque não decide nada do que se pede à API.
+      const [dados, fuso] = await Promise.all([
+        api.get<NoteDetail>(`/notes/${id}`),
+        fusoDoUsuario(),
+      ]);
+      return { content: [{ type: "text", text: formatarNota(dados, fuso) }] };
     }),
   );
 }

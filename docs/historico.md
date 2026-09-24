@@ -9,6 +9,107 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-24 — Frente de IA, Etapa C: a marca de conteúdo gerado, e o chat que passou a escrever
+
+A Etapa C abre o [plano de agentes de acervo](plano-agentes-de-acervo.md), aprovado hoje. As
+Etapas D a G vão escrever no acervo, e o NO2 revisto só permite isso **com o conteúdo marcado no
+dado**. Por isso a marca veio primeiro. O que mudou está na `[0.19.0]` do changelog, e os requisitos
+na seção 5.5 do PRD de IA. Aqui ficam as decisões.
+
+**A exploração do código desmentiu três premissas do plano geral.** Elas foram corrigidas no plano
+da etapa e registradas em "Como ficou", no plano geral:
+
+- **O chat não escrevia.** As quatro ações de escrita não tinham executor, e o prompt dizia que ele
+  só sabia ler. Não havia "ferramenta de escrita que passa a gravar a marca". Era preciso **ligar**
+  a escrita, e o operador decidiu ligar só `create_card` e uma ação nova, `create_note`.
+- **O único caminho que já gravava texto de modelo era o MCP**, e a API não sabia quem chamava: o
+  MCP se apresentava com o mesmo cabeçalho do front. Esse caminho ganhou a marca também.
+- **O RNF-09 citado no plano não existia no PRD de IA**: era das fases de produto, porque os números
+  colidem entre PRDs. Nasceu lá com o mesmo sentido, marca que não depende de cor.
+
+**O catálogo do chat virou lista explícita.** `FERRAMENTAS_DO_CHAT` tem as cinco leituras mais as
+duas criações. A alternativa era "todas menos mover, apagar e restaurar", e foi descartada: com ela,
+qualquer ação nova em `ferramentas.ts` chegaria ao chat só por existir, sem ninguém decidir. A
+segunda condição de antes continua valendo: ação sem executor não é oferecida. A RN-03 foi emendada
+em vez de revogada. O pedido do usuário é a iniciativa, o Desfazer é a reversão e a marca impede a
+confusão com o texto dele.
+
+**A marca é gravada só pelo servidor, e o `origin` do contrato só aceita `mcp`.** O chat passa a
+origem ao service por parâmetro, sem passar pelo corpo de requisição nenhum. Aceitar `via: "chat"`
+em `origin` deixaria um cliente HTTP qualquer se passar pelo assistente, com um `conversationId`
+alheio. Pelo mesmo motivo, **"Virar nota" não recebe o texto do cliente**: conteúdo, modelo e
+conversa saem da `AiMessage` gravada. Aceitar o corpo do navegador permitiria gravar nota com a
+assinatura de um modelo que nunca a escreveu. Só a fala do assistente vira nota. Marcar como gerada
+a fala do usuário seria mentir no dado.
+
+**O autor no MCP é rótulo, não identidade.** Sob HTTP vale o `client_name` do cadastro OAuth, porque
+é o nome que o usuário leu na tela de consentimento antes de liberar a escrita. O `clientInfo` do
+`initialize` fica de recuo, e é a fonte no stdio. Ler o nome do ambiente foi descartado, porque daria
+o mesmo autor para todo cliente. Nenhum desses nomes autoriza nada: quem autoriza é a trava de
+escrita.
+
+**A marca nunca some, e só a mudança de fato no texto é revisão.** "Gerada e revisada" é um estado.
+Deixar de ser gerada não é: editar à mão preenche `aiRevisedAt` e mantém a origem, e nenhuma rota
+remove a marca. O "de fato" existe porque o autosave e o painel do card reenviam campos inalterados.
+Sem a comparação, abrir e fechar uma nota a daria como revisada. Favoritar, mover, arquivar,
+etiquetar e trocar de workspace não contam. Apagar a conversa de origem leva só o link (`SetNull`),
+e a marca fica.
+
+**Formatar com IA não marca, mas o autosave dele conta como revisão.** As duas partes foram decididas
+pelo operador. Não marca porque formatar reorganiza o texto do usuário, sem gerar texto novo
+(RF-42). Conta como revisão porque é uma edição do texto que o usuário iniciou, e o PATCH não sabe de
+onde veio a mudança. Para não contar, o cliente teria que declarar "isto não é revisão", e isso é o
+cliente afirmando algo sobre a marca, que a RN-10 não permite. O efeito aceito: formatar uma nota
+gerada a mostra como "revisada".
+
+**O que a resposta criou é gravado em qualquer saída do turno.** `AiMessage.created` é preenchido num
+`finally`. Um turno interrompido, pelo painel fechado, pelo teto ou por erro, pode já ter criado
+card ou nota. Isso existe no acervo e precisa continuar desfazível pelo histórico, e não só enquanto
+o stream está aberto.
+
+**Desfazer card exclui de vez.** Card não tem lixeira, e a rota de exclusão já existia. Nota vai para
+a lixeira, de onde volta. A assimetria foi aceita em vez de criar uma lixeira de card nesta etapa.
+
+**`formatarNota` passou a exigir o fuso**, porque a linha da marca tem dia. É o mesmo motivo de
+`diaDoPrazo`: um conteúdo gerado às 22h em UTC−3 não foi gerado "amanhã". Sem valor padrão, como lá.
+O preço está no MCP: `get_note` e `yubook://nota/{id}` fazem um `GET /ai/settings` a mais, em
+paralelo. Não houve cache, pela mesma razão registrada em `apps/mcp/src/fuso.ts`.
+
+**`AiVia` tem só `chat` e `mcp`.** Rotina e agente, das Etapas D e E, entram por migration aditiva
+quando existirem. Um valor sem produtor seria um estado que ninguém testa.
+
+**Correção de segurança anterior à etapa.** `notes.criar` e `notes.atualizar` não conferiam de quem
+era o `workspaceId`: a FK só garante que ele existe. Com o id de outra conta, a nota era criada e a
+resposta devolvia o nome do workspace alheio. Com um id inexistente, a violação de FK dava outro
+erro, e isso permitia distinguir "não existe" de "é de outra pessoa". Agora os dois dão o mesmo 404
+(INV-02), como `criarBoard` já fazia. O defeito é anterior à frente de IA e passou pelas revisões.
+Veio à tona porque o `create_note` do chat põe nesse campo um valor escrito pelo modelo.
+
+**Dívida: a etapa foi entregue sem conferência de interface à mão.** Os portões cobrem o servidor:
+164 testes na API, 55 no MCP e o typecheck dos quatro pacotes. Nenhum deles monta um componente.
+Roteiro de conferência, do plano da etapa:
+
+1. No chat, pedir "crie um card X na coluna Y". O card aparece em "Criado nesta resposta", no quadro
+   com a marca "IA", e o painel dele mostra a faixa com modelo e link da conversa.
+2. "Virar nota" numa resposta: o diálogo, a nota criada, a faixa no editor e o toast "Abrir".
+3. Editar a nota à mão: a faixa passa a "revisada", e a lista acompanha sem recarregar.
+4. O filtro "Geradas por IA" na barra lateral, com contagem, chip e estado vazio.
+5. A marca na paleta de busca e no Início.
+6. "Desfazer" no chat manda a nota para a lixeira.
+7. Tema claro e escuro, a marca lida sem cor (ícone e texto), e o teclado completo no diálogo e no
+   "Desfazer".
+8. MCP em stdio local: `create_card` e `create_note` criam com `via mcp` e o nome do cliente.
+
+**Ficou pendente:**
+
+- A conferência acima.
+- A descrição de `create_note` aumentou o custo de todo turno do chat. Esse custo não foi medido do
+  lado do chat. Do lado do MCP, o `tools/list` com escrita foi de 8551 B para 9601 B.
+- `CLAUDE.md` e as skills ainda falam em "nove ações" e num chat que só lê. A atualização é do
+  `curador`.
+
+---
+
 ## 2026-09-24 — Redesenho de UI concluído: cinco etapas entregues sem ver a tela, e conferidas no fechamento
 
 O redesenho de UI/UX de `apps/web`, aprovado hoje de manhã e posto antes da Etapa C da frente de

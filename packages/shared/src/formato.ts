@@ -3,6 +3,7 @@ import type { SearchResponse, SearchResult } from "./busca.js";
 import type { CardComPrazo, Dashboard } from "./dashboard.js";
 import { diaLocal } from "./ia.js";
 import type { BoardDetail, BoardSummary, CardDetail, CardSummary } from "./kanban.js";
+import type { AiMark } from "./marca.js";
 import type { NoteDetail } from "./notes.js";
 
 /**
@@ -131,11 +132,38 @@ export function encurtar(texto: string, limite = LIMITE_TRECHO): string {
   return limpo.length <= limite ? limpo : `${limpo.slice(0, limite - 1)}…`;
 }
 
+/**
+ * A marca de conteúdo gerado (Etapa C da frente de IA), nas listas.
+ *
+ * Só o sufixo, sem autor nem data: numa lista de vinte itens o detalhe custa
+ * tokens sem mudar o que o modelo faz. Quem precisar dele abre o item, e a
+ * leitura de um item traz a linha inteira (`linhaDaMarca`).
+ */
+function sufixoIa(ai: AiMark | null): string {
+  return ai ? " · IA" : "";
+}
+
+/**
+ * A marca inteira, na leitura de um item. O modelo precisa saber que o texto
+ * que está lendo foi escrito por um modelo — e por qual, e se alguém o revisou
+ * depois — antes de tratá-lo como o que o usuário pensa.
+ *
+ * O dia sai no fuso do usuário pelo mesmo motivo de `diaDoPrazo`: um conteúdo
+ * gerado às 22h em UTC−3 não foi gerado "amanhã".
+ */
+function linhaDaMarca(ai: AiMark, fuso: string, genero: "a" | "o"): string {
+  const partes = [`gerad${genero} por IA`];
+  if (ai.author) partes.push(ai.author);
+  partes.push(`via ${ai.via}`, diaLocal(new Date(ai.generatedAt), fuso));
+  if (ai.revisedAt) partes.push(`revisad${genero} em ${diaLocal(new Date(ai.revisedAt), fuso)}`);
+  return partes.join(" · ");
+}
+
 export function formatarResultado(r: SearchResult): string {
   const onde =
-    r.type === "card"
+    (r.type === "card"
       ? `card em ${r.boardName} / ${r.columnName}`
-      : `nota ${r.kind}${r.workspaceName ? ` · ${r.workspaceName}` : ""}`;
+      : `nota ${r.kind}${r.workspaceName ? ` · ${r.workspaceName}` : ""}`) + sufixoIa(r.ai);
   const trecho = limparDestaque(r.snippet);
   return `- **${r.title}** — ${onde}\n  id: ${r.id}\n  ${encurtar(trecho)}`;
 }
@@ -194,13 +222,19 @@ export function formatarListaDeQuadros(boards: BoardSummary[]): string {
     .join("\n");
 }
 
-export function formatarNota(nota: NoteDetail): string {
+/**
+ * A nota inteira. `fuso` entrou com a marca de IA (Etapa C) e, como em
+ * `diaDoPrazo`, não tem valor padrão: quem chama diz de qual fuso fala.
+ */
+export function formatarNota(nota: NoteDetail, fuso: string): string {
   const linhas = [
     `# ${nota.title}`,
     "",
     `tipo: ${nota.kind}${nota.workspaceName ? ` · workspace: ${nota.workspaceName}` : ""}`,
     `id: ${nota.id} · atualizada em ${nota.updatedAt}`,
   ];
+
+  if (nota.ai) linhas.push(linhaDaMarca(nota.ai, fuso, "a"));
 
   if (nota.tags.length) linhas.push(`tags: ${nota.tags.map((t) => t.name).join(", ")}`);
   if (nota.sourceUrl) linhas.push(`origem: ${nota.sourceUrl}`);
@@ -233,7 +267,7 @@ export function formatarCard(card: CardSummary, fuso: string): string {
   // enxerga estágio e não consegue responder "o que aqui é do assunto X".
   if (card.tags.length) partes.push(`tags: ${card.tags.join(", ")}`);
   if (card.note) partes.push(`nota: ${card.note.title}`);
-  return `${partes.join(" · ")}\n  id: ${card.id}`;
+  return `${partes.join(" · ")}${sufixoIa(card.ai)}\n  id: ${card.id}`;
 }
 
 /**
@@ -289,6 +323,8 @@ export function formatarCardDetalhe(card: CardDetail, fuso: string): string {
     `quadro: ${card.boardName} / coluna: ${card.columnName} · posição ${card.position}`,
     `id: ${card.id}`,
   ];
+
+  if (card.ai) linhas.push(linhaDaMarca(card.ai, fuso, "o"));
 
   const face = [];
   if (card.dueDate) face.push(`prazo ${diaDoPrazo(card.dueDate, fuso)}`);
@@ -356,6 +392,7 @@ export function formatarDashboard(d: Dashboard, fuso: string): string {
           .map(
             (n) =>
               `- ${n.title} (${n.kind}) — ${diaLocal(new Date(n.updatedAt), fuso)}` +
+              sufixoIa(n.ai) +
               `\n  id: ${n.id}`,
           )
           .join("\n"),

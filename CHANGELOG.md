@@ -13,6 +13,89 @@ _Nada pendente._
 
 ---
 
+## [0.19.0] — 2026-09-24
+
+**Etapa C da frente de IA: a marca de conteúdo gerado.** Nota e card passam a guardar no dado se
+foram escritos por um modelo, por qual superfície (`chat` ou `mcp`), por quem, de que conversa e
+quando foram revisados à mão. É o que o NO2 revisto exigia: **nota gerada por IA passa a ser
+permitida porque passa a ser marcada**. Com a marca, **o chat passou a escrever**: cria card e nota
+quando o usuário pede, mostra o que criou e oferece desfazer. Qualquer resposta dele também pode
+**virar nota**. Requisitos na seção 5.5 de [`docs/prd-ia-no-yu-book.md`](docs/prd-ia-no-yu-book.md):
+RF-35 a RF-42, RN-10 a RN-12, RNF-09 e CA-17 a CA-22. A RN-03 foi emendada e a Q-04 resolvida.
+
+É a primeira etapa do [plano de agentes de acervo](docs/plano-agentes-de-acervo.md) (C a G), que
+continua as letras da frente de IA. Não é fase de produto nem etapa do MCP, que segue na 4 de 5.
+
+**Os quatro pacotes se movem**, porque `packages/shared` mudou de contrato: `packages/shared` de
+`0.7.0` para `0.8.0`, `apps/api` de `0.9.1` para `0.10.0`, `apps/web` de `0.14.0` para `0.15.0` e
+`apps/mcp` de `0.10.0` para `0.11.0`, no `package.json` **e** no construtor do `McpServer`. Uma
+migration aditiva, `20260924190830_ia_etapa_c_marca`.
+
+**O que o MCP publica mudou**: são **dez tools**, cinco de escrita, e o `tools/list` com escrita foi
+de **8551 B para 9601 B**. A descrição de `create_note` vem de `packages/shared/src/ferramentas.ts`,
+então o chat também paga esse texto em todo turno.
+
+Portões: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo nos quatro pacotes,
+`pnpm --filter @yu-book/api test` com **164 testes** (relatado pela sessão de implementação) e
+`pnpm --filter @yu-book/mcp test` com **7 arquivos e 55 testes** (eram 6 e 49), estes medidos de
+novo no fechamento.
+
+**Entregue sem conferência de interface à mão.** Nada do que é tela nesta entrada foi visto
+funcionando: a marca nas seis superfícies, o filtro, o diálogo "Virar nota", o bloco "Criado nesta
+resposta" e o Desfazer. `apps/web` continua sem runner de teste. O roteiro de oito itens está em
+[`docs/historico.md`](docs/historico.md).
+
+### Adicionado
+- **Marca de origem em nota e card** (RF-35, RN-10). Guarda quando foi gerado, a superfície (`chat`
+  ou `mcp`), o autor, a conversa de origem e a última revisão humana. Quem grava é só o servidor.
+  O chat passa a marca por parâmetro, e o front nunca a envia.
+- **O chat cria card e nota a pedido** (RF-36), pelas ações `create_card` e a nova `create_note`.
+  Mover card, mandar nota para a lixeira e restaurar continuam fora do chat (RN-12, CA-21).
+- **Bloco "Criado nesta resposta"** abaixo das Fontes (RF-37). Cada item leva à nota ou ao card e tem
+  **Desfazer**: a nota vai para a lixeira e o card é excluído. O item desfeito fica riscado. O que
+  foi criado também aparece ao vivo, enquanto a resposta ainda corre, e continua no histórico da
+  conversa.
+- **"Virar nota"** em toda resposta do assistente (RF-38, CA-18). Um diálogo pede título, tipo e
+  workspace, e um toast oferece "Abrir". O conteúdo e o modelo saem da mensagem gravada, não do
+  navegador. Rota nova: `POST /ai/conversations/:id/messages/:messageId/note`.
+- **Tool `create_note` no servidor MCP** (RF-39). Fica atrás da mesma trava de escrita das outras.
+  O que ela e `create_card` criam nasce marcado `via mcp`, com o nome do cliente como autor: o
+  `client_name` do cadastro OAuth, que é o nome lido na tela de consentimento, ou o `clientInfo` do
+  `initialize`.
+- **A marca na interface** (RF-40, RNF-09): etiqueta "IA" ou "IA · revisada" na lista de notas, no
+  card do kanban, na paleta de busca e no Início. No editor e no painel do card, uma faixa com
+  modelo, via, dia, revisão e o link "Abrir conversa". A etiqueta e a faixa se leem pelo ícone e pelo
+  texto, sem depender de cor.
+- **Filtro "Geradas por IA"** na barra lateral de notas (RF-41, CA-20), com contagem, chip removível,
+  estado vazio próprio e `ia=1` na URL. `GET /notes` aceita `ai=true`, e `GET /notes/counts` devolve
+  o balde `ai`.
+
+### Alterado
+- **O texto que o MCP e o chat leem traz a marca.** Nota e card lidos por inteiro ganham a linha
+  "gerada por IA · autor · via · dia[ · revisada em dia]". Listas, resultados de busca e o Início
+  ganham só o sufixo "· IA".
+- **Editar à mão o título ou o corpo** de algo gerado muda a marca para "revisada", e a origem fica
+  (RN-11, CA-19). Favoritar, mover, arquivar, etiquetar ou trocar de workspace não conta como
+  revisão. O formatar com IA não marca a nota (RF-42), mas o autosave do texto formatado conta como
+  revisão.
+- **O prompt de sistema do chat mudou.** O assistente cria só quando o usuário pede, confirma pelo
+  nome o que criou e não move, não apaga nem edita.
+- **`get_note` e `yubook://nota/{id}` fazem uma requisição a mais** (`GET /ai/settings`), em
+  paralelo, para datar a linha da marca no fuso do usuário. Em `packages/shared`, `formatarNota`
+  passou a exigir o fuso, sem valor padrão.
+- `CardSummary`, `NoteSummary`, `SearchResult` e `CardComPrazo` ganharam o campo `ai`, e
+  `ChatMessage` ganhou `created`. O stream do chat tem um evento novo, `criado`.
+
+### Segurança
+- **Criar ou editar nota com o `workspaceId` de outra conta era aceito.** A resposta devolvia o nome
+  daquele workspace, e o id inexistente caía numa violação de FK, distinguível do alheio. Agora os
+  dois dão o mesmo 404 (INV-02), em `POST /notes` e `PATCH /notes/:id`. O defeito é anterior a esta
+  etapa. Ficou mais exposto porque o `workspaceId` de `create_note` no chat é escrito pelo modelo.
+- `origin` só aceita `via: "mcp"`. Um cliente HTTP qualquer não consegue se passar pelo assistente
+  nem apontar a marca para uma conversa alheia. Nenhuma rota de atualização aceita `origin`.
+
+---
+
 ## [0.18.0] — 2026-09-24
 
 **Etapa 5 de 5 do redesenho de UI/UX, a última: polimento.** Os primitivos e os tokens da Etapa 1

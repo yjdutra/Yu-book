@@ -5,7 +5,7 @@ import type { Extra } from "./notificacoes.js";
  * A SEGUNDA CAMADA DA TRAVA DE ESCRITA.
  *
  * A primeira é o registro: `criarServidor({ escrita })` decide, uma vez por
- * sessão, se as quatro tools que mudam dado entram no `tools/list`. É uma trava
+ * sessão, se as cinco tools que mudam dado entram no `tools/list`. É uma trava
  * boa e é a que o cliente enxerga — mas é **uma só**, e falha do jeito mais
  * silencioso possível.
  *

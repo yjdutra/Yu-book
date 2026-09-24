@@ -6,6 +6,7 @@ import { Bloco, Esqueleto, Vazio } from "../components/base/Bloco";
 import { Botao } from "../components/base/Botao";
 import { Etiqueta } from "../components/base/Etiqueta";
 import { IconeAlerta, IconeAssistente, IconeRelogio } from "../components/Icones";
+import { MarcaIA } from "../components/MarcaIA";
 import { MiniaturaLink } from "../components/MiniaturaLink";
 import { RotuloTipo } from "../components/RotuloTipo";
 import { useAuth } from "../lib/auth";
@@ -68,6 +69,12 @@ function LinhaPrazo({
             {card.boardName} · {card.columnName}
           </span>
         </span>
+
+        {card.ai && (
+          <span className="shrink-0">
+            <MarcaIA marca={card.ai} curta />
+          </span>
+        )}
 
         {card.priority !== "media" && (
           <span className="shrink-0">
@@ -319,6 +326,11 @@ export function DashboardPage({ onNovaNota, onAbrirGaveta }: DashboardPageProps)
                           {nota.excerpt || "sem conteúdo"}
                         </span>
                       </span>
+                      {nota.ai && (
+                        <span className="shrink-0">
+                          <MarcaIA marca={nota.ai} curta />
+                        </span>
+                      )}
                       <RotuloTipo tipo={nota.kind} className="shrink-0" />
                       <span className="shrink-0 text-miudo text-ink-400">
                         {idadeRelativa(nota.updatedAt)}

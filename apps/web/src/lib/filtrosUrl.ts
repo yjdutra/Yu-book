@@ -26,6 +26,7 @@ export function lerFiltros(p: URLSearchParams): FiltrosDaUrl {
     kind: ehTipo(tipo) ? tipo : null,
     tags: (p.get("tags") ?? "").split(",").filter(Boolean),
     favorite: p.get("favoritas") === "1",
+    ai: p.get("ia") === "1",
     trash: p.get("lixeira") === "1",
     sort: ehOrdem(ordem) ? ordem : FILTROS_VAZIOS.sort,
   };
@@ -37,6 +38,7 @@ function escreverFiltros(f: FiltrosDaUrl): URLSearchParams {
   if (f.kind) p.set("tipo", f.kind);
   if (f.tags.length) p.set("tags", f.tags.join(","));
   if (f.favorite) p.set("favoritas", "1");
+  if (f.ai) p.set("ia", "1");
   if (f.trash) p.set("lixeira", "1");
   if (f.q) p.set("q", f.q);
   if (f.sort !== FILTROS_VAZIOS.sort) p.set("ordem", f.sort);
@@ -86,5 +88,5 @@ export function useFiltrosDaUrl() {
 
 /** Algum filtro além da ordem está valendo — o que o trilho sinaliza recolhido. */
 export function temFiltroAtivo(f: FiltrosDaUrl): boolean {
-  return Boolean(f.kind || f.favorite || f.trash || f.tags.length || f.q);
+  return Boolean(f.kind || f.favorite || f.ai || f.trash || f.tags.length || f.q);
 }

@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { NOTE_KINDS } from "./enums.js";
 import type { NoteKind } from "./enums.js";
+import { origemMcpSchema } from "./marca.js";
+import type { AiMark } from "./marca.js";
 // Só de tipo, nos dois sentidos: some na compilação, então não há ciclo real.
 import type { CardRef } from "./kanban.js";
 
@@ -30,9 +32,14 @@ export const createNoteSchema = z.object({
   meta: metaSchema.default({}),
   sourceUrl: z.string().url("URL inválida").max(2000).nullable().default(null),
   occurredAt: z.coerce.date().nullable().default(null),
+  /// Só o servidor MCP envia: é a marca de conteúdo gerado (Etapa C da frente
+  /// de IA). O front nunca manda, e a rota não a grava como campo da nota.
+  origin: origemMcpSchema.optional(),
 });
 
+/// Sem `origin`: a marca nasce na criação e nenhuma rota a altera.
 export const updateNoteSchema = createNoteSchema
+  .omit({ origin: true })
   .extend({ isFavorite: z.boolean() })
   .partial()
   .refine((v) => Object.keys(v).length > 0, "Nada para atualizar");
@@ -50,6 +57,8 @@ export const listNotesQuerySchema = z.object({
     .transform((v) => (v ? v.split(",").map((t) => t.trim()).filter(Boolean) : [])),
   workspaceId: z.string().uuid().optional(),
   favorite: z.enum(["true", "false"]).optional(),
+  /** `true` lista só as geradas por IA (Etapa C da frente de IA). */
+  ai: z.enum(["true", "false"]).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   sort: z.enum(NOTE_SORTS).default("updatedAt"),
@@ -102,6 +111,8 @@ export interface NoteSummary {
   updatedAt: string;
   createdAt: string;
   deletedAt: string | null;
+  /// Etapa C da frente de IA: `null` quando o conteúdo é humano.
+  ai: AiMark | null;
 }
 
 export interface NoteDetail extends NoteSummary {
@@ -123,5 +134,7 @@ export interface NoteCounts {
   total: number;
   trash: number;
   favorites: number;
+  /// Ativas geradas por IA — o filtro "Geradas por IA" da barra lateral.
+  ai: number;
   byKind: Record<NoteKind, number>;
 }

@@ -1,6 +1,7 @@
 import type { CardPriority, CardSummary } from "@yu-book/shared";
 import { memo } from "react";
 import { IconeCheck, IconeClipe } from "./Icones";
+import { MarcaIA } from "./MarcaIA";
 
 /** RF-32: vencido e "vence logo" são estados diferentes, com destaques diferentes. */
 export type EstadoPrazo = "vencido" | "proximo" | "normal";
@@ -100,6 +101,10 @@ export const CartaoCard = memo(function CartaoCard({
             {card.checklistDone}/{card.checklistTotal}
           </span>
         )}
+
+        {/* Etapa C da frente de IA: só faísca e "IA" — o detalhe e o "revisada"
+            moram na dica e no painel. Rótulo, não botão, pelo mesmo motivo das tags. */}
+        {card.ai && <MarcaIA marca={card.ai} curta />}
 
         {/* RF-07: rótulo, não botão — o card inteiro é a alça de arraste, e um
             alvo clicável aqui dentro competiria com o gesto. */}

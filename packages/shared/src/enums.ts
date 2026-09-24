@@ -47,3 +47,11 @@ export type AiMessageRole = (typeof AI_MESSAGE_ROLES)[number];
  */
 export const AI_COST_SOURCES = ["provedor", "estimado", "desconhecido"] as const;
 export type AiCostSource = (typeof AI_COST_SOURCES)[number];
+
+/**
+ * Por qual superfície um conteúdo gerado por IA entrou no acervo. Espelha o
+ * enum `AiVia` do Prisma (Etapa C da frente de IA). Rotina e agente entram
+ * aqui quando existirem — acrescentar valor a enum do Postgres é migration.
+ */
+export const AI_VIAS = ["chat", "mcp"] as const;
+export type AiVia = (typeof AI_VIAS)[number];

@@ -1,4 +1,4 @@
-import type { ChatSource } from "@yu-book/shared";
+import type { ChatSource, NoteDetail } from "@yu-book/shared";
 import { useNavigate } from "react-router-dom";
 import { Compositor } from "../components/assistente/Compositor";
 import { Conversa } from "../components/assistente/Conversa";
@@ -17,7 +17,13 @@ const SUGESTOES = [
  * painel lateral — a sessão é uma só, e expandir no meio de uma resposta não a
  * interrompe. A lista de conversas mora no painel contextual ao lado.
  */
-export function AssistentePage({ onAbrirNota }: { onAbrirNota: (id: string) => void }) {
+export function AssistentePage({
+  onAbrirNota,
+  onNotaCriada,
+}: {
+  onAbrirNota: (id: string) => void;
+  onNotaCriada: (nota: NoteDetail) => void;
+}) {
   const navigate = useNavigate();
   const { setTexto, focarCampo, abrirPainel } = useAcoesChat();
 
@@ -39,6 +45,7 @@ export function AssistentePage({ onAbrirNota }: { onAbrirNota: (id: string) => v
         <div className="mx-auto w-full max-w-[760px] px-8 py-8">
           <Conversa
             onAbrirFonte={abrirFonte}
+            onNotaCriada={onNotaCriada}
             vazio={
               <div className="flex flex-col items-center pt-[10vh] text-center">
                 <span

@@ -1,4 +1,4 @@
-import type { ChatSource } from "@yu-book/shared";
+import type { ChatSource, NoteDetail } from "@yu-book/shared";
 import { useNavigate } from "react-router-dom";
 import { useConversa, useConversas } from "../../lib/chat";
 import { useSessaoChat } from "../../lib/sessaoChat";
@@ -23,7 +23,13 @@ const RECENTES = 8;
  * na sessão, e fechar no meio de uma resposta é `fecharPainel`, que para o
  * fluxo antes de desmontar.
  */
-export function PainelAssistente({ onAbrirNota }: { onAbrirNota: (id: string) => void }) {
+export function PainelAssistente({
+  onAbrirNota,
+  onNotaCriada,
+}: {
+  onAbrirNota: (id: string) => void;
+  onNotaCriada: (nota: NoteDetail) => void;
+}) {
   const navigate = useNavigate();
   const { conversaId, selecionar, novaConversa, fecharPainel, focarCampo } = useSessaoChat();
   const { data: conversas } = useConversas();
@@ -109,6 +115,7 @@ export function PainelAssistente({ onAbrirNota }: { onAbrirNota: (id: string) =>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           <Conversa
             onAbrirFonte={abrirFonte}
+            onNotaCriada={onNotaCriada}
             vazio={
               <p className="text-sm text-ink-400">
                 Pergunte sobre o seu acervo — o assistente procura sozinho. Use{" "}

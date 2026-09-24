@@ -13,6 +13,8 @@ import type {
 import { NOTE_KINDS, extrairWikilinks, normalizarTitulo, renomearWikilinks } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
+import { CAMPOS_DA_MARCA, camposDaOrigem, paraMarca } from "../../lib/marca.js";
+import type { OrigemIA } from "../../lib/marca.js";
 import { cardsDaNota } from "../kanban/kanban.service.js";
 
 /**
@@ -34,6 +36,7 @@ const camposDaLista = {
   deletedAt: true,
   workspace: { select: { id: true, name: true } },
   tags: { include: { tag: true } },
+  ...CAMPOS_DA_MARCA,
 } satisfies Prisma.NoteSelect;
 
 type NoteDaLista = Prisma.NoteGetPayload<{ select: typeof camposDaLista }>;
@@ -79,6 +82,7 @@ function toSummary(note: NoteDaLista, textoDoResumo: string): NoteSummary {
     updatedAt: note.updatedAt.toISOString(),
     createdAt: note.createdAt.toISOString(),
     deletedAt: note.deletedAt?.toISOString() ?? null,
+    ai: paraMarca(note),
   };
 }
 
@@ -99,6 +103,26 @@ function ehViolacaoDeTitulo(erro: unknown): boolean {
   const alvo = erro.meta?.target;
   const texto = Array.isArray(alvo) ? alvo.join(",") : String(alvo ?? "");
   return texto.includes("title");
+}
+
+/**
+ * O `workspaceId` vem do cliente — do corpo HTTP ou dos argumentos que o modelo
+ * escreveu no chat —, e a FK só garante que ele existe, não de quem é. Sem esta
+ * checagem, o id de outra conta era aceito e a resposta devolvia o nome do
+ * workspace alheio; o inexistente caía em violação de FK, distinguível do
+ * alheio. Os dois dão o mesmo 404 (INV-02), como em `criarBoard`.
+ */
+async function conferirWorkspace(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  workspaceId: string | null | undefined,
+): Promise<void> {
+  if (!workspaceId) return;
+  const existe = await tx.workspace.findFirst({
+    where: { id: workspaceId, userId },
+    select: { id: true },
+  });
+  if (!existe) throw notFound("Workspace não encontrado");
 }
 
 /** Cria as tags que ainda não existem e devolve os ids de todas (RF-39). */
@@ -196,11 +220,16 @@ function mesmosLinks(antes: string, depois: string): boolean {
   return a.length === b.length && a.every((t, i) => t === b[i]);
 }
 
-export async function criar(userId: string, input: CreateNoteInput): Promise<NoteDetail> {
+export async function criar(
+  userId: string,
+  input: CreateNoteInput,
+  origem?: OrigemIA,
+): Promise<NoteDetail> {
   const dados = input as Required<CreateNoteInput>;
 
   try {
     const id = await prisma.$transaction(async (tx) => {
+      await conferirWorkspace(tx, userId, dados.workspaceId);
       const tagIds = await resolverTags(tx, userId, dados.tags ?? []);
 
       const note = await tx.note.create({
@@ -214,6 +243,7 @@ export async function criar(userId: string, input: CreateNoteInput): Promise<Not
           sourceUrl: dados.sourceUrl ?? null,
           occurredAt: dados.occurredAt ? new Date(dados.occurredAt) : null,
           tags: { create: tagIds.map((tagId) => ({ tagId })) },
+          ...camposDaOrigem(origem),
         },
       });
 
@@ -267,9 +297,19 @@ export async function atualizar(
 
   const novoTitulo = input.title?.trim();
   const renomeou = novoTitulo !== undefined && novoTitulo !== atual.title;
+  // Etapa C da frente de IA: toda mudança de fato no título ou no corpo conta
+  // como revisão — inclusive a do botão de formatar, que chega aqui pelo
+  // autosave. É aceito: formatar é edição que o usuário iniciou sobre o texto.
+  // "De fato" importa: o autosave reenvia o corpo inalterado, e isso não é
+  // revisão. Favoritar, mover de workspace ou mudar tag também não.
+  const revisou =
+    atual.aiGeneratedAt !== null &&
+    (renomeou || (input.contentMd !== undefined && input.contentMd !== atual.contentMd));
 
   try {
     await prisma.$transaction(async (tx) => {
+      await conferirWorkspace(tx, userId, input.workspaceId);
+
       // RN-03: renomear reescreve [[antigo]] nas notas que apontam para esta,
       // senão os links quebram silenciosamente. Restrito ao padrão exato entre
       // colchetes — nunca o título solto no texto.
@@ -308,6 +348,7 @@ export async function atualizar(
             occurredAt: input.occurredAt ? new Date(input.occurredAt) : null,
           }),
           ...(input.isFavorite !== undefined && { isFavorite: input.isFavorite }),
+          ...(revisou && { aiRevisedAt: new Date() }),
         },
       });
 
@@ -385,6 +426,7 @@ export async function listar(userId: string, query: ListNotesQuery): Promise<Not
     ...(query.kind && { kind: query.kind }),
     ...(query.workspaceId && { workspaceId: query.workspaceId }),
     ...(query.favorite === "true" && { isFavorite: true }),
+    ...(query.ai === "true" && { aiGeneratedAt: { not: null } }),
     ...(query.q && {
       OR: [
         { title: { contains: query.q, mode: "insensitive" } },
@@ -425,7 +467,7 @@ export async function listar(userId: string, query: ListNotesQuery): Promise<Not
 /**
  * RF-02: os contadores da barra lateral seguem o workspace ativo.
  *
- * Uma varredura só, com `FILTER`, em vez de quatro `count` — a barra lateral
+ * Uma varredura só, com `FILTER`, em vez de um `count` por balde — a barra lateral
  * pede isto a cada troca de workspace e depois de cada operação em nota.
  */
 export async function contar(userId: string, workspaceId?: string): Promise<NoteCounts> {
@@ -434,12 +476,13 @@ export async function contar(userId: string, workspaceId?: string): Promise<Note
     : Prisma.empty;
 
   const linhas = await prisma.$queryRaw<
-    { kind: NoteKind; ativas: bigint; lixeira: bigint; favoritas: bigint }[]
+    { kind: NoteKind; ativas: bigint; lixeira: bigint; favoritas: bigint; ia: bigint }[]
   >`
     SELECT kind::text AS kind,
            count(*) FILTER (WHERE deleted_at IS NULL) AS ativas,
            count(*) FILTER (WHERE deleted_at IS NOT NULL) AS lixeira,
-           count(*) FILTER (WHERE deleted_at IS NULL AND is_favorite) AS favoritas
+           count(*) FILTER (WHERE deleted_at IS NULL AND is_favorite) AS favoritas,
+           count(*) FILTER (WHERE deleted_at IS NULL AND ai_generated_at IS NOT NULL) AS ia
     FROM note
     WHERE user_id = ${userId}::uuid
     ${escopo}
@@ -450,6 +493,7 @@ export async function contar(userId: string, workspaceId?: string): Promise<Note
   let total = 0;
   let trash = 0;
   let favorites = 0;
+  let ai = 0;
 
   for (const linha of linhas) {
     const ativas = Number(linha.ativas);
@@ -457,9 +501,10 @@ export async function contar(userId: string, workspaceId?: string): Promise<Note
     total += ativas;
     trash += Number(linha.lixeira);
     favorites += Number(linha.favoritas);
+    ai += Number(linha.ia);
   }
 
-  return { total, trash, favorites, byKind };
+  return { total, trash, favorites, ai, byKind };
 }
 
 /**

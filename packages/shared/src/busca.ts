@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { NOTE_KINDS } from "./enums.js";
 import type { NoteKind } from "./enums.js";
+import type { AiMark } from "./marca.js";
 
 /**
  * Marcadores de destaque do `ts_headline`. São caracteres de controle: não
@@ -36,6 +37,8 @@ export interface SearchResult {
   snippet: string;
   /** true quando veio do fallback por similaridade de título (RF-34). */
   approximate: boolean;
+  /// Etapa C da frente de IA: `null` quando o conteúdo é humano.
+  ai: AiMark | null;
 }
 
 export interface SearchResponse {

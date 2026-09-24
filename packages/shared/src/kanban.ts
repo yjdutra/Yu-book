@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { CARD_PRIORITIES } from "./enums.js";
 import type { CardPriority } from "./enums.js";
+import { origemMcpSchema } from "./marca.js";
+import type { AiMark } from "./marca.js";
 import type { NoteRef } from "./notes.js";
 
 // RNF-18: limites explícitos, iguais na API e no front.
@@ -117,10 +119,13 @@ export const cardInputSchema = z.object({
   checklist: checklistSchema.default([]),
   tags: cardTagsSchema.default([]),
   noteId: z.string().uuid().nullable().default(null),
+  /// Só o servidor MCP envia — ver `createNoteSchema.origin`.
+  origin: origemMcpSchema.optional(),
 });
 
+/// Sem `origin`: a marca nasce na criação e nenhuma rota a altera.
 export const cardUpdateSchema = cardInputSchema
-  .omit({ columnId: true })
+  .omit({ columnId: true, origin: true })
   .extend({ archived: z.boolean() })
   .partial()
   .refine((v) => Object.keys(v).length > 0, "Nada para atualizar");
@@ -169,6 +174,8 @@ export interface CardSummary {
    * requisição por card.
    */
   updatedAt: string;
+  /// Etapa C da frente de IA: `null` quando o card é humano.
+  ai: AiMark | null;
 }
 
 export interface ColumnDetail {

@@ -20,6 +20,8 @@ import {
 } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
+import { CAMPOS_DA_MARCA, camposDaOrigem, paraMarca } from "../../lib/marca.js";
+import type { OrigemIA } from "../../lib/marca.js";
 
 /** Colunas de um board novo (RF-14, S-03): board sem coluna é estado morto. */
 const COLUNAS_PADRAO = ["A fazer", "Fazendo", "Feito"];
@@ -157,6 +159,7 @@ const CARD_FACE = {
   tags: true,
   updatedAt: true,
   note: { select: { id: true, title: true, kind: true } },
+  ...CAMPOS_DA_MARCA,
 } satisfies Prisma.CardSelect;
 
 type CardFace = Prisma.CardGetPayload<{ select: typeof CARD_FACE }>;
@@ -175,6 +178,7 @@ function toCardSummary(card: CardFace): CardSummary {
     tags: card.tags,
     note: card.note,
     updatedAt: card.updatedAt.toISOString(),
+    ai: paraMarca(card),
   };
 }
 
@@ -447,7 +451,11 @@ async function validarNota(db: Cliente, userId: string, noteId: string): Promise
   if (!nota) throw notFound("Nota não encontrada");
 }
 
-export async function criarCard(userId: string, input: CardInput): Promise<CardDetail> {
+export async function criarCard(
+  userId: string,
+  input: CardInput,
+  origem?: OrigemIA,
+): Promise<CardDetail> {
   const dados = input as Required<CardInput>;
   const coluna = await colunaDoUsuario(prisma, userId, dados.columnId);
   if (dados.noteId) await validarNota(prisma, userId, dados.noteId);
@@ -465,6 +473,7 @@ export async function criarCard(userId: string, input: CardInput): Promise<CardD
         tags: normalizarTags(dados.tags ?? []),
         noteId: dados.noteId ?? null,
         position: ativos.length, // nasce no fim da coluna
+        ...camposDaOrigem(origem),
       },
     });
     return card.id;
@@ -503,6 +512,7 @@ export async function buscarCard(userId: string, id: string): Promise<CardDetail
     checklist: (card.checklist ?? []) as CardDetail["checklist"],
     archived: card.archived,
     updatedAt: card.updatedAt.toISOString(),
+    ai: paraMarca(card),
   };
 }
 
@@ -513,6 +523,21 @@ export async function atualizarCard(
 ): Promise<CardDetail> {
   const card = await cardDoUsuario(prisma, userId, id);
   if (input.noteId) await validarNota(prisma, userId, input.noteId);
+
+  // Etapa C da frente de IA: mesma regra de `notes.service.atualizar`. Só o
+  // texto conta como revisão, e só se mudou de fato — o painel reenvia campos
+  // inalterados. Mover, arquivar, mudar prazo ou tag não é revisão.
+  let revisou = false;
+  if (input.title !== undefined || input.descriptionMd !== undefined) {
+    const texto = await prisma.card.findUniqueOrThrow({
+      where: { id },
+      select: { title: true, descriptionMd: true, aiGeneratedAt: true },
+    });
+    revisou =
+      texto.aiGeneratedAt !== null &&
+      ((input.title !== undefined && input.title !== texto.title) ||
+        (input.descriptionMd !== undefined && input.descriptionMd !== texto.descriptionMd));
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.card.update({
@@ -531,6 +556,7 @@ export async function atualizarCard(
         ...(input.tags !== undefined && { tags: normalizarTags(input.tags) }),
         ...(input.noteId !== undefined && { noteId: input.noteId }),
         ...(input.archived !== undefined && { archived: input.archived }),
+        ...(revisou && { aiRevisedAt: new Date() }),
       },
     });
 

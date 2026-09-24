@@ -5,11 +5,12 @@ import {
   MAX_CARD_TITULO,
   MAX_TAGS_CARD,
 } from "./kanban.js";
+import { MAX_CONTEUDO, noteKindSchema, tituloSchema } from "./notes.js";
 
 /**
- * O vocabulário do acervo: as nove ações que um modelo pode pedir.
+ * O vocabulário do acervo: as dez ações que um modelo pode pedir.
  *
- * **Uma definição, dois consumidores.** O servidor MCP publica estas nove em
+ * **Uma definição, dois consumidores.** O servidor MCP publica estas dez em
  * `tools/list`; o chat interno (Etapa B da frente de IA) as oferece ao provedor
  * no campo `tools` da requisição. O metadado — nome, título, descrição e
  * schema — mora aqui; os **handlers ficam separados**, porque o MCP fala HTTP
@@ -27,7 +28,7 @@ import {
  */
 
 /**
- * As dicas de comportamento do MCP. Só as quatro de escrita as declaram, que é
+ * As dicas de comportamento do MCP. Só as de escrita as declaram, que é
  * exatamente o que o servidor publica hoje — acrescentá-las às de leitura
  * mudaria a superfície de `tools/list` sem ninguém ter pedido.
  */
@@ -197,6 +198,34 @@ export const FERRAMENTAS_DO_ACERVO = {
     },
   },
 
+  create_note: {
+    titulo: "Criar uma nota",
+    // Curta de propósito: o chat paga esta descrição em todo turno. As duas
+    // frases são as que mudam o que o modelo faz — escolher outro título e
+    // não apresentar como do usuário o que ele mesmo escreveu.
+    descricao:
+      "Cria uma nota no acervo. O título é único entre as notas ativas, sem distinguir acento " +
+      "nem caixa: título repetido falha. A nota nasce marcada como gerada por IA.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    entrada: {
+      title: tituloSchema.describe("Título da nota."),
+      contentMd: z.string().max(MAX_CONTEUDO).describe("Corpo em Markdown."),
+      kind: noteKindSchema.optional().describe("Tipo da nota. Omita para livre."),
+      workspaceId: z
+        .string()
+        .uuid()
+        .optional()
+        .describe("Workspace da nota. Omita para deixá-la sem workspace."),
+      tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+    },
+  },
+
   move_card: {
     titulo: "Mover um card de coluna",
     descricao:
@@ -282,7 +311,24 @@ export const FERRAMENTAS_DO_ACERVO = {
 
 export type NomeDeFerramenta = keyof typeof FERRAMENTAS_DO_ACERVO;
 
-/** Os nomes das que **não** mudam o acervo. A Etapa B do chat vive só destas. */
+/** Os nomes das que **não** mudam o acervo. */
 export const FERRAMENTAS_DE_LEITURA = (
   Object.keys(FERRAMENTAS_DO_ACERVO) as NomeDeFerramenta[]
 ).filter((nome) => !FERRAMENTAS_DO_ACERVO[nome].escrita);
+
+/**
+ * O que o chat oferece ao provedor: as leituras mais as duas criações da
+ * Etapa C da frente de IA.
+ *
+ * Lista explícita, e não "todas menos algumas": mover card e mandar nota para
+ * a lixeira ficam fora do chat por decisão de produto (RN-03 — a escrita do
+ * chat é criar, a pedido, marcado e desfazível), e uma ação nova neste arquivo
+ * não pode entrar no chat só por existir. A segunda condição continua em
+ * `apps/api/src/modules/assistente/ferramentas.service.ts`: sem executor, não
+ * é oferecida.
+ */
+export const FERRAMENTAS_DO_CHAT: readonly NomeDeFerramenta[] = [
+  ...FERRAMENTAS_DE_LEITURA,
+  "create_card",
+  "create_note",
+];

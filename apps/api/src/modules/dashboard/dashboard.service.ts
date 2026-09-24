@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import type { CardComPrazo, Dashboard } from "@yu-book/shared";
 import { JANELA_PRAZOS_DIAS, LIMITE_LINKS, LIMITE_NOTAS, LIMITE_PRAZOS } from "@yu-book/shared";
 import { prisma } from "../../db.js";
+import { CAMPOS_DA_MARCA, paraMarca } from "../../lib/marca.js";
 import { listar as listarNotas } from "../notes/notes.service.js";
 
 const CAMPOS_PRAZO = {
@@ -10,6 +11,7 @@ const CAMPOS_PRAZO = {
   dueDate: true,
   priority: true,
   column: { select: { name: true, board: { select: { id: true, name: true } } } },
+  ...CAMPOS_DA_MARCA,
 } satisfies Prisma.CardSelect;
 
 type CardBruto = Prisma.CardGetPayload<{ select: typeof CAMPOS_PRAZO }>;
@@ -24,6 +26,7 @@ function toPrazo(card: CardBruto): CardComPrazo {
     boardId: card.column.board.id,
     boardName: card.column.board.name,
     columnName: card.column.name,
+    ai: paraMarca(card),
   };
 }
 

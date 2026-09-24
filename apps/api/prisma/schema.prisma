@@ -60,6 +60,13 @@ enum AiMessageRole {
   tool
 }
 
+/// Por qual superfície um conteúdo gerado por IA entrou no acervo (Etapa C da
+/// frente de IA). Rotina e agente entram por migration aditiva quando existirem.
+enum AiVia {
+  chat
+  mcp
+}
+
 /// De onde veio o custo registrado. `desconhecido` é o degrau perigoso: grava
 /// zero, não move o teto, e por isso precisa ser contado e mostrado na tela.
 enum AiCostSource {
@@ -152,6 +159,18 @@ model Note {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
+  /// A marca de conteúdo gerado (Etapa C da frente de IA). `aiGeneratedAt` não
+  /// nulo **é** a marca; os demais a qualificam. Gravada só pelo servidor, na
+  /// criação, e nunca apagada: editar à mão preenche `aiRevisedAt` e mantém a
+  /// origem.
+  aiGeneratedAt    DateTime? @map("ai_generated_at")
+  aiVia            AiVia?    @map("ai_via")
+  /// No chat, o modelo que respondeu; no MCP, o nome do cliente.
+  aiAuthor         String?   @map("ai_author")
+  aiConversationId String?   @map("ai_conversation_id") @db.Uuid
+  /// Última edição humana de título ou corpo depois de gerado.
+  aiRevisedAt      DateTime? @map("ai_revised_at")
+
   /// Mantida por trigger (ver migration). Consultada via SQL cru.
   searchVector Unsupported("tsvector")? @map("search_vector")
 
@@ -164,9 +183,14 @@ model Note {
   events    Event[]
   aiUsages  AiUsage[]
   aiAttachments AiAttachment[]
+  aiConversation AiConversation? @relation("NotasGeradas", fields: [aiConversationId], references: [id], onDelete: SetNull)
 
   @@index([userId, kind])
   @@index([userId, deletedAt, updatedAt(sort: Desc)])
+  /// O filtro "Geradas por IA" da lista (Etapa C). Parcial seria menor, mas
+  /// índice parcial não se declara aqui, e o que só vive no SQL o Prisma tenta
+  /// derrubar na migration seguinte.
+  @@index([userId, aiGeneratedAt])
   @@index([workspaceId])
   // Declarados aqui (e não só no SQL) para o Prisma não tentar derrubá-los
   // a cada migration nova.
@@ -265,10 +289,23 @@ model Card {
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
+  /// A marca de conteúdo gerado (Etapa C da frente de IA). `aiGeneratedAt` não
+  /// nulo **é** a marca; os demais a qualificam. Gravada só pelo servidor, na
+  /// criação, e nunca apagada: editar à mão preenche `aiRevisedAt` e mantém a
+  /// origem.
+  aiGeneratedAt    DateTime? @map("ai_generated_at")
+  aiVia            AiVia?    @map("ai_via")
+  /// No chat, o modelo que respondeu; no MCP, o nome do cliente.
+  aiAuthor         String?   @map("ai_author")
+  aiConversationId String?   @map("ai_conversation_id") @db.Uuid
+  /// Última edição humana de título ou corpo depois de gerado.
+  aiRevisedAt      DateTime? @map("ai_revised_at")
+
   column        BoardColumn    @relation(fields: [columnId], references: [id], onDelete: Cascade)
   note          Note?          @relation(fields: [noteId], references: [id], onDelete: SetNull)
   events        Event[]
   aiAttachments AiAttachment[]
+  aiConversation AiConversation? @relation("CardsGerados", fields: [aiConversationId], references: [id], onDelete: SetNull)
 
   @@index([columnId, position])
   @@index([dueDate])
@@ -482,6 +519,10 @@ model AiConversation {
   user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages AiMessage[]
   usages   AiUsage[]
+  /// O que esta conversa criou no acervo. `SetNull` do outro lado: apagar a
+  /// conversa perde o link "Abrir conversa", nunca a marca.
+  notasGeradas Note[] @relation("NotasGeradas")
+  cardsGerados Card[] @relation("CardsGerados")
 
   @@index([userId, updatedAt(sort: Desc)])
   @@map("ai_conversation")
@@ -520,6 +561,9 @@ model AiMessage {
   /// mesmo motivo de `toolCalls` — é uma lista que a tela desenha inteira,
   /// nunca um campo que se consulta.
   sources Json? @map("sources")
+  /// O que a resposta criou no acervo (Etapa C), para o chat mostrar e
+  /// desfazer. Persistido pelo mesmo motivo de `sources`.
+  created Json? @map("created")
 
   createdAt DateTime @default(now()) @map("created_at")
 

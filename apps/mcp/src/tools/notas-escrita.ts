@@ -1,13 +1,19 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { FERRAMENTAS_DO_ACERVO, formatarNotaBreve } from "@yu-book/shared";
 import type { NoteDetail } from "@yu-book/shared";
-import { api } from "../cliente.js";
+import { origemDoCliente } from "../autor.js";
+import { api, ErroDaApi } from "../cliente.js";
 import { comErroDeEscrita } from "../erros.js";
 import { relatar } from "../notificacoes.js";
 
 /**
- * As tools que mudam o estado de uma nota — e são exatamente **duas**, uma o
- * desfazer da outra.
+ * As tools que mudam o estado de uma nota: `create_note`, que a Etapa C da
+ * frente de IA trouxe junto com a marca de conteúdo gerado, e o par
+ * `trash_note`/`restore_note`, um o desfazer do outro.
+ *
+ * **Criar não é editar.** A nota criada aqui nasce marcada, e a marca só sai
+ * das mãos do servidor — por isso ela pode existir sem violar o NO2 revisto.
+ * Editar nota continua fora (concorre com o autosave do front; ver o README).
  *
  * **Nota não tem "arquivar".** O domínio tem duas remoções com nomes diferentes
  * de propósito: card se **arquiva** (`archived`, sai do quadro), nota vai para
@@ -22,6 +28,70 @@ import { relatar } from "../notificacoes.js";
  * isso com um humano confirmando.
  */
 export function registrarEscritaDeNotas(server: McpServer): void {
+  const criar = FERRAMENTAS_DO_ACERVO.create_note;
+  server.registerTool(
+    "create_note",
+    {
+      title: criar.titulo,
+      description: criar.descricao,
+      annotations: criar.anotacoes,
+      inputSchema: criar.entrada,
+    },
+    comErroDeEscrita(async ({ title, contentMd, kind, workspaceId, tags }, extra) => {
+      const relato = relatar(server, extra, "create_note", 1);
+      const origin = await origemDoCliente(server, extra);
+
+      let nota: NoteDetail;
+      try {
+        nota = await api.post<NoteDetail>("/notes", {
+          title,
+          contentMd,
+          ...(kind !== undefined && { kind }),
+          ...(workspaceId !== undefined && { workspaceId }),
+          ...(tags !== undefined && { tags }),
+          origin,
+        });
+      } catch (erro) {
+        // A tradução genérica de TITULO_DUPLICADO manda renomear **a outra**
+        // nota no aplicativo — certa para `restore_note`, errada aqui: quem
+        // escolheu o título foi o modelo, e o conserto é ele escolher outro.
+        if (erro instanceof ErroDaApi && erro.code === "TITULO_DUPLICADO") {
+          return {
+            content: [
+              {
+                type: "text",
+                text:
+                  `Já existe uma nota ativa com o título "${title}" (sem distinguir acento nem ` +
+                  "maiúscula). **Nada foi criado.** Escolha outro título, ou, se a intenção era " +
+                  "acrescentar à nota existente, diga isso ao usuário — esta tool não edita nota.",
+              },
+            ],
+            isError: true,
+          };
+        }
+        throw erro;
+      }
+
+      await relato.passo("nota criada");
+      await relato.registrar("info", {
+        acao: "nota criada",
+        noteId: nota.id,
+        title: nota.title,
+        author: origin.author,
+      });
+
+      const linhas = [
+        "Nota criada, marcada como gerada por IA.",
+        "",
+        formatarNotaBreve(nota),
+        "",
+        `Para desfazer: trash_note com id ${nota.id}.`,
+      ];
+
+      return { content: [{ type: "text", text: linhas.join("\n") }] };
+    }),
+  );
+
   const lixeira = FERRAMENTAS_DO_ACERVO.trash_note;
   server.registerTool(
     "trash_note",

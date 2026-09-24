@@ -47,11 +47,11 @@ export function identidade(escopos: string[], tokenDaApi = "TOKEN-DA-API"): Auth
 }
 
 export async function abrirCliente(
-  opcoes: { escrita: boolean },
+  opcoes: { escrita: boolean; nomeDoCliente?: string },
   authInfo?: AuthInfo,
 ): Promise<ClienteDeTeste> {
   const [doCliente, doServidor] = InMemoryTransport.createLinkedPair();
-  const servidor = criarServidor(opcoes);
+  const servidor = criarServidor({ escrita: opcoes.escrita });
   await servidor.connect(doServidor);
 
   // O SDK não expõe um "espere a resposta deste id", então a correspondência é
@@ -78,7 +78,8 @@ export async function abrirCliente(
   await pedir("initialize", {
     protocolVersion: "2025-06-18",
     capabilities: {},
-    clientInfo: { name: "arnes", version: "1" },
+    // O `clientInfo` é uma das fontes do autor da marca de IA (`src/autor.ts`).
+    clientInfo: { name: opcoes.nomeDoCliente ?? "arnes", version: "1" },
   });
   await doCliente.send({ jsonrpc: "2.0", method: "notifications/initialized" } as JSONRPCMessage, {
     ...(authInfo && { authInfo }),

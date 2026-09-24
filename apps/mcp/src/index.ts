@@ -10,7 +10,7 @@ import { criarServidor } from "./servidor.js";
  *   stdio  desenvolvimento — um processo por pessoa, iniciado pelo cliente MCP
  *   http   serviço hospedado — StreamableHTTP com sessão, muitos clientes
  *
- * O que cada um serve está em `src/servidor.ts`, e é idêntico: as nove tools,
+ * O que cada um serve está em `src/servidor.ts`, e é idêntico: as dez tools,
  * os resources e os prompts. Só o canal muda.
  *
  * REGRA QUE NÃO SE QUEBRA — **e que vale só para o stdio**: ali o stdout **é**
@@ -57,8 +57,8 @@ function diagnosticoDeEscritaStdio(): string {
       : "  escrita: habilitada em API REMOTA por YUBOOK_ESCRITA_REMOTA=1.";
   }
   return (
-    "  escrita: desligada — a API não é local. As tools create_card, move_card, trash_note e\n" +
-    "  restore_note não foram registradas. Aponte YUBOOK_API_URL para um host local, ou\n" +
+    "  escrita: desligada — a API não é local. As tools create_card, create_note, move_card,\n" +
+    "  trash_note e restore_note não foram registradas. Aponte YUBOOK_API_URL para um host local, ou\n" +
     "  declare YUBOOK_ESCRITA_REMOTA=1 sabendo que a escrita alcança dado de verdade."
   );
 }
@@ -69,13 +69,14 @@ function diagnosticoDeEscritaHttp(): string {
   if (!env.escritaHabilitada) {
     return (
       "  escrita: DESLIGADA por MCP_ESCRITA_HABILITADA=0. Nenhuma sessão registra create_card,\n" +
-      "  move_card, trash_note ou restore_note, mesmo que o token traga o escopo.\n" +
+      "  create_note, move_card, trash_note ou restore_note, mesmo que o token traga\n" +
+      "  o escopo.\n" +
       publica
     );
   }
   return (
     "  escrita: por escopo do token. Quem marcar a caixa no consentimento recebe yubook:write e\n" +
-    "  vê as nove tools; quem não marcar vê cinco. A trava por host local não vale aqui —\n" +
+    "  vê as dez tools; quem não marcar vê cinco. A trava por host local não vale aqui —\n" +
     "  MCP_ESCRITA_HABILITADA=0 é o desligamento global deste transporte.\n" +
     publica
   );

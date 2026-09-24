@@ -5,7 +5,14 @@ import type { FiltrosDaUrl } from "../../../lib/filtrosUrl";
 import { useContadores, useTags } from "../../../lib/notas";
 import { useWorkspaceAtivo } from "../../../lib/workspace";
 import { Botao } from "../../base/Botao";
-import { ICONE_TIPO, IconeEstrela, IconeLixeira, IconeMais, IconeNotas } from "../../Icones";
+import {
+  ICONE_TIPO,
+  IconeAssistente,
+  IconeEstrela,
+  IconeLixeira,
+  IconeMais,
+  IconeNotas,
+} from "../../Icones";
 import { CartaoTags, Item, Secao } from "../partes";
 
 /** Área Notas: os filtros da lista, que agora moram na URL. */
@@ -17,10 +24,14 @@ export function ContextoNotas({ onNovaNota }: { onNovaNota: () => void }) {
 
   /** Um recorte por vez, como antes: escolher um apaga os outros. A ordem e a busca ficam. */
   const aplicar = (extra: Partial<FiltrosDaUrl>) =>
-    definir({ kind: null, favorite: false, trash: false, tags: [], ...extra });
+    definir({ kind: null, favorite: false, ai: false, trash: false, tags: [], ...extra });
 
   const nenhumFiltro =
-    !filtros.kind && !filtros.favorite && !filtros.trash && filtros.tags.length === 0;
+    !filtros.kind &&
+    !filtros.favorite &&
+    !filtros.ai &&
+    !filtros.trash &&
+    filtros.tags.length === 0;
   const IconeTipoAtivo = filtros.kind ? ICONE_TIPO[filtros.kind] : null;
 
   return (
@@ -41,6 +52,15 @@ export function ContextoNotas({ onNovaNota }: { onNovaNota: () => void }) {
         >
           <IconeEstrela />
           Favoritas
+        </Item>
+        {/* Etapa C da frente de IA: o que o assistente escreveu, num recorte só. */}
+        <Item
+          ativo={filtros.ai}
+          onClick={() => aplicar({ ai: true })}
+          contagem={contadores?.ai}
+        >
+          <IconeAssistente />
+          Geradas por IA
         </Item>
       </div>
 
