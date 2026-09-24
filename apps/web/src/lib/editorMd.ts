@@ -86,14 +86,14 @@ export const temaEditor = EditorView.theme({
   ".cm-md-enfase": { fontStyle: "italic" },
   ".cm-md-riscado": { textDecoration: "line-through", color: "var(--color-ink-400)" },
   ".cm-md-codigo": {
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontFamily: "var(--font-mono)",
     fontSize: "0.9em",
     backgroundColor: "color-mix(in srgb, var(--color-ink-700) 45%, transparent)",
     borderRadius: "0.25rem",
     padding: "0.1em 0.3em",
   },
   ".cm-md-bloco": {
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    fontFamily: "var(--font-mono)",
     fontSize: "0.9em",
     backgroundColor: "color-mix(in srgb, var(--color-ink-900) 70%, transparent)",
   },

@@ -5,11 +5,11 @@ const LARGURA_MIN = 180;
 const LARGURA_MAX = 520;
 
 /** RNF-03: largura da coluna persistida entre sessões. */
-function useLarguraPersistida(chave: string, inicial: number) {
+function useLarguraPersistida(chave: string, inicial: number, min: number, max: number) {
   const [largura, setLargura] = useState(() => {
     const salvo = localStorage.getItem(chave);
     const n = salvo ? Number(salvo) : Number.NaN;
-    return Number.isFinite(n) ? Math.min(Math.max(n, LARGURA_MIN), LARGURA_MAX) : inicial;
+    return Number.isFinite(n) ? Math.min(Math.max(n, min), max) : inicial;
   });
 
   useEffect(() => {
@@ -86,6 +86,9 @@ interface PainelProps {
   className?: string;
   /** De que lado do painel fica o divisor. Painel à direita arrasta ao contrário. */
   divisor?: "direita" | "esquerda";
+  /** Limites da largura. O painel do assistente precisa de mais que as colunas de lista. */
+  min?: number;
+  max?: number;
   children: ReactNode;
 }
 
@@ -102,17 +105,19 @@ export function PainelRedimensionavel({
   rotulo,
   className = "",
   divisor = "direita",
+  min = LARGURA_MIN,
+  max = LARGURA_MAX,
   children,
 }: PainelProps) {
-  const [largura, setLargura] = useLarguraPersistida(chave, inicial);
+  const [largura, setLargura] = useLarguraPersistida(chave, inicial, min, max);
   const sinal = divisor === "direita" ? 1 : -1;
 
   const ajustar = useCallback(
     (delta: number) =>
       setLargura((atual) =>
-        Math.min(Math.max(atual + delta * sinal, LARGURA_MIN), LARGURA_MAX),
+        Math.min(Math.max(atual + delta * sinal, min), max),
       ),
-    [setLargura, sinal],
+    [setLargura, sinal, min, max],
   );
 
   const painel = (

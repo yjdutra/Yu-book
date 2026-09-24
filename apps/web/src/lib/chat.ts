@@ -18,7 +18,7 @@ import { api, apiStream } from "./api";
 /**
  * As chaves de cache, **exportadas**.
  *
- * Quem invalida está no `PainelChat`, e quem consulta está aqui. Escritas à mão
+ * Quem invalida está em `sessaoChat.tsx`, e quem consulta está aqui. Escritas à mão
  * nos dois lugares, trocar uma deixaria a outra invalidando coisa nenhuma, sem
  * erro de tipo e sem sintoma.
  */

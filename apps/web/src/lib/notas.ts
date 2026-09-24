@@ -27,7 +27,7 @@ export interface Filtros {
   tags: string[];
   /**
    * Vem do workspace ativo (RF-02), não de um filtro da tela. Quem o define é
-   * o contexto global — a barra lateral só mexe nos outros campos.
+   * o contexto global — o painel lateral só mexe nos outros campos.
    */
   workspaceId: string | null;
   favorite: boolean;

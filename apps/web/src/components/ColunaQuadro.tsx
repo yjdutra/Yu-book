@@ -6,7 +6,9 @@ import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useRef, useState } from "react";
 import { ApiError } from "../lib/api";
 import { useAtualizarColuna, useCriarCard, useExcluirColuna } from "../lib/kanban";
+import { BotaoIcone } from "./base/Botao";
 import { CartaoCard } from "./CartaoCard";
+import { IconeAlca, IconeAlerta, IconeOpcoes } from "./Icones";
 
 export const idColunaArrastavel = (id: string) => `coluna:${id}`;
 export const idZonaDeSoltura = (id: string) => `zona:${id}`;
@@ -58,7 +60,7 @@ function CardArrastavel({ card, ativo, desativado, onAbrir }: CardArrastavelProp
       // o elemento focado, e é nele que o KeyboardSensor escuta. Escondê-lo de
       // verdade tiraria o foco e mataria o arraste por teclado (INV-30).
       className={
-        isDragging ? "rounded-lg outline-2 outline-dashed outline-accent-400" : undefined
+        isDragging ? "rounded-controle outline-2 outline-dashed outline-accent-400" : undefined
       }
     >
       {/* O próprio card é o alvo de arrasto e o botão que abre o painel:
@@ -74,9 +76,15 @@ function CardArrastavel({ card, ativo, desativado, onAbrir }: CardArrastavelProp
           if (e.key === "Enter") {
             e.preventDefault();
             onAbrir();
+            return;
           }
+          // Composto com o do `KeyboardSensor`, e não no lugar dele: escrito
+          // depois de `{...listeners}`, este `onKeyDown` o sobrescrevia, e o
+          // Espaço nunca chegava ao sensor — o arraste por teclado (RF-25)
+          // não começava.
+          (listeners?.onKeyDown as ((ev: React.KeyboardEvent) => void) | undefined)?.(e);
         }}
-        className={`rounded-lg outline-none ring-accent-400 focus-visible:ring-2 ${
+        className={`rounded-controle outline-none ring-accent-400 focus-visible:ring-2 ${
           desativado ? "cursor-pointer" : "cursor-grab"
         } ${ativo ? "ring-2" : ""} ${isDragging ? "opacity-0" : ""}`}
       >
@@ -187,7 +195,8 @@ export function ColunaQuadro({
         e.preventDefault();
         campoNovoRef.current?.focus();
       }}
-      className={`flex max-h-full w-72 shrink-0 flex-col rounded-lg bg-ink-900/60 ${
+      className={`flex max-h-full w-72 shrink-0 flex-col rounded-cartao border border-ink-800/70
+                  bg-ink-900/60 ${
         sortable.isDragging ? "opacity-50" : ""
       }`}
     >
@@ -201,10 +210,11 @@ export function ColunaQuadro({
             {...sortable.listeners}
             disabled={arrasteDesativado}
             aria-label={`Mover coluna ${coluna.name}`}
-            className="cursor-grab rounded px-0.5 text-ink-400 hover:text-ink-200
+            className="inline-flex size-6 shrink-0 cursor-grab items-center justify-center
+                       rounded-controle text-ink-400 hover:bg-ink-800 hover:text-ink-200
                        disabled:cursor-not-allowed disabled:opacity-40"
           >
-            ⠿
+            <IconeAlca className="size-3.5" />
           </button>
 
           {renomeando ? (
@@ -223,7 +233,7 @@ export function ColunaQuadro({
                 onChange={(e) => setNome(e.target.value)}
                 onBlur={() => setRenomeando(false)}
                 aria-label={`Novo nome da coluna ${coluna.name}`}
-                className="w-full rounded bg-ink-800 px-1.5 py-0.5 text-sm text-ink-200
+                className="w-full rounded-controle bg-ink-800 px-1.5 py-0.5 text-sm text-ink-200
                            outline-none focus:ring-1 focus:ring-accent-400"
               />
             </form>
@@ -242,7 +252,8 @@ export function ColunaQuadro({
 
           {/* RF-20 / RF-19: contagem e limite; estourado é sinalizado, não bloqueado. */}
           <span
-            className={`shrink-0 rounded px-1 text-xs tabular-nums ${
+            className={`inline-flex shrink-0 items-center gap-1 rounded-etiqueta px-1.5 py-0.5
+                        text-xs tabular-nums ${
               excedido ? "bg-amber-500/20 text-amber-300" : "text-ink-400"
             }`}
             title={
@@ -253,7 +264,7 @@ export function ColunaQuadro({
                   : `${coluna.cards.length} de ${coluna.wipLimit} (limite de WIP)`
             }
           >
-            {excedido && <span aria-hidden="true">⚠ </span>}
+            {excedido && <IconeAlerta className="size-3" />}
             {/* RF-09: filtrando, a contagem diz o recorte e o total. O aviso de
                 WIP continua olhando o total — o limite é do trabalho em curso,
                 não do que está na tela. */}
@@ -261,26 +272,28 @@ export function ColunaQuadro({
             {!filtrada && coluna.wipLimit !== null && `/${coluna.wipLimit}`}
           </span>
 
-          <button
-            type="button"
+          <BotaoIcone
+            rotulo={`Opções da coluna ${coluna.name}`}
+            icone={<IconeOpcoes className="size-3.5" />}
             onClick={() => setMenu((v) => !v)}
             aria-expanded={menu}
-            aria-label={`Opções da coluna ${coluna.name}`}
-            className="shrink-0 rounded px-1 text-ink-400 hover:text-ink-200"
-          >
-            ⋯
-          </button>
+            tamanho="p"
+          />
         </div>
 
         {excedido && (
-          <p className="mt-1 text-[11px] text-amber-300">
+          <p className="mt-1 flex items-center gap-1 text-miudo text-amber-300">
+            <IconeAlerta className="size-3" />
             Acima do limite de WIP ({coluna.wipLimit}).
           </p>
         )}
 
         {menu && (
-          <div className="mt-2 space-y-2 rounded border border-ink-700 bg-ink-800 p-2">
-            <label className="flex items-center gap-2 text-[11px] text-ink-400">
+          <div
+            className="mt-2 space-y-2 rounded-controle border border-ink-700 bg-superficie p-2
+                       shadow-e2"
+          >
+            <label className="flex items-center gap-2 text-miudo text-ink-400">
               Limite de WIP
               <input
                 type="number"
@@ -294,7 +307,7 @@ export function ColunaQuadro({
                 }}
                 placeholder="sem limite"
                 aria-label={`Limite de WIP da coluna ${coluna.name}`}
-                className="w-20 rounded bg-ink-900 px-1.5 py-0.5 text-ink-200 outline-none
+                className="w-20 rounded-controle bg-ink-800 px-1.5 py-0.5 text-ink-200 outline-none
                            focus:ring-1 focus:ring-accent-400"
               />
             </label>
@@ -309,8 +322,8 @@ export function ColunaQuadro({
                 setDestino(outras[0]?.id ?? "");
                 setExcluindo(true);
               }}
-              className="w-full rounded px-1 py-0.5 text-left text-[11px] text-ink-400
-                         hover:text-red-300"
+              className="w-full rounded-controle px-1.5 py-1 text-left text-miudo text-ink-400
+                         hover:bg-red-500/10 hover:text-red-300"
             >
               Excluir coluna
             </button>
@@ -320,8 +333,9 @@ export function ColunaQuadro({
         {/* RF-16: com cards dentro, é preciso dizer o que fazer com eles. */}
         {excluindo && (
           <div role="group" aria-label="Excluir coluna com cards"
-               className="mt-2 space-y-2 rounded border border-red-500/30 bg-red-500/5 p-2">
-            <p className="text-[11px] text-ink-200">
+               className="mt-2 space-y-2 rounded-controle border border-red-500/30 bg-superficie
+                          p-2 shadow-e2">
+            <p className="text-miudo text-ink-200">
               “{coluna.name}” tem {coluna.cards.length} card(s). O que fazer com eles?
             </p>
             {outras.length > 0 && (
@@ -330,7 +344,8 @@ export function ColunaQuadro({
                   value={destino}
                   onChange={(e) => setDestino(e.target.value)}
                   aria-label="Coluna de destino dos cards"
-                  className="min-w-0 flex-1 rounded bg-ink-900 px-1.5 py-1 text-[11px] text-ink-200
+                  className="min-w-0 flex-1 rounded-controle bg-ink-800 px-1.5 py-1 text-miudo
+                             text-ink-200
                              outline-none focus:ring-1 focus:ring-accent-400"
                 >
                   {outras.map((c) => (
@@ -342,7 +357,7 @@ export function ColunaQuadro({
                 <button
                   type="button"
                   onClick={() => confirmarExclusao(false)}
-                  className="rounded border border-ink-700 px-2 text-[11px] text-ink-200
+                  className="rounded-controle border border-ink-700 px-2 text-miudo text-ink-200
                              hover:border-accent-400"
                 >
                   Mover
@@ -353,7 +368,7 @@ export function ColunaQuadro({
               <button
                 type="button"
                 onClick={() => confirmarExclusao(true)}
-                className="flex-1 rounded border border-red-500/40 px-2 py-1 text-[11px]
+                className="flex-1 rounded-controle border border-red-500/40 px-2 py-1 text-miudo
                            text-red-300 hover:bg-red-500/10"
               >
                 Excluir os {coluna.cards.length} cards
@@ -361,13 +376,13 @@ export function ColunaQuadro({
               <button
                 type="button"
                 onClick={() => setExcluindo(false)}
-                className="rounded px-2 py-1 text-[11px] text-ink-400 hover:text-ink-200"
+                className="rounded-controle px-2 py-1 text-miudo text-ink-400 hover:text-ink-200"
               >
                 Cancelar
               </button>
             </div>
             {erro && (
-              <p role="alert" className="text-[11px] text-red-300">
+              <p role="alert" className="text-miudo text-red-300">
                 {erro}
               </p>
             )}
@@ -378,7 +393,7 @@ export function ColunaQuadro({
       <div
         ref={refZona}
         className={`min-h-16 flex-1 overflow-y-auto px-2 pb-2 ${
-          isOver ? "rounded bg-accent-500/5" : ""
+          isOver ? "rounded-controle bg-accent-500/5" : ""
         }`}
       >
         <SortableContext items={idsVisiveis} strategy={SEM_DESLOCAMENTO}>
@@ -398,7 +413,7 @@ export function ColunaQuadro({
         {cardsVisiveis.length === 0 && (
           // RNF-19: coluna vazia diz o que fazer, em vez de ficar em branco.
           // Vazia por causa do filtro é outra coisa, e diz outra coisa.
-          <p className="px-1 py-3 text-center text-[11px] text-ink-400/70">
+          <p className="px-1 py-3 text-center text-miudo text-ink-400/70">
             {coluna.cards.length === 0
               ? "Sem cards. Escreva abaixo para criar."
               : "Nenhum card com as tags do filtro."}
@@ -413,8 +428,9 @@ export function ColunaQuadro({
           onChange={(e) => setTitulo(e.target.value)}
           placeholder="+ novo card"
           aria-label={`Novo card em ${coluna.name}`}
-          className="w-full rounded bg-transparent px-2 py-1.5 text-sm text-ink-200 outline-none
-                     placeholder:text-ink-400/60 hover:bg-ink-800 focus:bg-ink-800"
+          className="w-full rounded-controle bg-transparent px-2 py-1.5 text-sm text-ink-200
+                     outline-none placeholder:text-ink-400/60 hover:bg-ink-800 focus:bg-ink-800
+                     focus:ring-1 focus:ring-accent-400"
         />
       </form>
     </section>

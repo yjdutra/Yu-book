@@ -5,7 +5,7 @@ import { normalizarTitulo } from "@yu-book/shared";
  * Etiquetas do kanban, do lado do front.
  *
  * As três funções daqui servem ao seletor de tags do card (RF-03) **e** à busca
- * do cartão de tags da barra lateral (RF-13). É de propósito: são o mesmo gesto
+ * do cartão de tags do painel lateral (RF-13). É de propósito: são o mesmo gesto
  * — filtrar uma lista de etiquetas por texto —, e duas implementações
  * divergiriam em detalhes que ninguém compara lado a lado.
  *
@@ -17,7 +17,7 @@ import { normalizarTitulo } from "@yu-book/shared";
  * Casamento por trecho, sem acento e sem caixa: `progr` acha `programação`.
  *
  * `normalizarTitulo` é a mesma chave que o banco usa via `immutable_unaccent` —
- * usar outra faria a busca da barra lateral discordar do que o servidor
+ * usar outra faria a busca do painel lateral discordar do que o servidor
  * considera "o mesmo texto".
  */
 export function casaTermo(texto: string, termo: string): boolean {

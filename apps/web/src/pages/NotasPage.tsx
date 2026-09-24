@@ -1,15 +1,12 @@
 import { useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import type { RecemCriada } from "../components/Aplicacao";
 import { PainelRedimensionavel } from "../components/Colunas";
 import { ListaNotas } from "../components/ListaNotas";
 import type { FocoDoCorpo } from "../components/Editor";
 import { PainelEditor } from "../components/PainelEditor";
-import type { Filtros } from "../lib/notas";
 
 interface NotasPageProps {
-  filtros: Filtros;
-  onFiltros: (f: Filtros) => void;
   onAbrirNota: (id: string) => void;
   onNovaNota: (titulo?: string) => void;
   /**
@@ -21,14 +18,13 @@ interface NotasPageProps {
 }
 
 export function NotasPage({
-  filtros,
-  onFiltros,
   onAbrirNota,
   onNovaNota,
   recemCriada,
 }: NotasPageProps) {
   const { id: notaId = null } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { search } = useLocation();
 
   const refTitulo = useRef<HTMLInputElement>(null);
   const refCorpo = useRef<FocoDoCorpo | null>(null);
@@ -42,8 +38,6 @@ export function NotasPage({
         className="flex flex-col overflow-hidden bg-ink-900/50"
       >
         <ListaNotas
-          filtros={filtros}
-          onFiltros={onFiltros}
           notaAtiva={notaId}
           onAbrirNota={onAbrirNota}
           onNovaNota={() => onNovaNota()}
@@ -57,7 +51,8 @@ export function NotasPage({
             notaId={notaId}
             onAbrirNota={onAbrirNota}
             onCriarPorTitulo={(titulo) => onNovaNota(titulo)}
-            onFechar={() => navigate("/n")}
+            // Fechar a nota volta à lista com o mesmo recorte (RF-03 da Fase 4).
+            onFechar={() => navigate(`/n${search}`)}
             onAbrirCard={(boardId, cardId) => navigate(`/b/${boardId}/c/${cardId}`)}
             autoFocoTitulo={recemCriada?.id === notaId && !recemCriada.comTitulo}
             autoFocoCorpo={recemCriada?.id === notaId && recemCriada.comTitulo}

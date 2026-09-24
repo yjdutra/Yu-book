@@ -326,8 +326,8 @@ export function Editor({
               top: sugestao.posicao.topo + sugestao.posicao.altura + 20,
               left: Math.min(sugestao.posicao.esquerda + 24, 400),
             }}
-            className="absolute z-20 w-72 overflow-hidden rounded-lg border border-ink-700
-                       bg-ink-800 shadow-2xl"
+            className="absolute z-(--z-popover) w-72 overflow-hidden rounded-cartao border
+                       border-ink-700/70 bg-superficie shadow-e3"
           >
             {sugestoes.map((s, i) => (
               <li key={s.id}>

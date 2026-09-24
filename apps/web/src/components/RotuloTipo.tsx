@@ -20,7 +20,7 @@ export function RotuloTipo({ tipo, className = "" }: { tipo: TipoRotulado; class
   const { sigla, classe } = ESTILOS[tipo];
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]
+      className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-miudo
                   font-medium uppercase tracking-wide ${classe} ${className}`}
     >
       <span aria-hidden="true">{sigla}</span>

@@ -19,6 +19,7 @@ import { api } from "./api";
  */
 
 const AJUSTES = ["ia", "ajustes"] as const;
+const TAREFA = ["ia", "tarefa"] as const;
 
 export function useAiSaude() {
   return useQuery({
@@ -88,14 +89,43 @@ export function useDesfavoritar() {
   });
 }
 
+/**
+ * Otimista (redesenho de UI, Etapa 4): no quadro de modelos o card vai para a
+ * coluna na hora em que é solto. Esperar a rede faria o card voltar para a
+ * origem e só então pular para o destino. Se o servidor recusar, o cache
+ * volta ao que era, e quem chamou mostra o erro.
+ */
 export function useDefinirModeloDaTarefa() {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: TAREFA,
     mutationFn: ({ task, modelId }: { task: AiTask; modelId: string | null }) =>
       api.patch<AiSettings["taskModels"]>(`/ai/tasks/${task}`, { modelId }),
+    onMutate: async ({ task, modelId }) => {
+      await qc.cancelQueries({ queryKey: AJUSTES });
+      const antes = qc.getQueryData<AiSettings>(AJUSTES);
+      if (antes) {
+        const taskModels = { ...antes.taskModels };
+        if (modelId) taskModels[task] = modelId;
+        else delete taskModels[task];
+        qc.setQueryData<AiSettings>(AJUSTES, { ...antes, taskModels });
+      }
+      return { antes };
+    },
+    onError: (_erro, _vars, contexto) => {
+      if (contexto?.antes) qc.setQueryData(AJUSTES, contexto.antes);
+    },
     onSuccess: (taskModels) => {
       const atual = qc.getQueryData<AiSettings>(AJUSTES);
       if (atual) qc.setQueryData(AJUSTES, { ...atual, taskModels });
+    },
+    /// Dois arrastes seguidos, antes de a rede responder: as respostas podem
+    /// chegar fora de ordem, e o rollback de uma pode restaurar a mudança
+    /// otimista da outra. Quando a última termina, o servidor decide.
+    onSettled: () => {
+      if (qc.isMutating({ mutationKey: TAREFA }) <= 1) {
+        void qc.invalidateQueries({ queryKey: AJUSTES });
+      }
     },
   });
 }

@@ -18,10 +18,107 @@
   --color-titulo: #ffffff;
   --color-accent-500: #5d60ee;
   --color-accent-400: #8b93f8;
+
+  /* Redesenho de UI, Etapa 1. `superficie` é o cartão que se ergue sobre o
+     painel — o degrau que a rampa `ink` não tinha. `ia-500` só existe para
+     fechar o gradiente das áreas de IA; texto branco sobre ele e sobre
+     `accent-500` passa AA nos dois temas (5,45 e 4,80 no escuro; 6,31 e 6,29 no
+     claro), e ink-200/ink-400/accent-400 sobre `superficie` também. */
+  --color-superficie: #161b27;
+  --color-ia-500: #6d4de6;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Um degrau só abaixo de `text-xs`, no lugar dos 10px e 11px escritos à mão
+     em cada tela: 10px fica ilegível em Inter. */
+  --text-miudo: 0.6875rem;
+  --text-miudo--line-height: 1rem;
+
+  /* Raios com nome de papel, não de tamanho: os `rounded-*` antigos continuam
+     valendo o que valiam até cada tela ser redesenhada. */
+  --radius-etiqueta: 6px;
+  --radius-controle: 10px;
+  --radius-cartao: 14px;
+  --radius-dialogo: 18px;
+
+  /* Elevação. O Tailwind copia o valor de `--shadow-*` para dentro da
+     utilidade no build — sobrescrever o token no tema claro não teria efeito.
+     Por isso o token só aponta para `--sombra-*`, que mora em `:root` e troca
+     com o tema como qualquer variável. */
+  --shadow-e1: var(--sombra-e1);
+  --shadow-e2: var(--sombra-e2);
+  --shadow-e3: var(--sombra-e3);
+  --shadow-e4: var(--sombra-e4);
+  --shadow-brilho-ia: var(--sombra-brilho-ia);
+
+  --ease-saida: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-padrao: cubic-bezier(0.2, 0, 0, 1);
+
+  --animate-surgir: surgir 200ms var(--ease-saida);
+  --animate-surgir-veu: surgir-veu 200ms var(--ease-padrao);
+  --animate-deslizar-esquerda: deslizar-esquerda 280ms var(--ease-saida);
+  --animate-deslizar-direita: deslizar-direita 280ms var(--ease-saida);
+  --animate-subir: subir 200ms var(--ease-saida);
+
+  @keyframes surgir {
+    from {
+      opacity: 0;
+      transform: translateY(4px) scale(0.98);
+    }
+  }
+  @keyframes surgir-veu {
+    from {
+      opacity: 0;
+    }
+  }
+  /* A gaveta que entra pela esquerda, junto do trilho. */
+  @keyframes deslizar-direita {
+    from {
+      opacity: 0;
+      transform: translateX(-12px);
+    }
+  }
+  /* O aviso flutuante que sobe do pé da tela. */
+  @keyframes subir {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  /* O painel que entra pela direita: vem de onde mora. */
+  @keyframes deslizar-esquerda {
+    from {
+      opacity: 0;
+      transform: translateX(12px);
+    }
+  }
 }
 
 :root {
   color-scheme: dark;
+
+  /* Véu dos diálogos — não é cor de texto, por isso fora do `@theme`. */
+  --veu: rgb(3 5 10 / 0.55);
+
+  /* O fio de luz `inset` no topo é o que dá volume no escuro, onde sombra
+     preta sobre fundo quase preto some. */
+  --sombra-e1: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 1px 2px rgb(0 0 0 / 0.4);
+  --sombra-e2: inset 0 1px 0 rgb(255 255 255 / 0.05), 0 4px 12px -2px rgb(0 0 0 / 0.45),
+    0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --sombra-e3: 0 12px 28px -6px rgb(0 0 0 / 0.55), 0 4px 8px -4px rgb(0 0 0 / 0.35);
+  --sombra-e4: 0 24px 64px -12px rgb(0 0 0 / 0.65), 0 8px 16px -8px rgb(0 0 0 / 0.4);
+  --sombra-brilho-ia:
+    0 0 0 1px color-mix(in srgb, var(--color-accent-400) 40%, transparent),
+    0 6px 24px -8px color-mix(in srgb, var(--color-ia-500) 45%, transparent);
+
+  /* Camadas, numa escala só. Os `z-*` avulsos antigos migram quando o arquivo
+     for tocado. */
+  --z-popover: 40;
+  --z-veu: 50;
+  --z-dialogo: 60;
+  --z-soltura: 65;
+  --z-toast: 70;
 
   /* Realce de sintaxe — variáveis para acompanharem o tema (RF-24). */
   --hljs-chave: #a5b4fc;
@@ -52,6 +149,17 @@
   --color-titulo: #0b0e14;
   --color-accent-500: #4f46e5;
   --color-accent-400: #4338ca;
+  --color-superficie: #ffffff;
+  --color-ia-500: #6a3fd9;
+
+  --veu: rgb(27 33 48 / 0.28);
+
+  /* No claro a sombra é tingida de ink, não preta: preto puro sobre branco
+     suja a superfície em vez de erguê-la. */
+  --sombra-e1: 0 1px 2px rgb(27 33 48 / 0.06), 0 1px 1px rgb(27 33 48 / 0.04);
+  --sombra-e2: 0 4px 12px -2px rgb(27 33 48 / 0.08), 0 2px 4px -2px rgb(27 33 48 / 0.06);
+  --sombra-e3: 0 12px 28px -6px rgb(27 33 48 / 0.14), 0 4px 8px -4px rgb(27 33 48 / 0.08);
+  --sombra-e4: 0 24px 64px -12px rgb(27 33 48 / 0.22), 0 8px 16px -8px rgb(27 33 48 / 0.1);
 
   --color-red-500: #dc2626;
   --color-red-400: #b91c1c;
@@ -78,15 +186,41 @@
 
 body {
   @apply bg-ink-950 text-ink-200 antialiased;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-sans);
+  /* `cv11` e `ss01`: o "a" de um andar e os algarismos abertos da Inter. */
+  font-feature-settings: "cv11", "ss01";
+}
+
+/* Título de seção — o mesmo trio de classes repetido em quinze telas. */
+@utility rotulo {
+  font-size: var(--text-miudo);
+  line-height: var(--text-miudo--line-height);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-ink-400);
+}
+
+/* Quem pede menos movimento ao sistema não vê animação nenhuma. A duração
+   quase nula, em vez de `none`, mantém os `animationend` disparando. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* RNF-08: foco sempre visível, sem exceção. O anel usa cor de alto contraste
-   contra qualquer um dos fundos da paleta. */
+   contra qualquer um dos fundos da paleta. Sem `border-radius` aqui: fora de
+   camada, ele vencia o `rounded-*` do elemento e o botão mudava de forma ao
+   receber foco — o contorno já acompanha o raio de quem o tem. */
 :focus-visible {
   outline: 2px solid var(--color-accent-400);
   outline-offset: 2px;
-  border-radius: 2px;
 }
 
 /* ---------------------------------------------------------------
@@ -190,7 +324,7 @@ body {
 }
 .preview a.wikilink-quebrado::after {
   content: " (criar)";
-  @apply text-[10px] uppercase tracking-wide opacity-70;
+  @apply text-miudo uppercase tracking-wide opacity-70;
 }
 
 .preview code {

@@ -1,8 +1,12 @@
 import { NOTE_SORTS } from "@yu-book/shared";
 import type { NoteSort, NoteSummary } from "@yu-book/shared";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { useFiltrosDaUrl } from "../lib/filtrosUrl";
 import { useNotas } from "../lib/notas";
-import type { Filtros } from "../lib/notas";
+import { Botao } from "./base/Botao";
+import { Etiqueta } from "./base/Etiqueta";
+import { IconeEstrela, IconeFechar } from "./Icones";
 import { RotuloTipo } from "./RotuloTipo";
 
 const ROTULO_ORDEM: Record<NoteSort, string> = {
@@ -16,34 +20,85 @@ function dataCurta(iso: string): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-/** RNF-11: esqueleto com as mesmas dimensões do item real, sem salto. */
+/**
+ * RNF-11: esqueleto com as mesmas dimensões do item real, sem salto — a mesma
+ * margem, o mesmo recuo e as mesmas três faixas (título, trecho, rótulos).
+ */
 function Esqueleto() {
   return (
-    <div className="animate-pulse border-b border-ink-800 px-4 py-3">
-      <div className="h-4 w-2/3 rounded bg-ink-800" />
-      <div className="mt-2 h-3 w-full rounded bg-ink-800/60" />
-      <div className="mt-1.5 h-3 w-1/3 rounded bg-ink-800/60" />
+    <div className="mx-2 my-0.5 animate-pulse rounded-controle px-3 py-2.5">
+      <div className="h-5 w-2/3 rounded-etiqueta bg-ink-800" />
+      <div className="mt-1 h-5 w-full rounded-etiqueta bg-ink-800/60" />
+      <div className="mt-1.5 h-5.5 w-1/3 rounded-etiqueta bg-ink-800/60" />
     </div>
   );
 }
 
+/** Chip de filtro ativo — o recorte da lista fica à vista, e sai com um clique. */
+function Chip({ children, rotulo, onRemover }: {
+  children: ReactNode;
+  rotulo: string;
+  onRemover: () => void;
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-etiqueta bg-accent-500/15 py-0.5 pl-1.5
+                 pr-0.5 text-miudo text-accent-400"
+    >
+      {children}
+      <button
+        type="button"
+        onClick={onRemover}
+        aria-label={`Remover filtro ${rotulo}`}
+        title={`Remover filtro ${rotulo}`}
+        className="rounded-sm p-0.5 hover:bg-accent-500/20"
+      >
+        <IconeFechar className="size-3" />
+      </button>
+    </span>
+  );
+}
+
 interface ListaNotasProps {
-  filtros: Filtros;
-  onFiltros: (f: Filtros) => void;
   notaAtiva: string | null;
   onAbrirNota: (id: string) => void;
   onNovaNota: () => void;
 }
 
 export function ListaNotas({
-  filtros,
-  onFiltros,
   notaAtiva,
   onAbrirNota,
   onNovaNota,
 }: ListaNotasProps) {
+  const [filtros, definir] = useFiltrosDaUrl();
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useNotas(filtros);
+
+  /**
+   * O campo tem texto próprio e só grava na URL depois de 200ms parado: cada
+   * tecla na URL seria uma busca por tecla. Quando a URL muda por fora (Voltar,
+   * chip, link), o campo acompanha.
+   *
+   * "Por fora" é o que importa: o react-router faz a navegação dentro de
+   * `startTransition`, então o valor que o próprio campo gravou chega de volta
+   * atrasado — e, se o campo o aceitasse, apagaria o que foi digitado nesse
+   * meio-tempo. `gravado` guarda o último eco esperado, e o eco é ignorado.
+   */
+  const [texto, setTexto] = useState(filtros.q);
+  const gravado = useRef(filtros.q);
+  useEffect(() => {
+    if (filtros.q === gravado.current) return;
+    gravado.current = filtros.q;
+    setTexto(filtros.q);
+  }, [filtros.q]);
+  useEffect(() => {
+    if (texto === gravado.current) return;
+    const t = setTimeout(() => {
+      gravado.current = texto;
+      definir({ q: texto }, { substituir: true });
+    }, 200);
+    return () => clearTimeout(t);
+  }, [texto, definir]);
 
   const sentinela = useRef<HTMLDivElement>(null);
 
@@ -68,8 +123,8 @@ export function ListaNotas({
     <>
       <header className="flex shrink-0 items-center gap-2 border-b border-ink-800 px-3 py-2">
         <input
-          value={filtros.q}
-          onChange={(e) => onFiltros({ ...filtros, q: e.target.value })}
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
           placeholder="Filtrar nesta lista…"
           aria-label="Filtrar notas da lista"
           className="min-w-0 flex-1 rounded bg-ink-800 px-2 py-1.5 text-xs text-ink-200
@@ -77,7 +132,7 @@ export function ListaNotas({
         />
         <select
           value={filtros.sort}
-          onChange={(e) => onFiltros({ ...filtros, sort: e.target.value as NoteSort })}
+          onChange={(e) => definir({ sort: e.target.value as NoteSort })}
           aria-label="Ordenar por"
           className="shrink-0 rounded bg-ink-800 px-1.5 py-1.5 text-xs text-ink-400 outline-none
                      focus:ring-1 focus:ring-accent-400"
@@ -89,6 +144,35 @@ export function ListaNotas({
           ))}
         </select>
       </header>
+
+      {(filtros.kind || filtros.favorite || filtros.trash || filtros.tags.length > 0) && (
+        <div className="flex shrink-0 flex-wrap gap-1 border-b border-ink-800 px-3 py-2">
+          {filtros.kind && (
+            <Chip rotulo={`tipo ${filtros.kind}`} onRemover={() => definir({ kind: null })}>
+              <span className="capitalize">{filtros.kind}</span>
+            </Chip>
+          )}
+          {filtros.favorite && (
+            <Chip rotulo="favoritas" onRemover={() => definir({ favorite: false })}>
+              Favoritas
+            </Chip>
+          )}
+          {filtros.trash && (
+            <Chip rotulo="lixeira" onRemover={() => definir({ trash: false })}>
+              Lixeira
+            </Chip>
+          )}
+          {filtros.tags.map((t) => (
+            <Chip
+              key={t}
+              rotulo={`tag ${t}`}
+              onRemover={() => definir({ tags: filtros.tags.filter((n) => n !== t) })}
+            >
+              #{t}
+            </Chip>
+          ))}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {isLoading && (
@@ -103,14 +187,9 @@ export function ListaNotas({
         {isError && (
           <div className="px-4 py-8 text-center">
             <p className="text-sm text-ink-400">Não foi possível carregar as notas.</p>
-            <button
-              type="button"
-              onClick={() => void refetch()}
-              className="mt-2 rounded border border-ink-700 px-3 py-1 text-xs text-ink-200
-                         hover:border-ink-400"
-            >
+            <Botao onClick={() => void refetch()} className="mt-2">
               Tentar de novo
-            </button>
+            </Botao>
           </div>
         )}
 
@@ -132,20 +211,15 @@ export function ListaNotas({
                 <p className="text-sm text-ink-400">
                   {filtros.workspaceId ? "Nenhuma nota neste workspace ainda." : "Nenhuma nota ainda."}
                 </p>
-                <button
-                  type="button"
-                  onClick={onNovaNota}
-                  className="mt-2 rounded bg-accent-500 px-3 py-1.5 text-xs font-medium text-white
-                             hover:bg-accent-400"
-                >
+                <Botao variante="primario" onClick={onNovaNota} className="mt-2">
                   Criar a primeira — Ctrl+N
-                </button>
+                </Botao>
               </>
             )}
           </div>
         )}
 
-        <ul>
+        <ul className="py-1">
           {notas.map((n) => {
             const ativa = n.id === notaAtiva;
             return (
@@ -154,25 +228,33 @@ export function ListaNotas({
                   type="button"
                   onClick={() => onAbrirNota(n.id)}
                   aria-current={ativa ? "true" : undefined}
-                  className={`w-full border-b border-ink-800 border-l-2 px-4 py-3 text-left
-                              transition-colors ${
-                                ativa
-                                  ? "border-l-accent-400 bg-ink-800/80"
-                                  : "border-l-transparent hover:bg-ink-800/40"
+                  className={`relative mx-2 my-0.5 block w-[calc(100%-1rem)] rounded-controle
+                              px-3 py-2.5 text-left transition-colors ${
+                                ativa ? "bg-superficie shadow-e1" : "hover:bg-ink-800/40"
                               }`}
                 >
-                  <div className="flex items-baseline gap-2">
+                  {/* RNF-09: o item ativo tem uma barra de forma, não só um fundo
+                      mais claro — e o `aria-current` diz o mesmo ao leitor de tela. */}
+                  {ativa && (
                     <span
-                      className={`truncate text-sm ${ativa ? "text-titulo" : "text-ink-200"}`}
+                      aria-hidden="true"
+                      className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-accent-400"
+                    />
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`flex min-w-0 items-center gap-1 text-sm font-medium ${
+                        ativa ? "text-titulo" : "text-ink-200"
+                      }`}
                     >
                       {n.isFavorite && (
-                        <span aria-label="favorita" className="mr-1 text-amber-400">
-                          ★
+                        <span role="img" aria-label="favorita" className="shrink-0">
+                          <IconeEstrela className="size-3 fill-current text-amber-400" />
                         </span>
                       )}
-                      {n.title}
+                      <span className="truncate">{n.title}</span>
                     </span>
-                    <span className="ml-auto shrink-0 text-[11px] tabular-nums text-ink-400">
+                    <span className="ml-auto shrink-0 text-miudo tabular-nums text-ink-400">
                       {dataCurta(n.updatedAt)}
                     </span>
                   </div>
@@ -186,15 +268,10 @@ export function ListaNotas({
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <RotuloTipo tipo={n.kind} />
                     {n.workspaceName && (
-                      <span className="text-[10px] text-ink-400">#{n.workspaceName}</span>
+                      <span className="text-miudo text-ink-400">#{n.workspaceName}</span>
                     )}
                     {n.tags.map((t) => (
-                      <span
-                        key={t.id}
-                        className="rounded bg-ink-800 px-1 py-0.5 text-[10px] text-ink-400"
-                      >
-                        {t.name}
-                      </span>
+                      <Etiqueta key={t.id}>{t.name}</Etiqueta>
                     ))}
                   </div>
                 </button>

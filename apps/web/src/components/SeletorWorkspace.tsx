@@ -2,6 +2,7 @@ import type { Workspace } from "@yu-book/shared";
 import { useEffect, useRef, useState } from "react";
 import { useAtualizarWorkspace, useCriarWorkspace, useExcluirWorkspace } from "../lib/notas";
 import { useWorkspaceAtivo } from "../lib/workspace";
+import { IconeCheck, IconeChevron, IconeFechar, IconeLapis } from "./Icones";
 
 /**
  * RF-09: a confirmação diz exatamente o que se perde junto. Board e card caem
@@ -71,8 +72,8 @@ export function SeletorWorkspace() {
         onClick={() => setAberto((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={aberto}
-        className="flex w-full items-center gap-2 rounded border border-ink-700 px-2 py-1.5
-                   text-left text-sm text-ink-200 transition hover:border-ink-400"
+        className="flex w-full items-center gap-2 rounded-controle border border-ink-700 px-2
+                   py-1.5 text-left text-sm text-ink-200 transition hover:border-ink-400"
       >
         <span
           aria-hidden="true"
@@ -80,17 +81,15 @@ export function SeletorWorkspace() {
           style={{ backgroundColor: ativo?.color ?? "#64748b" }}
         />
         <span className="truncate">{ativo?.name ?? "Todos os workspaces"}</span>
-        <span aria-hidden="true" className="ml-auto text-xs text-ink-400">
-          ▾
-        </span>
+        <IconeChevron className="ml-auto size-3.5 text-ink-400" />
       </button>
 
       {aberto && (
         <div
           role="menu"
           aria-label="Trocar de workspace"
-          className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-lg
-                     border border-ink-700 bg-ink-800 shadow-2xl"
+          className="absolute left-0 right-0 top-full z-(--z-popover) mt-1 overflow-hidden
+                     rounded-cartao border border-ink-700/70 bg-superficie shadow-e3 animate-surgir"
         >
           <button
             type="button"
@@ -102,7 +101,7 @@ export function SeletorWorkspace() {
           >
             <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full bg-ink-400" />
             Todos os workspaces
-            {ativoId === null && <span className="ml-auto text-xs">✓</span>}
+            {ativoId === null && <IconeCheck className="ml-auto size-3.5" />}
           </button>
 
           <div className="max-h-64 overflow-y-auto border-t border-ink-700">
@@ -123,7 +122,8 @@ export function SeletorWorkspace() {
                     value={w.color}
                     onChange={(e) => atualizar.mutate({ id: w.id, input: { color: e.target.value } })}
                     aria-label={`Cor do workspace ${w.name}`}
-                    className="size-5 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
+                    className="size-5 shrink-0 cursor-pointer rounded-etiqueta border-0
+                               bg-transparent p-0"
                   />
                   <input
                     autoFocus
@@ -131,8 +131,8 @@ export function SeletorWorkspace() {
                     onChange={(e) => setRascunho(e.target.value)}
                     onBlur={() => setEditando(null)}
                     aria-label={`Novo nome do workspace ${w.name}`}
-                    className="min-w-0 flex-1 rounded bg-ink-900 px-2 py-1 text-sm text-ink-200
-                               outline-none focus:ring-1 focus:ring-accent-400"
+                    className="min-w-0 flex-1 rounded-controle bg-ink-900 px-2 py-1 text-sm
+                               text-ink-200 outline-none focus:ring-1 focus:ring-accent-400"
                   />
                 </form>
               ) : (
@@ -154,7 +154,7 @@ export function SeletorWorkspace() {
                       style={{ backgroundColor: w.color }}
                     />
                     <span className="truncate">{w.name}</span>
-                    <span className="ml-auto shrink-0 text-[10px] text-ink-400">
+                    <span className="ml-auto shrink-0 text-miudo text-ink-400">
                       {w.noteCount}n · {w.boardCount}b
                     </span>
                   </button>
@@ -168,9 +168,9 @@ export function SeletorWorkspace() {
                         setEditando(w.id);
                         setRascunho(w.name);
                       }}
-                      className="rounded px-1 text-xs text-ink-400 hover:text-ink-200"
+                      className="rounded-etiqueta p-1 text-ink-400 hover:text-ink-200"
                     >
-                      ✎
+                      <IconeLapis className="size-3" />
                     </button>
                     <button
                       type="button"
@@ -180,9 +180,9 @@ export function SeletorWorkspace() {
                         excluir.mutate(w.id);
                         if (ativoId === w.id) definirAtivo(null);
                       }}
-                      className="rounded px-1 text-xs text-ink-400 hover:text-red-400"
+                      className="rounded-etiqueta p-1 text-ink-400 hover:text-red-400"
                     >
-                      ×
+                      <IconeFechar className="size-3" />
                     </button>
                   </span>
                 </div>
@@ -206,8 +206,9 @@ export function SeletorWorkspace() {
               onChange={(e) => setNovo(e.target.value)}
               placeholder="+ novo workspace"
               aria-label="Nome do novo workspace"
-              className="w-full bg-transparent px-3 py-2 text-sm text-ink-200 outline-none
-                         placeholder:text-ink-400/60 focus:bg-ink-700/40"
+              className="w-full border-l-2 border-transparent bg-transparent px-3 py-2 text-sm
+                         text-ink-200 outline-none placeholder:text-ink-400/60
+                         focus:border-accent-400 focus:bg-ink-700/40"
             />
           </form>
         </div>

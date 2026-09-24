@@ -1,17 +1,35 @@
 import type { Link, LinkKind } from "@yu-book/shared";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ApiError } from "../lib/api";
+import { useAtalhosGlobais } from "../lib/atalhosGlobais";
+import { lerFiltros, temFiltroAtivo } from "../lib/filtrosUrl";
 import { useCriarLink, useExcluirLink, useLinks } from "../lib/links";
-import { FILTROS_VAZIOS, useCriarNota } from "../lib/notas";
-import type { Filtros } from "../lib/notas";
+import { useCriarNota } from "../lib/notas";
+import { useAcoesChat } from "../lib/sessaoChat";
+import { useTema } from "../lib/tema";
 import { useWorkspaceAtivo } from "../lib/workspace";
 import { DashboardPage } from "../pages/DashboardPage";
 import { NotasPage } from "../pages/NotasPage";
 import { Atalhos } from "./Atalhos";
-import { PainelRedimensionavel } from "./Colunas";
-import { Navegacao } from "./Navegacao";
+import { Aviso } from "./base/Aviso";
+import { Botao } from "./base/Botao";
+import { PilhaFlutuante, Toast } from "./base/Toast";
+import { PainelContexto } from "./casca/PainelContexto";
+import { ID_MOSTRAR_CONTEXTO, Trilho } from "./casca/Trilho";
+import {
+  IconeAjustes,
+  IconeAssistente,
+  IconeBoard,
+  IconeInicio,
+  IconeLink,
+  IconeMais,
+  IconeNotas,
+  IconePainelDireito,
+  IconeTeclado,
+} from "./Icones";
 import { Paleta } from "./Paleta";
+import type { ComandoPaleta } from "./Paleta";
 import { ZonasDeSoltura } from "./ZonasDeSoltura";
 
 /** Título provisório de uma nota criada por atalho — o usuário sobrescreve. */
@@ -59,10 +77,16 @@ const GavetaLinks = lazy(() =>
 );
 
 /**
- * O chat também: ele arrasta o renderizador de Markdown e a leitura de fluxo
- * para dentro do bundle, e quem só quer escrever uma nota não paga por isso.
+ * As superfícies do assistente também: elas arrastam o renderizador de
+ * Markdown para dentro do bundle, e quem só quer escrever uma nota não paga
+ * por isso. A sessão (`lib/sessaoChat.tsx`) é leve e fica sempre montada.
  */
-const PainelChat = lazy(() => import("./PainelChat").then((m) => ({ default: m.PainelChat })));
+const PainelAssistente = lazy(() =>
+  import("./assistente/PainelAssistente").then((m) => ({ default: m.PainelAssistente })),
+);
+const AssistentePage = lazy(() =>
+  import("../pages/AssistentePage").then((m) => ({ default: m.AssistentePage })),
+);
 
 function CarregandoTela() {
   return (
@@ -72,16 +96,50 @@ function CarregandoTela() {
   );
 }
 
+const CHAVE_RECOLHIDO = "yb:contexto-recolhido";
+
 /**
- * Casca da aplicação: a coluna de navegação é a mesma em notas e em kanban, e
- * os atalhos globais valem nas duas (RNF-01, RNF-05).
+ * Casca da aplicação (redesenho de UI, Etapa 2): trilho de áreas, painel
+ * contextual e a rota. O trilho e os atalhos globais valem em qualquer tela
+ * (RNF-01, RNF-05).
  */
 export function Aplicacao() {
   const navigate = useNavigate();
+  const { pathname, search } = useLocation();
   const { ativoId } = useWorkspaceAtivo();
   const criar = useCriarNota();
 
-  const [filtros, setFiltros] = useState<Filtros>(FILTROS_VAZIOS);
+  const emNotas = pathname.startsWith("/n");
+  const [contextoRecolhido, setContextoRecolhido] = useState(
+    () => localStorage.getItem(CHAVE_RECOLHIDO) === "1",
+  );
+  const alternarContexto = useCallback(() => {
+    setContextoRecolhido((v) => {
+      localStorage.setItem(CHAVE_RECOLHIDO, v ? "0" : "1");
+      return !v;
+    });
+    // Recolher desmonta o que tinha o foco (o botão de recolher, um filtro) e
+    // ele cairia no <body>. Nesse caso, vai para o botão que traz o painel de
+    // volta — a mesma ação, no sentido contrário (RNF-06 da Fase 1).
+    requestAnimationFrame(() => {
+      if (document.activeElement === document.body) {
+        document.getElementById(ID_MOSTRAR_CONTEXTO)?.focus();
+      }
+    });
+  }, []);
+
+  /**
+   * A última lista de notas visitada, com os filtros. O item "Notas" do trilho
+   * volta para ela: sair para os boards e voltar não pode perder o recorte —
+   * era o que o `useState` de antes garantia, e a URL precisa continuar
+   * garantindo.
+   */
+  const [ultimaListaNotas, setUltimaListaNotas] = useState("/n");
+  useEffect(() => {
+    if (emNotas) setUltimaListaNotas(`/n${search}`);
+  }, [emNotas, search]);
+  const buscaDasNotas = new URLSearchParams(ultimaListaNotas.split("?")[1] ?? "");
+
   const [paletaAberta, setPaletaAberta] = useState(false);
   const [atalhosAbertos, setAtalhosAbertos] = useState(false);
   const [erroCriacao, setErroCriacao] = useState<string | null>(null);
@@ -91,7 +149,21 @@ export function Aplicacao() {
   const criarLink = useCriarLink();
   const excluirLink = useExcluirLink();
   const [gavetaAberta, setGavetaAberta] = useState(false);
-  const [chatAberto, setChatAberto] = useState(false);
+  const sessao = useAcoesChat();
+  const emAssistente = pathname.startsWith("/assistente");
+
+  /**
+   * Sair da tela cheia do assistente com uma resposta chegando abre o painel
+   * lateral: a resposta segue visível e nada se perde. É uma das regras que
+   * garantem que o laço do servidor não rode sem ninguém vendo — as outras
+   * moram em `sessaoChat.tsx`.
+   */
+  const estavaNoAssistente = useRef(emAssistente);
+  const { abrirPainel, temFluxo } = sessao;
+  useEffect(() => {
+    if (estavaNoAssistente.current && !emAssistente && temFluxo()) abrirPainel();
+    estavaNoAssistente.current = emAssistente;
+  }, [emAssistente, abrirPainel, temFluxo]);
   const [destacado, setDestacado] = useState<string | null>(null);
   const [erroCaptura, setErroCaptura] = useState<string | null>(null);
   /** Link removido há pouco, à espera do desfazer (RN-05). */
@@ -144,18 +216,13 @@ export function Aplicacao() {
     setDesfazivel(null);
   }, [criarLink, desfazivel]);
 
-  // RF-02: o workspace ativo entra nos filtros; a barra lateral não mexe nele.
-  const filtrosEfetivos = useMemo<Filtros>(
-    () => ({ ...filtros, workspaceId: ativoId }),
-    [filtros, ativoId],
-  );
-
+  /** Abrir uma nota da lista mantém o recorte da lista na URL. */
   const abrirNota = useCallback(
     (id: string) => {
       setRecemCriada(null);
-      navigate(`/n/${id}`);
+      navigate(`/n/${id}${emNotas ? search : ""}`);
     },
-    [navigate],
+    [navigate, emNotas, search],
   );
 
   const novaNota = useCallback(
@@ -164,7 +231,9 @@ export function Aplicacao() {
       criar.mutate(
         {
           title: titulo?.trim() || tituloProvisorio(),
-          kind: filtros.kind ?? "livre",
+          // Nasce no tipo que a lista está filtrando — só na lista: fora dela,
+          // um filtro esquecido não deve decidir o tipo da nota nova.
+          kind: (emNotas ? lerFiltros(new URLSearchParams(search)).kind : null) ?? "livre",
           // RF-05: nasce no workspace ativo.
           workspaceId: ativoId,
         },
@@ -172,7 +241,8 @@ export function Aplicacao() {
           onSuccess: (nota) => {
             // RNF-06: o painel foca o campo certo quando os dados chegam.
             setRecemCriada({ id: nota.id, comTitulo: Boolean(titulo?.trim()) });
-            navigate(`/n/${nota.id}`);
+            // Criada de dentro da lista, a lista continua com o mesmo recorte.
+            navigate(`/n/${nota.id}${emNotas ? search : ""}`);
           },
           onError: (erro) => {
             setErroCriacao(
@@ -182,79 +252,135 @@ export function Aplicacao() {
         },
       );
     },
-    [criar, filtros.kind, ativoId, navigate],
+    [criar, emNotas, search, ativoId, navigate],
   );
 
-  // RNF-01: atalhos globais, válidos em qualquer tela.
-  useEffect(() => {
-    function aoTeclar(e: KeyboardEvent) {
-      const mod = e.ctrlKey || e.metaKey;
+  useAtalhosGlobais({
+    irParaBoards: () => navigate("/b"),
+    alternarGaveta: () => setGavetaAberta((v) => !v),
+    // RF-17: na tela cheia o painel não existe, e o atalho vai direto ao campo.
+    alternarChat: () => (emAssistente ? sessao.focarCampo() : sessao.alternarPainel()),
+    abrirPaleta: () => setPaletaAberta(true),
+    novaNota: () => novaNota(),
+    alternarAtalhos: () => setAtalhosAbertos((v) => !v),
+    alternarContexto,
+    // O painel do assistente não entra aqui: ele não é sobreposto, convive
+    // com o editor, e o Esc dele só vale com o foco dentro (PainelAssistente).
+    fecharTudo: () => {
+      setPaletaAberta(false);
+      setAtalhosAbertos(false);
+      setGavetaAberta(false);
+    },
+  });
 
-      if (mod && e.shiftKey && e.key.toLowerCase() === "b") {
-        e.preventDefault();
-        navigate("/b");
-        return;
-      }
-      // RF-15. Ctrl+L puro é a barra de endereço do navegador — daí o Shift.
-      if (mod && e.shiftKey && e.key.toLowerCase() === "l") {
-        e.preventDefault();
-        setGavetaAberta((v) => !v);
-        return;
-      }
-      // RF-17. Y porque as teclas vizinhas já estão tomadas pelo navegador:
-      // Ctrl+Shift+I e Ctrl+Shift+J abrem as ferramentas de desenvolvedor no
-      // Chrome, Ctrl+Shift+K o console no Firefox, e Ctrl+Shift+C o inspetor
-      // nos dois. Y está livre em ambos.
-      if (mod && e.shiftKey && e.key.toLowerCase() === "y") {
-        e.preventDefault();
-        setChatAberto((v) => !v);
-        return;
-      }
-      if (mod && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setPaletaAberta(true);
-        return;
-      }
-      if (mod && e.key.toLowerCase() === "n") {
-        e.preventDefault();
-        novaNota();
-        return;
-      }
-      if (mod && e.key === "/") {
-        e.preventDefault();
-        setAtalhosAbertos((v) => !v);
-        return;
-      }
-      if (e.key === "Escape") {
-        setPaletaAberta(false);
-        setAtalhosAbertos(false);
-        setGavetaAberta(false);
-        setChatAberto(false);
-      }
-    }
+  const [, setTema] = useTema();
 
-    window.addEventListener("keydown", aoTeclar);
-    return () => window.removeEventListener("keydown", aoTeclar);
-  }, [novaNota, navigate]);
+  /**
+   * Os comandos da paleta (redesenho de UI, Etapa 5): o que o trilho e os
+   * atalhos já fazem, alcançável também pelo nome. O atalho mostrado é o de
+   * `Atalhos.tsx` — a paleta só o exibe, não o registra.
+   */
+  const comandos = useMemo<ComandoPaleta[]>(
+    () => [
+      {
+        id: "ir-inicio",
+        rotulo: "Ir para Início",
+        icone: <IconeInicio />,
+        executar: () => navigate("/"),
+      },
+      {
+        id: "ir-notas",
+        rotulo: "Ir para Notas",
+        icone: <IconeNotas />,
+        // A última lista, com o recorte — o mesmo destino do item do trilho.
+        executar: () => navigate(ultimaListaNotas),
+      },
+      {
+        id: "ir-boards",
+        rotulo: "Ir para Boards",
+        icone: <IconeBoard />,
+        atalho: "Ctrl+Shift+B",
+        executar: () => navigate("/b"),
+      },
+      {
+        id: "ir-assistente",
+        rotulo: "Ir para Assistente",
+        icone: <IconeAssistente />,
+        executar: () => navigate("/assistente"),
+      },
+      {
+        id: "ir-ajustes",
+        rotulo: "Ir para Ajustes",
+        icone: <IconeAjustes />,
+        executar: () => navigate("/ajustes"),
+      },
+      {
+        id: "nova-nota",
+        rotulo: "Nova nota",
+        icone: <IconeMais />,
+        atalho: "Ctrl+N",
+        executar: () => novaNota(),
+      },
+      {
+        id: "salvar-link",
+        rotulo: "Salvar link",
+        icone: <IconeLink />,
+        atalho: "Ctrl+Shift+L",
+        executar: () => setGavetaAberta(true),
+      },
+      {
+        id: "painel-assistente",
+        rotulo: "Painel do assistente",
+        icone: <IconePainelDireito />,
+        atalho: "Ctrl+Shift+Y",
+        // O mesmo desvio do atalho: em `/assistente` o painel não existe, e
+        // alternar fecharia uma sessão que está na tela — abortando a resposta.
+        executar: () => (emAssistente ? sessao.focarCampo() : sessao.alternarPainel()),
+      },
+      {
+        id: "alternar-tema",
+        rotulo: "Alternar tema",
+        // Lido do `<html>` na hora: assim a lista de comandos não precisa ser
+        // refeita a cada troca. `useTema` avisa todos que o usam, e o seletor
+        // do trilho acompanha.
+        executar: () =>
+          setTema(document.documentElement.dataset.tema === "claro" ? "escuro" : "claro"),
+      },
+      {
+        id: "atalhos",
+        rotulo: "Atalhos de teclado",
+        icone: <IconeTeclado />,
+        atalho: "Ctrl+/",
+        executar: () => setAtalhosAbertos(true),
+      },
+    ],
+    [navigate, ultimaListaNotas, novaNota, sessao, emAssistente, setTema],
+  );
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <PainelRedimensionavel
-        chave="yb:col-nav"
-        inicial={240}
-        rotulo="Largura da navegação"
-        className="overflow-y-auto bg-ink-900"
-      >
-        <Navegacao
-          filtros={filtrosEfetivos}
-          onFiltros={setFiltros}
+      <Trilho
+        linksParaVer={(links ?? []).filter((l) => l.kind === "depois").length}
+        chatAberto={sessao.painelAberto}
+        notasComFiltroOculto={contextoRecolhido && temFiltroAtivo(lerFiltros(buscaDasNotas))}
+        contextoRecolhido={contextoRecolhido}
+        onMostrarContexto={alternarContexto}
+        onIrParaNotas={() => navigate(ultimaListaNotas)}
+        onBuscar={() => setPaletaAberta(true)}
+        onNovaNota={() => novaNota()}
+        onAbrirChat={() => sessao.abrirPainel({ nova: true })}
+        onAbrirGaveta={() => setGavetaAberta(true)}
+        onAlternarChat={sessao.alternarPainel}
+        onAbrirAtalhos={() => setAtalhosAbertos(true)}
+      />
+
+      {!contextoRecolhido && (
+        <PainelContexto
+          onRecolher={alternarContexto}
+          onBuscar={() => setPaletaAberta(true)}
           onNovaNota={() => novaNota()}
-          onAbrirGaveta={() => setGavetaAberta(true)}
-          onAbrirAtalhos={() => setAtalhosAbertos(true)}
-          onAbrirChat={() => setChatAberto(true)}
-          linksParaVer={(links ?? []).filter((l) => l.kind === "depois").length}
         />
-      </PainelRedimensionavel>
+      )}
 
       <Routes>
         {/* RF-01: a raiz é o dashboard; as notas passam a viver em /n. */}
@@ -273,8 +399,6 @@ export function Aplicacao() {
             path={path}
             element={
               <NotasPage
-                filtros={filtrosEfetivos}
-                onFiltros={setFiltros}
                 onAbrirNota={abrirNota}
                 onNovaNota={novaNota}
                 recemCriada={recemCriada}
@@ -302,7 +426,15 @@ export function Aplicacao() {
           />
         ))}
         <Route
-          path="/ajustes"
+          path="/assistente"
+          element={
+            <Suspense fallback={<CarregandoTela />}>
+              <AssistentePage onAbrirNota={abrirNota} />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/ajustes/*"
           element={
             <Suspense fallback={<CarregandoTela />}>
               <AjustesPage />
@@ -312,42 +444,39 @@ export function Aplicacao() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {erroCriacao && (
-        <div
-          role="alert"
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 rounded-lg bg-red-500/15 px-4 py-2
-                     text-sm text-red-200 ring-1 ring-red-500/30"
-        >
-          {erroCriacao}
-          <button
-            type="button"
-            onClick={() => setErroCriacao(null)}
-            aria-label="Fechar aviso"
-            className="ml-3 text-red-300"
-          >
-            ×
-          </button>
-        </div>
+      {/* Na mesma linha flex das colunas: o painel empurra o conteúdo, não o
+          cobre. Sem prop `aberto` — o estado mora na sessão. */}
+      {sessao.painelAberto && !emAssistente && (
+        <Suspense fallback={null}>
+          <PainelAssistente onAbrirNota={abrirNota} />
+        </Suspense>
       )}
 
-      {/* RF-28: a rede de proteção de quem apaga sem confirmação. */}
-      {desfazivel && (
-        <div
-          role="status"
-          className="fixed bottom-4 left-1/2 z-[70] flex -translate-x-1/2 items-center gap-3
-                     rounded-lg border border-ink-700 bg-ink-800 px-4 py-2 text-sm text-ink-200
-                     shadow-2xl"
-        >
-          <span className="max-w-xs truncate">“{desfazivel.title}” saiu da gaveta</span>
-          <button
-            type="button"
-            onClick={desfazerRemocao}
-            className="rounded px-2 py-0.5 text-xs font-medium text-accent-400 hover:bg-ink-700"
+      <PilhaFlutuante>
+        {/* Erro não é toast: fica até ser fechado (RF-17 da Fase 1). */}
+        {erroCriacao && (
+          <div className="pointer-events-auto w-full">
+            <Aviso tom="erro" onFechar={() => setErroCriacao(null)}>
+              {erroCriacao}
+            </Aviso>
+          </div>
+        )}
+
+        {/* RF-28: a rede de proteção de quem apaga sem confirmação. */}
+        {/* Com a gaveta aberta, o desfazer mora dentro dela: o diálogo prende o
+            foco, e daqui ele ficaria fora do alcance do teclado. */}
+        {desfazivel && !gavetaAberta && (
+          <Toast
+            acao={
+              <Botao variante="fantasma" onClick={desfazerRemocao}>
+                Desfazer
+              </Botao>
+            }
           >
-            desfazer
-          </button>
-        </div>
-      )}
+            “{desfazivel.title}” saiu da gaveta
+          </Toast>
+        )}
+      </PilhaFlutuante>
 
       <ZonasDeSoltura onSoltar={salvarLink} />
 
@@ -362,13 +491,9 @@ export function Aplicacao() {
             destacado={destacado}
             erroCaptura={erroCaptura}
             onLimparErro={() => setErroCaptura(null)}
+            desfazivel={desfazivel}
+            onDesfazer={desfazerRemocao}
           />
-        </Suspense>
-      )}
-
-      {chatAberto && (
-        <Suspense fallback={null}>
-          <PainelChat aberto onFechar={() => setChatAberto(false)} onAbrirNota={abrirNota} />
         </Suspense>
       )}
 
@@ -377,6 +502,22 @@ export function Aplicacao() {
         onFechar={() => setPaletaAberta(false)}
         onAbrirNota={abrirNota}
         onAbrirCard={(boardId, cardId) => navigate(`/b/${boardId}/c/${cardId}`)}
+        comandos={comandos}
+        // Só preenche o campo e abre o painel — não envia. Uma mensagem são até
+        // cinco chamadas pagas ao provedor (INV-47, INV-56); quem envia é o
+        // usuário, com o texto à vista para revisar.
+        onPerguntar={(t) => {
+          // Pergunta nova, conversa nova: entrar na conversa aberta levaria o
+          // histórico dela junto no envio. `novaConversa` limpa o campo antes,
+          // e o texto entra depois.
+          if (emAssistente) {
+            sessao.novaConversa();
+            sessao.focarCampo();
+          } else {
+            sessao.abrirPainel({ nova: true });
+          }
+          sessao.setTexto(t);
+        }}
       />
       <Atalhos aberto={atalhosAbertos} onFechar={() => setAtalhosAbertos(false)} />
     </div>

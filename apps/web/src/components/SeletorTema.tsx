@@ -1,12 +1,6 @@
 import { useTema } from "../lib/tema";
-
-const TRACO = {
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.4,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-};
+import { BotaoIcone } from "./base/Botao";
+import { TRACO } from "./Icones";
 
 function Sol() {
   return (
@@ -30,19 +24,14 @@ export function SeletorTema() {
   const [tema, setTema] = useTema();
   const claro = tema === "claro";
 
+  // Rótulo fixo com `aria-pressed`: um rótulo que mudasse com o estado leria
+  // "Mudar para o tema escuro, pressionado" — duas respostas contraditórias.
   return (
-    <button
-      type="button"
+    <BotaoIcone
+      rotulo="Tema claro"
+      icone={claro ? <Lua /> : <Sol />}
       onClick={() => setTema(claro ? "escuro" : "claro")}
       aria-pressed={claro}
-      title={claro ? "Mudar para o tema escuro" : "Mudar para o tema claro"}
-      className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-ink-400
-                 transition hover:bg-ink-800 hover:text-ink-200"
-    >
-      {claro ? <Lua /> : <Sol />}
-      <span className="sr-only">
-        {claro ? "Mudar para o tema escuro" : "Mudar para o tema claro"}
-      </span>
-    </button>
+    />
   );
 }

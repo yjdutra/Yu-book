@@ -6,7 +6,7 @@ const PREFIXO = "yb:secao:";
  * Estado aberto/fechado de uma seção recolhível da navegação.
  *
  * Mora em `localStorage` pelo mesmo motivo do tema e da largura das colunas:
- * quanto da barra lateral cabe na tela é propriedade do dispositivo, não da
+ * quanto do painel lateral cabe na tela é propriedade do dispositivo, não da
  * conta — quem usa um notebook pequeno recolhe e quer continuar recolhido.
  */
 export function useSecao(chave: string, inicial = true) {

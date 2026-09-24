@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { BarraDeTags } from "../components/BarraDeTags";
+import { Aviso } from "../components/base/Aviso";
+import { Esqueleto } from "../components/base/Bloco";
+import { Botao } from "../components/base/Botao";
 import { CartaoCard } from "../components/CartaoCard";
 import { PainelRedimensionavel } from "../components/Colunas";
 import { PainelCard } from "../components/PainelCard";
@@ -13,7 +16,7 @@ import { cardCasaFiltro, catalogoDeTags } from "../lib/tags";
 export function BoardPage() {
   const { boardId = "", cardId = null } = useParams<{ boardId: string; cardId: string }>();
   const navigate = useNavigate();
-  const { data: board, isLoading, isError } = useBoard(boardId);
+  const { data: board, isLoading, isError, refetch, isFetching } = useBoard(boardId);
   const criarColuna = useCriarColuna();
   const atualizarBoard = useAtualizarBoard();
 
@@ -38,24 +41,33 @@ export function BoardPage() {
 
   if (isError) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-        <p className="text-sm text-ink-400">Board não encontrado.</p>
-        <button
-          type="button"
-          onClick={() => navigate("/b")}
-          className="rounded border border-ink-700 px-3 py-1.5 text-xs text-ink-200
-                     hover:border-accent-400"
-        >
-          Ver todos os boards
-        </button>
+      <main className="flex flex-1 items-center justify-center p-8">
+        <Aviso tom="erro" className="max-w-md">
+          <p>Não foi possível abrir este board — ele pode ter sido excluído.</p>
+          <span className="mt-2 flex gap-2">
+            <Botao tamanho="p" carregando={isFetching} onClick={() => void refetch()}>
+              Tentar de novo
+            </Botao>
+            <Botao tamanho="p" variante="fantasma" onClick={() => navigate("/b")}>
+              Ver todos os boards
+            </Botao>
+          </span>
+        </Aviso>
       </main>
     );
   }
 
   if (isLoading || !board) {
     return (
-      <main className="flex flex-1 items-center justify-center text-sm text-ink-400">
-        <span className="animate-pulse">Carregando board…</span>
+      <main className="flex min-w-0 flex-1 flex-col" role="status" aria-label="Carregando board">
+        <div className="border-b border-ink-800">
+          <Esqueleto linhas={1} alturaLinha={24} />
+        </div>
+        <div className="flex gap-3 p-4" aria-hidden="true">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-64 w-72 animate-pulse rounded-cartao bg-ink-900/60" />
+          ))}
+        </div>
       </main>
     );
   }
@@ -90,8 +102,8 @@ export function BoardPage() {
                   onChange={(e) => setNome(e.target.value)}
                   onBlur={() => setRenomeando(false)}
                   aria-label="Novo nome do board"
-                  className="rounded bg-ink-800 px-2 py-1 text-base font-semibold text-titulo
-                             outline-none focus:ring-1 focus:ring-accent-400"
+                  className="rounded-controle bg-ink-800 px-2 py-1 text-base font-semibold
+                             text-titulo outline-none focus:ring-1 focus:ring-accent-400"
                 />
               </form>
             ) : (
@@ -134,27 +146,26 @@ export function BoardPage() {
                 onChange={(e) => setNovaColuna(e.target.value)}
                 placeholder="+ nova coluna"
                 aria-label="Nome da nova coluna"
-                className="w-40 rounded bg-ink-800 px-2 py-1 text-xs text-ink-200 outline-none
-                           placeholder:text-ink-400/60 focus:ring-1 focus:ring-accent-400"
+                className="h-7 w-40 rounded-controle bg-ink-800 px-2 text-xs text-ink-200
+                           outline-none placeholder:text-ink-400/60 focus:ring-1
+                           focus:ring-accent-400"
               />
             </form>
 
             {/* RF-33 */}
-            <button
-              type="button"
+            <Botao
+              tamanho="p"
               onClick={() => setArquivadosAbertos((v) => !v)}
               aria-expanded={arquivadosAbertos}
-              className="rounded border border-ink-700 px-2 py-1 text-[11px] text-ink-400
-                         hover:border-ink-400 hover:text-ink-200"
             >
               Arquivados ({board.archivedCount})
-            </button>
+            </Botao>
           </div>
 
           {erro && (
-            <p role="alert" className="mt-2 text-xs text-red-300">
+            <Aviso tom="erro" onFechar={() => setErro(null)} className="mt-2">
               {erro}
-            </p>
+            </Aviso>
           )}
         </header>
 

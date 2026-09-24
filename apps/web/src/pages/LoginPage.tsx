@@ -2,14 +2,17 @@ import { loginSchema, registerSchema } from "@yu-book/shared";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { ZodError } from "zod";
+import { Aviso } from "../components/base/Aviso";
+import { Botao } from "../components/base/Botao";
 import { ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 
 type Mode = "login" | "register";
 
+// O `outline-none` tem substituto: a borda que acende no foco (RNF-08).
 const inputClass =
-  "w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm outline-none " +
-  "placeholder:text-ink-400/60 focus:border-accent-400";
+  "w-full rounded-controle border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-ink-200 " +
+  "outline-none transition-colors placeholder:text-ink-400/60 focus:border-accent-400";
 
 export function LoginPage() {
   const { login, register } = useAuth();
@@ -55,12 +58,23 @@ export function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <header className="mb-8">
-          <h1 className="text-2xl font-semibold text-titulo">Yu-book</h1>
-          <p className="mt-1 text-sm text-ink-400">
-            {mode === "login" ? "Entre para continuar." : "Crie sua conta."}
-          </p>
+      <div className="w-full max-w-sm animate-surgir rounded-dialogo bg-superficie p-8 shadow-e3">
+        <header className="mb-8 flex items-center gap-3">
+          {/* A marca é enfeite: o nome vem escrito ao lado, no `h1`. */}
+          <span
+            aria-hidden="true"
+            className="flex size-10 shrink-0 items-center justify-center rounded-controle
+                       bg-linear-to-br from-accent-500 to-ia-500 text-sm font-semibold
+                       text-white shadow-e1"
+          >
+            Yu
+          </span>
+          <div>
+            <h1 className="text-2xl font-semibold text-titulo">Yu-book</h1>
+            <p className="mt-0.5 text-sm text-ink-400">
+              {mode === "login" ? "Entre para continuar." : "Crie sua conta."}
+            </p>
+          </div>
         </header>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -99,20 +113,11 @@ export function LoginPage() {
             />
           </div>
 
-          {error && (
-            <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-300">
-              {error}
-            </p>
-          )}
+          {error && <Aviso tom="erro">{error}</Aviso>}
 
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-lg bg-accent-500 px-3 py-2 text-sm font-medium text-white
-                       transition hover:bg-accent-400 disabled:opacity-50"
-          >
-            {busy ? "…" : mode === "login" ? "Entrar" : "Criar conta"}
-          </button>
+          <Botao type="submit" variante="primario" tamanho="m" carregando={busy} className="w-full">
+            {mode === "login" ? "Entrar" : "Criar conta"}
+          </Botao>
         </form>
 
         <button

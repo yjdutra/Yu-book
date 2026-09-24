@@ -26,6 +26,16 @@
         }
       })();
     </script>
+    <!--
+      Inter, depois do script de tema: a fonte pode chegar atrasada (`swap`),
+      o tema não. Sem rede, cai na pilha de sistema de `--font-sans`.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap"
+    />
   </head>
   <body>
     <div id="root"></div>

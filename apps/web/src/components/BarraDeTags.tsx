@@ -1,5 +1,6 @@
 import type { TagDoBoard } from "../lib/tags";
-import { IconeTag } from "./Icones";
+import { Botao } from "./base/Botao";
+import { IconeCheck, IconeTag } from "./Icones";
 
 interface BarraDeTagsProps {
   tags: TagDoBoard[];
@@ -14,7 +15,7 @@ interface BarraDeTagsProps {
  * RF-08 / RF-09: o segundo recorte do board.
  *
  * **O filtro é OU, não E.** Duas tags selecionadas mostram os cards que têm
- * *qualquer uma* delas. Diverge de propósito do filtro de notas da barra
+ * *qualquer uma* delas. Diverge de propósito do filtro de notas do painel
  * lateral, que é E (RF-07 da Fase 1): lá o objetivo é estreitar até achar uma
  * nota; aqui é agregar assuntos relacionados que estão espalhados por colunas
  * diferentes. Trocar para E faria selecionar a segunda tag quase sempre
@@ -46,36 +47,32 @@ export function BarraDeTags({
               type="button"
               onClick={() => onAlternar(tag.nome)}
               aria-pressed={ativa}
-              className={`rounded px-1.5 py-0.5 text-[11px] transition ${
+              className={`inline-flex items-center gap-1 rounded-etiqueta px-1.5 py-0.5 text-miudo
+                          transition ${
                 ativa
                   ? "bg-accent-500 text-white ring-1 ring-accent-400"
                   : "bg-ink-800 text-ink-400 hover:text-ink-200"
               }`}
             >
               {/* RNF-12: a marca ativa não é só a cor de fundo. */}
-              {ativa && <span aria-hidden="true">✓ </span>}
+              {ativa && <IconeCheck className="size-3" />}
               {tag.nome}
-              <span className="ml-1 tabular-nums opacity-60">{tag.quantidade}</span>
+              <span className="tabular-nums opacity-60">{tag.quantidade}</span>
             </button>
           );
         })}
 
         {filtrando && (
-          <button
-            type="button"
-            onClick={onLimpar}
-            className="ml-auto rounded border border-ink-700 px-2 py-0.5 text-[11px] text-ink-400
-                       hover:border-accent-400 hover:text-ink-200"
-          >
+          <Botao variante="fantasma" tamanho="p" onClick={onLimpar} className="ml-auto">
             Limpar filtro
-          </button>
+          </Botao>
         )}
       </div>
 
       {/* RN-05: dizer que o arraste parou é parte do filtro — sem isto, o card
           que não pega parece defeito. */}
       {filtrando && (
-        <p aria-live="polite" className="mt-1.5 text-[11px] text-ink-400">
+        <p aria-live="polite" className="mt-1.5 text-miudo text-ink-400">
           {escondidos > 0
             ? `${escondidos} card(s) escondido(s) pelo filtro.`
             : "Nenhum card escondido pelo filtro."}{" "}

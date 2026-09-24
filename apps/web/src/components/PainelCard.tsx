@@ -6,8 +6,13 @@ import { useAtualizarCard, useBoard, useCard, useExcluirCard } from "../lib/kanb
 import { renderMarkdown } from "../lib/markdown";
 import { useCriarNota, useTitulos } from "../lib/notas";
 import { catalogoDeTags } from "../lib/tags";
+import { useAcoesChat } from "../lib/sessaoChat";
 import { useAutosave } from "../lib/useAutosave";
-import type { EstadoSalvamento } from "../lib/useAutosave";
+import { Aviso } from "./base/Aviso";
+import { Esqueleto } from "./base/Bloco";
+import { Botao, BotaoIcone } from "./base/Botao";
+import { IndicadorSalvamento } from "./base/IndicadorSalvamento";
+import { IconeAssistente, IconeChevron, IconeClipe, IconeFechar } from "./Icones";
 import { RotuloTipo } from "./RotuloTipo";
 import { SeletorDeTags } from "./SeletorDeTags";
 
@@ -33,35 +38,6 @@ const ROTULO_PRIORIDADE: Record<CardPriority, string> = {
   alta: "⬆ alta",
 };
 
-function IndicadorSalvamento({ estado }: { estado: EstadoSalvamento }) {
-  if (estado.tipo === "ocioso") return null;
-
-  if (estado.tipo === "erro") {
-    return (
-      <span
-        role="alert"
-        className="rounded bg-red-500/15 px-2 py-1 text-[11px] text-red-300"
-        title={estado.mensagem}
-      >
-        ⚠ não salvo — tentativa {estado.tentativas}/3
-      </span>
-    );
-  }
-
-  const texto =
-    estado.tipo === "salvando"
-      ? "salvando…"
-      : estado.tipo === "salvo"
-        ? `salvo ${estado.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-        : "editando";
-
-  return (
-    <span aria-live="polite" className="text-[11px] tabular-nums text-ink-400">
-      {texto}
-    </span>
-  );
-}
-
 interface PainelCardProps {
   cardId: string;
   onFechar: () => void;
@@ -76,6 +52,7 @@ interface Rascunho {
 /** RF-27: painel à direita do board, sem modal e sem cobrir as colunas. */
 export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
   const { data: card, isLoading } = useCard(cardId);
+  const { abrirPainel } = useAcoesChat();
   // RNF-03: o board já está em cache (viemos dele) — as sugestões de tag saem
   // dos cards que ele trouxe, sem requisição nova.
   const { data: board } = useBoard(card?.boardId ?? null);
@@ -131,8 +108,9 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
 
   if (isLoading || !card) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-ink-400">
-        <span className="animate-pulse">Carregando card…</span>
+      <div className="h-full pt-2" role="status" aria-label="Carregando card">
+        <Esqueleto linhas={1} alturaLinha={28} />
+        <Esqueleto linhas={4} alturaLinha={16} />
       </div>
     );
   }
@@ -195,20 +173,25 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
               }
             }}
             aria-label="Título do card"
-            className="min-w-0 flex-1 bg-transparent text-base font-semibold text-titulo outline-none"
+            // Sem anel: o título parece texto, e a linha de baixo é o foco visível.
+            className="min-w-0 flex-1 border-b border-transparent bg-transparent text-base
+                       font-semibold text-titulo outline-none focus:border-accent-400/60"
           />
-          <button
-            type="button"
+          <BotaoIcone
+            rotulo="Perguntar ao assistente sobre este card"
+            // A cor vai no ícone: no botão, o `text-ink-400` da variante vence.
+            icone={<IconeAssistente className="size-3.5 text-accent-400" />}
+            onClick={() => abrirPainel({ anexo: { cardId, titulo: card.title } })}
+          />
+          <BotaoIcone
+            rotulo="Fechar card"
+            icone={<IconeFechar className="size-3.5" />}
             onClick={onFechar}
-            aria-label="Fechar card"
-            className="shrink-0 rounded px-1.5 text-sm text-ink-400 hover:text-ink-200"
-          >
-            ×
-          </button>
+          />
         </div>
 
         <div className="mt-1 flex items-center gap-2">
-          <span className="text-[11px] text-ink-400">
+          <span className="text-miudo text-ink-400">
             {card.boardName} · {card.columnName}
           </span>
           <span className="ml-auto">
@@ -217,33 +200,33 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
         </div>
 
         {erro && (
-          <p role="alert" className="mt-2 text-[11px] text-red-300">
+          <Aviso tom="erro" onFechar={() => setErro(null)} className="mt-2">
             {erro}
-          </p>
+          </Aviso>
         )}
       </header>
 
       <div className="space-y-4 px-4 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1 text-[11px] text-ink-400">
+          <label className="flex items-center gap-1 text-miudo text-ink-400">
             Prazo
             <input
               type="date"
               value={paraCampoData(card.dueDate)}
               onChange={(e) => aplicar({ dueDate: paraData(e.target.value) })}
               aria-label="Prazo do card"
-              className="rounded bg-ink-800 px-1.5 py-1 text-xs text-ink-200 outline-none
+              className="rounded-controle bg-ink-800 px-1.5 py-1 text-xs text-ink-200 outline-none
                          focus:ring-1 focus:ring-accent-400"
             />
           </label>
 
-          <label className="flex items-center gap-1 text-[11px] text-ink-400">
+          <label className="flex items-center gap-1 text-miudo text-ink-400">
             Prioridade
             <select
               value={card.priority}
               onChange={(e) => aplicar({ priority: e.target.value as CardPriority })}
               aria-label="Prioridade do card"
-              className="rounded bg-ink-800 px-1.5 py-1 text-xs text-ink-200 outline-none
+              className="rounded-controle bg-ink-800 px-1.5 py-1 text-xs text-ink-200 outline-none
                          focus:ring-1 focus:ring-accent-400"
             >
               {CARD_PRIORITIES.map((p) => (
@@ -258,7 +241,7 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
         {/* RF-01: o segundo eixo do card. A coluna diz em que ponto ele está;
             a tag diz de que assunto ele é. */}
         <section>
-          <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-ink-400">
+          <p className="mb-1 rotulo">
             Tags
           </p>
           <SeletorDeTags
@@ -273,14 +256,14 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
         {/* RF-28: coluna única com preview alternável — não é o split da nota. */}
         <section>
           <div className="mb-1 flex items-center justify-between">
-            <p className="text-[10px] font-medium uppercase tracking-wider text-ink-400">
+            <p className="rotulo">
               Descrição
             </p>
             <button
               type="button"
               onClick={() => setPreview((v) => !v)}
               aria-pressed={preview}
-              className="rounded px-1.5 py-0.5 text-[11px] text-ink-400 hover:text-ink-200"
+              className="rounded-controle px-1.5 py-0.5 text-miudo text-ink-400 hover:text-ink-200"
             >
               {preview ? "editar" : "ver formatado"}
             </button>
@@ -288,7 +271,7 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
 
           {preview ? (
             <div
-              className="preview min-h-24 rounded bg-ink-900/60 px-3 py-2 text-sm"
+              className="preview min-h-24 rounded-controle bg-ink-900/60 px-3 py-2 text-sm"
               // Sanitizado por DOMPurify em renderMarkdown (RNF-16).
               dangerouslySetInnerHTML={{ __html: html }}
             />
@@ -305,7 +288,7 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
               rows={6}
               placeholder="Detalhes em Markdown…"
               aria-label="Descrição do card"
-              className="w-full resize-y rounded bg-ink-900/60 px-3 py-2 font-mono text-xs
+              className="w-full resize-y rounded-controle bg-ink-900/60 px-3 py-2 font-mono text-xs
                          leading-relaxed text-ink-200 outline-none placeholder:text-ink-400/50
                          focus:ring-1 focus:ring-accent-400"
             />
@@ -314,7 +297,7 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
 
         {/* RF-30 */}
         <section>
-          <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-ink-400">
+          <p className="mb-1 rotulo">
             Checklist {checklist.length > 0 && `${feitos}/${checklist.length}`}
           </p>
 
@@ -340,14 +323,16 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
                     mudarChecklist(checklist.map((x) => (x.id === item.id ? { ...x, text } : x)));
                   }}
                   aria-label={`Texto do item ${i + 1}`}
-                  className={`min-w-0 flex-1 rounded bg-transparent px-1 py-0.5 text-xs outline-none
-                              focus:bg-ink-800 ${
+                  className={`min-w-0 flex-1 rounded-controle bg-transparent px-1 py-0.5 text-xs
+                              outline-none focus:bg-ink-800 focus:ring-1 focus:ring-accent-400 ${
                                 item.done ? "text-ink-400 line-through" : "text-ink-200"
                               }`}
                 />
                 <span className="hidden shrink-0 gap-0.5 group-hover:flex group-focus-within:flex">
-                  <button
-                    type="button"
+                  <BotaoIcone
+                    rotulo={`Subir item ${i + 1}`}
+                    icone={<IconeChevron direcao="cima" className="size-3.5" />}
+                    tamanho="p"
                     onClick={() => {
                       if (i === 0) return;
                       const copia = [...checklist];
@@ -355,13 +340,11 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
                       if (movido) copia.splice(i - 1, 0, movido);
                       mudarChecklist(copia);
                     }}
-                    aria-label={`Subir item ${i + 1}`}
-                    className="rounded px-1 text-[10px] text-ink-400 hover:text-ink-200"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
+                  />
+                  <BotaoIcone
+                    rotulo={`Descer item ${i + 1}`}
+                    icone={<IconeChevron direcao="baixo" className="size-3.5" />}
+                    tamanho="p"
                     onClick={() => {
                       if (i === checklist.length - 1) return;
                       const copia = [...checklist];
@@ -369,19 +352,13 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
                       if (movido) copia.splice(i + 1, 0, movido);
                       mudarChecklist(copia);
                     }}
-                    aria-label={`Descer item ${i + 1}`}
-                    className="rounded px-1 text-[10px] text-ink-400 hover:text-ink-200"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
+                  />
+                  <BotaoIcone
+                    rotulo={`Remover item ${i + 1}`}
+                    icone={<IconeFechar className="size-3.5" />}
+                    tamanho="p"
                     onClick={() => mudarChecklist(checklist.filter((x) => x.id !== item.id))}
-                    aria-label={`Remover item ${i + 1}`}
-                    className="rounded px-1 text-[10px] text-ink-400 hover:text-red-300"
-                  >
-                    ×
-                  </button>
+                  />
                 </span>
               </li>
             ))}
@@ -402,9 +379,9 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
                 onChange={(e) => setNovoItem(e.target.value)}
                 placeholder="+ item"
                 aria-label="Novo item do checklist"
-                className="mt-1 w-full rounded bg-transparent px-1 py-1 text-xs text-ink-200
-                           outline-none placeholder:text-ink-400/60 hover:bg-ink-800
-                           focus:bg-ink-800"
+                className="mt-1 w-full rounded-controle bg-transparent px-1 py-1 text-xs
+                           text-ink-200 outline-none placeholder:text-ink-400/60 hover:bg-ink-800
+                           focus:bg-ink-800 focus:ring-1 focus:ring-accent-400"
               />
             </form>
           )}
@@ -412,7 +389,7 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
 
         {/* RF-35 / RF-36 / RF-37 */}
         <section>
-          <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-ink-400">
+          <p className="mb-1 rotulo">
             Nota vinculada
           </p>
 
@@ -421,21 +398,19 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
               <button
                 type="button"
                 onClick={() => card.note && onAbrirNota(card.note.id)}
-                className="flex min-w-0 flex-1 items-center gap-1.5 rounded border border-ink-700
-                           px-2 py-1 text-left text-xs text-ink-200 hover:border-accent-400"
+                className="flex min-w-0 flex-1 items-center gap-1.5 rounded-controle border
+                           border-ink-700 bg-superficie px-2 py-1 text-left text-xs text-ink-200
+                           hover:border-accent-400"
               >
-                <span aria-hidden="true">📎</span>
+                <IconeClipe className="size-3 text-ink-400" />
                 <span className="truncate">{card.note.title}</span>
                 <RotuloTipo tipo={card.note.kind} className="ml-auto shrink-0" />
               </button>
-              <button
-                type="button"
+              <BotaoIcone
+                rotulo="Desvincular nota"
+                icone={<IconeFechar className="size-3.5" />}
                 onClick={() => aplicar({ noteId: null })}
-                aria-label="Desvincular nota"
-                className="shrink-0 rounded px-1.5 text-xs text-ink-400 hover:text-red-300"
-              >
-                ×
-              </button>
+              />
             </div>
           ) : (
             <div className="space-y-1">
@@ -444,11 +419,14 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
                 onChange={(e) => setBuscaNota(e.target.value)}
                 placeholder="Buscar nota por título…"
                 aria-label="Buscar nota para vincular"
-                className="w-full rounded bg-ink-800 px-2 py-1 text-xs text-ink-200 outline-none
-                           placeholder:text-ink-400/60 focus:ring-1 focus:ring-accent-400"
+                className="w-full rounded-controle bg-ink-800 px-2 py-1 text-xs text-ink-200
+                           outline-none placeholder:text-ink-400/60 focus:ring-1
+                           focus:ring-accent-400"
               />
               {sugestoes.length > 0 && (
-                <ul className="overflow-hidden rounded border border-ink-700">
+                <ul
+                  className="overflow-hidden rounded-controle border border-ink-700 bg-superficie"
+                >
                   {sugestoes.map((s) => (
                     <li key={s.id}>
                       <button
@@ -470,8 +448,8 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
               <button
                 type="button"
                 onClick={vincularNotaNova}
-                className="w-full rounded border border-ink-700 px-2 py-1 text-[11px] text-ink-400
-                           hover:border-accent-400 hover:text-ink-200"
+                className="w-full rounded-controle border border-ink-700 px-2 py-1 text-miudo
+                           text-ink-400 hover:border-accent-400 hover:text-ink-200"
               >
                 Criar nota com o título do card
               </button>
@@ -482,24 +460,19 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
 
       {/* RF-33 / RF-34 */}
       <footer className="mt-auto flex shrink-0 gap-2 border-t border-ink-800 px-4 py-3">
-        <button
-          type="button"
-          onClick={() => aplicar({ archived: !card.archived })}
-          className="rounded border border-ink-700 px-2 py-1 text-[11px] text-ink-200
-                     hover:border-accent-400"
-        >
+        <Botao variante="secundario" onClick={() => aplicar({ archived: !card.archived })}>
           {card.archived ? "Desarquivar" : "Arquivar"}
-        </button>
-        <button
-          type="button"
+        </Botao>
+        <Botao
+          variante="perigo"
+          className="ml-auto"
           onClick={() => {
             if (!confirm(`Excluir o card "${card.title}"? Não há lixeira de card.`)) return;
             excluir.mutate({ id: cardId, boardId: card.boardId }, { onSuccess: onFechar });
           }}
-          className="ml-auto rounded px-2 py-1 text-[11px] text-ink-400 hover:text-red-300"
         >
           Excluir
-        </button>
+        </Botao>
       </footer>
     </div>
   );

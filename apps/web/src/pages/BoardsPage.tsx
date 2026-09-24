@@ -1,6 +1,10 @@
 import type { BoardSummary } from "@yu-book/shared";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Aviso } from "../components/base/Aviso";
+import { Esqueleto } from "../components/base/Bloco";
+import { Botao, BotaoIcone } from "../components/base/Botao";
+import { IconeFechar } from "../components/Icones";
 import { ApiError } from "../lib/api";
 import { useBoards, useCriarBoard, useExcluirBoard } from "../lib/kanban";
 import { useWorkspaceAtivo } from "../lib/workspace";
@@ -17,13 +21,22 @@ function agrupar(boards: BoardSummary[]): [string, BoardSummary[]][] {
 export function BoardsPage() {
   const navigate = useNavigate();
   const { workspaces, ativo, ativoId } = useWorkspaceAtivo();
-  const { data: boards, isLoading } = useBoards(ativoId);
+  const { data: boards, isLoading, isError, refetch } = useBoards(ativoId);
   const criar = useCriarBoard();
   const excluir = useExcluirBoard();
 
   const [nome, setNome] = useState("");
   const [workspaceEscolhido, setWorkspaceEscolhido] = useState("");
   const [erro, setErro] = useState<string | null>(null);
+
+  // "Novo board" do menu de criar do trilho chega aqui com o pedido de foco.
+  const campoNome = useRef<HTMLInputElement>(null);
+  const { state, key } = useLocation();
+  const focarNovo = (state as { focarNovo?: boolean } | null)?.focarNovo === true;
+  // `key` nas deps: pedir de novo, já estando aqui, é outra navegação e foca de novo.
+  useEffect(() => {
+    if (focarNovo) campoNome.current?.focus();
+  }, [focarNovo, key]);
 
   // RN-03: board sempre pertence a um workspace. Com "todos" ativo, é preciso
   // escolher um na hora de criar.
@@ -69,11 +82,12 @@ export function BoardsPage() {
       ) : (
         <form onSubmit={criarBoard} className="mb-6 flex flex-wrap items-center gap-2">
           <input
+            ref={campoNome}
             value={nome}
             onChange={(e) => setNome(e.target.value)}
             placeholder="Nome do novo board"
             aria-label="Nome do novo board"
-            className="w-64 rounded bg-ink-800 px-3 py-1.5 text-sm text-ink-200 outline-none
+            className="h-8 w-64 rounded-controle bg-ink-800 px-3 text-sm text-ink-200 outline-none
                        placeholder:text-ink-400/60 focus:ring-1 focus:ring-accent-400"
           />
           {!ativoId && (
@@ -81,7 +95,7 @@ export function BoardsPage() {
               value={workspaceEscolhido}
               onChange={(e) => setWorkspaceEscolhido(e.target.value)}
               aria-label="Workspace do board"
-              className="rounded bg-ink-800 px-2 py-1.5 text-sm text-ink-200 outline-none
+              className="h-8 rounded-controle bg-ink-800 px-2 text-sm text-ink-200 outline-none
                          focus:ring-1 focus:ring-accent-400"
             >
               <option value="">escolha o workspace</option>
@@ -92,22 +106,33 @@ export function BoardsPage() {
               ))}
             </select>
           )}
-          <button
-            type="submit"
-            className="rounded bg-accent-500 px-3 py-1.5 text-sm font-medium text-white
-                       hover:bg-accent-400"
-          >
+          <Botao type="submit" variante="primario" tamanho="m" carregando={criar.isPending}>
             Criar board
-          </button>
+          </Botao>
           {erro && (
-            <p role="alert" className="text-xs text-red-300">
+            <Aviso tom="erro" onFechar={() => setErro(null)} className="basis-full">
               {erro}
-            </p>
+            </Aviso>
           )}
         </form>
       )}
 
-      {isLoading && <p className="animate-pulse text-sm text-ink-400">Carregando boards…</p>}
+      {isLoading && (
+        <div className="-mx-4" role="status" aria-label="Carregando boards">
+          <Esqueleto linhas={3} alturaLinha={72} />
+        </div>
+      )}
+
+      {isError && (
+        <Aviso tom="erro">
+          <span className="flex flex-wrap items-center gap-2">
+            Não foi possível carregar os boards.
+            <Botao tamanho="p" onClick={() => void refetch()}>
+              Tentar de novo
+            </Botao>
+          </span>
+        </Aviso>
+      )}
 
       {boards?.length === 0 && !isLoading && workspaces.length > 0 && (
         <p className="text-sm text-ink-400">
@@ -122,7 +147,7 @@ export function BoardsPage() {
           {agrupar(boards).map(([workspace, doGrupo]) => (
             <section key={workspace}>
               {!ativoId && (
-                <h3 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-ink-400">
+                <h3 className="mb-2 rotulo">
                   {workspace}
                 </h3>
               )}
@@ -132,16 +157,20 @@ export function BoardsPage() {
                     <button
                       type="button"
                       onClick={() => navigate(`/b/${b.id}`)}
-                      className="w-full rounded-lg border border-ink-700 bg-ink-900/60 p-4 text-left
-                                 transition hover:border-accent-400"
+                      className="relative w-full overflow-hidden rounded-cartao border
+                                 border-ink-800 bg-superficie p-4 pt-5 text-left shadow-e1
+                                 transition duration-[120ms] ease-(--ease-padrao)
+                                 hover:border-accent-400/60 hover:shadow-e2"
                     >
-                      <span className="flex items-center gap-2">
-                        <span
-                          aria-hidden="true"
-                          className="size-2.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: b.workspaceColor }}
-                        />
-                        <span className="truncate text-sm font-medium text-titulo">{b.name}</span>
+                      {/* A faixa repete a cor do workspace; o nome dele vem no cabeçalho do grupo
+                          ou no seletor, então a cor nunca é a única pista. */}
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-x-0 top-0 h-[3px]"
+                        style={{ backgroundColor: b.workspaceColor }}
+                      />
+                      <span className="block truncate pr-6 text-sm font-medium text-titulo">
+                        {b.name}
                       </span>
                       <span className="mt-2 block text-xs text-ink-400">
                         {b.columnCount} colunas · {b.cardCount} cards
@@ -149,9 +178,9 @@ export function BoardsPage() {
                     </button>
 
                     {/* RF-12: a confirmação diz quantos cards se perdem. */}
-                    <button
-                      type="button"
-                      aria-label={`Excluir board ${b.name}`}
+                    <BotaoIcone
+                      rotulo={`Excluir board ${b.name}`}
+                      icone={<IconeFechar className="size-3.5" />}
                       onClick={() => {
                         const aviso =
                           b.cardCount > 0
@@ -159,11 +188,10 @@ export function BoardsPage() {
                             : "";
                         if (confirm(`Excluir o board "${b.name}"?${aviso}`)) excluir.mutate(b.id);
                       }}
-                      className="absolute right-2 top-2 hidden rounded px-1 text-xs text-ink-400
-                                 hover:text-red-400 group-hover:block group-focus-within:block"
-                    >
-                      ×
-                    </button>
+                      className="absolute right-2 top-2.5 opacity-0
+                                 focus-visible:opacity-100 group-hover:opacity-100
+                                 group-focus-within:opacity-100"
+                    />
                   </li>
                 ))}
               </ul>

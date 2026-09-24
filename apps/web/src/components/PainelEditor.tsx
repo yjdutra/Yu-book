@@ -12,13 +12,23 @@ import {
   useWorkspaces,
 } from "../lib/notas";
 import { useAutosave } from "../lib/useAutosave";
-import type { EstadoSalvamento } from "../lib/useAutosave";
 import { useFormatarNota } from "../lib/ia";
 import { useModoNota } from "../lib/modoNota";
 import { Editor } from "./Editor";
 import type { FocoDoCorpo } from "./Editor";
 import { SeletorModo } from "./ModoNota";
-import { IconeCopiar, IconeFormatar } from "./Icones";
+import { useAcoesChat } from "../lib/sessaoChat";
+import { Aviso } from "./base/Aviso";
+import { Botao, BotaoIcone } from "./base/Botao";
+import {
+  IconeAssistente,
+  IconeChevron,
+  IconeCopiar,
+  IconeEstrela,
+  IconeFechar,
+  IconeFormatar,
+} from "./Icones";
+import { IndicadorSalvamento } from "./base/IndicadorSalvamento";
 import { RotuloTipo } from "./RotuloTipo";
 
 /** Campos extras de aula (RF-45). Ficam em `meta`, sem migration por campo. */
@@ -30,37 +40,6 @@ const CAMPOS_META: Record<string, { chave: string; rotulo: string }[]> = {
     { chave: "gravacao", rotulo: "Link da gravação" },
   ],
 };
-
-/** RF-16 / RNF-09: estado com texto próprio, não só cor. */
-function IndicadorSalvamento({ estado }: { estado: EstadoSalvamento }) {
-  if (estado.tipo === "ocioso") return null;
-
-  if (estado.tipo === "erro") {
-    // RF-17: erro é persistente, não um toast que some.
-    return (
-      <span
-        role="alert"
-        className="rounded bg-red-500/15 px-2 py-1 text-xs text-red-300"
-        title={estado.mensagem}
-      >
-        ⚠ não salvo — tentativa {estado.tentativas}/3
-      </span>
-    );
-  }
-
-  const texto =
-    estado.tipo === "salvando"
-      ? "salvando…"
-      : estado.tipo === "salvo"
-        ? `salvo ${estado.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-        : "editando";
-
-  return (
-    <span aria-live="polite" className="text-xs tabular-nums text-ink-400">
-      {texto}
-    </span>
-  );
-}
 
 interface PainelEditorProps {
   notaId: string;
@@ -94,6 +73,7 @@ export function PainelEditor({
   refCorpo,
 }: PainelEditorProps) {
   const { data: nota, isLoading } = useNota(notaId);
+  const { abrirPainel } = useAcoesChat();
   const { data: workspaces } = useWorkspaces();
   const atualizar = useAtualizarNota();
   const excluir = useExcluirNota();
@@ -299,29 +279,55 @@ export function PainelEditor({
             placeholder="Título da nota"
             aria-label="Título da nota"
             aria-invalid={erroTitulo ? "true" : undefined}
-            className="min-w-0 flex-1 bg-transparent text-xl font-semibold text-titulo outline-none
-                       placeholder:text-ink-400/50"
+            // RNF-08: o `outline` sai porque o campo quer parecer título, não
+            // formulário — e a borda inferior que acende no foco é o substituto.
+            className="min-w-0 flex-1 border-b border-transparent bg-transparent pb-0.5 text-xl
+                       font-semibold text-titulo outline-none transition-colors
+                       placeholder:text-ink-400/50 focus:border-accent-400/60
+                       aria-invalid:border-red-300/60"
           />
 
-          <div className="flex shrink-0 items-center gap-2 pt-1">
+          <div className="flex shrink-0 items-center gap-1 pt-0.5">
             <SeletorModo modo={modo} onModo={setModo} />
+            <span aria-hidden="true" className="mx-1 h-5 w-px bg-ink-700" />
 
             {/* RF-10: sem atalho de teclado, pelo mesmo motivo do botão de
                 copiar — e porque atalho dentro do editor exige entrar nos dois
                 mapas (a textarea e o keymap do CodeMirror) ou não existe direito. */}
-            <button
-              type="button"
+            <BotaoIcone
+              rotulo="Formatar a nota com IA"
+              icone={
+                <IconeFormatar
+                  className={`size-3.5 ${formatar.isPending ? "animate-pulse" : ""}`}
+                />
+              }
               onClick={() => void aoFormatar()}
               disabled={formatar.isPending}
-              title="Formatar a nota com IA"
-              aria-label="Formatar a nota com IA"
-              className="rounded px-1.5 py-1 text-ink-400 transition-colors hover:text-ink-200
-                         disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <IconeFormatar
-                className={`size-3.5 ${formatar.isPending ? "animate-pulse" : ""}`}
-              />
-            </button>
+            />
+
+            {/* RF-28: sem atalho de teclado de propósito — `Ctrl+Shift+C` é
+                "inspecionar elemento" no Chrome e no Firefox, e `preventDefault`
+                não cancela isso. */}
+            {/* A cor de estado vai no ícone, não no botão: no CSS gerado a cor da
+                variante `fantasma` vem depois e venceria um `text-*` no `className`. */}
+            <BotaoIcone
+              rotulo="Copiar a nota inteira como Markdown"
+              icone={
+                <IconeCopiar
+                  className={`size-3.5 ${copia === "copiado" ? "text-emerald-300" : ""}`}
+                />
+              }
+              onClick={() => void copiar()}
+            />
+
+            {/* Abre o painel do assistente com esta nota já no contexto — o
+                anexo é pedido por quem clicou, então não é gasto à revelia. */}
+            <BotaoIcone
+              rotulo="Perguntar ao assistente sobre esta nota"
+              icone={<IconeAssistente className="size-3.5 text-accent-400" />}
+              onClick={() => abrirPainel({ anexo: { noteId: nota.id, titulo: nota.title } })}
+            />
+
             {/* Chamada de modelo leva segundos. Sem sinal visível, o botão
                 apagado parece travado — e o `aria-live` abaixo só fala com
                 leitor de tela. Texto, no idioma do `IndicadorSalvamento`. */}
@@ -329,101 +335,68 @@ export function PainelEditor({
                 desfazer abaixo já é `role="status"`, então um `sr-only` aqui
                 faria o leitor de tela dizer "nota formatada" duas vezes. */}
             {formatar.isPending && (
-              <span role="status" className="animate-pulse text-xs text-ink-400">
+              <span role="status" className="ml-1 animate-pulse text-xs text-ink-400">
                 formatando…
               </span>
             )}
-
-            {/* RF-28: sem atalho de teclado de propósito — `Ctrl+Shift+C` é
-                "inspecionar elemento" no Chrome e no Firefox, e `preventDefault`
-                não cancela isso. */}
-            <button
-              type="button"
-              onClick={() => void copiar()}
-              title="Copiar a nota inteira como Markdown"
-              aria-label="Copiar a nota inteira como Markdown"
-              className={`rounded px-1.5 py-1 transition-colors ${
-                copia === "copiado" ? "text-emerald-300" : "text-ink-400 hover:text-ink-200"
-              }`}
-            >
-              <IconeCopiar className="size-3.5" />
-            </button>
-            {/* RNF-09: o resultado é anunciado, não só colorido. */}
+            {/* RNF-09: o resultado da cópia é anunciado, não só colorido. */}
             <span aria-live="polite" className="sr-only">
               {copia === "copiado" ? "Nota copiada." : ""}
             </span>
 
-            <IndicadorSalvamento estado={estado} />
-            <button
-              type="button"
+            <span className="ml-1">
+              <IndicadorSalvamento estado={estado} />
+            </span>
+            <BotaoIcone
+              rotulo={nota.isFavorite ? "Desmarcar favorita" : "Marcar como favorita"}
+              icone={
+                <IconeEstrela
+                  className={`size-3.5 ${nota.isFavorite ? "fill-current text-amber-400" : ""}`}
+                />
+              }
               onClick={() => aplicar({ isFavorite: !nota.isFavorite })}
               aria-pressed={nota.isFavorite}
-              aria-label={nota.isFavorite ? "Desmarcar favorita" : "Marcar como favorita"}
-              className={`rounded px-1.5 text-sm ${
-                nota.isFavorite ? "text-amber-400" : "text-ink-400 hover:text-ink-200"
-              }`}
-            >
-              ★
-            </button>
-            <button
-              type="button"
+            />
+            <BotaoIcone
+              rotulo="Fechar nota"
+              icone={<IconeFechar className="size-3.5" />}
               onClick={onFechar}
-              aria-label="Fechar nota"
-              className="rounded px-1.5 text-sm text-ink-400 hover:text-ink-200"
-            >
-              ×
-            </button>
+            />
           </div>
         </div>
 
-        {/* RF-11: some sozinho em 8 s. É informação, não erro — `status`. */}
+        {/* RF-11: some sozinho em 8 s. É informação, não erro — `status`, que
+            o `Aviso` de tom `info` já é. */}
         {desfazer !== null && (
-          <p role="status" className="mt-1 flex items-center gap-2 text-xs text-ink-400">
-            Nota formatada.
-            <button
-              type="button"
-              onClick={aoDesfazerFormatacao}
-              className="rounded px-1 text-accent-400 hover:text-accent-500"
-            >
-              desfazer
-            </button>
-          </p>
+          <Aviso tom="info" className="mt-2">
+            <span className="flex items-center gap-2">
+              Nota formatada.
+              <Botao variante="fantasma" onClick={aoDesfazerFormatacao} className="-my-1">
+                Desfazer
+              </Botao>
+            </span>
+          </Aviso>
         )}
 
         {/* RF-16: erro de IA fica na tela até você fechar, como o de cópia. */}
         {erroFormatar && (
-          <p role="alert" className="mt-1 flex items-center gap-2 text-xs text-red-300">
+          <Aviso tom="erro" onFechar={() => setErroFormatar(null)} className="mt-2">
             {erroFormatar}
-            <button
-              type="button"
-              onClick={() => setErroFormatar(null)}
-              aria-label="Fechar aviso de formatação"
-              className="rounded px-1 text-red-300"
-            >
-              ×
-            </button>
-          </p>
+          </Aviso>
         )}
 
+        {/* Some sozinho quando o autosave seguinte passa (`setErroTitulo(null)`). */}
         {erroTitulo && (
-          <p role="alert" className="mt-1 text-xs text-red-300">
+          <Aviso tom="erro" className="mt-2">
             {erroTitulo}
-          </p>
+          </Aviso>
         )}
 
         {/* RF-30: erro de cópia não é toast — fica até você fechar. */}
         {copia === "erro" && (
-          <p role="alert" className="mt-1 flex items-center gap-2 text-xs text-red-300">
+          <Aviso tom="erro" onFechar={() => setCopia("ocioso")} className="mt-2">
             Não foi possível copiar. O navegador negou o acesso à área de transferência.
-            <button
-              type="button"
-              onClick={() => setCopia("ocioso")}
-              aria-label="Fechar aviso de cópia"
-              className="rounded px-1 text-red-300"
-            >
-              ×
-            </button>
-          </p>
+          </Aviso>
         )}
 
         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -431,7 +404,7 @@ export function PainelEditor({
             value={nota.kind}
             onChange={(e) => aplicar({ kind: e.target.value as NoteKind })}
             aria-label="Tipo da nota"
-            className="rounded bg-ink-800 px-1.5 py-1 text-xs text-ink-200 outline-none
+            className="rounded-controle bg-ink-800 px-1.5 py-1 text-xs text-ink-200 outline-none
                        focus:ring-1 focus:ring-accent-400"
           >
             {NOTE_KINDS.map((k) => (
@@ -445,7 +418,7 @@ export function PainelEditor({
             value={nota.workspaceId ?? ""}
             onChange={(e) => aplicar({ workspaceId: e.target.value || null })}
             aria-label="Workspace da nota"
-            className="rounded bg-ink-800 px-1.5 py-1 text-xs text-ink-200 outline-none
+            className="rounded-controle bg-ink-800 px-1.5 py-1 text-xs text-ink-200 outline-none
                        focus:ring-1 focus:ring-accent-400"
           >
             <option value="">sem workspace</option>
@@ -469,7 +442,7 @@ export function PainelEditor({
             }}
             placeholder="tags, separadas, por vírgula"
             aria-label="Tags da nota"
-            className="min-w-40 flex-1 rounded bg-ink-800 px-2 py-1 text-xs text-ink-200
+            className="min-w-40 flex-1 rounded-controle bg-ink-800 px-2 py-1 text-xs text-ink-200
                        outline-none placeholder:text-ink-400/60 focus:ring-1
                        focus:ring-accent-400"
           />
@@ -479,50 +452,44 @@ export function PainelEditor({
               type="button"
               onClick={() => setMetaAberto((v) => !v)}
               aria-expanded={metaAberto}
-              className="rounded px-1.5 py-1 text-xs text-ink-400 hover:text-ink-200"
+              className="flex items-center gap-1 rounded-controle px-1.5 py-1 text-xs
+                         text-ink-400 hover:text-ink-200"
             >
-              {metaAberto ? "▾" : "▸"} dados da aula
+              <IconeChevron direcao={metaAberto ? "baixo" : "direita"} className="size-3" />
+              dados da aula
             </button>
           )}
 
           {nota.deletedAt ? (
             <span className="ml-auto flex gap-2">
-              <button
-                type="button"
-                onClick={() => restaurar.mutate(nota.id)}
-                className="rounded border border-ink-700 px-2 py-1 text-xs text-ink-200
-                           hover:border-accent-400"
-              >
-                Restaurar
-              </button>
-              <button
-                type="button"
+              <Botao onClick={() => restaurar.mutate(nota.id)}>Restaurar</Botao>
+              <Botao
+                variante="perigo"
                 onClick={() => {
                   if (confirm(`Excluir "${nota.title}" definitivamente? Não dá para desfazer.`)) {
                     excluirDefinitivo.mutate(nota.id, { onSuccess: onFechar });
                   }
                 }}
-                className="rounded border border-red-500/40 px-2 py-1 text-xs text-red-300
-                           hover:bg-red-500/10"
               >
                 Excluir de vez
-              </button>
+              </Botao>
             </span>
           ) : (
-            <button
-              type="button"
+            // Vai para a lixeira, não some: por isso secundário, e não `perigo` —
+            // o vermelho fica para o "Excluir de vez", que não tem volta.
+            <Botao
               onClick={() => excluir.mutate(nota.id, { onSuccess: onFechar })}
-              className="ml-auto rounded px-2 py-1 text-xs text-ink-400 hover:text-red-300"
+              className="ml-auto"
             >
               Excluir
-            </button>
+            </Botao>
           )}
         </div>
 
         {/* RF-46: painel recolhível, fechado por padrão, para não disputar
             espaço com a escrita. */}
         {metaAberto && camposMeta.length > 0 && (
-          <div className="mt-3 grid grid-cols-2 gap-2 rounded bg-ink-900/60 p-3">
+          <div className="mt-3 grid grid-cols-2 gap-2 rounded-cartao bg-ink-900/60 p-3">
             {camposMeta.map((campo) => (
               <label key={campo.chave} className="text-xs text-ink-400">
                 {campo.rotulo}
@@ -533,8 +500,8 @@ export function PainelEditor({
                     if (valor === String(nota.meta[campo.chave] ?? "")) return;
                     aplicar({ meta: { ...nota.meta, [campo.chave]: valor } });
                   }}
-                  className="mt-1 w-full rounded bg-ink-800 px-2 py-1 text-ink-200 outline-none
-                             focus:ring-1 focus:ring-accent-400"
+                  className="mt-1 w-full rounded-controle bg-ink-800 px-2 py-1 text-ink-200
+                             outline-none focus:ring-1 focus:ring-accent-400"
                 />
               </label>
             ))}
@@ -558,7 +525,7 @@ export function PainelEditor({
         <footer className="flex shrink-0 gap-6 border-t border-ink-800 px-6 py-3">
           {nota.backlinks.length > 0 && (
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-ink-400">
+              <p className="rotulo">
                 Referenciada por ({nota.backlinks.length})
               </p>
               <div className="mt-1.5 flex flex-wrap gap-2">
@@ -567,8 +534,9 @@ export function PainelEditor({
                     key={b.id}
                     type="button"
                     onClick={() => onAbrirNota(b.id)}
-                    className="flex items-center gap-1.5 rounded border border-ink-700 px-2 py-1
-                               text-xs text-ink-200 transition hover:border-accent-400"
+                    className="flex items-center gap-1.5 rounded-controle border border-ink-800
+                               bg-superficie px-2 py-1 text-xs text-ink-200 shadow-e1
+                               transition hover:border-accent-400"
                   >
                     {b.title}
                     <RotuloTipo tipo={b.kind} />
@@ -580,7 +548,7 @@ export function PainelEditor({
 
           {nota.cards.length > 0 && (
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-medium uppercase tracking-wider text-ink-400">
+              <p className="rotulo">
                 Em cards ({nota.cards.length})
               </p>
               <div className="mt-1.5 flex flex-wrap gap-2">
@@ -589,11 +557,12 @@ export function PainelEditor({
                     key={c.id}
                     type="button"
                     onClick={() => onAbrirCard(c.boardId, c.id)}
-                    className="flex items-center gap-1.5 rounded border border-ink-700 px-2 py-1
-                               text-xs text-ink-200 transition hover:border-accent-400"
+                    className="flex items-center gap-1.5 rounded-controle border border-ink-800
+                               bg-superficie px-2 py-1 text-xs text-ink-200 shadow-e1
+                               transition hover:border-accent-400"
                   >
                     {c.title}
-                    <span className="text-[10px] text-ink-400">
+                    <span className="text-miudo text-ink-400">
                       {c.boardName} · {c.columnName}
                     </span>
                   </button>

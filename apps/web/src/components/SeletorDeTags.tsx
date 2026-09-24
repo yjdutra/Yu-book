@@ -2,6 +2,7 @@ import { MAX_TAGS_CARD, normalizarTag, normalizarTitulo } from "@yu-book/shared"
 import { useId, useMemo, useRef, useState } from "react";
 import { casaTermo } from "../lib/tags";
 import type { TagDoBoard } from "../lib/tags";
+import { IconeFechar } from "./Icones";
 
 interface Opcao {
   nome: string;
@@ -121,17 +122,17 @@ export function SeletorDeTags({ tags, sugestoes, onMudar }: SeletorDeTagsProps) 
         {tags.map((tag) => (
           <span
             key={tag}
-            className="flex items-center gap-1 rounded bg-ink-700 py-0.5 pl-1.5 pr-0.5
-                       text-[11px] text-ink-200"
+            className="flex items-center gap-1 rounded-etiqueta bg-ink-700 py-0.5 pl-1.5 pr-0.5
+                       text-miudo text-ink-200"
           >
             {tag}
             <button
               type="button"
               onClick={() => remover(tag)}
               aria-label={`Remover a tag ${tag}`}
-              className="rounded px-1 text-ink-400 hover:text-red-300"
+              className="rounded-etiqueta p-0.5 text-ink-400 hover:text-red-300"
             >
-              ×
+              <IconeFechar className="size-3" />
             </button>
           </span>
         ))}
@@ -159,7 +160,7 @@ export function SeletorDeTags({ tags, sugestoes, onMudar }: SeletorDeTagsProps) 
           aria-activedescendant={
             aberto && escolhida ? `${idLista}-${opcoes.indexOf(escolhida)}` : undefined
           }
-          className="w-full rounded bg-ink-800 px-2 py-1 text-xs text-ink-200 outline-none
+          className="w-full rounded-controle bg-ink-800 px-2 py-1 text-xs text-ink-200 outline-none
                      placeholder:text-ink-400/60 focus:ring-1 focus:ring-accent-400
                      disabled:cursor-not-allowed disabled:text-ink-400"
         />
@@ -169,8 +170,9 @@ export function SeletorDeTags({ tags, sugestoes, onMudar }: SeletorDeTagsProps) 
             id={idLista}
             role="listbox"
             aria-label="Tags deste board"
-            className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto overflow-x-hidden
-                       rounded border border-ink-700 bg-ink-800 shadow-2xl"
+            className="absolute z-(--z-popover) mt-1 max-h-48 w-full overflow-y-auto
+                       overflow-x-hidden rounded-cartao border border-ink-700/70 bg-superficie
+                       py-1 shadow-e3 animate-surgir"
           >
             {opcoes.map((opcao, i) => (
               <li key={`${opcao.nome}-${opcao.nova}`}>

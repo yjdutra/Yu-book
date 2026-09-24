@@ -10,7 +10,7 @@ import type { NoteKind } from "@yu-book/shared";
  * Nenhum deles carrega significado sozinho — todo item da navegação tem texto
  * ao lado —, então todos ficam `aria-hidden`.
  */
-const TRACO = {
+export const TRACO = {
   fill: "none",
   stroke: "currentColor",
   strokeWidth: 1.4,
@@ -18,7 +18,7 @@ const TRACO = {
   strokeLinejoin: "round" as const,
 };
 
-type IconeProps = { className?: string; style?: React.CSSProperties };
+export type IconeProps = { className?: string; style?: React.CSSProperties };
 
 function Icone({
   className = "size-4",
@@ -133,12 +133,173 @@ export function IconeFormatar(p: IconeProps) {
   );
 }
 
-export function IconeConversa(p: IconeProps) {
+/** Faísca de quatro pontas — o assistente e tudo o que vem da IA. */
+export function IconeAssistente(p: IconeProps) {
   return (
     <Icone {...p}>
-      <path d="M13.5 10a1.5 1.5 0 0 1-1.5 1.5H6l-3 2.5v-2.5H4A1.5 1.5 0 0 1 2.5 10V4A1.5 1.5 0 0 1 4 2.5h8A1.5 1.5 0 0 1 13.5 4Z" />
-      <path d="M5.5 5.8h5" />
-      <path d="M5.5 8.2h3" />
+      <path d="M7 2.2 8.2 6.3 12.3 7.5 8.2 8.7 7 12.8 5.8 8.7 1.7 7.5 5.8 6.3Z" />
+      <path d="M12.4 10.6v3M10.9 12.1h3" />
+    </Icone>
+  );
+}
+
+export function IconeFechar(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M4 4l8 8M12 4l-8 8" />
+    </Icone>
+  );
+}
+
+/** Triângulo com exclamação — o glifo que acompanha a cor de erro e alerta (RNF-09). */
+export function IconeAlerta(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M7.1 2.6a1 1 0 0 1 1.8 0l5.2 9.6a1 1 0 0 1-.9 1.5H2.8a1 1 0 0 1-.9-1.5Z" />
+      <path d="M8 6.2v3" />
+      <circle cx="8" cy="11.3" r=".7" fill="currentColor" stroke="none" />
+    </Icone>
+  );
+}
+
+export function IconeBusca(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="7" cy="7" r="4.3" />
+      <path d="M10.2 10.2 13.6 13.6" />
+    </Icone>
+  );
+}
+
+export function IconeMais(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8 3v10M3 8h10" />
+    </Icone>
+  );
+}
+
+/** Painel com a seta para dentro — recolher o painel contextual. */
+export function IconeRecolher(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="2.2" y="2.8" width="11.6" height="10.4" rx="1.6" />
+      <path d="M6 2.8v10.4M10.6 6.2 8.8 8l1.8 1.8" />
+    </Icone>
+  );
+}
+
+/** Três pontos — o menu de ações de um item. */
+export function IconeOpcoes(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth={2.4} />
+    </Icone>
+  );
+}
+
+/** Seis pontos — a alça de arrastar. */
+export function IconeAlca(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M6 4h.01M10 4h.01M6 8h.01M10 8h.01M6 12h.01M10 12h.01" strokeWidth={2.2} />
+    </Icone>
+  );
+}
+
+/** Dois balões — a lista de conversas do assistente. */
+export function IconeConversas(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M10.6 6.2V3.6a1.2 1.2 0 0 0-1.2-1.2H3a1.2 1.2 0 0 0-1.2 1.2v4.2A1.2 1.2 0 0 0 3 9h.6v2l2.4-2" />
+      <path d="M7.4 7.6a1.2 1.2 0 0 1 1.2-1.2H13a1.2 1.2 0 0 1 1.2 1.2v3.4a1.2 1.2 0 0 1-1.2 1.2h-.6v1.8L10 12.2H8.6a1.2 1.2 0 0 1-1.2-1.2Z" />
+    </Icone>
+  );
+}
+
+/** Janela com a faixa da direita — o painel lateral do assistente. */
+export function IconePainelDireito(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="2.2" y="2.8" width="11.6" height="10.4" rx="1.6" />
+      <path d="M10 2.8v10.4" />
+    </Icone>
+  );
+}
+
+/** Duas setas para os cantos — levar o painel para a tela cheia. */
+export function IconeExpandir(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M9.4 2.6h4v4M13.4 2.6 9 7M6.6 13.4h-4v-4M2.6 13.4 7 9" />
+    </Icone>
+  );
+}
+
+export function IconeLapis(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M11.6 2.4a1.6 1.6 0 0 1 2.2 2.2L5.5 13 2.4 14l1-3.1 8.2-8.5Z" />
+      <path d="M10.4 3.6l2 2" />
+    </Icone>
+  );
+}
+
+export function IconeTeclado(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="1.8" y="4" width="12.4" height="8" rx="1.4" />
+      <path d="M4.4 6.6h.01M6.8 6.6h.01M9.2 6.6h.01M11.6 6.6h.01M5.2 9.4h5.6" />
+    </Icone>
+  );
+}
+
+/** Relógio — prazo que ainda não venceu, e a fila de "ver depois". */
+export function IconeRelogio(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="8" cy="8" r="5.8" />
+      <path d="M8 4.8V8l2.2 1.4" />
+    </Icone>
+  );
+}
+
+export function IconeCheck(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M3.2 8.4 6.4 11.4 12.8 4.8" />
+    </Icone>
+  );
+}
+
+/** Clipe — a nota vinculada a um card. */
+export function IconeClipe(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M11.6 7.2 7.3 11.5a2.6 2.6 0 0 1-3.7-3.7l4.9-4.9a1.7 1.7 0 0 1 2.4 2.4L6 10.2a.8.8 0 0 1-1.1-1.1l4.2-4.2" />
+    </Icone>
+  );
+}
+
+/** Seta curta, para qualquer lado — lista suspensa, subir e descer item. */
+export function IconeChevron({
+  direcao = "baixo",
+  ...p
+}: IconeProps & { direcao?: "cima" | "baixo" | "esquerda" | "direita" }) {
+  const giro = { baixo: "", cima: "rotate-180", direita: "-rotate-90", esquerda: "rotate-90" };
+  return (
+    <Icone {...p} className={`${p.className ?? "size-4"} ${giro[direcao]}`}>
+      <path d="M4.5 6.5 8 10l3.5-3.5" />
+    </Icone>
+  );
+}
+
+/** Seta em círculo — "ver de novo" na fila de links. */
+export function IconeRecarregar(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M13 8a5 5 0 1 1-1.5-3.6" />
+      <path d="M13 2.8v2.6h-2.6" />
     </Icone>
   );
 }

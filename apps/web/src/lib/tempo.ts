@@ -25,6 +25,19 @@ export function idadeRelativa(iso: string, agora = Date.now()): string {
   return anos === 1 ? "há 1 ano" : `há ${anos} anos`;
 }
 
+/**
+ * Saudação do início do dia ao fim (redesenho de UI, Etapa 5). A hora é a do
+ * navegador: é uma cortesia de tela, não um dado que o servidor precisa
+ * concordar.
+ */
+export function saudacao(agora = Date.now()): string {
+  const hora = new Date(agora).getHours();
+  if (hora < 5) return "Boa noite";
+  if (hora < 12) return "Bom dia";
+  if (hora < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
 /** RF-26: acima disto, o item ganha destaque de esquecido. */
 export const DIAS_PARA_ENVELHECER = 30;
 

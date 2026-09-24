@@ -1,13 +1,7 @@
 import type { ReactElement } from "react";
 import type { ModoNota } from "../lib/modoNota";
-
-const TRACO = {
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.4,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-};
+import { IconeLapis, TRACO } from "./Icones";
+import type { IconeProps } from "./Icones";
 
 /** Texto já formatado, com o cursor dentro — o modo em que se escreve vendo. */
 function AoVivo() {
@@ -16,15 +10,6 @@ function AoVivo() {
       <path d="M2.4 4h5.6" strokeWidth={2.4} />
       <path d="M2.4 8h8.4M2.4 11.6h5.6" />
       <path d="M13.2 6.4v6.4" />
-    </svg>
-  );
-}
-
-function Lapis() {
-  return (
-    <svg viewBox="0 0 16 16" className="size-4" aria-hidden="true" {...TRACO}>
-      <path d="M11.6 2.4a1.6 1.6 0 0 1 2.2 2.2L5.5 13 2.4 14l1-3.1 8.2-8.5Z" />
-      <path d="M10.4 3.6l2 2" />
     </svg>
   );
 }
@@ -47,9 +32,14 @@ function Olho() {
   );
 }
 
-const OPCOES: { modo: ModoNota; rotulo: string; dica: string; Icone: () => ReactElement }[] = [
+const OPCOES: {
+  modo: ModoNota;
+  rotulo: string;
+  dica: string;
+  Icone: (p: IconeProps) => ReactElement;
+}[] = [
   { modo: "aovivo", rotulo: "Ao vivo", dica: "A marcação some fora da linha do cursor", Icone: AoVivo },
-  { modo: "edicao", rotulo: "Só edição", dica: "Só o Markdown", Icone: Lapis },
+  { modo: "edicao", rotulo: "Só edição", dica: "Só o Markdown", Icone: IconeLapis },
   { modo: "dividido", rotulo: "Edição e leitura", dica: "Markdown e resultado lado a lado", Icone: Dividido },
   { modo: "leitura", rotulo: "Só leitura", dica: "Só o resultado formatado", Icone: Olho },
 ];
@@ -59,13 +49,19 @@ interface SeletorModoProps {
   onModo: (modo: ModoNota) => void;
 }
 
-/** Alterna entre escrever, escrever vendo o resultado e só ler. */
+/**
+ * Alterna entre escrever, escrever vendo o resultado e só ler.
+ *
+ * Controle segmentado: o ativo se ergue do trilho como cartão (superfície e
+ * sombra), então a escolha tem forma além da cor (RNF-09) — e `aria-pressed`
+ * diz o mesmo ao leitor de tela. Os quatro modos ficam (INV-38).
+ */
 export function SeletorModo({ modo, onModo }: SeletorModoProps) {
   return (
     <div
       role="group"
       aria-label="Modo de exibição da nota"
-      className="flex items-center overflow-hidden rounded border border-ink-700"
+      className="flex items-center gap-0.5 rounded-controle bg-ink-900 p-0.5"
     >
       {OPCOES.map(({ modo: valor, rotulo, dica, Icone }) => {
         const ativo = modo === valor;
@@ -76,8 +72,10 @@ export function SeletorModo({ modo, onModo }: SeletorModoProps) {
             onClick={() => onModo(valor)}
             aria-pressed={ativo}
             title={`${rotulo} — ${dica}`}
-            className={`px-2 py-1 transition-colors ${
-              ativo ? "bg-ink-700 text-titulo" : "text-ink-400 hover:bg-ink-800 hover:text-ink-200"
+            className={`rounded-[8px] px-2 py-1 transition-colors duration-[120ms] ${
+              ativo
+                ? "bg-superficie text-titulo shadow-e1"
+                : "text-ink-400 hover:bg-ink-800 hover:text-ink-200"
             }`}
           >
             <Icone />

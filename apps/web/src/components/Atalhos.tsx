@@ -1,11 +1,18 @@
+import { useRef } from "react";
+import { Botao } from "./base/Botao";
+import { Dialogo } from "./base/Dialogo";
+import { Tecla } from "./base/Tecla";
+
 const ATALHOS: { grupo: string; tecla: string; descricao: string }[] = [
   { grupo: "Geral", tecla: "Ctrl+K", descricao: "Buscar em notas e cards" },
   { grupo: "Geral", tecla: "Ctrl+N", descricao: "Nova nota" },
   { grupo: "Geral", tecla: "Ctrl+Shift+B", descricao: "Ir para os boards" },
   { grupo: "Geral", tecla: "Ctrl+Shift+L", descricao: "Abrir a gaveta de links" },
-  { grupo: "Geral", tecla: "Ctrl+Shift+Y", descricao: "Conversar com o assistente" },
+  { grupo: "Geral", tecla: "Ctrl+Shift+Y", descricao: "Abrir/fechar o painel do assistente" },
+  { grupo: "Geral", tecla: "Ctrl+\\", descricao: "Recolher/mostrar o painel lateral" },
   { grupo: "Geral", tecla: "Ctrl+/", descricao: "Mostrar/esconder esta lista" },
   { grupo: "Geral", tecla: "Esc", descricao: "Fechar o que estiver aberto" },
+  { grupo: "Geral", tecla: "Esc", descricao: "No painel do assistente, fechá-lo" },
 
   { grupo: "Nota", tecla: "Ctrl+S", descricao: "Salvar agora (sem esperar o autosave)" },
   { grupo: "Nota", tecla: "Ctrl+B", descricao: "Negrito" },
@@ -31,37 +38,24 @@ const ATALHOS: { grupo: string; tecla: string; descricao: string }[] = [
 const GRUPOS = ["Geral", "Nota", "Board", "Links"] as const;
 
 export function Atalhos({ aberto, onFechar }: { aberto: boolean; onFechar: () => void }) {
-  if (!aberto) return null;
+  // O foco começa no título, não no primeiro botão: o único botão é "Fechar",
+  // no fim de uma lista mais alta que a tela, e focá-lo rolaria a caixa até lá.
+  const titulo = useRef<HTMLHeadingElement>(null);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onMouseDown={onFechar}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Atalhos de teclado"
-        onMouseDown={(e) => e.stopPropagation()}
-        className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-xl border border-ink-700
-                   bg-ink-800 p-5 shadow-2xl"
-      >
-        <h2 className="text-sm font-semibold text-titulo">Atalhos</h2>
+    <Dialogo aberto={aberto} onFechar={onFechar} rotulo="Atalhos de teclado" focoInicial={titulo}>
+      <div className="p-5">
+        <h2 ref={titulo} tabIndex={-1} className="text-sm font-semibold text-titulo">
+          Atalhos
+        </h2>
         {GRUPOS.map((grupo) => (
           <section key={grupo}>
-            <h3 className="mt-4 text-[10px] font-medium uppercase tracking-wider text-ink-400">
-              {grupo}
-            </h3>
+            <h3 className="rotulo mt-4">{grupo}</h3>
             <dl className="mt-2 space-y-2">
               {ATALHOS.filter((a) => a.grupo === grupo).map((a) => (
                 <div key={`${a.tecla}-${a.descricao}`} className="flex items-baseline gap-3">
-                  <dt className="w-24 shrink-0">
-                    <kbd
-                      className="rounded border border-ink-700 bg-ink-900 px-1.5 py-0.5 font-mono
-                                 text-[11px] text-ink-200"
-                    >
-                      {a.tecla}
-                    </kbd>
+                  <dt className="w-28 shrink-0">
+                    <Tecla combo={a.tecla} />
                   </dt>
                   <dd className="text-sm text-ink-400">{a.descricao}</dd>
                 </div>
@@ -69,15 +63,10 @@ export function Atalhos({ aberto, onFechar }: { aberto: boolean; onFechar: () =>
             </dl>
           </section>
         ))}
-        <button
-          type="button"
-          onClick={onFechar}
-          className="mt-5 w-full rounded border border-ink-700 py-1.5 text-xs text-ink-400
-                     hover:border-ink-400 hover:text-ink-200"
-        >
+        <Botao onClick={onFechar} className="mt-5 w-full">
           Fechar
-        </button>
+        </Botao>
       </div>
-    </div>
+    </Dialogo>
   );
 }

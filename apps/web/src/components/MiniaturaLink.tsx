@@ -47,7 +47,7 @@ export function MiniaturaLink({
       />
       {link.durationSeconds !== null && (
         <span
-          className="absolute bottom-0.5 right-0.5 rounded bg-black/80 px-1 text-[10px]
+          className="absolute bottom-0.5 right-0.5 rounded bg-black/80 px-1 text-miudo
                      font-medium tabular-nums text-white"
         >
           {formatarDuracao(link.durationSeconds)}

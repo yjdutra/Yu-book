@@ -26,6 +26,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "../lib/api";
 import { useMoverCard, useMoverColuna } from "../lib/kanban";
 import { cardCasaFiltro } from "../lib/tags";
+import { Aviso } from "./base/Aviso";
 import { CartaoCard } from "./CartaoCard";
 import { ColunaQuadro, idColunaArrastavel } from "./ColunaQuadro";
 
@@ -342,21 +343,9 @@ export function Quadro({ board, cardAtivoId, tagsFiltro, onAbrirCard }: QuadroPr
     <div className="flex min-h-0 flex-1 flex-col">
       {/* RNF-20: o erro fica na tela até você fechar — o board não recarrega. */}
       {erro && (
-        <div
-          role="alert"
-          className="mx-4 mt-3 flex items-center gap-3 rounded bg-red-500/15 px-3 py-2 text-xs
-                     text-red-200 ring-1 ring-red-500/30"
-        >
+        <Aviso tom="erro" onFechar={() => setErro(null)} className="mx-4 mt-3">
           {erro}
-          <button
-            type="button"
-            onClick={() => setErro(null)}
-            aria-label="Fechar aviso"
-            className="ml-auto text-red-300"
-          >
-            ×
-          </button>
-        </div>
+        </Aviso>
       )}
 
       <DndContext

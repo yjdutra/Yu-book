@@ -1,5 +1,7 @@
 import type { LinkKind } from "@yu-book/shared";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { IconeEstrela, IconeRelogio } from "./Icones";
 
 /** O tipo que o navegador usa quando o que se arrasta é um link de verdade. */
 const TIPO_URL = "text/uri-list";
@@ -87,18 +89,16 @@ export function ZonasDeSoltura({ onSoltar }: ZonasDeSolturaProps) {
     if (url) onSoltar(url, kind);
   }
 
-  const zona = (kind: LinkKind, titulo: string, sub: string, icone: string) => (
+  const zona = (kind: LinkKind, titulo: string, sub: string, icone: ReactNode) => (
     <button
       type="button"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => soltar(e, kind)}
-      className="group flex w-full items-center gap-4 rounded-xl border-2 border-dashed
-                 border-ink-700 bg-ink-900/90 px-6 py-8 text-left transition
-                 hover:border-accent-400 hover:bg-ink-800"
+      className="group flex w-full items-center gap-4 rounded-cartao border-2 border-dashed
+                 border-ink-700 bg-superficie px-6 py-8 text-left shadow-e3 transition
+                 hover:border-accent-400"
     >
-      <span aria-hidden="true" className="text-2xl text-ink-400 group-hover:text-accent-400">
-        {icone}
-      </span>
+      <span className="text-ink-400 group-hover:text-accent-400">{icone}</span>
       <span>
         <span className="block text-base font-medium text-titulo">{titulo}</span>
         <span className="block text-xs text-ink-400">{sub}</span>
@@ -109,7 +109,8 @@ export function ZonasDeSoltura({ onSoltar }: ZonasDeSolturaProps) {
   return (
     <div
       // Cobre a janela inteira: durante o arrasto, nada mais é alvo.
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-12"
+      className="fixed inset-0 z-(--z-soltura) flex items-center justify-center bg-(--veu) p-12
+                 animate-surgir-veu"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         // RF-04: soltar fora das zonas cancela, sem salvar.
@@ -119,8 +120,18 @@ export function ZonasDeSoltura({ onSoltar }: ZonasDeSolturaProps) {
       }}
     >
       <div className="w-full max-w-lg space-y-3">
-        {zona("favorito", "Favoritos", "sites que você abre sempre", "★")}
-        {zona("depois", "Ver depois", "para consumir e apagar", "◷")}
+        {zona(
+          "favorito",
+          "Favoritos",
+          "sites que você abre sempre",
+          <IconeEstrela className="size-7" />,
+        )}
+        {zona(
+          "depois",
+          "Ver depois",
+          "para consumir e apagar",
+          <IconeRelogio className="size-7" />,
+        )}
         <p className="pt-1 text-center text-xs text-ink-400">solte para salvar · esc cancela</p>
       </div>
     </div>

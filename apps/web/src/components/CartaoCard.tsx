@@ -1,5 +1,6 @@
 import type { CardPriority, CardSummary } from "@yu-book/shared";
 import { memo } from "react";
+import { IconeCheck, IconeClipe } from "./Icones";
 
 /** RF-32: vencido e "vence logo" são estados diferentes, com destaques diferentes. */
 export type EstadoPrazo = "vencido" | "proximo" | "normal";
@@ -57,18 +58,24 @@ export const CartaoCard = memo(function CartaoCard({
 
   return (
     <div
-      className={`rounded-lg border bg-ink-800 px-3 py-2 text-left transition ${
+      // A largura da borda não depende do arraste — só a cor e a sombra mudam. Um
+      // box que crescesse durante o gesto seria remedido pelo ResizeObserver de
+      // cada card (INV-30). O `border-l-2` do vencido depende do prazo, não do gesto.
+      className={`rounded-controle border bg-superficie px-3 py-2 text-left transition
+                  duration-[120ms] ease-(--ease-padrao) ${
         arrastando
-          ? "border-accent-400 shadow-2xl"
-          : "border-ink-700 hover:border-ink-400"
+          ? "border-accent-400 shadow-e4"
+          : "border-ink-700 shadow-e1 hover:border-ink-400 hover:shadow-e2"
       } ${prazo === "vencido" ? "border-l-2 border-l-red-500" : ""}`}
     >
       <p className="text-sm leading-snug text-ink-200">{card.title}</p>
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-miudo">
         {card.dueDate && prazo && (
           <span
-            className={`inline-flex items-center gap-1 rounded border px-1 ${ESTILO_PRAZO[prazo].classe}`}
+            className={`inline-flex items-center gap-1 rounded-etiqueta border px-1 ${
+              ESTILO_PRAZO[prazo].classe
+            }`}
             title={`${ESTILO_PRAZO[prazo].rotulo}: ${new Date(card.dueDate).toLocaleDateString("pt-BR")}`}
           >
             <span aria-hidden="true">{ESTILO_PRAZO[prazo].sigla}</span>
@@ -86,17 +93,18 @@ export const CartaoCard = memo(function CartaoCard({
 
         {card.checklistTotal > 0 && (
           <span
-            className="tabular-nums text-ink-400"
+            className="inline-flex items-center gap-0.5 tabular-nums text-ink-400"
             title={`${card.checklistDone} de ${card.checklistTotal} itens feitos`}
           >
-            ☑ {card.checklistDone}/{card.checklistTotal}
+            <IconeCheck className="size-3" />
+            {card.checklistDone}/{card.checklistTotal}
           </span>
         )}
 
         {/* RF-07: rótulo, não botão — o card inteiro é a alça de arraste, e um
             alvo clicável aqui dentro competiria com o gesto. */}
         {card.tags.slice(0, TAGS_NA_FACE).map((tag) => (
-          <span key={tag} className="rounded bg-ink-700 px-1.5 text-ink-400">
+          <span key={tag} className="rounded-etiqueta bg-ink-700 px-1.5 text-ink-400">
             {tag}
           </span>
         ))}
@@ -108,8 +116,11 @@ export const CartaoCard = memo(function CartaoCard({
 
         {/* RF-31: o vínculo com nota é visível sem abrir o card. */}
         {card.note && (
-          <span className="inline-flex max-w-32 items-center gap-1 text-ink-400" title={card.note.title}>
-            <span aria-hidden="true">📎</span>
+          <span
+            className="inline-flex max-w-32 items-center gap-1 text-ink-400"
+            title={card.note.title}
+          >
+            <IconeClipe className="size-3" />
             <span className="truncate">{card.note.title}</span>
           </span>
         )}
