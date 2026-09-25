@@ -5,7 +5,7 @@
 ## O que já nos mordeu
 
 - Ref erra **de origem**, não só de linha: código muda de arquivo. Grepe o caminho.
-- Refs em lote: mapeie linha HEAD→árvore (difflib) e confira o conteúdo; basename repetido engana.
+- Refs em lote: difflib HEAD→árvore e confira o conteúdo; basename repetido e regex `ts|tsx` enganam.
 - `:NNN` resolve pelo último caminho citado: ref nova depois de ref de teste leva o basename.
 - Parágrafo tocado: confira **todo** ref dele — ref velha de entrega anterior sobrevive ao lado.
 - **Agente apodrece calado, e a paráfrase junto.** Grepe o fato, não a frase.

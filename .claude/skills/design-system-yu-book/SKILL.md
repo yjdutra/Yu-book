@@ -76,7 +76,7 @@ Grepe `export function Icone` antes de desenhar. Ícone que só muda de orienta�
 cópia — `IconeChevron({ direcao })` (`Icones.tsx:338-348`).
 
 **Glifo unicode que é sigla fica glifo.** As siglas de prazo e prioridade (`!`, `◷`, `▤`, `⬆`, `⬇`)
-de `CartaoCard.tsx:19-30` e `pages/DashboardPage.tsx:19-23` são texto `aria-hidden` com o estado por
+de `CartaoCard.tsx:19-30` e `pages/DashboardPage.tsx:37-41` são texto `aria-hidden` com o estado por
 extenso ao lado (`CartaoCard.tsx:82-84`, `:90-91`): o sinal sem cor (§4). Não as troque por SVG.
 
 ## 4. Acessibilidade é requisito, não polimento
@@ -94,7 +94,7 @@ extenso ao lado (`CartaoCard.tsx:82-84`, `:90-91`): o sinal sem cor (§4). Não 
   ou ele cai no `<body>`: recolher o painel → `ID_MOSTRAR_CONTEXTO` (§5); tirar ou mover um modelo →
   a coluna (`focarColuna`, `ajustes/QuadroDeModelos.tsx:65-71`, com o `tabIndex={-1}` de `:183`).
 - **Status derivado sai da função que o deriva:** passo de rotina cancelado é gravado `falhou` +
-  `CANCELADA`; só `rotuloDoPasso`/`SeloPasso` (`rotinas/comum.tsx:142-157`) dizem "cancelado".
+  `CANCELADA`; só `rotuloDoPasso`/`SeloPasso` (`rotinas/comum.tsx:157-172`) dizem "cancelado".
 - Erro fica na tela, não vira toast que some. O usuário precisa poder ler e tentar de novo — é o
   `Aviso` de `components/base/` (§10).
 
@@ -154,8 +154,8 @@ de navegação, no lugar da antiga barra lateral única:
   `MarcaIA.tsx:84-87`). "Tela do chat?" é `naTelaDoChat`, nunca o prefixo (INV-56).
 - **Levar texto ao assistente preenche e abre; nunca envia, e abre conversa nova.** Uma mensagem são
   até cinco chamadas pagas, e quem digitou ainda não viu modelo nem teto. Assim fazem o "Pergunte ao
-  seu acervo" (`pages/DashboardPage.tsx:114-131`) e o "Perguntar ao assistente" da paleta
-  (`Aplicacao.tsx:611-625`). Atalho novo para o chat segue os dois.
+  seu acervo" (`pages/DashboardPage.tsx:139-158`) e o "Perguntar ao assistente" da paleta
+  (`Aplicacao.tsx:612-626`). Atalho novo para o chat segue os dois.
 
 ## 6. Chaves de `localStorage`
 
@@ -187,7 +187,7 @@ comando. O `Enter` espera a busca responder (`:137-142`).
 **Atalho de uma tela vale só com o foco dentro dela.** O `Ctrl+S` dos editores de agentes e de
 rotinas ouve no `document` e confere se o foco está na raiz: no compositor do painel ao lado não
 salva, e o diálogo em portal fica de fora (`EditorAgente.tsx:440-471`,
-`rotinas/EditorRotina.tsx:451-463`).
+`rotinas/EditorRotina.tsx:465-477`).
 
 **No editor de notas o atalho entra em dois lugares ou em nenhum**: a `<textarea>` casa a tecla à
 mão em `Editor.tsx`, e o modo ao vivo declara no `keymap` de `editorMd.ts`. Cobrir só um faz o
@@ -263,7 +263,7 @@ cópias à mão tinham divergido (o porquê está em `components/base/Botao.tsx:
 - **O que flutua fora de um `Dialogo` aberto fica inalcançável** por teclado e por leitor de tela:
   foco preso e `aria-modal`. Ação que precisa existir com ele aberto mora dentro dele — o desfazer
   do link aparece na gaveta (`GavetaLinks.tsx:453-463`) e a casca esconde o `Toast` enquanto ela
-  está aberta (`Aplicacao.tsx:553-555`).
+  está aberta (`Aplicacao.tsx:554-556`).
 - **Handler do conteúdo de um `Dialogo` não pega o foco que está na caixa.** Ela tem
   `tabIndex={-1}` (`Dialogo.tsx:70`) e o recebe num clique em área vazia; dali o evento não passa
   por filho nenhum. Tecla de lista vai num wrapper e só vale com o foco num filho (`Paleta.tsx:191`);

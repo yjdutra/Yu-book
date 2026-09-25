@@ -32,16 +32,18 @@ convertê-las, converta-as — não copie a forma delas para um terceiro sítio.
 
 **Quando a condição é "não existe outra", o `where` não alcança: a escrita condicional é um
 índice.** RN-19 (uma execução de rotina em andamento por conta) é `findFirst` + `create` em
-`iniciar`, e na janela de deploy duas instâncias da API convivem (INV-60): dois "Rodar agora"
+`iniciar` — e, desde a Etapa F, também o `updateManyAndReturn` que converte a `pulada` de um horário
+em `em_andamento` (`execucao.service.ts:581-603`): são duas escritas que gravam o status, e as duas
+passam pelo índice. Na janela de deploy duas instâncias da API convivem (INV-60): dois "Rodar agora"
 passam juntos pela consulta. Quem garante é o índice único parcial
 `ai_routine_run_uma_em_andamento_idx` (migration `20260924233000_ia_etapa_e_uma_execucao`), e o
 `P2002` dele vira o mesmo 409 em `ehOutraEmAndamento`
-(`apps/api/src/modules/assistente/execucao.service.ts:154-165`, aplicado em `:499-502`) —
+(`apps/api/src/modules/assistente/execucao.service.ts:155-166`, aplicado em `:629-633`) —
 reconhecido por `meta.target = ["user_id"]` mais o modelo, porque o Prisma não dá o nome de índice
-parcial. O `Set` `iniciando` (`:142-148`) é só otimização do clique duplo local: confiar nele no
+parcial. O `Set` `iniciando` (`:143-149`) é só otimização do clique duplo local: confiar nele no
 lugar do índice reabre a corrida. Coberto em `apps/api/tests/rotinas.test.ts:785`. RN-19 vale para
 os dois tipos de entrada; a idempotência pela ideia (RN-18) só existe na entrada por coluna —
-no pedido cada execução é independente (`execucao.service.ts:434-459`, `rotinas.test.ts:2035`).
+no pedido cada execução é independente (`execucao.service.ts:523-548`, `rotinas.test.ts:2035`).
 
 **INV-05 — `TOKEN_EXPIRED` e `UNAUTHORIZED` são códigos distintos de propósito.** O primeiro dispara
 o refresh no front; o segundo derruba a sessão. Fundir os dois cria laço de login.
@@ -119,13 +121,13 @@ e ela é traduzida pelo **nome** da constraint, não só pelo `P2003` (`conversa
 e `:964`.
 
 **A Etapa E a levou à rotina** com a mesma forma — `conferirReferencias`
-(`apps/api/src/modules/assistente/rotinas.service.ts:612`), só o que é novo no PATCH —, e um caso a
+(`apps/api/src/modules/assistente/rotinas.service.ts:652`), só o que é novo no PATCH —, e um caso a
 mais: a coluna das ideias usadas é reconferida quando ela **ou** o quadro da entrada mudam, porque a
 regra é "do mesmo quadro" (INV-12). Coberto em `apps/api/tests/rotinas.test.ts:358` e `:447`. O
-workspace da nota de saída entra do mesmo jeito, só quando novo (`rotinas.service.ts:640-652`,
+workspace da nota de saída entra do mesmo jeito, só quando novo (`rotinas.service.ts:680-692`,
 `rotinas.test.ts:1935`), e `output_workspace_id` **não é FK de propósito**, como as colunas:
 `SetNull` esconderia o workspace excluído, que precisa virar `problems`
-(`apps/api/prisma/schema.prisma:779-781`).
+(`apps/api/prisma/schema.prisma:792-794`).
 
 ## Integridade de dados
 
@@ -221,16 +223,16 @@ gasta um teto inteiro numa pergunta só (`chat.test.ts:198`).
 
 **A rotina paga por passo e por execução (RN-17).** `tetoExtra` (`passo.service.ts:106-111`) roda
 depois do diário e antes da conexão, com a mesma estimativa; a rotina o preenche com o gasto
-acumulado da execução contra `runCapMicros` (`execucao.service.ts:902-911`). Recusa ali lança sem
+acumulado da execução contra `runCapMicros` (`execucao.service.ts:1033-1042`). Recusa ali lança sem
 linha de uso — nada foi chamado (`passo.service.ts:128-131`). O `garantirTeto` de `iniciar`
-(`execucao.service.ts:417-426`) estima sem contexto, só para o 402 imediato; o corte de verdade é o
+(`execucao.service.ts:506-515`) estima sem contexto, só para o 402 imediato; o corte de verdade é o
 de cada chamada. Coberto em `apps/api/tests/rotinas.test.ts:835`.
 
 **O que vai em todo passo entra na estimativa de todo passo.** Desde a Etapa D a mensagem `system`
 é o contexto do agente — regras, instruções, notas-base e fontes vivas, até
 `MAX_PREMISSAS_DO_AGENTE` —, montado a cada mensagem do chat (`chat.service.ts:190-196`) e a cada
-passo de rotina (`execucao.service.ts:820-824`), e posto em `mensagens` (`chat.service.ts:234-238`,
-`execucao.service.ts:855-871`), que é o que `estimarPasso` conta (`passo.service.ts:51-53`).
+passo de rotina (`execucao.service.ts:951-955`), e posto em `mensagens` (`chat.service.ts:234-238`,
+`execucao.service.ts:986-1002`), que é o que `estimarPasso` conta (`passo.service.ts:51-53`).
 Contexto repassado ao provedor por fora de `mensagens` sairia da estimativa e o teto deixaria
 passar o passo que o estoura. A prévia do editor estima o mesmo passo com o mesmo
 `MAX_SAIDA_TOKENS` (`custo.service.ts:19-22`).
@@ -256,15 +258,15 @@ chamada **já foi paga** quando esta função roda. Prompt é pedido; esta funç
 `.slice(0, 10)` do ISO — a API roda em UTC na Railway e o operador não. `garantirTeto` devolve o
 `localDay` que a linha de uso vai gravar (`custo.service.ts:104`), para que o dia do corte e o do
 registro sejam o mesmo, ainda que a chamada atravesse a meia-noite. A coluna é `local_day`
-(`schema.prisma:530`), com índice `(userId, localDay)` (`:548`). Trocar a gravação por um `WHERE`
+(`schema.prisma:534`), com índice `(userId, localDay)` (`:552`). Trocar a gravação por um `WHERE`
 sobre `createdAt` zera o teto três horas cedo, todo dia, sem erro nenhum.
 
-**INV-51 — `AiUsage.noteId` é `SetNull`.** `apps/api/prisma/schema.prisma:544`, como em
+**INV-51 — `AiUsage.noteId` é `SetNull`.** `apps/api/prisma/schema.prisma:548`, como em
 `Event.noteId`. Apagar a nota **não** apaga o registro de gasto: com `Cascade`, o teto diário viraria
 contornável por exclusão de nota, e a trilha de auditoria sumiria junto com o que a explica. Coberto
 em `apps/api/tests/assistente.test.ts:488`. O registro é escrito **inclusive quando a chamada falha**
 (`custo.service.ts:192`), porque falhar também pode ter custado. `AiUsage.runId` segue a mesma regra
-(`schema.prisma:546`): excluir a rotina não devolve o gasto do dia (`rotinas.test.ts:1340`).
+(`schema.prisma:550`): excluir a rotina não devolve o gasto do dia (`rotinas.test.ts:1340`).
 
 **INV-52 — A fronteira do chat com o modelo é fechada pelo compilador, nos dois sentidos.** No
 sentido de ida, `EXECUTORES` é `Record<NomeDeFerramenta, Executor | undefined>`
@@ -298,9 +300,9 @@ conforme um schema que pode ignorar, e o `parse` também é o que aplica os padr
 no lugar do `parse` compila.
 
 **A rotina estreita mais uma vez, e pelo mesmo caminho (RN-16).** Um passo recebe só as ferramentas
-de **leitura** do agente: `ferramentasDaRotina` (`apps/api/src/modules/assistente/rotinas.service.ts:65`)
+de **leitura** do agente: `ferramentasDaRotina` (`apps/api/src/modules/assistente/rotinas.service.ts:70`)
 corta `FERRAMENTAS_DO_CHAT` pela lista do agente e tira as de `escrita`, e o resultado entra como
-`permitidas` — no catálogo (`execucao.service.ts:809-825`) **e** no `executar` (`:952-963`). Um
+`permitidas` — no catálogo (`execucao.service.ts:940-956`) **e** no `executar` (`:1083-1094`). Um
 `create_card` pedido pelo modelo cai no mesmo "não existe"; a escrita da rotina é do código, na
 saída. Não passe a lista do agente inteira "porque o prompt diz que não cria": RN-14. Coberto por
 `apps/api/tests/rotinas.test.ts:1406` e `:1442` (agente só de escrita sai sem o campo `tools`).
@@ -333,7 +335,7 @@ uma marca de chat sem `conversationId` compilava. O que o assistente monta é `O
   desde a Etapa D), e "virar nota" tira corpo, modelo e conversa da `AiMessage` **gravada** — do
   cliente vêm só título, tipo e workspace (`conversas.service.ts:223-266`);
 - a rotina monta a dela a partir da execução, no motor, para a saída — card **ou nota**, a mesma
-  origem (`execucao.service.ts:1042-1052`): o autor é o modelo do último passo que **reescreveu**, e
+  origem (`execucao.service.ts:1173-1183`): o autor é o modelo do último passo que **reescreveu**, e
   o `runId` gravado na saída é também o que deixa `fecharSemDono` achá-la (INV-60).
 
 **Nunca some:** nenhuma rota a remove, e editar só preenche `aiRevisedAt` — "gerada · revisada",
@@ -350,44 +352,74 @@ gerado — a marca some da busca, calada. Coberto por `apps/api/tests/marca-ia.t
 
 **INV-60 — O motor de rotina decide pelo banco, nunca pelo `Map`: no deploy a API tem duas
 instâncias.** A execução roda destacada da requisição (RNF-11), e as vivas moram num `Map` de
-processo (`apps/api/src/modules/assistente/execucao.service.ts:140`). A Railway sobe a instância
-nova **antes** do SIGTERM na velha, e na janela as duas convivem sem se enxergar (`:61-70`): "a API
+processo (`apps/api/src/modules/assistente/execucao.service.ts:141`). A Railway sobe a instância
+nova **antes** do SIGTERM na velha, e na janela as duas convivem sem se enxergar (`execucao.service.ts:62-71`): "a API
 é instância única" é falso justo quando importa. Cada cláusula fecha um caminho em que uma
 instância pisaria na execução da outra, e todas parecem simplificáveis. O porquê de cada uma está
-no comentário do sítio; aqui fica o mapa:
+no comentário do sítio; aqui fica o mapa (as linhas sem arquivo são de `execucao.service.ts`):
 
-- **Morte só pelo pulso.** `fecharSemDono` (`:241-296`) fecha só o que tem `heartbeatAt` vencido
-  há 45 s (`:112`), e **reaplica o `where` na escrita** (`:266`). Fechar por "não está no meu
+- **Morte só pelo pulso.** `fecharSemDono` (`execucao.service.ts:263-318`) fecha só o que tem `heartbeatAt` vencido
+  há 45 s (`:113`), e **reaplica o `where` na escrita** (`:288`). Fechar por "não está no meu
   `Map`" mata a execução viva da vizinha (`apps/api/tests/rotinas.test.ts:1000`).
 - **Toda gravação do motor é condicional a `em_andamento`**; `count` zero chama `perder()`
-  (`:785-789`), que larga a execução sem sobrescrever o desfecho alheio (`rotinas.test.ts:1504`).
+  (`execucao.service.ts:916-920`), que larga a execução sem sobrescrever o desfecho alheio (`rotinas.test.ts:1504`).
 - **`conferir()` imediatamente antes de criar a saída, sem `await` entre os dois**: antes de
-  `criarCard` (`:1056-1057`) e antes de **cada tentativa de título** da nota (`criarNotaDeSaida`,
-  `:699-721`) — a tentativa que colidiu não criou nada. É o último ponto em que cancelar deixa a
+  `criarCard` (`execucao.service.ts:1187-1188`) e antes de **cada tentativa de título** da nota (`criarNotaDeSaida`,
+  `:830-852`) — a tentativa que colidiu não criou nada. É o último ponto em que cancelar deixa a
   ideia intacta.
 - **A saída criada ganha de `interrompida`** (RN-16) — a **única** gravação sobre estado terminal
-  alheio (`:1090-1110`), e só com `outputCardId` **e** `outputNoteId` nulos (`:1096-1100`).
+  alheio (`execucao.service.ts:1221-1241`), e só com `outputCardId` **e** `outputNoteId` nulos (`:1227-1231`).
   `fecharSemDono` acha a saída também pela marca — `card.aiRunId` ou `note.aiRunId`, a nota
-  inclusive na lixeira (`:244-261`) —, e a execução que já a criou fecha `concluida`, nunca reabre
+  inclusive na lixeira (`:266-283`) —, e a execução que já a criou fecha `concluida`, nunca reabre
   a ideia (`rotinas.test.ts:1040`, `:2083`).
-- **`encerrando = true` antes da gravação terminal** (`:754-756`, `:1144`, `:1154`): o pulso em voo
+- **`encerrando = true` antes da gravação terminal** (`execucao.service.ts:885-887`, `:1275`, `:1285`): o pulso em voo
   não reescreve o motivo que a nossa gravação decidiu.
-- **Cancelar vai ao banco** (`cancelRequestedAt`, `:1472-1499`), lido no pulso e antes de cada
+- **Cancelar vai ao banco** (`cancelRequestedAt`, `execucao.service.ts:1603-1630`), lido no pulso e antes de cada
   passo e volta (`rotinas.test.ts:1547`).
-- **SSE.** A inscrição é a primeira linha do gerador (`:1291-1292`) — gerador descartado sem
+- **SSE.** A inscrição é a primeira linha do gerador (`execucao.service.ts:1422-1423`) — gerador descartado sem
   começar não roda `finally`, e um assinante inscrito fora acumularia deltas até o fim
   (`rotinas.test.ts:1197`) —, com a conferência `vivas.get(runId) !== viva && fila.length === 0`
-  depois (`:1299`). `dobrar` (`:1372-1418`): evento que muda passo **nunca** segue depois do
-  retrato, porque a tela o reaplicaria por cima. Execução da vizinha sai por `remota` (`:1429`),
+  depois (`execucao.service.ts:1430`). `dobrar` (`:1503-1549`): evento que muda passo **nunca** segue depois do
+  retrato, porque a tela o reaplicaria por cima. Execução da vizinha sai por `remota` (`:1560`),
   retratos do banco sem deltas (`rotinas.test.ts:1463`).
 
-No SIGTERM as vivas são gravadas `interrompida` antes de `app.close()` (`apps/api/src/index.ts:33-41`);
-a que morre sem SIGTERM para de pulsar, e a varredura de boot e de minuto a fecha (`index.ts:21-31`).
+No SIGTERM as vivas são gravadas `interrompida` antes de `app.close()` (`apps/api/src/index.ts:37-51`);
+a que morre sem SIGTERM para de pulsar, e a varredura de boot e de minuto a fecha (`index.ts:22-32`).
+
+**A agenda (Etapa F) roda nas duas instâncias ao mesmo tempo, e o banco escolhe quem atende o
+horário.** O relógio de 1 minuto (`apps/api/src/modules/assistente/agendador.service.ts:306-328`)
+não tem dono; a exclusão é toda de escrita:
+
+- **Cada horário tem uma linha só**, pelo `@@unique([routineId, scheduledFor])`
+  (`apps/api/prisma/schema.prisma:901`) — é ele que garante RN-20
+  (`apps/api/tests/agenda.test.ts:356`). A execução manual tem `scheduledFor` nulo e a rotina
+  excluída põe `routineId` nulo (`SetNull`), e nulo não colide.
+- **A linha `pulada` é o estado do horário enquanto ele não roda.** A recusa grava ou soma
+  `attempts` (`agendador.service.ts:88-144`), e a tentativa seguinte a converte em execução
+  (`execucao.service.ts:581-603`) — as duas escritas condicionais a `status: pulada` **e** ao
+  `attempts` que a tentativa viu; quem escreve primeiro leva, a outra vê zero (`tomada`,
+  `agenda.test.ts:378`).
+  **Nenhum caminho do motor grava `pulada`**: execução que começou nunca volta a ser tentativa, e é
+  isso que impede a agenda de cobrar duas vezes (RN-21, `agenda.test.ts:602`).
+- **A agenda não passa pelo `Set iniciando`** (`execucao.service.ts:484-488`). A recusa por ele
+  viria de um início ainda sem linha; gravada como `pulada`, tomaria o horário do outro pelo único,
+  e nenhum dos dois rodaria. RN-19 continua pelo índice parcial (INV-04).
+- **No SIGTERM, `pararAgenda()` é aguardado antes de `encerrarExecucoes`**
+  (`apps/api/src/index.ts:42`): uma volta em curso que começasse execução depois da lista das vivas
+  escaparia do `interrompida`.
+- **Uma rotina com defeito não derruba a volta** — `try` por rotina e por horário
+  (`agendador.service.ts:189-219`, `agenda.test.ts:811`).
+- **A janela de 15 minutos só atende horário sem linha se `slot >= rotina.updatedAt`**
+  (`pendentesDaRotina`, `agendador.service.ts:282`): sem isso, ligar, retomar ou pôr um horário
+  vencido há pouco dispararia na hora uma execução que ninguém pediu. Por isso o PATCH grava
+  `updatedAt` explícito (`apps/api/src/modules/assistente/rotinas.service.ts:914`), e **o motor e a
+  `pulada` não escrevem em `ai_routine`** — escrita ali pularia o horário seguinte
+  (`agenda.test.ts:772`).
 
 ## Servidor MCP
 
 **INV-40 — `formatarQuadro` imprime o id de cada coluna, e é o único lugar que imprime.**
-`packages/shared/src/formato.ts:298` — o arquivo **mudou de pacote** na Etapa B (era
+`packages/shared/src/formato.ts:275` — o arquivo **mudou de pacote** na Etapa B (era
 `apps/mcp/src/formato.ts`), e a mesma função agora serve duas superfícies: as tools e resources do
 MCP e o executor `get_board` do chat (`apps/api/src/modules/assistente/ferramentas.service.ts:160`).
 `create_card` e `move_card` endereçam por `columnId`, e nenhuma outra saída expõe esse id — as

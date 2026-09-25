@@ -69,9 +69,10 @@ essa separação.
 - **O limite de WIP não é validado.** É sinalização visual, por decisão de produto.
 - **O recálculo de wikilinks é condicional** (`mesmosLinks`), e por isso criar, renomear e restaurar
   precisam chamar `reconstruirEntradas`.
-- **A API tem trabalho de fundo desde a Etapa E** (o motor de rotinas, `execucao.service.ts`), e
-  no deploy da Railway duas instâncias convivem: o que decide sobre uma execução pergunta ao banco,
-  nunca ao `Map` em memória (INV-60). Quem chama o provedor passa por `passoNoProvedor`, onde mora
+- **A API tem trabalho de fundo desde a Etapa E** (o motor de rotinas, `execucao.service.ts`, e
+  desde a Etapa F o relógio da agenda, `agendador.service.ts`), e no deploy da Railway duas
+  instâncias convivem: o que decide sobre uma execução ou um horário pergunta ao banco, nunca ao
+  `Map` em memória (INV-60). Quem chama o provedor passa por `passoNoProvedor`, onde mora
   o teto (INV-47).
 
 Antes de alterar qualquer um desses pontos, leia o comentário que os acompanha e confirme com o

@@ -73,6 +73,12 @@ de `in`, que distingue "não informei" de "informei que não há" (`saude`,
 o que se injeta é uma **função** e a ausência não é caso de teste — `buscarTitulo(…, permitido =
 destinoPermitido)` (`apps/api/src/modules/links/titulo.service.ts:151`).
 
+**Injetar o relógio num laço sobre todas as contas pede também o escopo, obrigatório.** A suíte da
+API roda no banco de desenvolvimento, que guarda a conta real: uma volta global com `agora`
+inventado dispararia as rotinas agendadas do operador. Daí `voltaDaAgenda(agora, registro,
+somenteDe)` (`apps/api/src/modules/assistente/agendador.service.ts:161-165`) com os três sem padrão —
+o relógio de produção passa `null`, "todas", por extenso; o teste passa o próprio usuário.
+
 ## 4. Comentário
 
 Comentário explica **por quê**, nunca o quê. Em português. Cita o identificador do requisito quando

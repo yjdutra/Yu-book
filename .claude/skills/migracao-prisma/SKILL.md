@@ -19,6 +19,20 @@ pnpm --filter @yu-book/api test          # a suíte fala com o Postgres de verda
 Nome de migration em `snake_case` descrevendo a entrega, no padrão já usado:
 `notas_fase_1`, `busca_aproximada`, `kanban_fase_2`, `links_fase_3`, `ia_etapa_e_rotinas`.
 
+**Sem terminal interativo, `prisma migrate dev` não roda** (é o caso de agente). A receita é gerar
+o SQL e aplicar pelo `deploy`, que não pergunta nada:
+
+```bash
+cd apps/api && pnpm exec prisma migrate diff \
+  --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma \
+  --script > prisma/migrations/<timestamp>_<nome>/migration.sql
+pnpm exec prisma migrate deploy && pnpm exec prisma generate
+```
+
+O prefixo `<timestamp>` ordena a aplicação: escrito à mão, ele precisa ficar **depois** do da última
+migration da pasta, mesmo com o relógio da máquina atrás — `20260925150000_ia_etapa_f_agenda` foi
+escolhido assim.
+
 **O banco de desenvolvimento é de verdade.** O `DATABASE_URL` de `apps/api/.env` aponta para
 `yubook`, que guarda a conta real do operador — e é nele que a suíte da API roda.
 
@@ -86,12 +100,16 @@ await prisma.$queryRaw`SELECT id FROM note WHERE user_id = ${userId}::uuid LIMIT
 com mensagem em português. A violação de título é detectada por `meta.target` conter `"title"`,
 porque o Prisma reporta a expressão do índice e não o nome dele. **Índice parcial sobre coluna
 simples** reporta as colunas: `ehOutraEmAndamento`
-(`apps/api/src/modules/assistente/execucao.service.ts:154-165`) casa `meta.target = ["user_id"]`
-**e** `meta.modelName`, para que o `P2002` de outro único do mesmo modelo suba como é.
+(`apps/api/src/modules/assistente/execucao.service.ts:155-166`) casa `meta.target = ["user_id"]`
+**e** `meta.modelName`, para que o `P2002` de outro único do mesmo modelo suba como é. O mesmo
+índice dispara também no `updateManyAndReturn` que converte uma `pulada` em `em_andamento` (Etapa F,
+`execucao.service.ts:581`), com o mesmo `meta.target` do `create` — os dois caem no mesmo `catch`
+(`:629-633`). O único do horário vem como `["routine_id", "scheduled_for"]`, e `ehHorarioTomado`
+(`:170-180`) o separa: índice novo no mesmo modelo pede helper próprio, não um `includes` mais largo.
 
 ## 6. Antes de fechar
 
-- [ ] `pnpm --filter @yu-book/api db:migrate` aplicou sem erro
+- [ ] `pnpm --filter @yu-book/api db:migrate` (ou a receita do §1) aplicou sem erro
 - [ ] `pnpm typecheck` passa
 - [ ] `pnpm --filter @yu-book/api test` passa
 - [ ] Se criou objeto SQL fora do Prisma, ele está no `migration.sql` e não só no banco local

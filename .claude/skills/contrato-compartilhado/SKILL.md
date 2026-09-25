@@ -36,7 +36,10 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    A flag abaixo só poda o que ninguém importa: **valor importado entra**, com o que o módulo
    dele constrói. Módulo do front que está no bundle inicial importa de `shared` só `import type`
    quando o valor traria schema ou metadado — `apps/web/src/lib/agentes.ts:16-18`, lido pelo
-   painel contextual.
+   painel contextual. `agenda.ts` (Etapa F) é o segundo caso: o painel e o Início leem as rotinas
+   por `apps/web/src/components/rotinas/comum.tsx:1-8` e `lib/rotinas.ts`, só com tipo; quem traz
+   valor dele (`Agenda.tsx`, `rascunho.ts`) entra por rota ou bloco `lazy`
+   (`apps/web/src/pages/DashboardPage.tsx:26`). Um import de valor num módulo do painel desfaz isso.
 
 **`"sideEffects": false` no `package.json` de `shared` não é enfeite, e não se remove.** Sem ele o
 bundler não pode presumir que importar `@yu-book/shared` é inócuo, e **todo** módulo do pacote entra
@@ -129,13 +132,16 @@ string relata **o dia errado, um dia à frente, em todo card com prazo**. Nada f
 string continua seguro para `createdAt`/`updatedAt`, que são instantes; para prazo, não.
 
 **O lado do servidor fechou.** A conversão mora em `packages/shared/src/formato.ts`: `diaDoPrazo`
-(`:66`) e `diaParaPrazo` (`:113`), as duas sobre `diaLocal` (`packages/shared/src/ia.ts:39`), que
+(`:67`) e `diaParaPrazo` (`:85`), as duas sobre `diaLocal` (`packages/shared/src/ia.ts:39`), que
 formata por `Intl` com `timeZone`. **O parâmetro `fuso` não tem valor padrão, e é a peça
 principal** — um padrão traria de volta exatamente o defeito que a Etapa B consertou, o fuso do
 *processo* passando por fuso do usuário. Quem chama declara de qual fuso está falando: o MCP
 pergunta à API (`apps/mcp/src/fuso.ts:43`) e o chat recebe o `fuso` no contexto da ferramenta
 (`apps/api/src/modules/assistente/ferramentas.service.ts:68-71`). As quatro funções escritas à mão
-viraram duas, num lugar só.
+viraram duas, num lugar só. **Desde a Etapa F a volta passa por `instanteLocal`**
+(`packages/shared/src/agenda.ts:165`), a mesma conversão de relógio de parede em instante que a
+agenda de rotina usa: mexer nela move o prazo e o horário da rotina juntos, e o portão das duas é
+`apps/api/tests/agenda.test.ts` mais `apps/mcp/tests/fuso.test.ts`.
 
 **O lado do front não fechou.** `paraCampoData` (`apps/web/src/components/PainelCard.tsx:21`) e
 `paraData` (`:30`) continuam usando `getMonth()`/`getDate()` e um `new Date("…T23:59:59")` cru —
@@ -147,6 +153,11 @@ passam a discordar sobre qual é o dia do prazo, **e o banco guarda o que o nave
 Quem for mexer nesses dois: promova-os para `diaDoPrazo`/`diaParaPrazo` com o fuso vindo da API e
 apague esta seção. **Não escreva uma terceira conversão de prazo** — foi o terceiro leitor escrito à
 mão que segurou esta promoção por uma fase inteira.
+
+**O front já lê pelo fuso do usuário em outro lugar.** A agenda de rotina (Etapa F) mostra horário
+por `horarioNoFuso` e `horaNoFuso` (`apps/web/src/components/rotinas/comum.tsx:258`, `:281`), com o
+fuso de `/ajustes` e **sem recuar ao navegador**: fuso ainda não carregado mostra "…". É o padrão que
+`PainelCard` deveria seguir, não uma quarta conversão.
 
 **`TZ` no ambiente não é conserto e agora nem é sintoma.** Pôr `TZ=America/Sao_Paulo` em
 `apps/mcp/railway.json` trocaria um fuso de processo por outro fuso de processo, que continua não
@@ -178,9 +189,16 @@ sobre o `tools/list` em bytes.
 definição e dois consumidores — tools e resources do MCP, executores do chat (§7 da skill
 `servidor-mcp-yu-book`) — e ali o texto não é só contrato: é o **resultado** sobre o qual o modelo
 decide continuar ou desistir. `formatarBusca` diz, no caso vazio, que a busca é por palavra sobre
-título e corpo e manda tentar o substantivo sozinho (`:207-208`); o argumento e o episódio que o
-motivou estão no comentário ao lado (`:198-206`). Mudar uma dessas frases muda as duas superfícies,
+título e corpo e manda tentar o substantivo sozinho (`:184-185`); o argumento e o episódio que o
+motivou estão no comentário ao lado (`:175-183`). Mudar uma dessas frases muda as duas superfícies,
 e nenhum teste fica vermelho.
+
+**Terceiro caso: o tipo `Dashboard`.** O Início e `formatarDashboard` (`formato.ts:338`, servido
+pelo `get_dashboard` do MCP e do chat) leem a mesma resposta. Desde a Etapa F ela traz `rotinas`,
+e o formatador **as ignora de propósito** — rotina não entra no MCP (RF-62). O mesmo par explica
+por que `GET /dashboard` **só lê** `runsSeenAt` (`apps/api/src/modules/dashboard/dashboard.service.ts:57`)
+e quem avança o marco é `POST /ai/runs/seen`: um GET que marcasse visto faria o modelo, ao consultar
+o painel, apagar as "novas" que o operador ainda não viu.
 
 Então, ao tocar em `ferramentas.ts`: diga no relato que as duas superfícies mudaram, e **meça** o
 `tools/list` se o texto cresceu (a receita e a baseline estão na memória do agente `mcp`). O

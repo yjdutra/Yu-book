@@ -21,8 +21,8 @@
 ## Decisões em vigor
 
 - Baseline sobre `dist/`: `tools/list` 3480 B com 5 tools, 9601 B com 10; `resources/list` 929,
-  `resources/templates/list` 553, `prompts/list` 757 — os quatro reconfirmados em 2026-09-25, na
-  emenda da Etapa E. Tudo cobrado em todo turno. Meça contra estes números, não estime.
+  `resources/templates/list` 553, `prompts/list` 757 — os quatro reconfirmados em 2026-09-25, após
+  a Etapa F. Tudo cobrado em todo turno. Meça contra estes números, não estime.
 - O texto que produz esses bytes mora em `packages/shared/src/ferramentas.ts`: a baseline se move
   por edição **fora** de `apps/mcp`, e nenhum portão acusa (§4.6 de `contrato-compartilhado`).
 - Sob HTTP a sessão vê cinco ou dez tools conforme o escopo do token.

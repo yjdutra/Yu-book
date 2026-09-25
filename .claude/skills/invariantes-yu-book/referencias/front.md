@@ -212,9 +212,9 @@ A armadilha vizinha:
 
 **INV-53 — Painel montado por `{estado && <X aberto … />}` nunca recebe `aberto: false`.** Ele
 **desmonta**. As duas formas convivem em `apps/web/src/components/Aplicacao.tsx` e a diferença não
-aparece em nenhuma assinatura: `Paleta` recebe a prop viva (`aberta={paletaAberta}`, `:606`) e
-continua montada o tempo todo, enquanto `GavetaLinks` é montada dentro de um `&&` (`:588`) com
-`aberta` **literal** (`:591`).
+aparece em nenhuma assinatura: `Paleta` recebe a prop viva (`aberta={paletaAberta}`, `:607`) e
+continua montada o tempo todo, enquanto `GavetaLinks` é montada dentro de um `&&` (`:589`) com
+`aberta` **literal** (`:592`).
 
 A consequência é toda na limpeza. Num painel do segundo grupo, `useEffect(() => { if (!aberto) … })`
 **nunca roda o corpo de fechamento** — `aberto` é sempre `true` enquanto o efeito existe. Só a
@@ -233,7 +233,7 @@ efeito que depende de `ativo` (`apps/web/src/lib/foco.ts:65-70`), que roda quand
 e quando o componente desmonta. Por isso `Dialogo` (`components/base/Dialogo.tsx`) aceita as duas
 montagens. Painel novo que precise de fechamento imita essa forma.
 
-Há uma terceira: `PainelAssistente` também nasce num `&&` (`Aplicacao.tsx:536-540`), mas **sem
+Há uma terceira: `PainelAssistente` também nasce num `&&` (`Aplicacao.tsx:537-541`), mas **sem
 prop `aberto`**, porque o estado dele mora fora, na sessão do chat. O fechamento que faz trabalho é
 uma ação chamada antes do desmonte, não efeito do painel — e o que ela garante é o INV-56.
 
@@ -318,10 +318,10 @@ poria na tela uma coluna que não controla nada. Tarefa nova com modelo próprio
 A Etapa B mostrou o custo de citar em vez de percorrer. `chat` entrou em
 `AI_TASKS`, no enum `AiTask` do Prisma, na rota e no service; a tela ficou
 com `const TAREFA: AiTask = "formatar"`, que compila para sempre. O servidor **exige** escolha por
-tarefa (`modeloParaTarefa`, `apps/api/src/modules/assistente/preferencias.service.ts:260`), então o
+tarefa (`modeloParaTarefa`, `apps/api/src/modules/assistente/preferencias.service.ts:295`), então o
 chat recusava toda mensagem com `MODELO_NAO_ESCOLHIDO`, pedindo uma escolha que não tinha onde ser
 feita: entidade no banco, rota aceitando, funcionalidade inalcançável, typecheck e suíte da API
-verdes. Por isso a mensagem de erro **nomeia a tarefa** (`:266-276`) — sem o nome, quem está na tela
+verdes. Por isso a mensagem de erro **nomeia a tarefa** (`:301-311`) — sem o nome, quem está na tela
 vendo um modelo marcado conclui que o erro é falso.
 
 **Não vale para todo enum: vale para o enum cujo membro pede configuração.** `LINK_KINDS` é citado à
@@ -346,7 +346,7 @@ que carregam hoje:
 
 - abrir nota: `abrirNota` (`apps/web/src/components/Aplicacao.tsx:256-263`, o `navigate` em `:260`),
   que serve também a paleta, ao chat e ao "Abrir nota" da execução de rotina — desce de
-  `Aplicacao.tsx:509` e `:517` para `RotinasPage` e `ExecucaoAvulsaPage` como `onAbrirNota`;
+  `Aplicacao.tsx:510` e `:518` para `RotinasPage` e `ExecucaoAvulsaPage` como `onAbrirNota`;
 - criar nota: `novaNota` (`Aplicacao.tsx:265`), que também tira o tipo da nota nova do filtro
   (`:273`);
 - fechar nota: `onFechar` (`apps/web/src/pages/NotasPage.tsx:55`);
