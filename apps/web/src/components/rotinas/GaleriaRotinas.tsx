@@ -8,7 +8,8 @@ import type {
 import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../../lib/api";
-import { useExcluirRotina, useRotinas } from "../../lib/rotinas";
+import { useAiAjustes } from "../../lib/ia";
+import { useAlternarAgenda, useExcluirRotina, useRotinas } from "../../lib/rotinas";
 import { emDolares } from "../ajustes/comum";
 import { Aviso } from "../base/Aviso";
 import { Botao } from "../base/Botao";
@@ -20,9 +21,12 @@ import {
   IconeLixeira,
   IconeMais,
   IconeOpcoes,
+  IconeParar,
+  IconeRelogio,
   IconeRodar,
   IconeRotina,
 } from "../Icones";
+import { SeloAgenda, temAgenda } from "./Agenda";
 import { quando, SeloStatus } from "./comum";
 import { MiniaturaFluxo } from "./MiniaturaFluxo";
 import type { EntradaDaMiniatura, SaidaDaMiniatura } from "./MiniaturaFluxo";
@@ -51,12 +55,16 @@ function CartaoRotina({
   outraRodando,
   onRodar,
   onExcluir,
+  fuso,
+  onAlternarAgenda,
 }: {
   rotina: RoutineSummary;
   rodando: boolean;
   outraRodando: boolean;
   onRodar: () => void;
   onExcluir: () => void;
+  fuso: string | null;
+  onAlternarAgenda: () => void;
 }) {
   const navigate = useNavigate();
   const ultima = rotina.lastRun;
@@ -118,6 +126,21 @@ function CartaoRotina({
               icone: <IconeLapis className="size-3.5" />,
               aoEscolher: () => navigate(`/assistente/rotinas/${rotina.id}`),
             },
+            // Pausar e retomar na hora, sem abrir o editor (Etapa F). Sem dias e
+            // horários gravados não há o que pausar: agendar é no editor.
+            ...(temAgenda(rotina.schedule)
+              ? [
+                  {
+                    rotulo: rotina.schedule.active ? "Pausar agenda" : "Retomar agenda",
+                    icone: rotina.schedule.active ? (
+                      <IconeParar className="size-3.5" />
+                    ) : (
+                      <IconeRelogio className="size-3.5" />
+                    ),
+                    aoEscolher: onAlternarAgenda,
+                  },
+                ]
+              : []),
             {
               rotulo: "Excluir",
               icone: <IconeLixeira className="size-3.5" />,
@@ -141,6 +164,12 @@ function CartaoRotina({
         />
       </div>
 
+      {temAgenda(rotina.schedule) && (
+        <div className="mt-3 flex min-w-0">
+          <SeloAgenda rotina={rotina} fuso={fuso} />
+        </div>
+      )}
+
       <div
         className="mt-3 flex min-h-5 flex-wrap items-center gap-x-2 gap-y-1 text-miudo
                    text-ink-400"
@@ -148,7 +177,10 @@ function CartaoRotina({
         {ultima ? (
           <>
             <SeloStatus status={ultima.status} />
-            <span>{quando(ultima.startedAt)}</span>
+            <span>
+              {quando(ultima.startedAt)}
+              {ultima.trigger === "agenda" && " · agendada"}
+            </span>
             <span aria-hidden="true">·</span>
             <span className="tabular-nums">{emDolares(ultima.costMicros)}</span>
             {ultima.inputTitle && (
@@ -301,6 +333,10 @@ export function GaleriaRotinas() {
   const { data: rotinas, isLoading, error, refetch } = useRotinas();
   const excluir = useExcluirRotina();
   const rodar = useRodar();
+  const alternarAgenda = useAlternarAgenda();
+  const fuso = useAiAjustes().data?.timezone ?? null;
+  const [erroAgenda, setErroAgenda] = useState<string | null>(null);
+  const [anuncio, setAnuncio] = useState("");
   const titulo = useRef<HTMLHeadingElement>(null);
   const [excluindo, setExcluindo] = useState<RoutineSummary | null>(null);
   const [erroExcluir, setErroExcluir] = useState<string | null>(null);
@@ -320,8 +356,24 @@ export function GaleriaRotinas() {
     }
   }
 
+  async function alternar(r: RoutineSummary) {
+    const active = !r.schedule.active;
+    setErroAgenda(null);
+    try {
+      await alternarAgenda.mutateAsync({ id: r.id, active });
+      setAnuncio(active ? `Agenda de «${r.name}» retomada.` : `Agenda de «${r.name}» pausada.`);
+    } catch (e) {
+      setErroAgenda(
+        e instanceof ApiError ? e.message : "Não foi possível mudar a agenda desta rotina.",
+      );
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
+      <p aria-live="polite" className="sr-only">
+        {anuncio}
+      </p>
       <header className="flex items-start gap-4">
         <span
           aria-hidden="true"
@@ -341,8 +393,8 @@ export function GaleriaRotinas() {
           <p className="mt-1 max-w-2xl text-xs text-ink-400">
             Uma rotina encadeia agentes numa sequência fixa: parte da próxima ideia de uma
             coluna ou de um pedido seu, passa por cada agente e grava o resultado como card ou
-            como nota. Roda quando você manda, no servidor — pode fechar a aba e voltar. Nada
-            sai do Yu-book.
+            como nota. Roda quando você manda, ou sozinha nos dias e horários da agenda — no
+            servidor, com a aba fechada. Nada sai do Yu-book.
           </p>
         </div>
         <Botao
@@ -370,6 +422,11 @@ export function GaleriaRotinas() {
         </Aviso>
       )}
       {rodar.erro && <AvisoAoRodar erro={rodar.erro} onFechar={rodar.limpar} />}
+      {erroAgenda && (
+        <Aviso tom="erro" onFechar={() => setErroAgenda(null)}>
+          {erroAgenda}
+        </Aviso>
+      )}
 
       {isLoading && (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
@@ -388,6 +445,8 @@ export function GaleriaRotinas() {
                 rodando={rodar.rodando === r.id}
                 outraRodando={Boolean(viva && viva.id !== r.id)}
                 onRodar={() => void rodar.iniciar(r.id)}
+                fuso={fuso}
+                onAlternarAgenda={() => void alternar(r)}
                 onExcluir={() => {
                   setErroExcluir(null);
                   setExcluindo(r);

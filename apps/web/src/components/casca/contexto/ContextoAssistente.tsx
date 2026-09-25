@@ -1,5 +1,7 @@
 import { useMatch, useNavigate } from "react-router-dom";
+import type { RoutineSummary } from "@yu-book/shared";
 import { useAgentes } from "../../../lib/agentes";
+import { useAiAjustes } from "../../../lib/ia";
 import { execucaoEmAndamento, useRotinas } from "../../../lib/rotinas";
 import { useAcoesChat } from "../../../lib/sessaoChat";
 import type { EstadoRotaChat } from "../../../lib/sessaoChat";
@@ -8,7 +10,15 @@ import { AvatarAgente } from "../../agentes/AvatarAgente";
 import { ListaConversas } from "../../assistente/ListaConversas";
 import { Botao } from "../../base/Botao";
 import { Menu } from "../../base/Menu";
-import { IconeAgente, IconeMais, IconeOpcoes, IconeRotina } from "../../Icones";
+import {
+  IconeAgente,
+  IconeAlerta,
+  IconeMais,
+  IconeOpcoes,
+  IconeRelogio,
+  IconeRotina,
+} from "../../Icones";
+import { horarioNoFuso, pedeAtencao } from "../../rotinas/comum";
 import { Secao } from "../partes";
 
 /** O botão que fica quando um agente sai da lista — recebe o foco (RNF-06 F1). */
@@ -151,8 +161,14 @@ function PontoRodando() {
  * nela leva à execução ao vivo, não ao editor — a execução segue no servidor
  * com a aba fechada, e este ponto é como se sabe disso sem abrir nada.
  *
+ * Etapa F: o relógio marca a rotina agendada, e o alerta — ícone **e**
+ * palavra — a que falhou ou foi pulada na última vez.
+ *
  * Só `import type` de `shared` passa por aqui: `lib/rotinas.ts` é leve de
- * propósito, e o modelo pronto e os schemas ficam no chunk da área.
+ * propósito, e o modelo pronto e os schemas ficam no chunk da área. A próxima
+ * execução vem pronta do servidor (`nextRuns`), não de `proximosHorarios`,
+ * que moraria em `agenda.ts` — e o schema dela viria junto para o bundle
+ * inicial.
  */
 function SecaoRotinas() {
   const navigate = useNavigate();
@@ -160,6 +176,8 @@ function SecaoRotinas() {
   const aberta = useMatch("/assistente/rotinas/:id/*")?.params.id;
   const lista = rotinas ?? [];
   const viva = execucaoEmAndamento(rotinas);
+  const fuso = useAiAjustes().data?.timezone ?? null;
+  const comAlerta = lista.filter((r) => pedeAtencao(r.lastRun?.status) !== null).length;
 
   return (
     <Secao
@@ -172,6 +190,15 @@ function SecaoRotinas() {
           <span className="ml-1.5 inline-flex items-center gap-1 normal-case tracking-normal">
             <PontoRodando />
             <span className="text-accent-400">rodando</span>
+          </span>
+        ) : comAlerta > 0 ? (
+          // Fechada, a seção continua dizendo que alguma deu errado.
+          <span
+            className="ml-1.5 inline-flex items-center gap-1 normal-case tracking-normal
+                       text-amber-300"
+          >
+            <IconeAlerta className="size-3" />
+            {comAlerta === 1 ? "1 pede atenção" : `${comAlerta} pedem atenção`}
           </span>
         ) : undefined
       }
@@ -188,6 +215,20 @@ function SecaoRotinas() {
 
       {lista.slice(0, VISIVEIS).map((r) => {
         const rodando = r.lastRun?.status === "em_andamento";
+        const atencao = pedeAtencao(r.lastRun?.status);
+        const agendada = r.schedule.active;
+        const proxima = r.nextRuns[0];
+        const dica = [
+          r.description || r.name,
+          agendada
+            ? proxima && fuso
+              ? `Agendada · próxima ${horarioNoFuso(proxima, fuso, "curto")}`
+              : "Agendada"
+            : null,
+          atencao ? `Última execução: ${atencao}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
         return (
           <div key={r.id} className="relative flex items-center">
             {aberta === r.id && (
@@ -206,20 +247,37 @@ function SecaoRotinas() {
                 )
               }
               aria-current={aberta === r.id ? "true" : undefined}
-              title={r.description || r.name}
+              title={dica}
               className="flex min-w-0 flex-1 items-center gap-2 rounded-controle px-2.5 py-1.5
                          text-left text-sm text-ink-400 transition-colors hover:bg-ink-800/60
                          hover:text-ink-200"
             >
               <IconeRotina className="size-4 shrink-0" />
               <span className="truncate">{r.name}</span>
+              {agendada && (
+                <span className="shrink-0 text-ink-400">
+                  <IconeRelogio className="size-3" />
+                  <span className="sr-only">— agendada</span>
+                </span>
+              )}
               {rodando && (
                 <span className="ml-auto flex items-center gap-1.5 text-miudo text-accent-400">
                   <PontoRodando />
                   rodando
                 </span>
               )}
-              {!r.valid && !rodando && (
+              {atencao && !rodando && (
+                <span
+                  className={`ml-auto flex shrink-0 items-center gap-1 text-miudo ${
+                    atencao === "falhou" ? "text-red-300" : "text-amber-300"
+                  }`}
+                >
+                  <IconeAlerta className="size-3" />
+                  <span className="sr-only">— última execução</span>
+                  {atencao}
+                </span>
+              )}
+              {!r.valid && !rodando && !atencao && (
                 <span className="ml-auto text-miudo text-amber-300" title="Precisa de ajustes">
                   <span aria-hidden="true">!</span>
                   <span className="sr-only">— precisa de ajustes</span>

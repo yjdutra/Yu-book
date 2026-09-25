@@ -73,6 +73,41 @@ export async function atualizarPreferencia(
   return montarSettings(userId);
 }
 
+/**
+ * Etapa F: até onde o Início já mostrou as execuções de rotina. `ate` é o
+ * corte que o próprio `GET /dashboard` devolveu (`rotinas.ate`); nulo é agora.
+ *
+ * O marco **só anda para frente** e nunca passa de agora: duas abas, ou um
+ * pedido atrasado, não fazem voltar a aparecer o que já foi visto, e um
+ * relógio de cliente adiantado não esconde o que ainda vai terminar. A linha
+ * de preferência nasce aqui se não existia, com os padrões de sempre.
+ */
+export async function marcarExecucoesVistas(userId: string, ate: Date | null): Promise<void> {
+  const agora = new Date();
+  const marco = ate && ate.getTime() < agora.getTime() ? ate : agora;
+  const { count } = await prisma.aiPreference.updateMany({
+    where: { userId, OR: [{ runsSeenAt: null }, { runsSeenAt: { lt: marco } }] },
+    data: { runsSeenAt: marco },
+  });
+  if (count > 0) return;
+  await prisma.aiPreference
+    .create({
+      data: {
+        userId,
+        dailyCapMicros: TETO_DIARIO_PADRAO_MICROS,
+        timezone: FUSO_PADRAO,
+        allowTraining: TREINO_PERMITIDO_PADRAO,
+        runsSeenAt: marco,
+      },
+    })
+    .catch((erro: unknown) => {
+      /// Já existe — com um marco igual ou mais novo, ou criada agora por um
+      /// pedido concorrente. Nos dois casos não há o que fazer.
+      if (erro instanceof Prisma.PrismaClientKnownRequestError && erro.code === "P2002") return;
+      throw erro;
+    });
+}
+
 export async function listarFavoritos(userId: string): Promise<AiFavorite[]> {
   const favoritos = await prisma.aiModelFavorite.findMany({
     where: { userId },

@@ -2,11 +2,16 @@ import { Prisma } from "@prisma/client";
 import {
   FERRAMENTAS_DO_ACERVO,
   FERRAMENTAS_DO_CHAT,
+  FUSO_PADRAO,
+  PROXIMOS_HORARIOS,
+  problemasDaAgenda,
   problemasDeForma,
+  proximosHorarios,
   resumoDoPedido,
 } from "@yu-book/shared";
 import type {
   NomeDeFerramenta,
+  RoutineSchedule,
   RoutineColumnRef,
   RoutineConsumeAction,
   RoutineInputKind,
@@ -90,6 +95,9 @@ export const CAMPOS_DO_RUN = {
   errorMessage: true,
   startedAt: true,
   endedAt: true,
+  trigger: true,
+  scheduledFor: true,
+  attempts: true,
 } satisfies Prisma.AiRoutineRunSelect;
 
 type RunNoBanco = Prisma.AiRoutineRunGetPayload<{ select: typeof CAMPOS_DO_RUN }>;
@@ -111,6 +119,9 @@ export function paraRun(linha: RunNoBanco): RoutineRunSummary {
     errorMessage: linha.errorMessage,
     startedAt: linha.startedAt.toISOString(),
     endedAt: linha.endedAt?.toISOString() ?? null,
+    trigger: linha.trigger,
+    scheduledFor: linha.scheduledFor?.toISOString() ?? null,
+    attempts: linha.attempts,
   };
 }
 
@@ -201,6 +212,9 @@ const CAMPOS_DA_ROTINA = {
   consumeAction: true,
   consumeColumnId: true,
   runCapMicros: true,
+  scheduleDays: true,
+  scheduleTimes: true,
+  scheduleActive: true,
   createdAt: true,
   updatedAt: true,
   steps: {
@@ -235,6 +249,8 @@ interface Ambiente {
   workspaces: Map<string, string>;
   favoritos: Map<string, { name: string; supportsTools: boolean }>;
   modeloDoChat: string | null;
+  /// O fuso do dono, para os próximos horários da agenda (Etapa F).
+  fuso: string;
 }
 
 async function ambienteDe(userId: string, rotinas: RotinaNoBanco[]): Promise<Ambiente> {
@@ -247,7 +263,7 @@ async function ambienteDe(userId: string, rotinas: RotinaNoBanco[]): Promise<Amb
     if (r.consumeColumnId) ids.add(r.consumeColumnId);
     if (r.outputWorkspaceId) idsDeWorkspace.add(r.outputWorkspaceId);
   }
-  const [colunas, workspaces, favoritos, chat] = await Promise.all([
+  const [colunas, workspaces, favoritos, chat, preferencia] = await Promise.all([
     /// INV-03: a coluna só resolve se o quadro for do usuário.
     prisma.boardColumn.findMany({
       where: { id: { in: [...ids] }, board: { userId } },
@@ -264,6 +280,7 @@ async function ambienteDe(userId: string, rotinas: RotinaNoBanco[]): Promise<Amb
       select: { modelId: true, name: true, supportsTools: true },
     }),
     prisma.aiTaskModel.findUnique({ where: { userId_task: { userId, task: "chat" } } }),
+    prisma.aiPreference.findUnique({ where: { userId }, select: { timezone: true } }),
   ]);
   return {
     colunas: new Map(
@@ -274,6 +291,9 @@ async function ambienteDe(userId: string, rotinas: RotinaNoBanco[]): Promise<Amb
       favoritos.map((f) => [f.modelId, { name: f.name, supportsTools: f.supportsTools }]),
     ),
     modeloDoChat: chat?.modelId ?? null,
+    /// Sem linha de preferência vale o padrão de `packages/shared`, como em
+    /// `preferenciaDe` — é o fuso que o teto diário também usa.
+    fuso: preferencia?.timezone ?? FUSO_PADRAO,
   };
 }
 
@@ -413,8 +433,18 @@ function refDaSaida(rotina: RotinaNoBanco, ambiente: Ambiente): RoutineOutputRef
     : { kind: "card", ...refDaColuna(ambiente, rotina.outputColumnId ?? "") };
 }
 
+export function agendaDe(rotina: {
+  scheduleDays: number[];
+  scheduleTimes: string[];
+  scheduleActive: boolean;
+}): RoutineSchedule {
+  return { days: rotina.scheduleDays, times: rotina.scheduleTimes, active: rotina.scheduleActive };
+}
+
 function paraResumo(rotina: RotinaNoBanco, ambiente: Ambiente): RoutineSummary {
   const ultima = rotina.runs[0];
+  const problemas = problemasDe(rotina, ambiente);
+  const agenda = agendaDe(rotina);
   return {
     id: rotina.id,
     name: rotina.name,
@@ -434,8 +464,18 @@ function paraResumo(rotina: RotinaNoBanco, ambiente: Ambiente): RoutineSummary {
       agentColor: passo.agent?.color ?? null,
       mode: passo.mode,
     })),
-    valid: problemasDe(rotina, ambiente).length === 0,
+    valid: problemas.length === 0,
     lastRun: ultima ? paraRun(ultima) : null,
+    schedule: agenda,
+    /// Inválida não mostra próximos: não vai rodar enquanto houver problema.
+    /// O agendador continua olhando para ela e registra cada horário como
+    /// `pulada` com o motivo — nada falha calado.
+    nextRuns:
+      agenda.active && problemas.length === 0
+        ? proximosHorarios(agenda, ambiente.fuso, new Date(), PROXIMOS_HORARIOS).map((t) =>
+            t.toISOString(),
+          )
+        : [],
     createdAt: rotina.createdAt.toISOString(),
     updatedAt: rotina.updatedAt.toISOString(),
   };
@@ -725,6 +765,18 @@ function formaDe(f: Forma): Forma {
   };
 }
 
+/**
+ * A agenda como vai ao banco: dias e horários em ordem. A ordem não muda o que
+ * roda, mas a tela e a comparação de rascunho ficam estáveis.
+ */
+function paraGravarAgenda(agenda: RoutineSchedule) {
+  return {
+    scheduleDays: [...agenda.days].sort((a, b) => a - b),
+    scheduleTimes: [...agenda.times].sort(),
+    scheduleActive: agenda.active,
+  };
+}
+
 export async function criar(userId: string, entrada: EntradaDaRotina): Promise<RoutineDetail> {
   /// `routineInputSchema` já passou `problemasDeForma` sobre a entrada crua.
   const forma = paraGravar(formaDe(entrada));
@@ -743,6 +795,7 @@ export async function criar(userId: string, entrada: EntradaDaRotina): Promise<R
           ...forma,
           includeNotes: entrada.includeNotes,
           runCapMicros: entrada.runCapMicros,
+          ...paraGravarAgenda(entrada.schedule),
         },
         select: { id: true },
       });
@@ -787,10 +840,25 @@ export async function atualizar(
       outputTitleText: true,
       consumeAction: true,
       consumeColumnId: true,
+      scheduleDays: true,
+      scheduleTimes: true,
+      scheduleActive: true,
       steps: { select: { agentId: true, agentName: true, mode: true } },
     },
   });
   if (!atual) throw notFound("Rotina não encontrada");
+
+  /// Etapa F. A agenda chega parcial — pausar e retomar mandam só `active` —
+  /// e a regra que cruza campo vale para a mesclada: retomar uma agenda sem
+  /// dia é recusado aqui, com a frase do schema de criação.
+  const gravada = agendaDe(atual);
+  const agenda: RoutineSchedule | undefined = patch.schedule && {
+    days: patch.schedule.days ?? gravada.days,
+    times: patch.schedule.times ?? gravada.times,
+    active: patch.schedule.active ?? gravada.active,
+  };
+  const naAgenda = agenda ? problemasDaAgenda(agenda) : [];
+  if (naAgenda[0]) throw invalida(naAgenda[0].message);
 
   const valor = <T>(novo: T | undefined, gravado: T): T => (novo !== undefined ? novo : gravado);
   const inputKind = valor(patch.inputKind, atual.inputKind);
@@ -837,11 +905,16 @@ export async function atualizar(
           ...(patch.description !== undefined && { description: patch.description }),
           ...(patch.includeNotes !== undefined && { includeNotes: patch.includeNotes }),
           ...(patch.runCapMicros !== undefined && { runCapMicros: patch.runCapMicros }),
+          ...(agenda && paraGravarAgenda(agenda)),
           /// Os campos de tipo vão sempre, normalizados: trocar de tipo zera o
           /// que o tipo novo não usa, como sair de `mover` zera a coluna.
           ...gravar,
           /// Explícito: um patch só de passos não toca em coluna nenhuma de
-          /// `ai_routine`, e o "editado em" ficaria parado.
+          /// `ai_routine`, e o "editado em" ficaria parado. E o agendador
+          /// depende dele: horário anterior à última gravação não é atendido
+          /// (`pendentesDaRotina`, Etapa F) — ligar ou retomar a agenda não
+          /// dispara o horário que acabou de passar. Por isso nenhuma escrita
+          /// do motor de execução toca `ai_routine`.
           updatedAt: new Date(),
         },
       });

@@ -1,5 +1,5 @@
 import type { BoardSummary, CardComPrazo, LinkResumo, NoteSummary } from "@yu-book/shared";
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bloco, Esqueleto, Vazio } from "../components/base/Bloco";
@@ -15,6 +15,24 @@ import { useBoards } from "../lib/kanban";
 import { useAcoesChat } from "../lib/sessaoChat";
 import { idadeRelativa, prazoRelativo, saudacao } from "../lib/tempo";
 import { useWorkspaceAtivo } from "../lib/workspace";
+
+/**
+ * O bloco Rotinas (Etapa F da IA) é preguiçoso: ele diz "tenta de novo às
+ * 08:05" pela mesma função que o agendador usa, e ela mora em `agenda.ts` de
+ * `shared`, que monta schema no escopo do módulo — fora do bundle inicial.
+ * Enquanto chega, o esqueleto tem a altura do bloco (RNF-11).
+ */
+const BlocoRotinas = lazy(() =>
+  import("../components/rotinas/InicioRotinas").then((m) => ({ default: m.BlocoRotinas })),
+);
+
+function EsqueletoRotinas() {
+  return (
+    <Bloco titulo="Rotinas" variante="ia">
+      <Esqueleto linhas={4} />
+    </Bloco>
+  );
+}
 
 const PRIORIDADE: Record<CardComPrazo["priority"], { sigla: string; tom: "destaque" | "neutro" }> =
   {
@@ -168,10 +186,12 @@ function PergunteAoAcervo() {
 interface DashboardPageProps {
   onNovaNota: () => void;
   onAbrirGaveta: () => void;
+  /// O `abrirNota` da casca (INV-55), para a nota que uma rotina deixou.
+  onAbrirNota: (id: string) => void;
 }
 
 /** RF-01: a tela inicial. Responde "o que precisa de mim agora?". */
-export function DashboardPage({ onNovaNota, onAbrirGaveta }: DashboardPageProps) {
+export function DashboardPage({ onNovaNota, onAbrirGaveta, onAbrirNota }: DashboardPageProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { ativo, ativoId } = useWorkspaceAtivo();
@@ -215,6 +235,9 @@ export function DashboardPage({ onNovaNota, onAbrirGaveta }: DashboardPageProps)
             <Bloco titulo="Onde você parou">
               <Esqueleto linhas={4} />
             </Bloco>
+          </div>
+          <div className="col-span-12 min-w-0">
+            <EsqueletoRotinas />
           </div>
           <div className="col-span-6 min-w-0">
             <Bloco titulo="Ver depois">
@@ -341,6 +364,14 @@ export function DashboardPage({ onNovaNota, onAbrirGaveta }: DashboardPageProps)
               </ul>
             )}
           </Bloco>
+        </div>
+
+        {/* Etapa F: o que as rotinas fizeram sozinhas. Depois dos prazos (RN-01), antes
+            do que pode esperar. */}
+        <div className="col-span-12 min-w-0">
+          <Suspense fallback={<EsqueletoRotinas />}>
+            <BlocoRotinas dados={data.rotinas} onAbrirNota={onAbrirNota} />
+          </Suspense>
         </div>
 
         <div className="col-span-6 min-w-0">

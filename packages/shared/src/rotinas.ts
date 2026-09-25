@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { AGENDA_DESLIGADA, scheduleSchema, scheduleUpdateSchema } from "./agenda.js";
+import type { RoutineSchedule } from "./agenda.js";
 import type { AgentColor } from "./agentes.js";
 import type { NomeDeFerramenta } from "./ferramentas.js";
 
@@ -68,15 +70,23 @@ export const MAX_PEDIDO_DA_ROTINA = 4_000;
 export const MAX_TITULO_FIXO_DA_ROTINA = 120;
 
 /// Espelha `AiRunStatus`. `interrompida` é a execução que o processo perdeu
-/// (redeploy, queda): parou de pulsar, e a varredura a fechou.
+/// (redeploy, queda): parou de pulsar, e a varredura a fechou. `pulada` (Etapa
+/// F) é o horário agendado que não chegou a começar: cada tentativa foi
+/// recusada no início, e o motivo da última está em `errorCode`. Enquanto
+/// houver tentativa, `proximaTentativa` (`agenda.ts`) diz quando.
 export const ROUTINE_RUN_STATUSES = [
   "em_andamento",
   "concluida",
   "falhou",
   "cancelada",
   "interrompida",
+  "pulada",
 ] as const;
 export type RoutineRunStatus = (typeof ROUTINE_RUN_STATUSES)[number];
+
+/// Espelha `AiRunTrigger` (Etapa F): quem disparou a execução.
+export const ROUTINE_RUN_TRIGGERS = ["manual", "agenda"] as const;
+export type RoutineRunTrigger = (typeof ROUTINE_RUN_TRIGGERS)[number];
 
 /// Espelha `AiRunStepStatus`. `pulado` é o passo que não chegou a rodar porque
 /// a execução parou antes dele.
@@ -177,6 +187,8 @@ const camposDaRotina = z.object({
     .array(routineStepInputSchema)
     .min(1, "A rotina precisa de pelo menos um passo")
     .max(MAX_PASSOS_DA_ROTINA, `No máximo ${MAX_PASSOS_DA_ROTINA} passos`),
+  /// Etapa F. Padrão desligada e vazia: a forma de antes continua válida.
+  schedule: scheduleSchema.default(AGENDA_DESLIGADA),
 });
 
 /**
@@ -275,7 +287,10 @@ export const routineInputSchema = camposDaRotina.superRefine((rotina, ctx) => {
   }
 });
 
+/// A agenda entra parcial: pausar e retomar é `{ schedule: { active } }`
+/// sozinho, sem reenviar dias e horários. O servidor confere a mesclada.
 export const routineUpdateSchema = camposDaRotina
+  .extend({ schedule: scheduleUpdateSchema })
   .partial()
   .refine((v) => Object.keys(v).length > 0, "Nada para atualizar");
 
@@ -284,10 +299,21 @@ export const routineRunsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
 
+/**
+ * `POST /ai/runs/seen` (Etapa F): o Início mostrou as execuções novas até
+ * `seenAt` — o `rotinas.ate` que o próprio `GET /dashboard` devolveu. Sem ele,
+ * vale agora; com ele, a execução que terminou entre a leitura e a marca não
+ * some sem ter sido vista. O marco só anda para frente.
+ */
+export const routineRunsSeenSchema = z.object({
+  seenAt: z.string().datetime({ offset: true }).optional(),
+});
+
 export type RoutineStepInput = z.input<typeof routineStepInputSchema>;
 export type RoutineInput = z.input<typeof routineInputSchema>;
 export type RoutineUpdateInput = z.input<typeof routineUpdateSchema>;
 export type RoutineRunsQuery = z.infer<typeof routineRunsQuerySchema>;
+export type RoutineRunsSeenInput = z.input<typeof routineRunsSeenSchema>;
 
 /* ------------------------------------------------------------------ saída */
 
@@ -350,8 +376,16 @@ export interface RoutineRunSummary {
   /// termina `concluida`, sempre (RN-16).
   errorCode: string | null;
   errorMessage: string | null;
+  /// Na `pulada`, a primeira tentativa; na execução que nasceu de uma
+  /// tentativa seguinte, o momento em que ela começou de fato.
   startedAt: string;
   endedAt: string | null;
+  /// Etapa F. `scheduledFor` e `attempts` só existem com `agenda`: o horário
+  /// da agenda (instante UTC) e quantas tentativas ele teve até aqui — a que
+  /// começou conta.
+  trigger: RoutineRunTrigger;
+  scheduledFor: string | null;
+  attempts: number | null;
 }
 
 export interface RoutineRunStep {
@@ -410,6 +444,12 @@ export interface RoutineSummary {
   /// Sem problemas: pode rodar. O detalhe diz quais.
   valid: boolean;
   lastRun: RoutineRunSummary | null;
+  /// Etapa F. A agenda como gravada, inclusive pausada.
+  schedule: RoutineSchedule;
+  /// Os próximos horários (até `PROXIMOS_HORARIOS`), ISO, no fuso do dono.
+  /// Vazio se pausada ou inválida — inválida não roda, e o agendador registra
+  /// cada horário como `pulada` com o motivo.
+  nextRuns: string[];
   createdAt: string;
   updatedAt: string;
 }

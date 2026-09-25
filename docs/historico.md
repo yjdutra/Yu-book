@@ -9,6 +9,99 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-25 — Frente de IA, Etapa F: agendamento, e quem dispara
+
+Quarta etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md), feita no mesmo dia da
+emenda à E. O que mudou está na `[0.22.0]` do changelog, e os requisitos na seção 5.8 do PRD de IA
+(RF-65 a RF-69, RN-20 a RN-23, CA-38 a CA-42). A E já tinha decidido que haveria trabalho de fundo.
+Coube à F decidir quem dispara e o que fazer quando o horário não pode rodar.
+
+**Agendador interno à API, e não o cron da Railway.** O plano geral deixava as duas opções abertas.
+O cron da Railway seria um serviço a mais chamando a API, e isso pede autenticação de máquina: um
+segredo novo e uma rota que aceita chamada sem usuário. O relógio interno é um `setInterval` de
+60 s com `.unref()`, ao lado da varredura de execuções da E. Ele liga no boot e para no SIGTERM, e
+inicia pelo mesmo `iniciar` do "Rodar agora", com o `userId` do dono. O preço: as duas instâncias do
+deploy rodam o relógio juntas. Quem garante que um horário roda uma vez é o único
+`(routine_id, scheduled_for)` (INV-60). No SIGTERM a volta da agenda é **aguardada** antes de
+`encerrarExecucoes`, para que um horário não comece uma execução enquanto as vivas são gravadas
+`interrompida`.
+
+**Tentativas limitadas por causa de custo** (decisão do operador). A recusa no início pode vir de
+outra execução em andamento, de falta de ideia, do teto do dia ou de rotina inválida. Qualquer uma
+tenta de novo a cada 5 minutos, até 3 tentativas, e depois fica `pulada` com o motivo. Recusa não
+chama o provedor e não custa nada. **Uma execução que começou nunca é repetida**, nem quando falha
+no meio, porque repeti-la cobraria de novo a cada tentativa. Descartadas: não tentar de novo, que
+faria um horário se perder por uma execução manual que acabou um minuto depois; e repetir também a
+execução que falhou, que é o risco de custo apontado pelo operador.
+
+**A `pulada` é o estado do horário, não só o desfecho.** O plano admitia uma linha `pendente`
+separada. Ficou uma linha só por horário:
+
+- a primeira recusa cria a linha `pulada`, com `attempts: 1`;
+- a tentativa seguinte a **converte** em execução, com UPDATE condicional a `status: pulada` **e**
+  ao `attempts` que ela viu;
+- uma nova recusa soma `attempts` com a mesma condição;
+- com `attempts: 3`, a linha fica definitiva.
+
+A corrida entre instâncias fecha pelo único, na criação, e pelo `count` zero da escrita condicional
+nas tentativas seguintes. Nenhum caminho do motor grava `pulada`, e por isso uma execução que
+começou nunca volta a ser tentativa. O preço é um status que muda de sentido com `attempts`:
+enquanto houver tentativa pela frente, a `pulada` não é final. Para a tela não dizer "pulada" antes
+da hora, `proximaTentativa` (em `packages/shared`) serve ao agendador e à tela.
+
+**Janela de 15 minutos, que não alcança horário anterior à última gravação da rotina.** A janela
+cobre as três tentativas (0, 5 e 10 min) e um reinício curto. Horário perdido com a API fora por
+mais tempo não é recuperado: rodar às 14h o post das 8h não é o que se pediu. Sem limite do outro
+lado, porém, ligar a agenda, "Retomar" ou pôr um horário que venceu há poucos minutos dispararia na
+hora uma execução que ninguém pediu, e que custa. Por isso um horário sem linha só conta se for
+posterior ao `updatedAt` da rotina. O efeito colateral aceito: editar qualquer campo no minuto
+seguinte a um horário vencido e **ainda não atendido** pula esse horário. Isso só acontece com a API
+fora ou atrasada naquele minuto, e errar para o lado de não gastar foi o que se pediu. Um horário que
+já tem linha segue as tentativas, e a edição não as desfaz.
+
+**"Visto" por conta, não por navegador.** O "desde a última visita" do Início grava
+`ai_preference.runs_seen_at`, porque o operador usa mais de um dispositivo, e um `localStorage`
+mostraria a mesma execução como nova em cada um. O Início manda o `ate` que o próprio
+`GET /dashboard` devolveu, e não "agora". Assim, uma execução que termina entre a leitura e a marca
+não some sem ter sido vista, e o marco só anda para frente.
+
+**Menores:**
+
+- Uma rotina com defeito não derruba a volta das outras. O erro é registrado e a volta segue.
+- `comoSeFosseUtc` saiu de `formato.ts` para `agenda.ts`, e `diaParaPrazo` passou a usar
+  `instanteLocal`. O comportamento foi comparado com a versão antiga em cerca de 92 mil casos. O
+  ano de 0001 a 0099 foi conferido à parte para manter a frase de erro, porque `Date.UTC` joga esses
+  anos para 1900–1999.
+- A volta recebe `agora`, `registro` e `somenteDe` como obrigatórios, sem valor padrão (regra da
+  convenção). A suíte roda no banco real, sem relógio falso.
+
+**A versão abre a `[0.22.0]`, com bump dos quatro pacotes.** Pela regra do `changelog-e-versao`
+§3.1, a F **caberia** na `[0.21.0]`: move o mesmo conjunto de pacotes, e nada foi publicado. A
+emenda à E entrou lá por esse caminho. Não se fundiu porque a emenda corrigia e completava a própria
+E, e a F é etapa nova, com seção própria no PRD. Cada uma das etapas C, D e E teve heading e bump
+próprios mesmo sem publicação, e fundir a F apagaria no changelog a fronteira entre "rodar à mão" e
+"rodar sozinha".
+
+**Dívida: nada foi conferido na tela.** Os portões cobrem o servidor e o contrato, e nenhum deles
+monta um componente. Roteiro do plano, **somado** aos das Etapas C, D e E e ao da emenda:
+
+1. Agendar uma rotina para daqui a 2 minutos. Conferir o selo, as "Próximas" e o relógio no painel,
+   e a execução nascendo sozinha com "agendada".
+2. Pausar e retomar com um clique, também com o rascunho sujo.
+3. Provocar uma recusa (por exemplo, esvaziar a coluna de ideias). Ver as 3 tentativas e a `pulada`
+   com o motivo no histórico, no painel e no Início.
+4. No Início, o bloco Rotinas com "desde a última visita". Recarregar e ver o marco avançar.
+5. Teclado, os dois temas e `prefers-reduced-motion`.
+
+**Ficou pendente:**
+
+- A conferência acima e as das etapas anteriores.
+- O comportamento real com duas instâncias no deploy da Railway. Ele foi testado simulando duas
+  voltas simultâneas no mesmo banco, e nunca num deploy.
+- As ferramentas web, na Etapa G.
+
+---
+
 ## 2026-09-25 — Frente de IA, emenda à Etapa E: a rotina que começa num pedido, e o editor que quebrava
 
 O operador fez a primeira conferência da E em `/assistente/rotinas/novo`. O que ele viu gerou uma

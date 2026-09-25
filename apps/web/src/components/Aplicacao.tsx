@@ -451,6 +451,7 @@ export function Aplicacao() {
             <DashboardPage
               onNovaNota={() => novaNota()}
               onAbrirGaveta={() => setGavetaAberta(true)}
+              onAbrirNota={abrirNota}
             />
           }
         />

@@ -13,6 +13,100 @@ _Nada pendente._
 
 ---
 
+## [0.22.0] — 2026-09-25
+
+**Etapa F da frente de IA: agendamento de rotinas.** A rotina da Etapa E passa a rodar **sozinha**,
+em dias da semana e horários escolhidos, no fuso de `/ajustes`, sem expressão cron à vista. Quem
+dispara é um relógio dentro da própria API. Cada horário roda no máximo uma vez, mesmo com as duas
+instâncias que convivem no deploy. Uma recusa no início tenta de novo, e uma execução que começou
+nunca se repete. O Início mostra o que as rotinas fizeram desde a última visita. Requisitos na seção
+5.8 de [`docs/prd-ia-no-yu-book.md`](docs/prd-ia-no-yu-book.md): RF-65 a RF-69, RN-20 a RN-23 e
+CA-38 a CA-42.
+
+É a quarta etapa do [plano de agentes de acervo](docs/plano-agentes-de-acervo.md) (C a G). A
+próxima é a G, pesquisa externa. O trabalho de fundo já existia desde a E, e a F decidiu só **quem
+dispara**. O porquê de um agendador interno, e não o cron da Railway, está em
+[`docs/historico.md`](docs/historico.md). Não é fase de produto nem etapa do MCP, que segue na 4
+de 5.
+
+**Os quatro pacotes se movem**, porque `packages/shared` mudou de contrato. Entram o módulo novo
+`agenda.ts` (`scheduleSchema`, `instanteLocal`, `proximosHorarios`, `horariosDevidos`,
+`proximaTentativa`, `problemasDaAgenda`) e `schedule` na rotina, que é opcional na entrada e parcial
+no PATCH. Entram também `schedule` e `nextRuns` em `RoutineSummary`, `trigger`, `scheduledFor` e
+`attempts` em `RoutineRunSummary`, o status `pulada`, `routineRunsSeenSchema` e `rotinas` em
+`Dashboard`. Versões: `packages/shared` de `0.10.0` para `0.11.0`, `apps/api` de `0.12.0` para
+`0.13.0`, `apps/web` de `0.17.0` para `0.18.0` e `apps/mcp` de `0.13.0` para `0.14.0`, no
+`package.json` **e** no construtor do `McpServer`. Uma migration aditiva,
+`20260925150000_ia_etapa_f_agenda`. Ela não toca no índice parcial
+`ai_routine_run_uma_em_andamento_idx`.
+
+**O MCP não mudou de comportamento.** Em `apps/mcp/src` só mudou a versão. Rotinas e agendas ficam
+fora do MCP (RF-62), e `formatarDashboard` ignora o bloco `rotinas`. Os tamanhos medidos batem com a
+`[0.21.0]`: `tools/list` com escrita em 9601 B.
+
+Portões, medidos no fechamento: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo nos
+quatro pacotes e `pnpm --filter @yu-book/mcp test` com **57 testes**, como antes.
+`pnpm --filter @yu-book/api test` com **279 testes** (eram 240), relatado pela sessão de
+implementação. A suíte do agendador roda no banco real.
+
+**Entregue sem conferência de interface à mão.** Nada do que é tela nesta entrada foi visto
+funcionando. `apps/web` continua sem runner de teste. O roteiro de cinco itens está em
+[`docs/historico.md`](docs/historico.md).
+
+### Adicionado
+- **Agenda da rotina** (RF-65). Dias da semana e até quatro horários `HH:MM`, sem repetir, no fuso
+  do usuário. A agenda ligada exige pelo menos um dia e um horário. Hora que não existe por causa do
+  horário de verão roda na primeira hora que existe depois dela, e hora repetida roda uma vez só.
+- **Pausar e retomar** (RF-66) com um clique, sem perder dias e horários. O PATCH aceita só
+  `{ schedule: { active } }`. Na tela, o botão grava só esse campo, mesmo com outras alterações não
+  salvas no editor.
+- **Próximas execuções** (RF-67): os três próximos horários em `nextRuns`, vazios quando a rotina
+  está pausada ou inválida.
+- **A execução diz quem a disparou** (RF-68): `manual` ou `agenda`, com o horário previsto e o
+  número de tentativas.
+- **Status `pulada`**: o horário cujo início foi recusado em todas as tentativas, com o motivo da
+  última. Enquanto ainda há tentativa, a tela diz quando será a próxima.
+- **Bloco Rotinas no Início** (RF-69), carregado sob demanda. "Desde a última visita" lista as
+  execuções terminadas depois do marco, de qualquer gatilho, até 10, com o que geraram e o link para
+  o card ou a nota. Falha e pulada aparecem em destaque. Também traz os próximos horários de todas as
+  rotinas. Sem marco, entram as das últimas 24 horas. `POST /ai/runs/seen` grava o marco, **por
+  conta** e não por navegador, e o marco só anda para frente.
+- **Na interface:**
+  - seção **Agenda** no editor de rotina: interruptor "Rodar sozinha", dias em pílulas com
+    `aria-pressed`, horários e a prévia "Próximas" com o nome do fuso. A agenda faz parte do
+    rascunho, com salvar explícito;
+  - selo "Agendada · próxima …" ou "Pausada" no cabeçalho do editor, com Pausar/Retomar;
+  - a galeria mostra a próxima execução ou "Pausada";
+  - no painel contextual, um relógio marca a rotina agendada, e um alerta com ícone e texto marca a
+    última execução `falhou`, `pulada` ou `interrompida`;
+  - o histórico e a tela de execução mostram o gatilho e as tentativas. Uma `pulada` mostra só o
+    resumo, com o motivo.
+
+### Alterado
+- `GET /dashboard` passa a trazer `rotinas` (`novas`, `proximas`, `vistoEm` e `ate`). O bloco não
+  segue o workspace ativo, porque rotina não tem workspace.
+- "Rodar agora" segue igual, com os mesmos códigos HTTP. Por dentro, o início da execução passou a
+  receber o gatilho.
+
+### Segurança
+- **Um horário, no máximo uma execução** (RN-20, CA-38). A garantia vem do índice único
+  `(routine_id, scheduled_for)` e de escritas condicionais, não da memória do processo (INV-60).
+  Valem as duas instâncias do deploy.
+- **Recusa tenta três vezes, execução nunca se repete** (RN-21, CA-39, CA-40). A recusa no início
+  pode vir de outra execução em andamento, de falta de ideia, do teto do dia ou de rotina inválida.
+  Nesses casos a rotina tenta de novo a cada 5 minutos, no máximo 3 vezes, e depois fica `pulada`.
+  Recusa não chama o provedor. Uma execução agendada que começou e falhou não é repetida. Os tetos
+  diário e por execução e a regra de uma execução por vez (RN-19) valem como no "Rodar agora".
+- **Janela de recuperação de 15 minutos** (RN-22). Um horário perdido com a API fora por mais tempo
+  que isso não roda. A janela também não alcança horário anterior à última gravação da rotina.
+  Ligar a agenda, retomar ou editar não dispara o horário que acabou de passar.
+- **Nada falha calado** (RN-23). Execução agendada que falha ou é pulada aparece no histórico, no
+  painel do Assistente e no Início. Uma rotina com defeito não impede as outras de rodar.
+- O relógio da agenda para no SIGTERM, e a API espera a volta em curso terminar antes de encerrar as
+  execuções vivas. Assim nenhum horário começa uma execução nova durante o desligamento.
+
+---
+
 ## [0.21.0] — 2026-09-25
 
 **Etapa E da frente de IA: rotinas com "Rodar agora".** Uma rotina encadeia agentes numa sequência

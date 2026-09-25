@@ -6,6 +6,7 @@ import type {
   RoutineRunDetail,
   RoutineRunPage,
   RoutineRunStarted,
+  RoutineRunsSeenInput,
   RoutineSummary,
   RoutineUpdateInput,
   RotinaEvent,
@@ -31,18 +32,30 @@ export function execucaoEmAndamento(lista: RoutineSummary[] | undefined): Routin
   return lista?.find((r) => r.lastRun?.status === "em_andamento") ?? null;
 }
 
+/** Alguma rotina com a agenda ligada (Etapa F) — pode começar sozinha a qualquer minuto. */
+export function haAgendada(lista: RoutineSummary[] | undefined): boolean {
+  return Boolean(lista?.some((r) => r.schedule.active));
+}
+
 /**
  * A lista, com a última execução de cada uma. Enquanto alguma roda, ela se
  * refaz de 5 em 5 s: é o que acende e apaga o ponto de "em andamento" no
  * painel contextual sem a tela da execução estar aberta — a execução segue no
- * servidor com a aba fechada. Parada, não custa rede nenhuma.
+ * servidor com a aba fechada.
+ *
+ * Com rotina agendada (Etapa F), de 60 em 60 s: a execução começa no servidor
+ * sem ninguém apertar nada, e é esta consulta que a faz aparecer no painel —
+ * e a pulada ou a falha, com o ponto de alerta. O relógio do servidor anda de
+ * minuto em minuto; mais que isso aqui seria rede sem notícia. Sem agenda e
+ * sem execução, não custa rede nenhuma.
  */
 export function useRotinas() {
   return useQuery({
     queryKey: CHAVE_ROTINAS,
     queryFn: () => api.get<RoutineSummary[]>("/ai/routines"),
     staleTime: 30_000,
-    refetchInterval: (q) => (execucaoEmAndamento(q.state.data) ? 5_000 : false),
+    refetchInterval: (q) =>
+      execucaoEmAndamento(q.state.data) ? 5_000 : haAgendada(q.state.data) ? 60_000 : false,
   });
 }
 
@@ -63,6 +76,9 @@ function useCosturar() {
   return (rotina: RoutineDetail) => {
     qc.setQueryData(chaveDaRotina(rotina.id), rotina);
     void qc.invalidateQueries({ queryKey: CHAVE_ROTINAS });
+    // As "Próximas" do Início saem da agenda de todas as rotinas. Fora do
+    // Início a consulta não está montada, e isto só a marca como velha.
+    void qc.invalidateQueries({ queryKey: ["dashboard"] });
   };
 }
 
@@ -80,6 +96,41 @@ export function useAtualizarRotina() {
     mutationFn: ({ id, patch }: { id: string; patch: RoutineUpdateInput }) =>
       api.patch<RoutineDetail>(`/ai/routines/${id}`, patch),
     onSuccess: costurar,
+  });
+}
+
+/**
+ * Pausar e retomar (Etapa F): um PATCH só com `active`. O servidor mescla com
+ * os dias e horários gravados e recusa (422) ligar uma agenda sem os dois.
+ *
+ * Não é o "Salvar" do editor: quem chama com o rascunho sujo altera só isto,
+ * e o resto continua por salvar.
+ */
+export function useAlternarAgenda() {
+  const costurar = useCosturar();
+  return useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) =>
+      api.patch<RoutineDetail>(`/ai/routines/${id}`, { schedule: { active } }),
+    onSuccess: costurar,
+  });
+}
+
+/**
+ * O Início mostrou as execuções novas (Etapa F). Manda o `ate` que o próprio
+ * `GET /dashboard` devolveu: a execução que terminou entre a leitura e a marca
+ * fica para a próxima visita, em vez de sumir sem ter sido vista.
+ *
+ * Marca o Início como velho sem refazer (`refetchType: "none"`): a próxima
+ * visita pede a lista nova, e a tela aberta não perde o que mostra — ela guarda
+ * o que já mostrou, até contra a volta de foco da janela.
+ */
+export function useMarcarExecucoesVistas() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: RoutineRunsSeenInput) => api.post<void>("/ai/runs/seen", input),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["dashboard"], refetchType: "none" });
+    },
   });
 }
 

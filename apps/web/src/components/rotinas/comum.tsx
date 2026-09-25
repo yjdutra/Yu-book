@@ -1,12 +1,27 @@
 import type {
   RoutineConsumeAction,
   RoutineRunStatus,
+  RoutineRunTrigger,
   RoutineRunStep,
   RoutineRunStepStatus,
   RoutineStepMode,
 } from "@yu-book/shared";
 import type { ReactNode } from "react";
 import { IconeAlerta, IconeCheck, IconeFechar, IconeParar, IconeRelogio } from "../Icones";
+
+/**
+ * A execução que pede atenção: falhou, foi interrompida (um deploy ou reinício
+ * a cortou), ou foi pulada (Etapa F) — o horário agendado não conseguiu
+ * começar. Não criou nada, e ninguém viu acontecer: é o "nada falha calado" da
+ * agenda. Uma regra só para o painel contextual e o bloco do Início.
+ */
+export function pedeAtencao(
+  status: RoutineRunStatus | undefined,
+): "falhou" | "pulada" | "interrompida" | null {
+  return status === "falhou" || status === "pulada" || status === "interrompida"
+    ? status
+    : null;
+}
 
 /**
  * O vocabulário das rotinas que a galeria, o editor e a execução dizem igual.
@@ -84,6 +99,16 @@ export const STATUS_DA_EXECUCAO: Record<RoutineRunStatus, { rotulo: string; tom:
   falhou: { rotulo: "falhou", tom: "erro" },
   cancelada: { rotulo: "cancelada", tom: "neutro" },
   interrompida: { rotulo: "interrompida", tom: "alerta" },
+  pulada: { rotulo: "pulada", tom: "alerta" },
+};
+
+/**
+ * Quem disparou a execução (Etapa F). "Agendada" é a palavra que a galeria, o
+ * histórico, a execução e o Início dizem igual.
+ */
+export const ROTULO_GATILHO: Record<RoutineRunTrigger, string> = {
+  manual: "manual",
+  agenda: "agendada",
 };
 
 export const STATUS_DO_PASSO: Record<RoutineRunStepStatus, { rotulo: string; tom: Tom }> = {
@@ -109,7 +134,9 @@ function Selo({ rotulo, tom, icone }: { rotulo: string; tom: Tom; icone: ReactNo
 /**
  * O status com ícone **e** palavra — nunca só a cor (RNF-09). "Cancelada" e
  * "pulado" trocam o relógio pelo quadrado de parar e pelo traço: o mesmo tom
- * neutro, formas diferentes.
+ * neutro, formas diferentes. "Pulada" (a execução agendada que não chegou a
+ * começar) divide o tom de alerta com "interrompida", e a seta de desvio a
+ * separa dela.
  */
 export function SeloStatus({
   status,
@@ -127,6 +154,8 @@ export function SeloStatus({
       <IconeParar className="size-3" />
     ) : status === "pulado" ? (
       <span aria-hidden="true">–</span>
+    ) : status === "pulada" ? (
+      <span aria-hidden="true">↷</span>
     ) : (
       ICONE_TOM[info.tom]
     );
@@ -186,3 +215,90 @@ export function quando(iso: string): string {
 }
 
 export const NUMERO = new Intl.NumberFormat("pt-BR");
+
+/* ------------------------------------------------------------------ agenda */
+
+/**
+ * Os dias da semana na ordem do contrato: 0 = domingo (`RoutineSchedule`).
+ * O nome curto vai escrito na pílula — "D S T Q Q S S" repete letra e não se
+ * lê sozinho —, e o longo, no nome acessível.
+ */
+export const DIAS_DA_SEMANA = [
+  { curto: "Dom", longo: "domingo" },
+  { curto: "Seg", longo: "segunda-feira" },
+  { curto: "Ter", longo: "terça-feira" },
+  { curto: "Qua", longo: "quarta-feira" },
+  { curto: "Qui", longo: "quinta-feira" },
+  { curto: "Sex", longo: "sexta-feira" },
+  { curto: "Sáb", longo: "sábado" },
+] as const;
+
+/**
+ * Formatadores por fuso, guardados: montar um `Intl.DateTimeFormat` custa, e
+ * a mesma tela formata dezenas de horários a cada render.
+ */
+const FORMATADORES = new Map<string, Intl.DateTimeFormat>();
+function formatador(fuso: string, opcoes: Intl.DateTimeFormatOptions, chave: string) {
+  const id = `${fuso}|${chave}`;
+  let f = FORMATADORES.get(id);
+  if (!f) {
+    f = new Intl.DateTimeFormat("pt-BR", { ...opcoes, timeZone: fuso });
+    FORMATADORES.set(id, f);
+  }
+  return f;
+}
+
+/** `AAAA-MM-DD` do instante no relógio de `fuso` — só para comparar dias. */
+function diaNoFuso(instante: Date, fuso: string): string {
+  const partes = formatador(
+    fuso,
+    { year: "numeric", month: "2-digit", day: "2-digit" },
+    "dia",
+  ).formatToParts(instante);
+  const campo = (t: string) => partes.find((p) => p.type === t)?.value ?? "";
+  return `${campo("year")}-${campo("month")}-${campo("day")}`;
+}
+
+/**
+ * Um horário da agenda como o relógio **do usuário** o marca: "hoje 08:00",
+ * "amanhã 08:00", "ter 30/09 08:00". O fuso é o de `/ajustes`
+ * (`ai_preference.timezone`), nunca o do navegador — é por ele que o servidor
+ * dispara, e os dois podem divergir (a pessoa viajando). Por isso não tem
+ * valor padrão: quem chama diz de qual fuso fala.
+ *
+ * `curto` tira a data dos dias da próxima semana ("ter 08:00") — é o selo do
+ * cabeçalho e a linha do cartão, onde cabe pouco.
+ */
+export function horarioNoFuso(
+  iso: string | Date,
+  fuso: string,
+  forma: "curto" | "longo" = "longo",
+  agora: Date = new Date(),
+): string {
+  const instante = typeof iso === "string" ? new Date(iso) : iso;
+  const hora = horaNoFuso(instante, fuso);
+  const dia = diaNoFuso(instante, fuso);
+  const hoje = diaNoFuso(agora, fuso);
+  const amanha = diaNoFuso(new Date(agora.getTime() + 24 * 60 * 60_000), fuso);
+  if (dia === hoje) return `hoje ${hora}`;
+  if (dia === amanha) return `amanhã ${hora}`;
+  const semana = formatador(fuso, { weekday: "short" }, "semana")
+    .format(instante)
+    .replace(".", "");
+  const emSeisDias = instante.getTime() - agora.getTime() < 6 * 24 * 60 * 60_000;
+  if (forma === "curto" && emSeisDias) return `${semana} ${hora}`;
+  const data = formatador(fuso, { day: "2-digit", month: "2-digit" }, "data").format(instante);
+  return `${semana} ${data} ${hora}`;
+}
+
+/** Só a hora, no relógio do usuário: "08:05". */
+export function horaNoFuso(iso: string | Date, fuso: string): string {
+  const instante = typeof iso === "string" ? new Date(iso) : iso;
+  /// `h23`, e não `hour12: false`: este devolve "24:00" à meia-noite em
+  /// alguns motores.
+  const opcoes = { hour: "2-digit", minute: "2-digit", hourCycle: "h23" } as const;
+  return formatador(fuso, opcoes, "hora").format(instante);
+}
+
+/** "America/Sao_Paulo" → "America/Sao Paulo": o nome IANA, legível. */
+export const nomeDoFuso = (fuso: string) => fuso.replaceAll("_", " ");

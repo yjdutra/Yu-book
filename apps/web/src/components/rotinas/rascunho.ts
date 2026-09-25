@@ -1,10 +1,14 @@
 import {
+  AGENDA_DESLIGADA,
+  HORA_DA_AGENDA,
+  MAX_HORARIOS_DA_AGENDA,
   MAX_INSTRUCAO_DO_PASSO,
   MAX_PASSOS_DA_ROTINA,
   MAX_PEDIDO_DA_ROTINA,
   MAX_TITULO_FIXO_DA_ROTINA,
   TETO_POR_EXECUCAO_MAXIMO_MICROS,
   TETO_POR_EXECUCAO_PADRAO_MICROS,
+  problemasDaAgenda,
   problemasDeForma,
 } from "@yu-book/shared";
 import type {
@@ -15,6 +19,7 @@ import type {
   RoutineInputKind,
   RoutineOutputKind,
   RoutineOutputTitle,
+  RoutineSchedule,
   RoutineStepMode,
 } from "@yu-book/shared";
 
@@ -67,6 +72,9 @@ export interface Rascunho {
   consumeColumnId: string | null;
   runCapMicros: number;
   passos: PassoRascunho[];
+  /// Etapa F. Os horários ficam na ordem em que foram escritos, para o campo
+  /// não saltar de lugar enquanto se digita; `paraEntrada` ordena.
+  agenda: RoutineSchedule;
 }
 
 export type BlocoEscolhido =
@@ -107,6 +115,7 @@ export function rascunhoVazio(): Rascunho {
     consumeColumnId: null,
     runCapMicros: TETO_POR_EXECUCAO_PADRAO_MICROS,
     passos: [passoVazio()],
+    agenda: { ...AGENDA_DESLIGADA, days: [], times: [] },
   };
 }
 
@@ -136,6 +145,7 @@ export function doDetalhe(d: RoutineDetail): Rascunho {
       mode: s.mode,
       instruction: s.instruction,
     })),
+    agenda: { ...d.schedule, days: [...d.schedule.days], times: [...d.schedule.times] },
   };
 }
 
@@ -169,6 +179,12 @@ export function paraEntrada(r: Rascunho): RoutineInput {
       mode: p.mode,
       instruction: p.instruction.trim(),
     })),
+    // Ordenada: a mesma agenda escrita em outra ordem não é alteração.
+    schedule: {
+      days: [...r.agenda.days].sort((a, b) => a - b),
+      times: [...r.agenda.times].sort(),
+      active: r.agenda.active,
+    },
   };
 }
 
@@ -178,7 +194,8 @@ export function assinatura(r: Rascunho): string {
 }
 
 export interface Problema {
-  bloco: "entrada" | "passo" | "saida";
+  /// `agenda` não é bloco do fluxo: o problema dela aponta para a seção Agenda.
+  bloco: "entrada" | "passo" | "saida" | "agenda";
   /// Só em passo: qual. Sem chave, o problema é dos passos em conjunto.
   chave: string | null;
   mensagem: string;
@@ -251,6 +268,24 @@ export function problemasDoRascunho(r: Rascunho, agentes: Set<string> | null): P
       bloco: "saida",
       chave: null,
       mensagem: "O teto por execução precisa ficar entre US$ 0,01 e US$ 10",
+    });
+  }
+  // A agenda: a regra de "ligada precisa de dia e horário" é a de `shared`,
+  // a mesma que o servidor aplica; formato e repetição, o `<input type="time">`
+  // quase sempre garante, mas o campo apagado fica vazio.
+  for (const p of problemasDaAgenda(r.agenda)) {
+    lista.push({ bloco: "agenda", chave: null, mensagem: p.message });
+  }
+  if (r.agenda.times.some((t) => !HORA_DA_AGENDA.test(t))) {
+    lista.push({ bloco: "agenda", chave: null, mensagem: "Preencha ou remova o horário vazio" });
+  } else if (new Set(r.agenda.times).size !== r.agenda.times.length) {
+    lista.push({ bloco: "agenda", chave: null, mensagem: "Há um horário repetido" });
+  }
+  if (r.agenda.times.length > MAX_HORARIOS_DA_AGENDA) {
+    lista.push({
+      bloco: "agenda",
+      chave: null,
+      mensagem: `No máximo ${MAX_HORARIOS_DA_AGENDA} horários`,
     });
   }
   // A forma que vai ao servidor, e não o rascunho cru: o campo que o tipo não

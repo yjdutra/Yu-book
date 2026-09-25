@@ -15,3 +15,4 @@ export * from "./ferramentas.js";
 export * from "./chat.js";
 export * from "./agentes.js";
 export * from "./rotinas.js";
+export * from "./agenda.js";

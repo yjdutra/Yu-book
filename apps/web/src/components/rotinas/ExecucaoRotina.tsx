@@ -10,6 +10,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError, api } from "../../lib/api";
+import { useAiAjustes } from "../../lib/ia";
 import { carregarCard } from "../../lib/kanban";
 import { renderMarkdown } from "../../lib/markdown";
 import {
@@ -33,6 +34,7 @@ import {
   IconeParar,
   IconeRotina,
 } from "../Icones";
+import { ResumoDaPulada, textoDoGatilho } from "./Agenda";
 import {
   duracao,
   duracaoEntre,
@@ -485,6 +487,7 @@ export function ExecucaoRotina({
   const [agora, setAgora] = useState(() => Date.now());
   const titulo = useRef<HTMLHeadingElement>(null);
   const emAndamento = run?.status === "em_andamento";
+  const fuso = useAiAjustes().data?.timezone ?? null;
 
   // O relógio da duração anda só enquanto há o que medir.
   useEffect(() => {
@@ -589,80 +592,97 @@ export function ExecucaoRotina({
     }
   }
 
+  const cabecalho = (
+    <header className="flex items-start gap-3">
+      <BotaoIcone
+        rotulo={run.routineId ? "Voltar à rotina" : "Voltar às rotinas"}
+        icone={<IconeChevron direcao="esquerda" />}
+        onClick={() => navigate(voltar)}
+      />
+      <span
+        aria-hidden="true"
+        className="flex size-10 shrink-0 items-center justify-center rounded-cartao
+                   bg-linear-to-br from-accent-500 to-ia-500 text-white shadow-brilho-ia"
+      >
+        <IconeRotina className="size-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h2
+          ref={titulo}
+          tabIndex={-1}
+          className="truncate text-xl font-semibold tracking-tight text-titulo"
+        >
+          {run.routineName}
+        </h2>
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-400">
+          <SeloStatus status={run.status} />
+          <span>
+            {porColuna ? "Ideia" : "Pedido"}
+            {citado && (
+              <>
+                {" "}
+                <span className="text-ink-200">{citado}</span>
+              </>
+            )}
+          </span>
+          <span aria-hidden="true">·</span>
+          <time dateTime={run.startedAt}>{quando(run.startedAt)}</time>
+          <span aria-hidden="true">·</span>
+          <span>{textoDoGatilho(run, fuso)}</span>
+          {!run.routineId && <span>· a rotina foi excluída</span>}
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        {emAndamento && (
+          <Botao
+            variante="perigo"
+            tamanho="m"
+            icone={<IconeParar className="size-3.5" />}
+            carregando={cancelar.isPending}
+            onClick={() => setConfirmando(true)}
+          >
+            Cancelar
+          </Botao>
+        )}
+        {run.outputCardId && (
+          <Botao
+            variante="ia"
+            tamanho="m"
+            icone={<IconeBoard className="size-4" />}
+            carregando={abrindo}
+            onClick={() => void abrirCard()}
+          >
+            Abrir card
+          </Botao>
+        )}
+        {run.outputNoteId && (
+          <Botao
+            variante="ia"
+            tamanho="m"
+            icone={<IconeNotas className="size-4" />}
+            onClick={() => run.outputNoteId && onAbrirNota(run.outputNoteId)}
+          >
+            Abrir nota
+          </Botao>
+        )}
+      </div>
+    </header>
+  );
+
+  /// A pulada não começou: não tem passo, custo nem saída. A tela é só o
+  /// resumo — quando, quantas tentativas, por quê —, sem linha do tempo vazia.
+  if (run.status === "pulada") {
+    return (
+      <div className="flex flex-col gap-5">
+        {cabecalho}
+        <ResumoDaPulada run={run} fuso={fuso} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex items-start gap-3">
-        <BotaoIcone
-          rotulo={run.routineId ? "Voltar à rotina" : "Voltar às rotinas"}
-          icone={<IconeChevron direcao="esquerda" />}
-          onClick={() => navigate(voltar)}
-        />
-        <span
-          aria-hidden="true"
-          className="flex size-10 shrink-0 items-center justify-center rounded-cartao
-                     bg-linear-to-br from-accent-500 to-ia-500 text-white shadow-brilho-ia"
-        >
-          <IconeRotina className="size-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2
-            ref={titulo}
-            tabIndex={-1}
-            className="truncate text-xl font-semibold tracking-tight text-titulo"
-          >
-            {run.routineName}
-          </h2>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-400">
-            <SeloStatus status={run.status} />
-            <span>
-              {porColuna ? "Ideia" : "Pedido"}
-              {citado && (
-                <>
-                  {" "}
-                  <span className="text-ink-200">{citado}</span>
-                </>
-              )}
-            </span>
-            <span aria-hidden="true">·</span>
-            <time dateTime={run.startedAt}>{quando(run.startedAt)}</time>
-            {!run.routineId && <span>· a rotina foi excluída</span>}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {emAndamento && (
-            <Botao
-              variante="perigo"
-              tamanho="m"
-              icone={<IconeParar className="size-3.5" />}
-              carregando={cancelar.isPending}
-              onClick={() => setConfirmando(true)}
-            >
-              Cancelar
-            </Botao>
-          )}
-          {run.outputCardId && (
-            <Botao
-              variante="ia"
-              tamanho="m"
-              icone={<IconeBoard className="size-4" />}
-              carregando={abrindo}
-              onClick={() => void abrirCard()}
-            >
-              Abrir card
-            </Botao>
-          )}
-          {run.outputNoteId && (
-            <Botao
-              variante="ia"
-              tamanho="m"
-              icone={<IconeNotas className="size-4" />}
-              onClick={() => run.outputNoteId && onAbrirNota(run.outputNoteId)}
-            >
-              Abrir nota
-            </Botao>
-          )}
-        </div>
-      </header>
+      {cabecalho}
 
       {/* A troca de passo e o fim são ditos em voz alta; o texto que chega, não —
           seria um leitor de tela lendo token por token. */}

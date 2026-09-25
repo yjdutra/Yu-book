@@ -1,6 +1,7 @@
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { env } from "./env.js";
+import { vigiarAgenda } from "./modules/assistente/agendador.service.js";
 import {
   encerrarExecucoes,
   reconciliarExecucoes,
@@ -29,10 +30,16 @@ async function main(): Promise<void> {
     app.log.warn({ err: error }, "não foi possível reconciliar as execuções de rotina");
   }
   const pararVarredura = vigiarExecucoes(app.log);
+  /// Etapa F: o relógio da agenda de rotinas. As duas instâncias do deploy o
+  /// rodam juntas, e o banco garante que cada horário roda uma vez (INV-60).
+  const pararAgenda = vigiarAgenda(app.log);
 
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info({ signal }, "encerrando");
     pararVarredura();
+    /// Antes de encerrar as execuções: um horário não pode começar uma nova
+    /// enquanto as vivas estão sendo gravadas `interrompida`.
+    await pararAgenda().catch(() => undefined);
     /// Antes de `app.close()`: abortar as execuções de rotina e esperar cada
     /// uma gravar `interrompida`, com o banco ainda conectado. O que não
     /// gravar a tempo para de pulsar, e a varredura da instância nova o fecha.

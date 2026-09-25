@@ -263,6 +263,16 @@ motivo** dentro do plano desta etapa.
 "próximas execuções" listadas, pausar e retomar com um clique, e o Início mostrando o que rodou
 desde a última visita ("2 posts aguardando revisão").
 
+**Como ficou (2026-09-25).** O trabalho de fundo já existia desde a E; a F decidiu só quem dispara:
+um **agendador interno da API**, e não o cron da Railway — um relógio de 1 minuto, ao lado da
+varredura, sem serviço novo nem autenticação de máquina. Cada horário roda no máximo uma vez,
+garantido por índice único no banco (valem as duas instâncias do deploy). Por decisão do operador,
+recusa no início tenta **3 vezes, a cada 5 minutos**, e depois fica `pulada` com o motivo; execução
+que começou nunca é repetida, para não cobrar de novo. A janela de recuperação é de 15 minutos, e
+não alcança horário anterior à última gravação da rotina (ligar a agenda não dispara o horário que
+acabou de passar). O "desde a última visita" do Início é por conta, não por navegador. Requisitos
+em `prd-ia-no-yu-book.md`, seção 5.8 (RF-65 a RF-69, RN-20 a RN-23, CA-38 a CA-42).
+
 ---
 
 ## Etapa G — Pesquisa externa

@@ -1,8 +1,17 @@
 import type { Prisma } from "@prisma/client";
-import type { CardComPrazo, Dashboard } from "@yu-book/shared";
-import { JANELA_PRAZOS_DIAS, LIMITE_LINKS, LIMITE_NOTAS, LIMITE_PRAZOS } from "@yu-book/shared";
+import type { CardComPrazo, Dashboard, DashboardNextRun } from "@yu-book/shared";
+import {
+  JANELA_EXECUCOES_SEM_MARCO_HORAS,
+  JANELA_PRAZOS_DIAS,
+  LIMITE_EXECUCOES_NOVAS,
+  LIMITE_LINKS,
+  LIMITE_NOTAS,
+  LIMITE_PRAZOS,
+  PROXIMOS_HORARIOS,
+} from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { CAMPOS_DA_MARCA, paraMarca } from "../../lib/marca.js";
+import { CAMPOS_DO_RUN, listar as listarRotinas, paraRun } from "../assistente/rotinas.service.js";
 import { listar as listarNotas } from "../notes/notes.service.js";
 
 const CAMPOS_PRAZO = {
@@ -31,6 +40,56 @@ function toPrazo(card: CardBruto): CardComPrazo {
 }
 
 /**
+ * O bloco Rotinas do Início (Etapa F). "Novas" é tudo o que terminou desde a
+ * última vez que o Início as mostrou — de qualquer gatilho, e a falha e a
+ * `pulada` inclusive: é o que faz nada falhar calado. `ate` é o corte, que o
+ * Início devolve em `POST /ai/runs/seen`; sem ele, uma execução terminada
+ * entre esta leitura e a marca sumiria sem ser vista.
+ *
+ * "Próximas" sai das próprias rotinas (`nextRuns`), já no fuso do dono e já
+ * vazia para a pausada ou inválida — uma regra só para a galeria e o Início.
+ */
+async function rotinasDoInicio(userId: string, agora: Date): Promise<Dashboard["rotinas"]> {
+  const preferencia = await prisma.aiPreference.findUnique({
+    where: { userId },
+    select: { runsSeenAt: true },
+  });
+  const vistoEm = preferencia?.runsSeenAt ?? null;
+  const desde =
+    vistoEm ?? new Date(agora.getTime() - JANELA_EXECUCOES_SEM_MARCO_HORAS * 60 * 60 * 1000);
+
+  const [execucoes, rotinas] = await Promise.all([
+    prisma.aiRoutineRun.findMany({
+      where: { userId, endedAt: { gt: desde, lte: agora } },
+      orderBy: [{ endedAt: "desc" }, { id: "desc" }],
+      take: LIMITE_EXECUCOES_NOVAS,
+      select: {
+        ...CAMPOS_DO_RUN,
+        outputCard: { select: { title: true, column: { select: { boardId: true } } } },
+        outputNote: { select: { title: true } },
+      },
+    }),
+    listarRotinas(userId),
+  ]);
+
+  const proximas: DashboardNextRun[] = rotinas
+    .flatMap((r) => r.nextRuns.map((at) => ({ routineId: r.id, name: r.name, at })))
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .slice(0, PROXIMOS_HORARIOS);
+
+  return {
+    novas: execucoes.map(({ outputCard, outputNote, ...run }) => ({
+      ...paraRun(run),
+      outputBoardId: outputCard?.column.boardId ?? null,
+      outputTitle: outputCard?.title ?? outputNote?.title ?? null,
+    })),
+    proximas,
+    vistoEm: vistoEm?.toISOString() ?? null,
+    ate: agora.toISOString(),
+  };
+}
+
+/**
  * A tela inicial inteira em uma requisição (RF-04).
  *
  * As consultas são independentes e vão juntas: o custo da tela é o da mais
@@ -51,7 +110,7 @@ export async function montar(userId: string, workspaceId?: string): Promise<Dash
   const vencidosWhere = { ...doUsuario, dueDate: { lt: agora } };
   const proximosWhere = { ...doUsuario, dueDate: { gte: agora, lte: limite } };
 
-  const [vencidos, proximos, totalVencidos, totalProximos, notas, totalLinks, antigos] =
+  const [vencidos, proximos, totalVencidos, totalProximos, notas, totalLinks, antigos, rotinas] =
     await Promise.all([
       prisma.card.findMany({
         where: vencidosWhere,
@@ -84,6 +143,7 @@ export async function montar(userId: string, workspaceId?: string): Promise<Dash
         orderBy: { createdAt: "asc" },
         take: LIMITE_LINKS,
       }),
+      rotinasDoInicio(userId, agora),
     ]);
 
   return {
@@ -105,5 +165,6 @@ export async function montar(userId: string, workspaceId?: string): Promise<Dash
         durationSeconds: l.durationSeconds,
       })),
     },
+    rotinas,
   };
 }

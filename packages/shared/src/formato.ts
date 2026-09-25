@@ -1,3 +1,4 @@
+import { instanteLocal } from "./agenda.js";
 import { parseSearchQuery, splitHighlight } from "./busca.js";
 import type { SearchResponse, SearchResult } from "./busca.js";
 import type { CardComPrazo, Dashboard } from "./dashboard.js";
@@ -68,44 +69,15 @@ export function diaDoPrazo(iso: string, fuso: string): string {
 }
 
 /**
- * As partes de um instante vistas em `fuso`, reinterpretadas como se fossem
- * UTC. A diferença para o próprio instante é o deslocamento do fuso naquela
- * data — inclusive horário de verão, sem tabela nossa.
- */
-function comoSeFosseUtc(instante: Date, fuso: string): number {
-  const partes = new Intl.DateTimeFormat("en-US", {
-    timeZone: fuso,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).formatToParts(instante);
-
-  const campo = (tipo: string) => Number(partes.find((p) => p.type === tipo)?.value ?? "0");
-  /// `hour12: false` devolve 24 na meia-noite em algumas plataformas.
-  const hora = campo("hour") % 24;
-  return Date.UTC(
-    campo("year"),
-    campo("month") - 1,
-    campo("day"),
-    hora,
-    campo("minute"),
-    campo("second"),
-  );
-}
-
-/**
  * `AAAA-MM-DD` vira o fim daquele dia **no fuso do usuário** — como o front
  * grava. É a volta de `diaDoPrazo`, e as duas juntas mantêm o MCP, o chat e a
  * interface concordando sobre o que é "o dia do prazo".
  *
  * Não é `new Date(`${dia}T23:59:59`)`: isso interpreta no fuso do *processo*,
  * e num servidor em UTC o prazo de quem vive em UTC+5 cairia no dia seguinte.
- * Duas passagens porque o deslocamento depende da própria data — a primeira
- * estimativa usa o alvo como se o fuso fosse UTC, a segunda corrige.
+ * A conversão de relógio de parede para instante é `instanteLocal`
+ * (`agenda.ts`), a mesma que a agenda de rotina usa — era uma cópia privada
+ * aqui até a Etapa F.
  *
  * O formato já é validado pelo schema da tool, mas formato válido não é data
  * válida: `2026-13-45` passa no regex e viraria `Invalid Date`.
@@ -113,14 +85,19 @@ function comoSeFosseUtc(instante: Date, fuso: string): number {
 export function diaParaPrazo(dia: string, fuso: string): string {
   const [ano, mes, d] = dia.split("-").map(Number);
   if (!ano || !mes || !d) throw new Error(`dueDate não é uma data existente: ${dia}`);
-
-  const alvo = Date.UTC(ano, mes - 1, d, 23, 59, 59);
-  let instante = alvo;
-  for (let volta = 0; volta < 2; volta += 1) {
-    instante = alvo - (comoSeFosseUtc(new Date(instante), fuso) - instante);
+  /// A data impossível é recusada aqui, com a frase de sempre; o fuso inválido
+  /// segue lançando o `RangeError` do `Intl`, como antes.
+  const conferido = new Date(Date.UTC(ano, mes - 1, d));
+  /// O ano também: `Date.UTC` joga 0–99 para 1900–1999.
+  if (
+    conferido.getUTCFullYear() !== ano ||
+    conferido.getUTCMonth() !== mes - 1 ||
+    conferido.getUTCDate() !== d
+  ) {
+    throw new Error(`dueDate não é uma data existente: ${dia}`);
   }
 
-  const resultado = new Date(instante);
+  const resultado = instanteLocal(dia, "23:59:59", fuso);
   if (Number.isNaN(resultado.getTime()) || diaLocal(resultado, fuso) !== dia) {
     throw new Error(`dueDate não é uma data existente: ${dia}`);
   }
@@ -357,7 +334,13 @@ export function formatarNotaBreve(nota: NoteDetail): string {
   return `**${nota.title}**\ntipo: ${nota.kind}${onde}\nid: ${nota.id}`;
 }
 
-/** O agregado da tela inicial como texto. Fonte única dos prompts. */
+/**
+ * O agregado da tela inicial como texto. Fonte única dos prompts.
+ *
+ * `Dashboard.rotinas` fica **de fora de propósito** (RF-62 do PRD de IA): rotinas
+ * não entram no MCP nem no chat. Quem "completar" esta função vaza execuções e
+ * agendas para as duas superfícies.
+ */
 export function formatarDashboard(d: Dashboard, fuso: string): string {
   const linhas: string[] = [];
 

@@ -109,8 +109,17 @@ execução tem teto de gasto próprio, além do diário, e fica no histórico co
 Nos passos, o modelo só lê; o card ou a nota são gravados pelo código. É o fim da regra "sem
 trabalho assíncrono", e o motivo está em [`docs/historico.md`](docs/historico.md). Rotinas não
 entram no servidor MCP. **A conferência de interface foi só parcial:** o conserto do editor não foi
-visto na tela, e o resto da etapa também não. O próximo passo da frente de IA é a **Etapa F**,
-agendamento.
+visto na tela, e o resto da etapa também não.
+
+Em **2026-09-25** veio a **Etapa F, agendamento de rotinas**. A rotina roda sozinha em dias da
+semana e até quatro horários, no fuso de `/ajustes`, e se pausa e retoma com um clique. O editor e a
+galeria mostram as próximas execuções. Quem dispara é um relógio dentro da própria API, e cada
+horário roda no máximo uma vez, mesmo com duas instâncias no ar. Se no horário a rotina não pode
+começar, ela tenta de novo a cada 5 minutos, até 3 vezes, e depois fica "pulada" com o motivo. Uma
+execução que começou nunca se repete, para não cobrar de novo. O **Início** ganhou o bloco Rotinas,
+com o que rodou, falhou ou foi pulado desde a última visita, e os próximos horários. **Foi entregue
+sem conferência de interface à mão**, e o roteiro está em [`docs/historico.md`](docs/historico.md).
+O próximo passo da frente de IA é a **Etapa G**, pesquisa externa.
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,

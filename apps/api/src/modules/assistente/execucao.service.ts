@@ -10,6 +10,7 @@ import {
 } from "@yu-book/shared";
 import type {
   AiFavorite,
+  ErrorCode,
   RotinaEvent,
   RoutineRunDetail,
   RoutineRunStatus,
@@ -163,6 +164,27 @@ function ehOutraEmAndamento(erro: unknown): boolean {
     alvo[0] === "user_id"
   );
 }
+
+/// O `P2002` do único `(routine_id, scheduled_for)` (Etapa F): outra instância
+/// já tomou este horário da agenda — rodando, ou registrando a recusa dele.
+function ehHorarioTomado(erro: unknown): boolean {
+  if (!(erro instanceof Prisma.PrismaClientKnownRequestError) || erro.code !== "P2002") {
+    return false;
+  }
+  const alvo = erro.meta?.target;
+  return (
+    erro.meta?.modelName === "AiRoutineRun" &&
+    Array.isArray(alvo) &&
+    (alvo.includes("scheduled_for") || alvo.includes("scheduledFor"))
+  );
+}
+
+/**
+ * O horário da agenda que este `iniciar` ia atender foi atendido por outro —
+ * a instância vizinha criou a linha dele, ou converteu a `pulada` primeiro.
+ * Não é recusa: não há motivo a registrar, e não conta tentativa.
+ */
+class HorarioTomado extends Error {}
 
 /* ------------------------------------------------------------ pulso e dono */
 
@@ -367,14 +389,73 @@ async function modeloDoAgente(
 }
 
 /**
- * "Rodar agora". Tudo o que pode ser recusado é recusado **aqui**, com status
- * HTTP e código estável; depois do 202 não há mais status, e a falha vira
- * registro na execução e evento no SSE.
+ * Quem disparou (Etapa F). A agenda diz qual horário atende e qual tentativa é
+ * esta — a primeira cria a linha do horário; as seguintes convertem a
+ * `pulada` que a recusa anterior deixou (`agendador.service.ts`).
  */
+export type Gatilho = { tipo: "manual" } | GatilhoDaAgenda;
+export interface GatilhoDaAgenda {
+  tipo: "agenda";
+  slot: Date;
+  tentativa: number;
+}
+
+/**
+ * O que a agenda recebe de volta. A recusa volta **tipada**, não como
+ * exceção HTTP: quem a grava, com o motivo, é o agendador. `tomada` é o
+ * horário que a outra instância atendeu primeiro.
+ */
+export type InicioAgendado =
+  | { tipo: "iniciada"; runId: string }
+  | { tipo: "recusada"; code: ErrorCode; mensagem: string }
+  | { tipo: "tomada" };
+
+/**
+ * "Rodar agora", ou um horário da agenda. Tudo o que pode ser recusado é
+ * recusado **aqui**, antes de qualquer chamada ao provedor: no manual, com
+ * status HTTP e código estável; na agenda, como `recusada`, com o mesmo
+ * código. Depois do início não há mais status, e a falha vira registro na
+ * execução e evento no SSE — e execução que começou nunca é repetida pela
+ * agenda, porque ela deixa de ser `pulada` no instante em que começa.
+ */
+export function iniciar(
+  userId: string,
+  routineId: string,
+  registro: Registro,
+  gatilho: { tipo: "manual" },
+): Promise<RoutineRunStarted>;
+export function iniciar(
+  userId: string,
+  routineId: string,
+  registro: Registro,
+  gatilho: GatilhoDaAgenda,
+): Promise<InicioAgendado>;
 export async function iniciar(
   userId: string,
   routineId: string,
   registro: Registro,
+  gatilho: Gatilho,
+): Promise<RoutineRunStarted | InicioAgendado> {
+  if (gatilho.tipo === "manual") return comecar(userId, routineId, registro, gatilho);
+  try {
+    const { runId } = await comecar(userId, routineId, registro, gatilho);
+    return { tipo: "iniciada", runId };
+  } catch (erro) {
+    if (erro instanceof HorarioTomado) return { tipo: "tomada" };
+    /// Toda recusa de início é `AppError` lançado antes de a execução existir:
+    /// nada foi chamado nem gravado. O que não é `AppError` (banco fora) sobe.
+    if (erro instanceof AppError) {
+      return { tipo: "recusada", code: erro.code, mensagem: erro.message };
+    }
+    throw erro;
+  }
+}
+
+async function comecar(
+  userId: string,
+  routineId: string,
+  registro: Registro,
+  gatilho: Gatilho,
 ): Promise<RoutineRunStarted> {
   const rotina = await linhaDaRotina(userId, routineId);
 
@@ -395,8 +476,16 @@ export async function iniciar(
       "ROTINA_EM_ANDAMENTO",
       "Já há uma rotina rodando. Espere ela terminar ou cancele-a antes de rodar outra.",
     );
-  if (iniciando.has(userId)) throw emAndamento();
-  iniciando.add(userId);
+  /// Só no manual. Na agenda uma recusa vira linha `pulada` gravada, e a
+  /// recusa por este `Set` viria de um início **ainda sem linha** — gravada
+  /// antes dele, tomaria o horário dele pelo único e nenhum dos dois rodaria.
+  /// A agenda decide só pelo banco (INV-60), e o índice de RN-19 continua
+  /// valendo para ela.
+  const pelaAgenda = gatilho.tipo === "agenda";
+  if (!pelaAgenda) {
+    if (iniciando.has(userId)) throw emAndamento();
+    iniciando.add(userId);
+  }
 
   try {
     /// RN-19 pelo banco, porque o `Map` não vê a outra instância. Primeiro se
@@ -472,20 +561,61 @@ export async function iniciar(
     /// instância — escolheram a mesma ideia; o índice deixa só um criar, e o
     /// outro recebe o mesmo 409, sem saída nem passo gravado (RN-18). No
     /// pedido o índice é o mesmo, e a regra é só a de RN-19.
+    const dados = {
+      routineName: rotina.name,
+      inputKind: rotina.inputKind,
+      inputCardId,
+      inputTitle,
+      runCapMicros: rotina.runCapMicros,
+      heartbeatAt: new Date(),
+    };
     const run = await prisma.$transaction(async (tx) => {
-      const criado = await tx.aiRoutineRun.create({
-        data: {
-          userId,
-          routineId: rotina.id,
-          routineName: rotina.name,
-          inputKind: rotina.inputKind,
-          inputCardId,
-          inputTitle,
-          runCapMicros: rotina.runCapMicros,
-          heartbeatAt: new Date(),
-        },
-        select: { id: true },
-      });
+      let criado: { id: string };
+      if (gatilho.tipo === "agenda" && gatilho.tentativa > 1) {
+        /// Etapa F: a tentativa seguinte de um horário **converte** a `pulada`
+        /// que a recusa anterior deixou — a linha do horário é uma só, e o
+        /// único `(routine_id, scheduled_for)` continua valendo. A condição
+        /// em `status` e `attempts` é o que fecha a corrida entre instâncias:
+        /// quem converte primeiro leva, a outra vê `count` zero. Esta escrita
+        /// grava `em_andamento`, então o índice de RN-19 vale para ela também.
+        const [convertido] = await tx.aiRoutineRun.updateManyAndReturn({
+          where: {
+            userId,
+            routineId: rotina.id,
+            scheduledFor: gatilho.slot,
+            status: "pulada",
+            attempts: gatilho.tentativa - 1,
+          },
+          data: {
+            ...dados,
+            status: "em_andamento",
+            attempts: gatilho.tentativa,
+            costMicros: 0,
+            errorCode: null,
+            errorMessage: null,
+            startedAt: new Date(),
+            endedAt: null,
+            cancelRequestedAt: null,
+          },
+          select: { id: true },
+        });
+        if (!convertido) throw new HorarioTomado();
+        criado = convertido;
+      } else {
+        criado = await tx.aiRoutineRun.create({
+          data: {
+            userId,
+            routineId: rotina.id,
+            ...dados,
+            ...(gatilho.tipo === "agenda" && {
+              trigger: "agenda",
+              scheduledFor: gatilho.slot,
+              attempts: gatilho.tentativa,
+            }),
+          },
+          select: { id: true },
+        });
+      }
       await tx.aiRoutineRunStep.createMany({
         data: rotina.steps.map((passo, position) => ({
           runId: criado.id,
@@ -498,6 +628,7 @@ export async function iniciar(
       return criado;
     }).catch((erro: unknown) => {
       if (ehOutraEmAndamento(erro)) throw emAndamento();
+      if (ehHorarioTomado(erro)) throw new HorarioTomado();
       throw erro;
     });
 
@@ -558,7 +689,7 @@ export async function iniciar(
 
     return { runId: run.id };
   } finally {
-    iniciando.delete(userId);
+    if (!pelaAgenda) iniciando.delete(userId);
   }
 }
 

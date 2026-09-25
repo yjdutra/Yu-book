@@ -448,6 +448,10 @@ model AiPreference {
   /// `data_collection: "deny"` o roteamento devolve 404 "No endpoints found
   /// matching your data policy"; sem ele, o mesmo modelo responde 200.
   allowTraining  Boolean  @map("allow_training")
+  /// Etapa F: até quando o Início já mostrou as execuções de rotina. Por
+  /// conta, não por navegador — o operador usa mais de um dispositivo. Nulo é
+  /// "nunca", e o Início mostra as das últimas 24 h.
+  runsSeenAt     DateTime? @map("runs_seen_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -704,12 +708,21 @@ model AiAgentBaseNote {
 /// Status de uma execução de rotina (Etapa E). `interrompida` é a que o
 /// processo perdeu — redeploy ou queda —, reconciliada no boot: a execução
 /// mora num `Map` em memória, e sem o processo não há quem a termine.
+/// `pulada` (Etapa F) é o horário agendado cujo início foi recusado em todas
+/// as tentativas até aqui; nasce terminal, sem passos.
 enum AiRunStatus {
   em_andamento
   concluida
   falhou
   cancelada
   interrompida
+  pulada
+}
+
+/// Quem disparou a execução (Etapa F): o "Rodar agora" ou a agenda.
+enum AiRunTrigger {
+  manual
+  agenda
 }
 
 enum AiRunStepStatus {
@@ -792,7 +805,15 @@ model AiRoutine {
   consumeColumnId String?         @map("consume_column_id") @db.Uuid
   /// Teto por execução, em µUSD. Soma-se ao diário: os dois cortam.
   runCapMicros    Int             @map("run_cap_micros")
+  /// A agenda (Etapa F): dias da semana 0–6 (0 = domingo) e horários `HH:MM`
+  /// no fuso do dono, `ai_preference.timezone`. A forma é do Zod
+  /// (`scheduleSchema`); ligada exige ao menos um dia e um horário.
+  scheduleDays    Int[]           @default([]) @map("schedule_days")
+  scheduleTimes   String[]        @default([]) @map("schedule_times")
+  scheduleActive  Boolean         @default(false) @map("schedule_active")
   createdAt       DateTime        @default(now()) @map("created_at")
+  /// Última gravação pelo operador. O agendador não atende horário anterior a
+  /// ele (Etapa F); o motor de execução nunca escreve nesta tabela.
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
   user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -853,6 +874,14 @@ model AiRoutineRun {
   /// Pedido de cancelamento vindo de qualquer instância. Quem executa o confere
   /// no pulso e antes de cada passo e volta, e grava ele mesmo `cancelada`.
   cancelRequestedAt DateTime? @map("cancel_requested_at")
+  /// Etapa F. As linhas de antes são manuais pelo padrão.
+  trigger           AiRunTrigger @default(manual)
+  /// Só com `agenda`: o instante UTC do horário, e quantas tentativas ele teve.
+  /// O único `(routineId, scheduledFor)` é o que faz cada horário rodar no
+  /// máximo uma vez com duas instâncias da API (INV-60); nulos não colidem,
+  /// então a execução manual fica fora dele.
+  scheduledFor      DateTime?    @map("scheduled_for")
+  attempts          Int?
 
   user       User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   routine    AiRoutine?         @relation(fields: [routineId], references: [id], onDelete: SetNull)
@@ -868,7 +897,10 @@ model AiRoutineRun {
   // — `(user_id) WHERE status = 'em_andamento'`, na migration
   // `20260924233000_ia_etapa_e_uma_execucao`. Índice com `WHERE` não se declara
   // aqui; o Prisma não o introspecta nem tenta derrubá-lo (conferido com
-  // `prisma migrate diff`: vazio). Só a criação grava `em_andamento`.
+  // `prisma migrate diff`: vazio). Gravam `em_andamento` a criação e, desde a
+  // Etapa F, a conversão de uma `pulada` em execução (`iniciar`, tentativa
+  // seguinte de um horário) — as duas traduzem o `P2002` dele.
+  @@unique([routineId, scheduledFor])
   @@index([userId, status])
   @@index([routineId, startedAt(sort: Desc)])
   @@index([inputCardId])

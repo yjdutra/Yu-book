@@ -13,6 +13,7 @@ import {
   messageToNoteSchema,
   routineInputSchema,
   routineRunsQuerySchema,
+  routineRunsSeenSchema,
   routineUpdateSchema,
   TAREFAS_COM_MODELO,
 } from "@yu-book/shared";
@@ -294,7 +295,9 @@ export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
     { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
     async (request, reply) => {
       const { id } = rotinaParamsSchema.parse(request.params);
-      const iniciada = await execucao.iniciar(request.userId, id, request.log);
+      const iniciada = await execucao.iniciar(request.userId, id, request.log, {
+        tipo: "manual",
+      });
       return reply.status(202).send(iniciada);
     },
   );
@@ -334,6 +337,13 @@ export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return reply.headers(CABECALHOS_SSE).send(Readable.from(eventos()));
+  });
+
+  /// Etapa F: o Início mostrou as execuções novas. Sem corpo, vale agora.
+  app.post("/ai/runs/seen", async (request, reply) => {
+    const { seenAt } = routineRunsSeenSchema.parse(request.body ?? {});
+    await preferencias.marcarExecucoesVistas(request.userId, seenAt ? new Date(seenAt) : null);
+    return reply.status(204).send();
   });
 
   /// Cancelar. Idempotente: execução que já terminou responde igual. O

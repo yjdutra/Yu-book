@@ -1,7 +1,7 @@
 # PRD — IA dentro do Yu-book
 
 **Versão:** v0.1 (draft) · **Autor:** yjdutra · **Data:** 2026-08-24 · **Status:** Etapas A e B entregues;
-Etapas C (marca), D (agentes) e E (rotinas) em 2026-09-24
+Etapas C (marca), D (agentes) e E (rotinas) em 2026-09-24; F (agendamento) em 2026-09-25
 
 > **A Etapa A revogou seis afirmações deste documento.** Elas ficam abaixo, marcadas onde estão, em
 > vez de reescritas — o que se pensava em 2026-08-24 é parte do registro. São: **RN-01** e
@@ -284,6 +284,21 @@ passo e deixa o resultado num card. É disparada à mão; agendar é a Etapa F.
   ou do título da ideia; título que já existe ganha a data e a hora da execução, em vez de falhar. A
   nota nasce com a marca "via rotina" (RN-10) e leva à execução que a gerou.
 
+### 5.8 Etapa F — Agendamento
+
+Quarta etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md). A rotina da Etapa E passa
+a rodar **sozinha**, em dias e horários escolhidos. O mecanismo de trabalho de fundo é o da E; a F
+decide só quem dispara — um agendador interno da API.
+
+- **RF-65** — A rotina tem uma **agenda**: dias da semana e até quatro horários, no fuso do usuário,
+  sem expressão cron à vista.
+- **RF-66** — A agenda se **pausa e retoma** com um clique, sem perder os dias e horários.
+- **RF-67** — O editor e a galeria mostram as **próximas execuções**.
+- **RF-68** — A execução guarda **quem a disparou** (à mão ou pela agenda), o horário previsto e as
+  tentativas.
+- **RF-69** — O **Início** mostra o que as rotinas fizeram desde a última visita — o que foi criado,
+  o que falhou, o que foi pulado — e os próximos horários.
+
 ---
 
 ## 6. Requisitos não-funcionais
@@ -423,6 +438,17 @@ card ↔ nota já faz.
   execução concluída ou em andamento desta rotina não é escolhido de novo, qualquer que seja a ação
   de consumo. Com entrada por pedido não há o que consumir, e rodar de novo é rodar de novo.
 - **RN-19 Uma execução por vez.** Só uma execução em andamento por usuário.
+- **RN-20 Um horário, no máximo uma execução.** Cada horário previsto de uma rotina gera no máximo
+  uma execução, garantido pelo banco — valem as duas instâncias que convivem no deploy.
+- **RN-21 Recusa tenta três vezes, execução nunca se repete.** Se no horário a rotina não pode
+  começar (outra em andamento, sem ideia, teto atingido, rotina inválida), o agendador tenta de
+  novo a cada 5 minutos, no máximo 3 tentativas; depois registra a execução como `pulada`, com o
+  motivo. Recusa de início não chama o provedor. Uma execução que começou e falhou não é repetida —
+  repetir seria cobrar de novo.
+- **RN-22 Janela de recuperação.** Horário perdido com a API fora por até 15 minutos ainda é
+  disparado; além disso, é perdido — e isso é declarado, não escondido.
+- **RN-23 Nada falha calado.** Execução agendada que falha ou é pulada aparece no histórico, no
+  painel do Assistente e no Início.
 
 ---
 
@@ -508,6 +534,17 @@ card ↔ nota já faz.
   notas existem, e a segunda leva a data e a hora no título.
 - **CA-37** (RF-63) — Dada uma rotina por pedido, quando se tenta salvá-la com pedido vazio, com o
   título "da ideia" ou com a ação "mover", então a resposta é 422 com o motivo.
+- **CA-38** (RN-20) — Dadas duas instâncias da API que avaliam o mesmo horário ao mesmo tempo,
+  quando ele vence, então existe uma execução só.
+- **CA-39** (RN-21) — Dado um horário em que outra execução está em andamento, quando ela termina
+  antes da segunda tentativa, então a rotina agendada roda; e quando três tentativas são recusadas,
+  então fica uma execução `pulada` com o motivo e não há quarta.
+- **CA-40** (RN-21) — Dada uma execução agendada que falha no meio, quando o agendador volta a
+  olhar o horário, então ela não é repetida.
+- **CA-41** (RF-65) — Dada uma agenda às 08:00 em `America/Sao_Paulo`, quando o dia chega, então a
+  execução dispara às 11:00 UTC.
+- **CA-42** (RF-69) — Dada uma execução terminada depois da última visita, quando se abre o Início,
+  então ela aparece; e depois de visto, na visita seguinte, não.
 
 ---
 

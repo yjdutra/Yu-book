@@ -1,23 +1,30 @@
 import { Link } from "react-router-dom";
 import { ApiError } from "../../lib/api";
+import { useAiAjustes } from "../../lib/ia";
 import { useHistorico } from "../../lib/rotinas";
 import { emDolares } from "../ajustes/comum";
 import { Aviso } from "../base/Aviso";
 import { Botao } from "../base/Botao";
+import { textoDoGatilho } from "./Agenda";
 import { duracao, duracaoEntre, quando, SeloStatus } from "./comum";
 import { rotaDaExecucao } from "./rodar";
 
 /** A altura de uma linha e do esqueleto dela — a mesma, para a chegada não empurrar. */
-const ALTURA_LINHA = "h-12";
+const ALTURA_LINHA = "h-14";
 
 /**
  * As execuções de uma rotina, da mais nova para a mais velha, dez por vez.
  * Cada linha leva à linha do tempo daquela execução — inclusive a que está
  * rodando agora.
+ *
+ * Etapa F: a segunda linha diz quem disparou ("manual", "agendada · ter 08:00")
+ * e, na pulada, o motivo e as tentativas — a pulada não tem ideia nem pedido
+ * para citar, e o que importa nela é por que não começou.
  */
 export function HistoricoRotina({ routineId }: { routineId: string }) {
   const historico = useHistorico(routineId);
   const itens = historico.data?.pages.flatMap((p) => p.items) ?? [];
+  const fuso = useAiAjustes().data?.timezone ?? null;
 
   return (
     <section aria-labelledby="historico-rotina" className="flex flex-col gap-3">
@@ -76,19 +83,36 @@ export function HistoricoRotina({ routineId }: { routineId: string }) {
                               hover:border-ink-700 hover:text-ink-200`}
                 >
                   <SeloStatus status={r.status} />
-                  <span
-                    className="truncate text-sm text-ink-200"
-                    title={r.inputTitle ?? undefined}
-                  >
-                    {r.inputKind === "pedido" && <span className="text-ink-400">Pedido </span>}
-                    {r.inputTitle ? (
-                      `«${r.inputTitle}»`
+                  <span className="flex min-w-0 flex-col">
+                    {r.status === "pulada" ? (
+                      <span
+                        className="truncate text-sm text-ink-200"
+                        title={r.errorMessage ?? undefined}
+                      >
+                        <span className="text-ink-400">Não começou: </span>
+                        {r.errorMessage ?? "recusada no início"}
+                      </span>
                     ) : (
-                      <span className="text-ink-400">sem título</span>
+                      <span
+                        className="truncate text-sm text-ink-200"
+                        title={r.inputTitle ?? undefined}
+                      >
+                        {r.inputKind === "pedido" && (
+                          <span className="text-ink-400">Pedido </span>
+                        )}
+                        {r.inputTitle ? (
+                          `«${r.inputTitle}»`
+                        ) : (
+                          <span className="text-ink-400">sem título</span>
+                        )}
+                      </span>
                     )}
+                    <span className="truncate text-miudo text-ink-400">
+                      {textoDoGatilho(r, fuso)}
+                    </span>
                   </span>
                   <span className="tabular-nums">
-                    {ms === null ? "—" : duracao(ms)}
+                    {r.status === "pulada" ? "—" : ms === null ? "—" : duracao(ms)}
                     {!r.endedAt && <span className="sr-only"> até agora</span>}
                   </span>
                   <span className="text-right tabular-nums">{emDolares(r.costMicros)}</span>

@@ -18,11 +18,13 @@ import type {
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAgentes } from "../../lib/agentes";
+import { useAiAjustes } from "../../lib/ia";
 import { ApiError, api } from "../../lib/api";
 import { useGuardaDeSaida } from "../../lib/guardaDeSaida";
 import { useBoard, useBoards } from "../../lib/kanban";
 import { useWorkspaces } from "../../lib/notas";
 import {
+  useAlternarAgenda,
   useAtualizarRotina,
   useCriarRotina,
   useExcluirRotina,
@@ -43,9 +45,12 @@ import {
   IconeLixeira,
   IconeNotas,
   IconeOpcoes,
+  IconeParar,
+  IconeRelogio,
   IconeRodar,
   IconeRotina,
 } from "../Icones";
+import { ID_AGENDA, SecaoAgenda, SeloAgenda, temAgenda } from "./Agenda";
 import { NUMERO, ROTULO_CONSUMO } from "./comum";
 import { Estimativa } from "./Estimativa";
 import { FluxoEditavel, focarDepois, idDoBloco } from "./FluxoEditavel";
@@ -205,6 +210,8 @@ export function EditorRotina({ id }: { id: string | null }) {
   const { data: agentes } = useAgentes();
   const { data: quadros } = useBoards(null);
   const { data: rotinas } = useRotinas();
+  /// O fuso da agenda é o de `/ajustes`, não o do navegador (Etapa F).
+  const fuso = useAiAjustes().data?.timezone ?? null;
 
   const inicial = useMemo(() => (modelo ? doModelo(modelo) : rascunhoVazio()), [modelo]);
   const [rascunho, setRascunho] = useState<Rascunho>(inicial);
@@ -217,13 +224,15 @@ export function EditorRotina({ id }: { id: string | null }) {
   const [anuncio, setAnuncio] = useState(
     (location.state as { criado?: boolean } | null)?.criado ? "Rotina criada." : "",
   );
-  /// O que o fluxo diz em voz alta — inserir, mover, remover. Separado do
-  /// estado de salvamento, que tem o seu próprio `aria-live`.
+  /// O que o fluxo diz em voz alta — inserir, mover, remover —, e a pausa da
+  /// agenda com o rascunho sujo. Separado do estado de salvamento, que tem o
+  /// seu próprio `aria-live`.
   const [falaDoFluxo, setFalaDoFluxo] = useState("");
   const campoNome = useRef<HTMLInputElement>(null);
   const titulo = useRef<HTMLHeadingElement>(null);
   const idErroNome = useId();
   const idMotivo = useId();
+  const idNotaAgenda = useId();
 
   /// O que "Descartar" devolve numa rotina nova: o modelo já casado com o
   /// acervo, e não o modelo cru.
@@ -328,6 +337,11 @@ export function EditorRotina({ id }: { id: string | null }) {
     const vistas = new Set(doCliente.map((p) => p.mensagem));
     return [...doCliente, ...doServidor.filter((p) => !vistas.has(p.mensagem))];
   }, [rascunho, idsDeAgente, sujo, existente.data]);
+
+  /// A agenda tem os problemas dela à parte: impedem salvar, não rodar — e
+  /// aparecem na própria seção, não na lista de cima, que fala do fluxo.
+  const problemasDaAgenda = problemas.filter((p) => p.bloco === "agenda").map((p) => p.mensagem);
+  const problemasDaRotina = problemas.filter((p) => p.bloco !== "agenda");
 
   const problemasDe = useCallback(
     (b: BlocoEscolhido) =>
@@ -487,6 +501,10 @@ export function EditorRotina({ id }: { id: string | null }) {
   }
 
   function irAoProblema(p: Problema) {
+    if (p.bloco === "agenda") {
+      focarDepois(ID_AGENDA);
+      return;
+    }
     const alvo: BlocoEscolhido =
       p.bloco === "passo"
         ? { tipo: "passo", chave: p.chave ?? rascunho.passos[0]?.chave ?? "" }
@@ -504,7 +522,7 @@ export function EditorRotina({ id }: { id: string | null }) {
     ? "Salve a rotina para poder rodá-la."
     : sujo
       ? "Salve as alterações antes de rodar."
-      : problemas.length > 0
+      : problemasDaRotina.length > 0
         ? "Resolva os problemas apontados antes de rodar."
         : // Só a entrada por coluna tem fila; no pedido a contagem vem nula.
           existente.data?.input.kind === "coluna" && existente.data.eligibleCount === 0
@@ -512,6 +530,46 @@ export function EditorRotina({ id }: { id: string | null }) {
           : viva && !estaRodando
             ? `«${viva.name}» está rodando — uma execução por vez.`
             : null;
+
+  // ---- Pausar e retomar (Etapa F) ----------------------------------------
+
+  /**
+   * Um clique, na hora: manda só `active` ao servidor, **sem salvar o resto do
+   * rascunho**. Pausar uma rotina que vai rodar em dois minutos não pode
+   * esperar a pessoa decidir o que fazer com a edição pela metade.
+   *
+   * O rascunho acompanha só o `active`, e a base passa a ser o que o servidor
+   * devolveu: com o resto intocado, nada fica sujo; com edição pendente, ela
+   * continua pendente — e o anúncio diz isso.
+   */
+  const alternarAgenda = useAlternarAgenda();
+  const [erroAgenda, setErroAgenda] = useState<string | null>(null);
+  const agendaSalva = existente.data?.schedule;
+  async function pausarOuRetomar() {
+    if (!id || !agendaSalva) return;
+    const active = !agendaSalva.active;
+    const sujoAntes = sujo;
+    setErroAgenda(null);
+    try {
+      const salva = await alternarAgenda.mutateAsync({ id, active });
+      setRascunho((r) => ({ ...r, agenda: { ...r.agenda, active: salva.schedule.active } }));
+      setBase(assinatura(doDetalhe(salva)));
+      const feito = active ? "Agenda retomada." : "Agenda pausada.";
+      // Sujo, o estado de salvamento continua dizendo "alterações não salvas" e
+      // não anuncia nada: a confirmação vai pela região do leitor de tela, e o
+      // selo do cabeçalho muda à vista.
+      if (sujoAntes) setFalaDoFluxo(`${feito} As outras alterações continuam por salvar.`);
+      else setAnuncio(feito);
+    } catch (e) {
+      setErroAgenda(
+        e instanceof ApiError
+          ? e.message
+          : active
+            ? "Não foi possível retomar a agenda."
+            : "Não foi possível pausar a agenda.",
+      );
+    }
+  }
 
   const excluir = useExcluirRotina();
   const [excluindo, setExcluindo] = useState(false);
@@ -628,12 +686,16 @@ export function EditorRotina({ id }: { id: string | null }) {
           <h2 ref={titulo} tabIndex={-1} className="truncate text-base font-semibold text-titulo">
             {nomeVisivel}
           </h2>
-          <p className="text-miudo text-ink-400">
-            {id
-              ? "Editar rotina"
-              : modelo
-                ? `A partir do modelo «${modelo.name}»`
-                : "Rotina nova"}
+          <p className="flex min-w-0 items-center gap-2 text-miudo text-ink-400">
+            <span className="shrink-0">
+              {id
+                ? "Editar rotina"
+                : modelo
+                  ? `A partir do modelo «${modelo.name}»`
+                  : "Rotina nova"}
+            </span>
+            {/* O estado da agenda **gravada**, não do rascunho: é o que o servidor vai fazer. */}
+            {existente.data && <SeloAgenda rotina={existente.data} fuso={fuso} />}
           </p>
         </div>
 
@@ -656,6 +718,30 @@ export function EditorRotina({ id }: { id: string | null }) {
           {sujo && !salvando && (
             <Botao variante="fantasma" onClick={descartar}>
               Descartar
+            </Botao>
+          )}
+          {id && agendaSalva && temAgenda(agendaSalva) && (
+            <Botao
+              variante="secundario"
+              tamanho="m"
+              icone={
+                agendaSalva.active ? (
+                  <IconeParar className="size-3.5" />
+                ) : (
+                  <IconeRelogio className="size-3.5" />
+                )
+              }
+              carregando={alternarAgenda.isPending}
+              aria-label={agendaSalva.active ? "Pausar a agenda" : "Retomar a agenda"}
+              onClick={() => void pausarOuRetomar()}
+              aria-describedby={sujo ? idNotaAgenda : undefined}
+              title={
+                agendaSalva.active
+                  ? "Para de rodar sozinha, na hora — sem salvar o resto"
+                  : "Volta a rodar sozinha, na hora — sem salvar o resto"
+              }
+            >
+              {agendaSalva.active ? "Pausar" : "Retomar"}
             </Botao>
           )}
           {id && (
@@ -724,15 +810,23 @@ export function EditorRotina({ id }: { id: string | null }) {
         </div>
       </header>
 
-      {/* O motivo de "Rodar agora" estar desligado fica escrito, não só na dica. */}
-      {id && motivo && !estaRodando && (
-        <p
-          id={idMotivo}
-          className="-mt-2 flex items-center justify-end gap-1 text-miudo text-ink-400"
-        >
-          <IconeAlerta className="size-3" />
-          {motivo}
-        </p>
+      {/* O motivo de "Rodar agora" estar desligado fica escrito, não só na dica. E, com
+          o rascunho sujo, o que "Pausar/Retomar" faz com ele: nada. */}
+      {id && ((motivo && !estaRodando) || (sujo && agendaSalva && temAgenda(agendaSalva))) && (
+        <div className="-mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
+          {sujo && agendaSalva && temAgenda(agendaSalva) && (
+            <p id={idNotaAgenda} className="text-miudo text-ink-400">
+              {agendaSalva.active ? "Pausar" : "Retomar"} vale na hora e não salva as outras
+              alterações.
+            </p>
+          )}
+          {motivo && !estaRodando && (
+            <p id={idMotivo} className="flex items-center gap-1 text-miudo text-ink-400">
+              <IconeAlerta className="size-3" />
+              {motivo}
+            </p>
+          )}
+        </div>
       )}
 
       {erro && (
@@ -748,6 +842,11 @@ export function EditorRotina({ id }: { id: string | null }) {
         </Aviso>
       )}
       {rodar.erro && <AvisoAoRodar erro={rodar.erro} onFechar={rodar.limpar} />}
+      {erroAgenda && (
+        <Aviso tom="erro" onFechar={() => setErroAgenda(null)}>
+          {erroAgenda}
+        </Aviso>
+      )}
 
       {faltando.length > 0 && (
         <Aviso tom="info" onFechar={() => setResolucao(null)}>
@@ -774,6 +873,9 @@ export function EditorRotina({ id }: { id: string | null }) {
                          bg-superficie"
             />
           </div>
+          <div
+            className="h-[300px] animate-pulse rounded-cartao border border-ink-800 bg-superficie"
+          />
           <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-5">
             <div
               className="h-[260px] animate-pulse rounded-cartao border border-ink-800
@@ -846,19 +948,19 @@ export function EditorRotina({ id }: { id: string | null }) {
             <Estimativa passos={rascunho.passos} tetoMicros={rascunho.runCapMicros} />
           </div>
 
-          {problemas.length > 0 && (
+          {problemasDaRotina.length > 0 && (
             <div
               className="rounded-cartao border border-dashed border-amber-500/40 bg-amber-500/5
                          px-4 py-3"
             >
               <p className="flex items-center gap-1.5 text-xs font-medium text-amber-300">
                 <IconeAlerta className="size-3.5" />
-                {problemas.length === 1
+                {problemasDaRotina.length === 1
                   ? "Um problema impede a rotina de rodar"
-                  : `${problemas.length} problemas impedem a rotina de rodar`}
+                  : `${problemasDaRotina.length} problemas impedem a rotina de rodar`}
               </p>
               <ul className="mt-1.5 grid gap-0.5">
-                {problemas.map((p, i) => {
+                {problemasDaRotina.map((p, i) => {
                   const pos = p.chave
                     ? rascunho.passos.findIndex((x) => x.chave === p.chave)
                     : -1;
@@ -887,6 +989,15 @@ export function EditorRotina({ id }: { id: string | null }) {
               </ul>
             </div>
           )}
+
+          <SecaoAgenda
+            agenda={rascunho.agenda}
+            onMudar={(agenda) => mudar({ agenda })}
+            fuso={fuso}
+            problemas={problemasDaAgenda}
+            rotinaComProblema={problemasDaRotina.length > 0}
+            salvaAtiva={agendaSalva ? agendaSalva.active : null}
+          />
 
           <div className="grid grid-cols-[minmax(0,1fr)_360px] items-start gap-5">
             <section
