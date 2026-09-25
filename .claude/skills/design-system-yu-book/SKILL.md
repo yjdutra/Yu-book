@@ -37,7 +37,8 @@ nenhum componente tem condicional de tema. O mecanismo é:
 
 1. Um IIFE bloqueante em `apps/web/index.html` roda **antes da primeira pintura**, lê
    `localStorage["yb:tema"]` (caindo para `prefers-color-scheme`) e define
-   `document.documentElement.dataset.tema`.
+   `document.documentElement.dataset.tema`. **Não a mova para o React**: volta o flash de tema
+   errado (comentário em `index.html`).
 2. `index.css` redefine **as mesmas variáveis** sob `:root[data-tema="claro"]`.
 3. `apps/web/src/lib/tema.ts` só **lê** o que o script aplicou e grava na primeira troca manual.
    `useTema` é **um armazenamento só** (`useSyncExternalStore`, `tema.ts:33`): trilho e paleta veem
@@ -54,8 +55,6 @@ Consequências obrigatórias:
   `color-mix` sobre token de cor (`--sombra-brilho-ia`, `:123-125`) já troca sozinha e fica só em `:root`.
 - Cores de estado (`red`, `amber`, `emerald`, `sky`, `rose`, `violet`) têm valores próprios no tema
   claro — um vermelho calibrado para fundo escuro reprova em contraste sobre fundo claro.
-- **Não mova a decisão de tema para o React.** O comentário em `index.html` registra que isso
-  reintroduz o flash de tema errado.
 
 O contraste dos dois temas é verificado por cálculo, em WCAG AA. Cor nova entra com essa
 verificação feita, não por impressão, e o resultado fica em comentário ao lado do token.
@@ -74,7 +73,7 @@ redeclara**. As cópias locais divergiriam do traço sem ninguém notar.
 entrada nova ali.
 
 Grepe `export function Icone` antes de desenhar. Ícone que só muda de orientação ganha prop, não
-cópia — `IconeChevron({ direcao })` (`Icones.tsx:324-334`).
+cópia — `IconeChevron({ direcao })` (`Icones.tsx:338-348`).
 
 **Glifo unicode que é sigla fica glifo.** As siglas de prazo e prioridade (`!`, `◷`, `▤`, `⬆`, `⬇`)
 de `CartaoCard.tsx:19-30` e `pages/DashboardPage.tsx:19-23` são texto `aria-hidden` com o estado por
@@ -92,9 +91,8 @@ extenso ao lado (`CartaoCard.tsx:82-84`, `:90-91`): o sinal sem cor (§4). Não 
 - Lista de opções usa `role="listbox"`/`role="option"`; item de navegação ativo usa `aria-current`.
 - Toda operação de arraste tem equivalente por teclado **e** é anunciada por `Announcements` (§11).
 - **Ação que desmonta o elemento focado entrega o foco a um vizinho estável** (RNF-06 da Fase 1),
-  ou ele cai no `<body>`. Recolher o painel contextual → `ID_MOSTRAR_CONTEXTO` (§5); tirar, remover
-  ou mover um modelo → a coluna onde a mudança aconteceu (`focarColuna`,
-  `components/ajustes/QuadroDeModelos.tsx:65-71`, que depende do `tabIndex={-1}` da coluna, `:183`).
+  ou ele cai no `<body>`: recolher o painel → `ID_MOSTRAR_CONTEXTO` (§5); tirar ou mover um modelo →
+  a coluna (`focarColuna`, `ajustes/QuadroDeModelos.tsx:65-71`, com o `tabIndex={-1}` de `:183`).
 - **Status derivado sai da função que o deriva:** passo de rotina cancelado é gravado `falhou` +
   `CANCELADA`; só `rotuloDoPasso`/`SeloPasso` (`rotinas/comum.tsx:142-157`) dizem "cancelado".
 - Erro fica na tela, não vira toast que some. O usuário precisa poder ler e tentar de novo — é o
@@ -110,6 +108,12 @@ extenso ao lado (`CartaoCard.tsx:82-84`, `:90-91`): o sinal sem cor (§4). Não 
 - Seção recolhível usa `Secao`/`useSecao`, e **uma seção fechada continua mostrando o que esconde**:
   o `resumo` — filtro de tipo ativo, contagem de tags — aparece fechada. Esconder o controle nunca
   esconde que o filtro continua valendo.
+- **Largura em flex e grade é declarada.** `<fieldset>` nasce com `min-inline-size: min-content`:
+  em grade ou flex leva `min-w-0`, e grade de coluna única, `grid-cols-1` — senão um `truncate`
+  dentro dele alarga a coluna (`rotinas/PainelDoBloco.tsx:147`, `:206`). Reticência só num
+  `span.truncate` filho do flex, sem `items-start` no pai (`rotinas/FluxoEditavel.tsx:135-150`).
+- **`scrollIntoView` rola todo ancestral, até o `main` da casca** (`h-screen overflow-hidden`,
+  `Aplicacao.tsx:422`), e cortava o cabeçalho sticky: role só o contêiner (`FluxoEditavel.tsx:78-90`).
 
 ### A casca: trilho e painel contextual
 
@@ -127,14 +131,13 @@ de navegação, no lugar da antiga barra lateral única:
   (`Aplicacao.tsx:438-444`). O foco que ele levava junto vai para o botão que o traz de volta,
   `ID_MOSTRAR_CONTEXTO` (`Aplicacao.tsx:138-151`).
 - **Recolhido, o trilho herda a regra da seção fechada:** o ponto de filtro ativo em Notas
-  (`Trilho.tsx:194-202`, com o texto no `aria-label`, `:190`) e o selo do workspace ativo
-  (`:276-291`).
-  O ponto é calculado da última lista `/n?…` visitada (`Aplicacao.tsx:426`), não da rota atual —
-  vale também fora de Notas. Controle novo no painel que filtre algo ganha sinal no trilho.
+  (`Trilho.tsx:194-202`, texto no `aria-label`, `:190`) e o selo do workspace ativo (`:276-291`).
+  O ponto vem da última lista `/n?…` visitada (`Aplicacao.tsx:426`), não da rota atual — vale
+  fora de Notas. Controle novo no painel que filtre algo ganha sinal no trilho.
 - **`/ajustes` é uma casca de rotas internas** (Etapa 4): `pages/AjustesPage.tsx` só tem o
-  cabeçalho comum e as rotas `modelos`, `provedor` e `gasto`; as seções moram em
-  `components/ajustes/`. A navegação entre elas é o painel contextual, que lê `SECOES_DE_AJUSTES`
-  de `ajustes/comum.ts` — e não da página, que é `lazy()` (razão em `comum.ts:4-8`).
+  cabeçalho e as rotas `modelos`, `provedor` e `gasto`; as seções moram em `components/ajustes/`, e
+  o painel contextual as lista por `SECOES_DE_AJUSTES` de `ajustes/comum.ts`, não pela página
+  `lazy()` (`comum.ts:4-8`).
 - **Painel do assistente** (`components/assistente/PainelAssistente.tsx`, Etapa 3): à direita, na
   mesma linha flex, **empurra** o conteúdo em vez de cobri-lo e segue aberto enquanto se navega.
   **Não é modal** (RNF-05 da Fase 1): sem véu, sem foco preso, e por isso não é `Dialogo`. O `Esc`
@@ -143,14 +146,12 @@ de navegação, no lugar da antiga barra lateral única:
   conversa — para a propagação. **`Dialogo` lá dentro é o avesso**: o `Esc` dele mora no
   `document`, e `stopPropagation` o calaria; ele vai num wrapper `contents` com `preventDefault`,
   e o `<aside>` ignora o `Esc` já tratado (`Conversa.tsx:530-538`; `PainelAssistente.tsx:61`).
-  Fechar devolve o foco à origem ou ao botão do trilho `ID_BOTAO_PAINEL`
-  (`lib/sessaoChat.tsx:278-287`). `Ctrl+Shift+Y` e o comando da paleta alternam; na tela do chat,
-  onde o painel não existe, focam o campo (INV-56). **A tela do chat não tem id de conversa**:
-  levar a uma é `selecionar(id)` e `abrirPainel()`, como a faixa da marca (`MarcaIA.tsx:145-148`).
+  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:278-287`).
+  `Ctrl+Shift+Y` e a paleta alternam; na tela do chat focam o campo (INV-56). **A tela do chat
+  não tem id de conversa**: é `selecionar(id)` e `abrirPainel()` (`MarcaIA.tsx:145-148`).
 - **A área Assistente é chat, agentes e rotinas; o painel só não existe no chat** (Etapas D e E):
-  `/assistente`, `…/agentes…`, `…/rotinas…` e `…/execucoes/:runId` — o "Ver execução" da marca, que
-  guarda a execução e não a rotina (`MarcaIA.tsx:84-87`). "Tela do chat?" é `naTelaDoChat`, nunca o
-  prefixo (INV-56).
+  `/assistente`, `…/agentes…`, `…/rotinas…` e `…/execucoes/:runId` (o "Ver execução" da marca,
+  `MarcaIA.tsx:84-87`). "Tela do chat?" é `naTelaDoChat`, nunca o prefixo (INV-56).
 - **Levar texto ao assistente preenche e abre; nunca envia, e abre conversa nova.** Uma mensagem são
   até cinco chamadas pagas, e quem digitou ainda não viu modelo nem teto. Assim fazem o "Pergunte ao
   seu acervo" (`pages/DashboardPage.tsx:114-131`) e o "Perguntar ao assistente" da paleta
@@ -178,15 +179,15 @@ Atalho global entra em **dois lugares**: o ouvinte único de `window`, `useAtalh
 `stopPropagation()` quando o atalho for local a um campo — `preventDefault()` sozinho não impede o
 listener de `window` de receber o evento (INV-39 mostra onde isso já custou caro).
 
-**A paleta também executa comandos** (Etapa 5): a lista mora em `Aplicacao.tsx:320-419`, e `>` no
-início troca a busca por só comandos (`Paleta.tsx:31-32`, `:72-75`). O `atalho` de um comando é só
-exibido (`Paleta.tsx:14-17`) — o atalho continua entrando nos dois lugares acima. Ação nova do
-trilho ou de atalho ganha comando. O `Enter` espera a busca responder (`Paleta.tsx:137-142`).
+**A paleta também executa comandos** (Etapa 5): a lista mora em `Aplicacao.tsx:320-419`; `>` no
+início deixa só comandos (`Paleta.tsx:31-32`, `:72-75`). O `atalho` de um comando é só exibido
+(`:14-17`) — continua entrando nos dois lugares acima. Ação nova do trilho ou de atalho ganha
+comando. O `Enter` espera a busca responder (`:137-142`).
 
 **Atalho de uma tela vale só com o foco dentro dela.** O `Ctrl+S` dos editores de agentes e de
 rotinas ouve no `document` e confere se o foco está na raiz: no compositor do painel ao lado não
 salva, e o diálogo em portal fica de fora (`EditorAgente.tsx:440-471`,
-`rotinas/EditorRotina.tsx:435-447`).
+`rotinas/EditorRotina.tsx:451-463`).
 
 **No editor de notas o atalho entra em dois lugares ou em nenhum**: a `<textarea>` casa a tecla à
 mão em `Editor.tsx`, e o modo ao vivo declara no `keymap` de `editorMd.ts`. Cobrir só um faz o
@@ -235,7 +236,7 @@ cópias à mão tinham divergido (o porquê está em `components/base/Botao.tsx:
 | Arquivo | Exporta |
 |---|---|
 | `Botao.tsx` | `Botao` (variantes `primario`, `secundario`, `fantasma`, `perigo`, `ia`; `carregando`) e `BotaoIcone`, cujo `rotulo` vira nome acessível e dica, com `tamanho` `p`/`m`/`g` |
-| `Bloco.tsx` | `Bloco` (variante `ia` com fio de gradiente), `Vazio`, `Esqueleto` de altura fixa. **Tem `overflow-hidden`**: lista ou menu que abre para fora é cortado — seção de formulário é `Parte` |
+| `Bloco.tsx` | `Bloco` (variante `ia` com fio de gradiente), `Vazio`, `Esqueleto` de altura fixa. **Tem `overflow-hidden`**: lista ou menu que abre para fora é cortado — seção de formulário é `Parte`; fio de gradiente fora dele vai numa moldura própria (`rotinas/PainelDoBloco.tsx:831-839`) |
 | `Parte.tsx` | Seção de formulário com título e descrição, **sem** `overflow-hidden`; variante `ia` |
 | `Aviso.tsx` | Aviso inline, tom `erro`/`alerta`/`info`, glifo sempre; `urgente` promove `status` a `alert` |
 | `IndicadorSalvamento.tsx` | Estado do autosave com texto, único para nota e card |
@@ -270,11 +271,10 @@ cópias à mão tinham divergido (o porquê está em `components/base/Botao.tsx:
 
 ## 11. Arraste
 
-O projeto tem quatro: o kanban (`components/Quadro.tsx`), os favoritos da gaveta de links
-(`components/GavetaLinks.tsx:152-159`, o mais simples), o quadro de modelos em `/ajustes/modelos`
-(`components/ajustes/QuadroDeModelos.tsx`), que **copia o padrão do kanban sem compartilhar código
-com ele** (`:42-55`), e o fluxo do editor de rotinas (`components/rotinas/FluxoEditavel.tsx`).
-Arraste novo copia:
+O projeto tem quatro: o kanban (`components/Quadro.tsx`), os favoritos da gaveta
+(`components/GavetaLinks.tsx:152-159`, o mais simples), o quadro de modelos
+(`components/ajustes/QuadroDeModelos.tsx`, que **copia o kanban sem compartilhar código**, `:42-55`)
+e o fluxo de rotina (`components/rotinas/FluxoEditavel.tsx`). Arraste novo copia:
 
 - `Espaço` pega e solta, `Esc` cancela, 4 px de folga no ponteiro. Com colunas como alvo, colisão
   `pointerWithin` com recuo para `rectIntersection` — sem ponteiro, só o segundo acha o alvo
@@ -289,7 +289,7 @@ Arraste novo copia:
 - `data-arrastando` no `<html>` mantém o cursor de "segurando" o gesto inteiro (`:237-242`).
 - A mesma escolha existe sem arrastar, num `Menu`: "Usar para…" no quadro de modelos (`:431-438`,
   recusa igual nos dois por `podeServir`, `ajustes/comum.ts:40`) e "Mover para a esquerda/direita"
-  no fluxo (`FluxoEditavel.tsx:275-282`).
+  no fluxo (`FluxoEditavel.tsx:295-302`).
 
 ## 12. A marca de conteúdo gerado por IA
 

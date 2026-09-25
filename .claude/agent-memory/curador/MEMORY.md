@@ -5,17 +5,16 @@
 ## O que já nos mordeu
 
 - Ref erra **de origem**, não só de linha: código muda de arquivo. Grepe o caminho.
-- Refs em lote: hunks de `git diff -U0` contra o HEAD, e confira o conteúdo. Basename repetido
-  (`chat.ts`, `marca.ts`) engana o mapeamento.
-- Parágrafo tocado: confira **todo** ref dele, não só os do diff — ref velha de entrega anterior
-  sobrevive ao lado.
+- Refs em lote: mapeie linha HEAD→árvore (difflib) e confira o conteúdo; basename repetido engana.
+- `:NNN` resolve pelo último caminho citado: ref nova depois de ref de teste leva o basename.
+- Parágrafo tocado: confira **todo** ref dele — ref velha de entrega anterior sobrevive ao lado.
 - **Agente apodrece calado, e a paráfrase junto.** Grepe o fato, não a frase.
 - **O código alcança o registro:** comentário tardio no sítio desbanca o item.
 - Regra que troca de mecanismo vira INV novo; o número velho fica com a parte geral que sobrou.
 - **Registre o eixo, não o censo** — e eixo com um exemplo só é lido como o exemplo.
 - Eixo novo raramente contradiz: **estreita a cláusula**. Cace o estreito, não só o falso.
-- Categórica erra no briefing (até no sítio) e no comentário novo: grepe antes de promover.
-- Defeito achado num sítio tem irmão: grepe o padrão, não só o sítio.
+- Categórica erra no briefing e no comentário novo: grepe antes de promover.
+- Defeito num sítio tem irmão: grepe o padrão.
 
 ## Decisões em vigor
 

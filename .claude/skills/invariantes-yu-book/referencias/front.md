@@ -41,12 +41,12 @@ arraste.
 (`Quadro.tsx:215`), porque `Enter` está reservado para abrir o card. O `PointerSensor` exige 4 px de
 deslocamento (`:210`) para que clique continue sendo clique. O quadro de modelos copia o mapa e a
 folga (`apps/web/src/components/ajustes/QuadroDeModelos.tsx:230,233`), e o fluxo do editor de
-rotinas também (`apps/web/src/components/rotinas/FluxoEditavel.tsx:382-385`).
+rotinas também (`apps/web/src/components/rotinas/FluxoEditavel.tsx:402-405`).
 
 **A origem do arraste some com `opacity-0`, nunca com `visibility`**, em todo arraste:
 `ColunaQuadro.tsx:83` (razão em `:59-61`), o cartão numa coluna de tarefa do quadro de modelos
 (`QuadroDeModelos.tsx:497`, razão em `:495-496`) e o passo no fluxo de rotina
-(`FluxoEditavel.tsx:228`). O elemento que some guarda o foco e é nele que o
+(`FluxoEditavel.tsx:248`). O elemento que some guarda o foco e é nele que o
 `KeyboardSensor` escuta; `visibility: hidden` o tira da árvore de foco e mata o arraste por teclado.
 Parece detalhe de estilo e derruba INV-30 — e **não existe teste de front neste projeto**, então cai
 em silêncio. Arraste novo entra nesta lista.
@@ -327,7 +327,7 @@ vendo um modelo marcado conclui que o erro é falso.
 **Não vale para todo enum: vale para o enum cujo membro pede configuração.** `LINK_KINDS` é citado à
 mão de propósito em `apps/web/src/components/ZonasDeSoltura.tsx:123-134` — cada zona tem texto e
 ícone próprios, e ali o enum só discrimina. Enum que rotula ou discrimina pode ser citado (é também
-o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:449` já
+o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:463` já
 mantém total); enum cujo membro exige um valor que **só a interface** coleta, não.
 
 O resto da tela também percorre, e cada um é um `.map` que o typecheck não cobra: os itens "Usar
@@ -345,7 +345,8 @@ recorte**: a lista volta a "todas" no mesmo clique que abriu a nota, sem erro ne
 que carregam hoje:
 
 - abrir nota: `abrirNota` (`apps/web/src/components/Aplicacao.tsx:256-263`, o `navigate` em `:260`),
-  que serve também a paleta e ao chat;
+  que serve também a paleta, ao chat e ao "Abrir nota" da execução de rotina — desce de
+  `Aplicacao.tsx:509` e `:517` para `RotinasPage` e `ExecucaoAvulsaPage` como `onAbrirNota`;
 - criar nota: `novaNota` (`Aplicacao.tsx:265`), que também tira o tipo da nota nova do filtro
   (`:273`);
 - fechar nota: `onFechar` (`apps/web/src/pages/NotasPage.tsx:55`);
@@ -369,4 +370,4 @@ do card do kanban (`ColunaQuadro.tsx:69-70`), que não tem controle dentro — f
 menu virar "pegar": o menu deixa de abrir pelo teclado, e o mouse continua funcionando. Nenhum portão
 executa arraste. Arrastável novo com controle dentro segue a alça, como já fazem a coluna do kanban
 (`ColunaQuadro.tsx:201-205`) e o passo do fluxo de rotina, que tem botão e menu dentro
-(`components/rotinas/FluxoEditavel.tsx:242-244`, razão em `:43-46`).
+(`components/rotinas/FluxoEditavel.tsx:262-264`, razão em `:43-46`).

@@ -204,6 +204,11 @@ lição é a do INV-60: o plano da etapa registrava "o `Map` exige instância ú
 a Railway não a cumpre no deploy. **Premissa de infraestrutura escrita como requisito é invariante
 a conferir, não fato** — as migrations do pulso e do índice vieram depois da primeira.
 
+A **emenda da Etapa E** (2026-09-25) deu à rotina entrada por **pedido** e saída em **nota**, e
+nenhuma invariante nova: estreitou INV-04 (RN-18 só na entrada por coluna), INV-58 e INV-60 (a
+saída é card **ou** nota, e cada tentativa de título é um ponto de criação a conferir) e INV-59 (o
+workspace da nota). Tipo novo num eixo multiplica os sítios de cada cláusula que falava do único.
+
 O que ainda não tem código: **busca semântica** (§5.4) e o agendamento de rotina (Etapa F de
 `docs/plano-agentes-de-acervo.md`). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
 **menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece: reconfira

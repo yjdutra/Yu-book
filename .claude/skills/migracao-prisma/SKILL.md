@@ -24,7 +24,11 @@ Nome de migration em `snake_case` descrevendo a entrega, no padrão já usado:
 
 - **`prisma migrate reset` não é seguro**: apaga a conta junto.
 - **Migration já aplicada não se edita** — nem em dev. Mudou de ideia depois de aplicar? Migration
-  nova, aditiva: a Etapa E fechou com três (`ia_etapa_e_rotinas`, `_pulso`, `_uma_execucao`).
+  nova, aditiva: a Etapa E fechou com três (`ia_etapa_e_rotinas`, `_pulso`, `_uma_execucao`), e a
+  emenda dela ganhou a quarta (`_pedido`) em vez de editar as três, que nem tinham subido.
+- **Valor novo de enum não se usa na migration que o cria**: o Postgres recusa `ADD VALUE` usado na
+  mesma transação. Ele entra sem uso, e o padrão ou dado que o usa vai na seguinte
+  (`20260925133313_ia_etapa_e_pedido/migration.sql:5-6`).
 - **Não rode `prisma format`.** Ele reformata o `schema.prisma` inteiro, não só o trecho novo, e o
   diff da entrega vira ruído. Alinhe à mão, como os vizinhos.
 
@@ -82,7 +86,7 @@ await prisma.$queryRaw`SELECT id FROM note WHERE user_id = ${userId}::uuid LIMIT
 com mensagem em português. A violação de título é detectada por `meta.target` conter `"title"`,
 porque o Prisma reporta a expressão do índice e não o nome dele. **Índice parcial sobre coluna
 simples** reporta as colunas: `ehOutraEmAndamento`
-(`apps/api/src/modules/assistente/execucao.service.ts:136-147`) casa `meta.target = ["user_id"]`
+(`apps/api/src/modules/assistente/execucao.service.ts:154-165`) casa `meta.target = ["user_id"]`
 **e** `meta.modelName`, para que o `P2002` de outro único do mesmo modelo suba como é.
 
 ## 6. Antes de fechar

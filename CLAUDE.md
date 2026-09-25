@@ -26,9 +26,9 @@ servidor, e com ela o chat passou a **criar** card e nota a pedido — não move
 A **Etapa D** (2026-09-24) trouxe os **agentes especialistas**: instruções, notas-base, fontes vivas,
 modelo e ferramentas próprios, fixos por conversa, numa área dentro de Assistente
 (`/assistente/agentes`), sem item no trilho. A **Etapa E** (2026-09-24) trouxe as **rotinas**
-(`/assistente/rotinas`): agentes encadeados numa sequência fixa, disparada à mão, que pegam uma
-ideia de uma coluna e deixam um card noutra — os passos só leem; quem escreve é o código, na
-saída. A execução roda **no servidor, destacada da requisição**: é o primeiro trabalho de fundo da
+(`/assistente/rotinas`): agentes encadeados numa sequência fixa, disparada à mão, que começam
+numa ideia de uma coluna **ou num pedido** escrito na rotina e deixam um card numa coluna ou uma
+nota nova — os passos só leem; quem escreve é o código, na saída. A execução roda **no servidor, destacada da requisição**: é o primeiro trabalho de fundo da
 API, e revoga a decisão de "sem trabalho assíncrono" (motivo e custo na entrada de 2026-09-24 de
 `docs/historico.md`). No deploy da Railway duas instâncias da API convivem; o motor decide pelo
 banco, nunca pela memória do processo (INV-60). A Fase 6 de produto (Google Calendar) segue sendo o
