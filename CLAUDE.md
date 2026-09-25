@@ -37,10 +37,11 @@ vezes, a cada 5 minutos, e vira `pulada`, e execução que começou nunca se rep
 (2026-09-25) deu aos agentes pesquisa externa, opt-in por agente: busca na web pelo plugin do
 OpenRouter e "Abrir página" (`open_page`). Endereço escolhido de fora — pelo usuário ou pelo modelo
 — sai só por `apps/api/src/lib/saidaSegura.ts`, com a conexão presa ao IP conferido (INV-08). O
-**Dashboard OpenRouter** (`/ajustes/openrouter`, 2026-09-25) é a fase 1 de 2 do painel de uso (a 2
-será o painel sobre `ai_usage`): só lê o que o provedor diz da chave e da conta, e saldo, histórico e
-métricas pedem a env opcional `OPENROUTER_MANAGEMENT_KEY`, que no provedor cria e apaga chaves (INV-61). A
-Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
+**painel de uso** (2026-09-25) tem duas fases, as duas entregues e só de leitura: o **Dashboard
+OpenRouter** (`/ajustes/openrouter`) mostra o que o provedor diz da chave e da conta — saldo,
+histórico e métricas pedem a env opcional `OPENROUTER_MANAGEMENT_KEY`, que no provedor cria e apaga
+chaves (INV-61) —, e o **AI usage dash** (`/ajustes/uso`), o que o Yu-book gravou em `ai_usage`, por
+dia local (INV-50). A Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
 
 **Seis numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
@@ -49,7 +50,7 @@ a frente de IA; dentro dessa frente, o **PRD de IA** tem as suas, de 1 a 4, entr
 letra — a Etapa A cobriu as fases 1 e 2 dele, a Etapa B a fase 3, e as Etapas C a G não são fase
 dele (§5.5–§5.9); e o **redesenho de UI/UX** de `apps/web` tem cinco etapas próprias, entregues em 2026-09-24 sem conferência na tela a cada etapa e
 conferidas à mão pelo usuário no fechamento — relato, não checklist item por item (registro em
-`docs/historico.md`); essa numeração está fechada; e o **painel de uso** tem duas fases próprias (acima). "Etapa 4" não é
+`docs/historico.md`); essa numeração está fechada; e o **painel de uso** tem duas fases próprias, as duas entregues (acima). "Etapa 4" não é
 "Fase 4", e o mesmo número significa coisas diferentes em cada eixo. Não unifique nem renumere — a
 entrada de 2026-08-26 em `docs/historico.md` diz de onde vêm as quatro primeiras.
 

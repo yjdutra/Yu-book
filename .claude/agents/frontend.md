@@ -104,7 +104,9 @@ porque rotações concorrentes se invalidariam.
 anterior) — `useMoverCard` em `lib/kanban.ts:286`, criar link em `lib/links.ts:34`. Se duas da
 mesma chave podem estar em voo, o rollback de uma restaura a mudança otimista da outra: dê
 `mutationKey` e invalide no `onSettled` só quando `isMutating(...) <= 1`, isto é, quando a última
-termina (`useDefinirModeloDaTarefa`, `lib/ia.ts:142-175`, razão em `:166-168`).
+termina (`useDefinirModeloDaTarefa`, `lib/ia.ts:169-202`, razão em `:193-195`). Ação que chama o
+provedor invalida `CHAVE_AJUSTES` e `CHAVE_USO` no fim, não no sucesso: a falha também grava gasto
+(INV-62, em `referencias/front.md` da skill `invariantes-yu-book`).
 
 **Ramifique por `code`, nunca por `message`.** O `ApiError` carrega `status`, `code` estável e
 `issues`.

@@ -6,10 +6,9 @@ description: Design system manual do Yu-book — rampa de cor semântica ink/acc
 # Design system do Yu-book
 
 Tudo aqui é feito à mão. **Não existe shadcn, Radix, Headless UI, Material nem biblioteca de
-ícones**, e isso é decisão registrada em comentário no código. Não instale nenhuma.
-
-**A única exceção é o CodeMirror 6**, autorizado nominalmente e sem abrir precedente — motor de
-edição não é biblioteca de UI (§12/D-01 de `docs/old/prd-fase-5-refino.md`).
+ícones**, e isso é decisão registrada em comentário no código. Não instale nenhuma. **A única
+exceção é o CodeMirror 6**, autorizado nominalmente e sem abrir precedente — motor de edição não é
+biblioteca de UI (§12/D-01 de `docs/old/prd-fase-5-refino.md`).
 
 ## 1. A rampa de cor é semântica
 
@@ -69,7 +68,6 @@ texto ao lado. Ícone novo é desenhado ali, no mesmo estilo. Não instale pacot
 nele (`SeletorTema.tsx`, `ModoNota.tsx`), mas **importa o `TRACO`, não o redeclara**: diverge calado.
 
 `ICONE_TIPO` mapeia `NoteKind` para ícone e continua total: `kind` novo no enum exige entrada ali.
-
 Grepe `export function Icone` antes de desenhar. Ícone que só muda de orientação ganha prop, não
 cópia — `IconeChevron({ direcao })` (`Icones.tsx:338-348`).
 
@@ -90,6 +88,10 @@ extenso ao lado (`CartaoCard.tsx:82-84`, `:90-91`): o sinal sem cor (§4). Não 
 - **Ação que desmonta o elemento focado entrega o foco a um vizinho estável** (RNF-06 da Fase 1),
   ou ele cai no `<body>`: recolher o painel → `ID_MOSTRAR_CONTEXTO` (§5); tirar ou mover um modelo →
   a coluna (`focarColuna`, `ajustes/QuadroDeModelos.tsx:65-71`, com o `tabIndex={-1}` de `:183`).
+  **Resposta que chega também desmonta:** seção de vários estados fixa a raiz e o bloco do controle
+  e troca só o conteúdo (`ajustes/SecaoUsoIa.tsx:53-94`); árvore por estado remonta o controle focado.
+- **Um entre poucos é controle segmentado:** `role="group"`, botões com `aria-pressed` e o ativo
+  erguido como cartão — `SeletorModo` (`ModoNota.tsx:59`), copiado em `ajustes/SecaoUsoIa.tsx:164`.
 - **Status derivado sai da função que o deriva:** passo de rotina cancelado é gravado `falhou` +
   `CANCELADA`; só `rotuloDoPasso`/`SeloPasso` (`rotinas/comum.tsx:157-172`) dizem "cancelado".
 - Erro fica na tela, não vira toast que some. O usuário precisa poder ler e tentar de novo — é o
@@ -140,9 +142,9 @@ A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 d
   conversa — para a propagação. **`Dialogo` lá dentro é o avesso**: o `Esc` dele mora no
   `document`, e `stopPropagation` o calaria; ele vai num wrapper `contents` com `preventDefault`,
   e o `<aside>` ignora o `Esc` já tratado (`Conversa.tsx:504-512`; `PainelAssistente.tsx:61`).
-  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:280-289`).
-  `Ctrl+Shift+Y` e a paleta alternam; na tela do chat focam o campo (INV-56). **A tela do chat
-  não tem id de conversa**: é `selecionar(id)` e `abrirPainel()` (`MarcaIA.tsx:145-148`).
+  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:281-290`); `Ctrl+Shift+Y`
+  e a paleta alternam, e na tela do chat focam o campo (INV-56). **Conversa abre por id, sem rota**:
+  `selecionar(id)` + `abrirPainel()`, e com fluxo em curso o desvio de `ajustes/TabelasUsoIa.tsx:201-210`.
 - **A área Assistente é chat, agentes e rotinas; o painel só não existe no chat** (Etapas D e E):
   `/assistente`, `…/agentes…`, `…/rotinas…` e `…/execucoes/:runId` (o "Ver execução" da marca,
   `MarcaIA.tsx:84-87`). "Tela do chat?" é `naTelaDoChat`, nunca o prefixo (INV-56).
@@ -152,14 +154,13 @@ A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 d
 
 ## 6. Chaves de `localStorage`
 
-Prefixo `yb:`, sempre — grepe `"yb:` em `apps/web/src` antes de criar uma, para não colidir.
-
-**Filtro de lista não é preferência de dispositivo:** os de notas moram na URL
-(`lib/filtrosUrl.ts`), para o Voltar desfazer e o filtro virar link — e toda navegação em `/n`
-precisa carregá-los (INV-55).
-
-O princípio: **preferência com formato de dispositivo mora em `localStorage`; dado com formato de
+Prefixo `yb:`, sempre — grepe `"yb:` em `apps/web/src` antes de criar uma, para não colidir. O
+princípio: **preferência com formato de dispositivo mora em `localStorage`; dado com formato de
 conta mora no banco.**
+
+**Recorte de lista não é preferência de dispositivo:** os filtros de notas e o período do AI usage
+dash moram na URL (`lib/filtrosUrl.ts`; `?dias=`, `ajustes/SecaoUsoIa.tsx:141-157`), para o Voltar
+desfazer e o recorte virar link — e toda navegação em `/n` carrega os filtros (INV-55).
 
 ## 7. Atalhos de teclado
 
@@ -211,11 +212,10 @@ tamanho**. Tela nova usa estes; os valores avulsos antigos migram quando o arqui
 | `--z-popover` < `veu` < `dialogo` < `soltura` < `toast` | A escala de camadas (`index.css:129-133`); `z-(--z-dialogo)`, não `z-50` avulso |
 
 - **`text-[10px]` e `text-[11px]` estão proibidos.** São `text-miudo`. 10px fica ilegível em Inter.
-- **Toda animação nova passa pelo bloco `prefers-reduced-motion`** (`index.css:226`), que zera
-  duração de animação e transição. Ele usa `0.01ms`, não `none`, para o `animationend` continuar
-  disparando — não "simplifique". **Animação feita em JS o CSS não alcança**: ela lê
-  `useMovimentoReduzido` (`lib/movimento.ts`) — hoje a soltura do `DragOverlay` do quadro de
-  modelos, `dropAnimation={reduzido ? null : …}` (`QuadroDeModelos.tsx:525`).
+- **Toda animação nova passa pelo bloco `prefers-reduced-motion`** (`index.css:226`); o `0.01ms`,
+  e não `none`, mantém o `animationend` disparando — não "simplifique". **Animação em JS o CSS não
+  alcança**: lê `useMovimentoReduzido` (`lib/movimento.ts`), como a soltura do `DragOverlay` do
+  quadro de modelos (`QuadroDeModelos.tsx:525`).
 - A Inter vem do Google Fonts por `<link>` em `index.html`, **depois** do script de tema: a fonte
   pode chegar atrasada (`display=swap`), o tema não. Não mova o `<link>` para antes do script.
 
@@ -278,7 +278,7 @@ e o fluxo de rotina (`components/rotinas/FluxoEditavel.tsx`). Arraste novo copia
   (`:185-208`) — e a regra aparece **antes** do arraste, numa `Etiqueta` na coluna (`:471-475`).
 - `data-arrastando` no `<html>` mantém o cursor de "segurando" o gesto inteiro (`:237-242`).
 - A mesma escolha existe sem arrastar, num `Menu`: "Usar para…" no quadro de modelos (`:431-438`,
-  recusa igual nos dois por `podeServir`, `ajustes/comum.ts:41`) e "Mover para a esquerda/direita"
+  recusa igual nos dois por `podeServir`, `ajustes/comum.ts:42`) e "Mover para a esquerda/direita"
   no fluxo (`FluxoEditavel.tsx:295-302`).
 
 ## 12. A marca de conteúdo gerado por IA
@@ -291,9 +291,9 @@ que liste nota ou card usa uma das duas.
 
 ## 13. Gráfico de dados
 
-O primeiro é `ajustes/BarrasPorDia.tsx` (2026-09-25): SVG à mão, sem biblioteca, cor só por classe
-de token. Série por dia o reusa; gráfico novo copia as regras. **O desenho não é o único caminho até
-o número** (RNF-09): resumo no `aria-label` do `role="img"`, `<title>` por barra e tabela num
+O primeiro é `ajustes/BarrasPorDia.tsx` (2026-09-25), SVG à mão e cor só por classe de token; série
+por dia o reusa (os dois painéis de gasto), gráfico novo copia as regras. **O desenho não é o único
+caminho até o número** (RNF-09): `aria-label` no `role="img"`, `<title>` por barra e tabela num
 `<details>` (`:93`, `:106`, `:151-181`). Largura em %, altura em px (`:43-45`); `clipPath` com id de
-`useId()` limpo (`:57-58`). O dia chega `YYYY-MM-DD` no fuso de quem chama; `diaCurto` corta texto,
-porque `new Date` o levaria ao do navegador (`:20-28`). Número com nome é `ajustes/Indicador.tsx`.
+`useId()` limpo (`:57-58`). O dia chega `YYYY-MM-DD` no fuso de quem chama, e `diaCurto` corta texto
+(`:20-28`). Número com nome é `ajustes/Indicador.tsx`; duração, `duracao` (`ajustes/comum.ts:69`).

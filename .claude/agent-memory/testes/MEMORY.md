@@ -19,14 +19,13 @@
 - Potência de 2 cai na fronteira do pedaço do gunzip; só se o alvo for ela (`web.test.ts:519`).
 - `lerHtml` decodifica entidade **depois** de tirar tag (`pagina.service.ts:331`).
 - Chave real do `.env` vai ao dublê (`setup.ts:23`): asserir como booleano, ou a falha a imprime
-  (`openrouter-painel.test.ts:571-575`).
+  (`openrouter-painel.test.ts:605-609`).
+- Desempate por texto no Postgres segue a collation, não o ASCII: código de teste que difere já no
+  1º caractere (`uso-ia.test.ts:394-396`).
 
 ## Decisões em vigor
 
 - Lista à mão herda o furo: derive-a e pague com a asserção inversa (`escrita.test.ts:109`).
 - Dublê de resposta tipado pelo tipo de `shared` (`apps/mcp/tests/marca.test.ts:29-43`).
 - Corrida sem tempo: `vi.spyOn(...).mockImplementationOnce` no meio (`agentes.test.ts:977`).
-- Assíncrono: `esperar` (`rotinas.test.ts:229`) até a condição, nunca `sleep` fixo.
-- Relógio fixo com dublê HTTP: `toFake: ["Date"]` (`openrouter-painel.test.ts:213-216`).
 - Executor com a guarda de produção: `vi.mock` + `vi.hoisted` no service (`web.test.ts:68-80`).
-- "Comportamento inalterado": rode a nova e uma cópia da do HEAD nas mesmas entradas, e compare.

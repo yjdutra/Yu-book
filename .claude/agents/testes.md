@@ -37,10 +37,17 @@ por decisão explícita — não introduza mock.
 - `tests/setup.ts` carrega o `.env` **antes** de qualquer import da app, porque `env.ts` derruba o
   processo se faltar variável, e força `NODE_ENV=test`.
 - `tests/apoio.ts` é o único caminho de setup. Use exclusivamente ele — não crie caminho paralelo:
-  - `criarUsuario()` — emails marcados, para que a limpeza saiba o que é seu
+  - `criarUsuario()` — emails marcados, para que a limpeza saiba o que é seu; como todo dado é por
+    usuário, uma conta nova por caso isola sem `beforeEach` de limpeza (`uso-ia.test.ts:18-20`)
   - `limpar()` — apaga só os usuários marcados; a cascata leva o resto e o banco fica intacto
   - `subirApp()` e `chamar()` — envelope de `app.inject()` com Bearer
   - `sorteio()` — gerador determinístico, para que o teste de 200 movimentos seja reproduzível
+- Assíncrono espera a condição com `esperar` (`rotinas.test.ts:229`), nunca `sleep` fixo.
+- Relógio fixo é `vi.useFakeTimers({ toFake: ["Date"] })` e nada mais: Prisma, Fastify e dublê
+  seguem nos timers reais (`uso-ia.test.ts:44-49`). **Rota autenticada pede o relógio real**, porque
+  o token é validado contra ele (`:556`): fuso e janela se testam no service.
+- "Comportamento inalterado" se prova rodando a versão nova e uma cópia da do HEAD nas mesmas
+  entradas, e comparando.
 - Nome de caso em português, descrevendo **o objetivo conceitual**, não a mecânica. O modelo é
   `apps/api/tests/kanban.test.ts`: *"limite de WIP avisa, mas não bloqueia o movimento"*.
 - Não há cobertura configurada e não há CI. Rodar a suíte é manual e exige Postgres no ar.

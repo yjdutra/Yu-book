@@ -241,25 +241,26 @@ uma ação chamada antes do desmonte, não efeito do painel — e o que ela gara
 
 **INV-56 — O laço do servidor não roda sem superfície visível.** Uma mensagem do chat são até cinco
 chamadas ao provedor, cada uma gravando contra o teto do dia (INV-47). Desde a Etapa 3 do redesenho
-de UI o fluxo mora em `ProvedorSessaoChat` (`apps/web/src/lib/sessaoChat.tsx:167`), montado acima da
+de UI o fluxo mora em `ProvedorSessaoChat` (`apps/web/src/lib/sessaoChat.tsx:168`), montado acima da
 casca (`apps/web/src/App.tsx:38-40`) — **desmontar a superfície não solta a conexão.** A garantia
 deixou de ser uma limpeza de efeito e virou cinco pontos, cada um fechando um caminho:
 
 1. **Fechar o painel para o fluxo:** `fecharPainel` chama `parar()` antes de desmontar
-   (`sessaoChat.tsx:280-281`).
-2. **O logout aborta:** sair da sessão desmonta o provedor, e a limpeza aborta (`sessaoChat.tsx:207`).
+   (`sessaoChat.tsx:281-282`).
+2. **O logout aborta:** sair da sessão desmonta o provedor, e a limpeza aborta (`sessaoChat.tsx:208`).
 3. **Sair da tela do chat com fluxo em curso reabre o painel** (`Aplicacao.tsx:185-190`, lendo
-   `temFluxo()`, `sessaoChat.tsx:222`). Sem isso a resposta seguiria em tela nenhuma.
-4. **O `AbortController` nasce antes de criar a conversa** (`sessaoChat.tsx:306-307`, razão em
-   `:186-192`), e enquanto ele existe outro envio não começa (`:304`). Nascido depois do
-   `criar.mutateAsync` (`:330`), fechar nessa janela chamava um `parar()` sem nada para parar; a
-   conferência de `:339` é o que segura o fluxo ali.
+   `temFluxo()`, `sessaoChat.tsx:223`). Sem isso a resposta seguiria em tela nenhuma.
+4. **O `AbortController` nasce antes de criar a conversa** (`sessaoChat.tsx:307-308`, razão em
+   `:187-193`), e enquanto ele existe outro envio não começa (`:305`). Nascido depois do
+   `criar.mutateAsync` (`:331`), fechar nessa janela chamava um `parar()` sem nada para parar; a
+   conferência de `:340` é o que segura o fluxo ali.
 5. **Conversa nova pedida com fluxo em curso não troca a conversa** (Etapa D): mostra a resposta —
-   no painel, ou no campo da tela do chat — e diz por quê (`avisoDeEspera`, `sessaoChat.tsx:109`).
-   Vale para "Conversar" com um agente (`components/agentes/acoesDoAgente.tsx:125-137`) e para o
-   pedido que chega à tela do chat (`pages/AssistentePage.tsx:40-64`).
+   no painel, ou no campo da tela do chat — e diz por quê (`avisoDeEspera`, `sessaoChat.tsx:110`).
+   Vale para "Conversar" com um agente (`components/agentes/acoesDoAgente.tsx:125-137`), para o
+   pedido que chega à tela do chat (`pages/AssistentePage.tsx:40-64`) e para a conversa aberta das
+   últimas chamadas do AI usage dash (`components/ajustes/TabelasUsoIa.tsx:201-210`).
 
-**"Tela do chat" é `naTelaDoChat` (`sessaoChat.tsx:93`), não a área `/assistente`.** Desde a Etapa D
+**"Tela do chat" é `naTelaDoChat` (`sessaoChat.tsx:94`), não a área `/assistente`.** Desde a Etapa D
 a área tem a galeria e o editor de agentes (`/assistente/agentes…`), e desde a E as rotinas
 (`/assistente/rotinas…`, `/assistente/execucoes/:runId`); em todas elas o painel existe.
 `pathname.startsWith("/assistente")` faria a resposta sumir ao ir do chat para a galeria —
@@ -269,13 +270,13 @@ Os três perguntavam pela área até a Etapa D. `areaDe` (`casca/PainelContexto.
 prefixo, e está certo: ali a pergunta é qual painel contextual mostrar, não se o chat está à vista.
 
 **A conversa nova pedida de fora troca ao chegar, nunca antes do `navigate`.** Ela viaja no `state`
-da navegação (`EstadoRotaChat`, `sessaoChat.tsx:104-106`) e é aplicada por `AssistentePage`. Trocar
+da navegação (`EstadoRotaChat`, `sessaoChat.tsx:105-107`) e é aplicada por `AssistentePage`. Trocar
 antes quebra duas coisas: a guarda de saída do editor de agentes segura o `navigate` e a conversa
 já teria mudado com a pessoa ainda no editor; e um envio feito pelo painel enquanto o diálogo da
 guarda estava aberto sumiria da tela — este invariante.
 
 **Expandir para a tela do chat não toca no fluxo**: trocar de superfície não é fechar
-(`sessaoChat.tsx:272-274`), e a rota não passa por `fecharPainel`. Caminho novo que esconda a
+(`sessaoChat.tsx:273-275`), e a rota não passa por `fecharPainel`. Caminho novo que esconda a
 última superfície visível — outra rota, outro atalho, outro "fechar" — chama `fecharPainel` ou
 entra nesta lista. Nenhum portão executa o front: a quebra aparece como gasto no teto sem resposta
 na tela.
@@ -283,8 +284,9 @@ na tela.
 **Defeito aberto, anterior à Etapa D — o ponto 5 ainda não vale em todo sítio.** "Nova conversa" e
 escolher outra conversa chamam `novaConversa`/`selecionar` sem olhar `temFluxo()`: a fala em curso
 só aparece na conversa dela (`components/assistente/Conversa.tsx:637`), e some com o laço pagando.
-Exemplo: `ListaConversas.tsx:176`. Quem for fechar, grepe os dois nomes em `apps/web/src` e passe
-todo chamador pelo mesmo desvio de `avisoDeEspera`.
+Os `selecionar` sem desvio em 2026-09-25: `MarcaIA.tsx:146`, `casca/contexto/ContextoInicio.tsx:83`,
+`assistente/PainelAssistente.tsx:121` e `assistente/ListaConversas.tsx:176`. Quem for fechar, grepe
+os dois nomes em `apps/web/src` e passe todo chamador pelo desvio de `TabelasUsoIa.tsx:201-210`.
 
 **O avesso: na tela do chat, nada alterna o painel.** Lá o painel não existe, mas `painelAberto`
 continua valendo, e `alternarPainel` com ele `true` é `fecharPainel` — `parar()` na resposta que
@@ -293,9 +295,9 @@ o atalho (`Aplicacao.tsx:299`) e o comando da paleta (`:399`); o botão do trilh
 existir ali (`casca/Trilho.tsx:254`). Caminho novo que alterne o painel entra nesta lista.
 
 A armadilha vizinha: **os dois contextos da sessão não se fundem.** `useAcoesChat`
-(`sessaoChat.tsx:474`) dá as ações e `painelAberto` a quem só abre o chat — casca, editor, card —;
-`useSessaoChat` (`:481`) dá o estado, que muda a cada delta do streaming, e é só das superfícies
-(razão em `:31-35`). Fundir os dois, ou assinar `useSessaoChat` fora de `components/assistente/`,
+(`sessaoChat.tsx:476`) dá as ações e `painelAberto` a quem só abre o chat — casca, editor, card —;
+`useSessaoChat` (`:483`) dá o estado, que muda a cada delta do streaming, e é só das superfícies
+(razão em `:32-36`). Fundir os dois, ou assinar `useSessaoChat` fora de `components/assistente/`,
 faz quadro e editor re-renderizarem dezenas de vezes por segundo durante a resposta. Compila,
 funciona, só fica lento.
 
@@ -305,7 +307,7 @@ funciona, só fica lento.
 de modelos deriva uma coluna por tarefa de `TAREFAS_COM_MODELO`
 (`apps/web/src/components/ajustes/QuadroDeModelos.tsx:461`, e a grade conta as colunas em `:387`) e
 tira os rótulos de um `Record<TarefaComModelo, …>` **total**
-(`apps/web/src/components/ajustes/comum.ts:26`, razão em `:16-25`). As duas metades fazem
+(`apps/web/src/components/ajustes/comum.ts:27`, razão em `:17-26`). As duas metades fazem
 trabalho diferente: o `Record` faz o **compilador** cobrar a tarefa nova — é o portão que o front
 compra no lugar do teste que não existe — e o `.map` faz a coluna nascer sozinha.
 
@@ -371,3 +373,19 @@ menu virar "pegar": o menu deixa de abrir pelo teclado, e o mouse continua funci
 executa arraste. Arrastável novo com controle dentro segue a alça, como já fazem a coluna do kanban
 (`ColunaQuadro.tsx:201-205`) e o passo do fluxo de rotina, que tem botão e menu dentro
 (`components/rotinas/FluxoEditavel.tsx:262-264`, razão em `:43-46`).
+
+## O gasto na tela
+
+**INV-62 — Toda ação que chama o provedor invalida o gasto, inclusive quando falha.** A chamada que
+falhou também grava linha em `ai_usage` (INV-51), e as duas leituras dela no front têm `staleTime`
+de 30 s: `CHAVE_AJUSTES`, o gasto do dia, e `CHAVE_USO`, o AI usage dash
+(`apps/web/src/lib/chat.ts:34-37`). Os pontos, cada um no **fim** da ação e não no sucesso:
+
+- o formatar, no `onSettled` (`apps/web/src/lib/ia.ts:222-225`, razão em `:214-221`);
+- o chat, no `finally` (`apps/web/src/lib/sessaoChat.tsx:411-421`);
+- a execução de rotina, por `invalidarDepoisDaExecucao` (`apps/web/src/lib/rotinas.ts:202-209`).
+
+`useAtualizarAjustes` invalida `CHAVE_USO` por outro motivo — o fuso muda o `to` do relatório
+(`lib/ia.ts:136-142`). Trocar `onSettled` por `onSuccess` deixa a falha paga fora da tela, e ação
+nova que chame o provedor entra nesta lista: **nada cobra um quarto ponto**, e o sintoma é um número
+velho por 30 s, logo depois da ação que o mudou.

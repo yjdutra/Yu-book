@@ -41,9 +41,13 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    valor dele (`Agenda.tsx`, `rascunho.ts`) entra por rota ou bloco `lazy`
    (`apps/web/src/pages/DashboardPage.tsx:26`). Um import de valor num módulo do painel desfaz isso.
    `chat.ts` (Etapa G) é o terceiro: `lib/sessaoChat.tsx`, sempre montado, **não** deduplica as
-   fontes por `chaveDaFonteDoChat` (`:362-372`, medido) — quem tira a repetição é
+   fontes por `chaveDaFonteDoChat` (`:363-373`, medido) — quem tira a repetição é
    `components/assistente/Fontes.tsx:89-96`. Não "conserte" a sessão com o import, nem com uma
-   segunda definição de "a mesma fonte" escrita à mão.
+   segunda definição de "a mesma fonte" escrita à mão. **`ia.ts` é o quarto, e o caso aberto:**
+   `casca/contexto/ContextoAjustes.tsx:2` lê `SECOES_DE_AJUSTES` de `components/ajustes/comum.ts`,
+   que importa `microsParaDolares` como valor (`:1`) — e `shared/ia.ts` inteiro, com os `z.object`
+   de nível de módulo, entra no chunk inicial (medido na build em 2026-09-25; dívida de 9b2aec6).
+   Enquanto durar, "a seção é `lazy()`" não justifica import de valor de `shared/ia`.
 
 **`"sideEffects": false` no `package.json` de `shared` não é enfeite, e não se remove.** Sem ele o
 bundler não pode presumir que importar `@yu-book/shared` é inócuo, e **todo** módulo do pacote entra
@@ -145,7 +149,10 @@ pergunta à API (`apps/mcp/src/fuso.ts:43`) e o chat recebe o `fuso` no contexto
 viraram duas, num lugar só. **Desde a Etapa F a volta passa por `instanteLocal`**
 (`packages/shared/src/agenda.ts:165`), a mesma conversão de relógio de parede em instante que a
 agenda de rotina usa: mexer nela move o prazo e o horário da rotina juntos, e o portão das duas é
-`apps/api/tests/agenda.test.ts` mais `apps/mcp/tests/fuso.test.ts`.
+`apps/api/tests/agenda.test.ts` mais `apps/mcp/tests/fuso.test.ts`. **A aritmética de dia
+`AAAA-MM-DD` é uma só**, `somarDias` (`agenda.ts:210`), que a janela do AI usage dash também usa.
+Mora em `agenda.ts` e não em `ia.ts` porque `agenda.ts:2` importa `ia.ts`: o inverso fecharia
+um ciclo. Não escreva uma segunda.
 
 **O lado do front não fechou.** `paraCampoData` (`apps/web/src/components/PainelCard.tsx:21`) e
 `paraData` (`:30`) continuam usando `getMonth()`/`getDate()` e um `new Date("…T23:59:59")` cru —

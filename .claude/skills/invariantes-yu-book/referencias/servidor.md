@@ -293,9 +293,10 @@ valor padrão em `estimarPasso` nem em `PedidoDoPasso` (`:61-67`, `:129-135`).
 zero.** `custoDaResposta` (`custo.service.ts:167`): `provedor` (o `cost` da resposta), `estimado`
 (tokens × preço do catálogo) e `desconhecido` (nem custo nem token). Zero **não move o teto** — um
 provedor que parasse de informar tornaria o teto decorativo em silêncio. Por isso `desconhecido` é
-contado (`resumoDoDia`, `:106`) e sai na tela como `callsWithoutCostToday`
-(`packages/shared/src/ia.ts:153-156`). Apagar a contagem, ou fundir os degraus num campo só, remove
-o único sinal de que o teto parou de valer.
+contado no dia (`resumoDoDia`, `:106`), que sai na tela como `callsWithoutCostToday`
+(`packages/shared/src/ia.ts:153-156`), e no período do AI usage dash, com o degrau `estimado`
+(`callsWithoutCost` e `estimatedMicros`, `apps/api/src/modules/assistente/uso.service.ts:233-234`).
+Apagar a contagem, ou fundir os degraus num campo só, remove os sinais de que o teto parou de valer.
 
 **A busca na web não cria degrau (Etapa G).** `comBusca` (`custo.service.ts:221-224`) soma a tarifa
 só no `estimado`, que a conta por tokens não enxerga; `provedor` é tomado como já incluindo a busca
@@ -319,7 +320,11 @@ chamada **já foi paga** quando esta função roda. Prompt é pedido; esta funç
 `localDay` que a linha de uso vai gravar (`custo.service.ts:129`), para que o dia do corte e o do
 registro sejam o mesmo, ainda que a chamada atravesse a meia-noite. A coluna é `local_day`
 (`schema.prisma:534`), com índice `(userId, localDay)` (`:552`). Trocar a gravação por um `WHERE`
-sobre `createdAt` zera o teto três horas cedo, todo dia, sem erro nenhum.
+sobre `createdAt` zera o teto três horas cedo, todo dia, sem erro nenhum. **A janela tem dois
+leitores**, e os dois recortam por `localDay`: o teto (`resumoDoDia`, `custo.service.ts:105-106`) e
+o AI usage dash (`uso.service.ts:93`, e o período anterior em `:140`), com portão em
+`apps/api/tests/uso-ia.test.ts:107`. A tela mostra o dia gravado, não o recalculado
+(`AiUsageCall.localDay`, `packages/shared/src/ia.ts:475-478`). Leitor novo entra nesta lista.
 
 **INV-51 — `AiUsage.noteId` é `SetNull`.** `apps/api/prisma/schema.prisma:548`, como em
 `Event.noteId`. Apagar a nota **não** apaga o registro de gasto: com `Cascade`, o teto diário viraria
@@ -495,7 +500,7 @@ provedor. Toda leitura dela deságua em `pedirComGestao`
 `CAMINHOS_DE_GESTAO` (`:51-57`) — o `POST /analytics/query` é consulta; hoje a leitura é
 `chaveDeGestao` (`:88-90`), privada ao módulo. Grepe a variável antes de fechar diff que a toque. **O compilador guarda `pedirComGestao`, não a chave:**
 `pedirDoProvedor` com ela noutro lugar aceita qualquer caminho, e os testes só veem as rotas que
-existem (`apps/api/tests/openrouter-painel.test.ts:578`, `:596`). Caminho novo com ela é decisão do
+existem (`apps/api/tests/openrouter-painel.test.ts:612`, `:630`). Caminho novo com ela é decisão do
 operador; `/keys`, nunca. A saída das duas chaves para o navegador:
 
 - **Rótulo `sk-…` redigido só por `rotuloPublico`** (`openrouter.service.ts:79-82`) — o padrão do
@@ -504,7 +509,7 @@ operador; `/keys`, nunca. A saída das duas chaves para o navegador:
 - **Campo a campo**: `paraChave` (`openrouter-painel.service.ts:176-206`) não copia
   identificador de conta. Espalhar o `data` do provedor na resposta desfaz isso calado.
 - **401/403 sem o texto do provedor** (`openrouter.service.ts:180-188`), que ecoa a credencial:
-  `nomeDaChave` e `dicaSeRecusada` são texto nosso (`openrouter-painel.test.ts:613`).
+  `nomeDaChave` e `dicaSeRecusada` são texto nosso (`openrouter-painel.test.ts:647`).
 
 ## Servidor MCP
 

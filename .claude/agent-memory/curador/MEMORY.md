@@ -5,18 +5,15 @@
 ## O que já nos mordeu
 
 - Ref erra **de origem**, não só de linha: grepe o caminho.
-- Refs em lote: difflib HEAD→árvore e releia a faixa (`a>b`, `b>c` na mesma linha invertem).
-  Basename repetido e regex `ts|tsx` enganam.
-- `:NNN` resolve pelo último caminho citado: ref nova após ref de teste leva o basename.
-- Parágrafo tocado: confira **todo** ref dele; a velha sobrevive ao lado.
-- **Agente apodrece calado, e a paráfrase junto.** Grepe o fato, não a frase.
+- Refs em lote: difflib HEAD→árvore e releia a faixa; basename repetido e regex `ts|tsx` enganam.
+- `:NNN` resolve pelo último caminho citado; parágrafo tocado: confira **todo** ref dele.
+- **Agente apodrece calado, e a paráfrase junto:** grepe o fato, não a frase.
 - **O código alcança o registro:** comentário tardio no sítio desbanca o item.
 - Regra que troca de mecanismo vira INV novo; o velho fica com a parte geral.
 - **Registre o eixo, não o censo** — e eixo com um exemplo só é lido como o exemplo.
 - Eixo novo raramente contradiz: **estreita a cláusula**. Cace o estreito, não só o falso.
-- Categórica erra no briefing e no comentário: grepe antes de promover.
-- Defeito num sítio tem irmão: grepe o padrão.
-- Plano com "Fase N" é numeração nova: some-a no `CLAUDE.md` e cace o "Fase N" solto no código.
+- Categórica erra no briefing e no comentário, e defeito tem irmão: grepe antes de promover.
+- Plano com "Fase N" é numeração nova: some-a no `CLAUDE.md`; cace o "Fase N" solto no código.
 
 ## Decisões em vigor
 
@@ -30,3 +27,5 @@
 - **Não renumere seção nem INV.** Doutrina nova vira subseção; item novo entra no fim da série.
 - Não vira registro: fato sem `arquivo:linha`, com prazo, ou medida que varia por rodada. Fato do
   `historico.md`/`CLAUDE.md` não se copia; ponteiro datado cabe.
+- Técnica de um agente sai da memória para `.claude/agents/<agente>.md`. Memória do operador
+  (`~/.claude/projects/`) não é minha: relate.
