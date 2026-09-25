@@ -13,14 +13,20 @@ _Nada pendente._
 
 ---
 
-## [0.21.0] — 2026-09-24
+## [0.21.0] — 2026-09-25
 
 **Etapa E da frente de IA: rotinas com "Rodar agora".** Uma rotina encadeia agentes numa sequência
-fixa, orquestrada pelo código. Ela pega a próxima ideia de uma coluna, passa por cada passo e deixa
-o resultado num card novo, sem publicar nada fora do Yu-book. A execução **roda no servidor e não
-depende da aba**: "Rodar agora" responde na hora, e a tela acompanha ao vivo e pode ser fechada e
-reaberta. Requisitos na seção 5.7 de [`docs/prd-ia-no-yu-book.md`](docs/prd-ia-no-yu-book.md):
-RF-54 a RF-62, RN-16 a RN-19, RNF-11 e CA-29 a CA-34.
+fixa, orquestrada pelo código. Ela parte da próxima ideia de uma coluna **ou de um pedido** escrito
+nela, passa por cada passo e deixa o resultado num card novo **ou numa nota nova**, sem publicar
+nada fora do Yu-book. A execução **roda no servidor e não depende da aba**: "Rodar agora" responde
+na hora, e a tela acompanha ao vivo e pode ser fechada e reaberta. Requisitos na seção 5.7 de [`docs/prd-ia-no-yu-book.md`](docs/prd-ia-no-yu-book.md):
+RF-54 a RF-64, RN-16 a RN-19, RNF-11 e CA-29 a CA-37.
+
+**A etapa foi entregue em 2026-09-24 e emendada em 2026-09-25**, antes de qualquer publicação,
+depois da primeira conferência do operador no editor. A emenda trouxe a entrada por pedido (RF-63), a
+saída em nota (RF-64) e o conserto do layout do editor. Ela move o mesmo conjunto de pacotes que a
+entrega original, e por isso entra nesta versão em vez de abrir a `[0.22.0]`. O porquê está em
+[`docs/historico.md`](docs/historico.md).
 
 É a terceira etapa do [plano de agentes de acervo](docs/plano-agentes-de-acervo.md) (C a G). A
 próxima é a F, agendamento. **A decisão de trabalho assíncrono, que o plano previa para a F, foi
@@ -29,40 +35,52 @@ tomada nesta etapa** e revoga "sem trabalho assíncrono, por decisão". O motivo
 
 **Os quatro pacotes se movem**, porque `packages/shared` mudou de contrato (o módulo novo
 `rotinas.ts`, `AiMark.routineName` e `AiMark.runId`, `rotina` em `AiTask` e em `AiVia`,
-`TAREFAS_COM_MODELO`, `OrigemIA` como união discriminada por via e quatro códigos de erro):
+`TAREFAS_COM_MODELO`, `OrigemIA` como união discriminada por via e quatro códigos de erro; na
+emenda, `inputKind`/`outputKind` na rotina e na execução, `outputNoteId`, o título `fixo`,
+`MODELOS_DE_ROTINA` no lugar de `MODELO_DE_ROTINA`, `primeiraLinha` e `resumoDoPedido`):
 `packages/shared` de `0.9.0` para `0.10.0`, `apps/api` de `0.11.0` para `0.12.0`, `apps/web` de
 `0.16.0` para `0.17.0` e `apps/mcp` de `0.12.0` para `0.13.0`, no `package.json` **e** no
-construtor do `McpServer`. Três migrations aditivas: `20260924215552_ia_etapa_e_rotinas`,
-`20260924224021_ia_etapa_e_pulso` e `20260924233000_ia_etapa_e_uma_execucao`. A última cria o
-índice único parcial `ai_routine_run_uma_em_andamento_idx`, que vive fora do `schema.prisma`.
+construtor do `McpServer`. A emenda não bumpa de novo. Quatro migrations aditivas:
+`20260924215552_ia_etapa_e_rotinas`, `20260924224021_ia_etapa_e_pulso`,
+`20260924233000_ia_etapa_e_uma_execucao` e, da emenda, `20260925133313_ia_etapa_e_pedido`. A
+terceira cria o índice único parcial `ai_routine_run_uma_em_andamento_idx`, que vive fora do
+`schema.prisma` e que a quarta não toca.
 
 **O MCP não mudou de comportamento.** Em `apps/mcp/src` só mudou a versão. Rotinas ficam fora do
 MCP (RF-62), e a única mudança que o MCP enxerga é a linha da marca "via rotina «nome»", que vem de
-`packages/shared/src/formato.ts` e ganhou teste. Os tamanhos medidos batem com a `[0.20.0]`:
-`tools/list` com escrita em 9601 B.
+`packages/shared/src/formato.ts` e ganhou teste. Com a emenda, a nota de saída de rotina chega ao
+MCP pela mesma linha. Os tamanhos medidos batem com a `[0.20.0]`: `tools/list` com escrita em
+9601 B.
 
 Portões: `pnpm --filter @yu-book/shared build` ok, `pnpm typecheck` limpo nos quatro pacotes e
-`pnpm --filter @yu-book/mcp test` com **57 testes** (eram 56), medidos de novo no fechamento.
-`pnpm --filter @yu-book/api test` com **229 testes** (eram 200), relatado pela sessão de
-implementação.
+`pnpm --filter @yu-book/mcp test` com **57 testes** (eram 56), medidos de novo no fechamento da
+emenda. `pnpm --filter @yu-book/api test` com **240 testes** (eram 200; 229 na entrega original),
+relatado pela sessão de implementação.
 
-**Entregue sem conferência de interface à mão**, como a C e a D. Nada do que é tela nesta entrada
-foi visto funcionando: a galeria, o editor de fluxo, a execução ao vivo, o histórico e a faixa "via
-rotina". `apps/web` continua sem runner de teste. O roteiro de oito itens está em
-[`docs/historico.md`](docs/historico.md).
+**Conferida só em parte.** O operador abriu o editor de rotina, e o que ele viu quebrado motivou a
+emenda. O conserto **não foi visto na tela**, e nada do resto foi visto funcionando: a galeria, a
+execução ao vivo, o histórico, a faixa "via rotina", o pedido e a nota. `apps/web` continua sem
+runner de teste. O roteiro está em [`docs/historico.md`](docs/historico.md).
 
 ### Adicionado
 - **Rotinas** (RF-54). Criar, editar e excluir, com nome único por conta, descrição, Entrada, de 1 a
   6 passos de agente (pelo menos um "reescreve") e Saída. Rotas `GET|POST /ai/routines` e
   `GET|PATCH|DELETE /ai/routines/:id`.
-- **Entrada** (RF-55): uma coluna de quadro. A ideia é o primeiro card ativo dela que esta rotina
-  ainda não usou.
+- **Entrada** (RF-55): uma coluna de quadro, e a ideia é o primeiro card ativo dela que esta rotina
+  ainda não usou; ou um pedido.
+- **Entrada por pedido** (RF-63). A rotina começa direto no agente, com um texto fixo de até 4 000
+  caracteres, que é a tarefa de toda execução. O passo o recebe na seção `## Pedido`. Não há ideia a
+  escolher nem a consumir, e cada execução é independente.
 - **Passos em dois modos** (RF-56). "Reescreve" substitui o rascunho. "Revisa" registra observações
   sem tocar nele, e elas seguem para os passos seguintes. Cada passo tem agente e instrução próprios.
-- **Saída** (RF-57). O card novo nasce no fim de uma coluna de qualquer quadro, com o texto final, a
-  seção "Observações" (opcional) e a ideia de origem. O título vem da ideia ou da primeira linha do
-  texto. A ideia usada é **movida** para uma coluna do mesmo quadro, **arquivada** ou **mantida**,
-  conforme a rotina.
+- **Saída** (RF-57). Um card novo no fim de uma coluna de qualquer quadro, ou uma nota nova, com o
+  texto final, a seção "Observações" (opcional) e a origem. O título vem da ideia, da primeira linha
+  do texto ou de um texto fixo. Com entrada por coluna, a ideia usada é **movida** para uma coluna
+  do mesmo quadro, **arquivada** ou **mantida**, conforme a rotina.
+- **Saída em nota** (RF-64), para os dois tipos de entrada, num workspace escolhido ou sem workspace.
+  Título que já existe ganha ` · DD/MM/AAAA HH:MM` no fuso do usuário, em vez de falhar. Se ainda
+  colidir, ganha também um trecho do id da execução. A nota nasce com a marca "via rotina" e leva à
+  execução que a gerou.
 - **"Rodar agora"** (RF-58). `POST /ai/routines/:id/runs` responde `202 { runId }`, e a execução
   segue no servidor. `GET /ai/runs/:runId/events` é um SSE que manda primeiro o retrato do que está
   gravado e depois os eventos ao vivo. Uma execução já terminada manda o retrato e `fim`.
@@ -76,7 +94,8 @@ rotina". `apps/web` continua sem runner de teste. O roteiro de oito itens está 
 - **Teto por execução** (RN-17), configurado na Saída. O padrão é US$ 0,50 e o máximo US$ 10.
 - **Área de rotinas dentro de Assistente**, sem item novo no trilho:
   - galeria em `/assistente/rotinas`, com a miniatura do fluxo, a última execução e "Rodar agora";
-  - estado vazio com o modelo "Post do LinkedIn";
+  - estado vazio com dois modelos: "Post do LinkedIn" e "Pedido direto" (entrada por pedido, um
+    passo com o agente Marketing, saída em nota);
   - editor de fluxo em `/assistente/rotinas/novo` e `/assistente/rotinas/:id`, e execução em
     `/assistente/execucoes/:runId`;
   - seção "Rotinas" no painel contextual;
@@ -85,7 +104,9 @@ rotina". `apps/web` continua sem runner de teste. O roteiro de oito itens está 
   - Os conectores são SVG, com um "+" que insere passo ali. Os passos se reordenam por arraste com
     alça única, ou por teclado.
   - O painel lateral muda com o bloco selecionado, e a validação é listada por bloco, com ícone e
-    texto.
+    texto. O tipo de entrada (coluna ou pedido) e o de saída (card ou nota) são escolhidos em
+    cartões de rádio, e o grupo "A ideia usada" só aparece com entrada por coluna.
+  - A miniatura da galeria marca a rotina por pedido e a saída em nota.
   - A estimativa "a partir de" mostra o custo por execução.
   - Salvar é explícito, com `Ctrl+S` e guarda de saída. "Rodar agora" fica desabilitado, com o
     motivo, enquanto houver alteração não salva.
@@ -93,7 +114,7 @@ rotina". `apps/web` continua sem runner de teste. O roteiro de oito itens está 
   - A linha do tempo repete o fluxo como estado: pendente, rodando, concluído, falhou ou pulado.
   - O texto do passo chega enquanto é escrito.
   - Mostra custo contra o teto, modelo, tokens e duração, e o texto de cada passo concluído.
-  - `aria-live` anuncia a troca de passo, e "Abrir card" aparece no fim.
+  - `aria-live` anuncia a troca de passo, e "Abrir card" ou "Abrir nota" aparece no fim.
 - `Parte` em `components/base/` e `SeletorColuna`, extraído do editor de agente.
 
 ### Alterado
@@ -115,13 +136,15 @@ rotina". `apps/web` continua sem runner de teste. O roteiro de oito itens está 
   estimativa é conferido contra o teto da rotina, e o gasto do dia contra o diário. Estourar
   qualquer um encerra a execução com `falhou`, com o motivo (`TETO_DA_EXECUCAO` ou o do diário).
   Iniciar com o teto diário atingido dá 402.
-- **Uma ideia, um post** (RN-18, CA-30). Um card com execução concluída ou em andamento desta rotina
-  não é escolhido de novo, qualquer que seja a ação de consumo. Sem ideia elegível, a resposta é 404
-  `SEM_IDEIA`.
+- **Uma ideia, um post** (RN-18, CA-30). Com entrada por coluna, um card com execução concluída ou
+  em andamento desta rotina não é escolhido de novo, qualquer que seja a ação de consumo. Sem ideia
+  elegível, a resposta é 404 `SEM_IDEIA`. Com entrada por pedido não há o que consumir, e rodar de
+  novo é rodar de novo.
 - **Uma execução por vez** (RN-19). Uma segunda execução dá 409 `ROTINA_EM_ANDAMENTO`, garantido
   por índice único parcial no banco, e não só pelo código.
-- **Posse pela cadeia** (RN-15). Rotina, agente e colunas de outra conta dão o mesmo 404 de um id
-  inexistente. A coluna de consumidas tem de ser do quadro da entrada. Uma rotina com agente
+- **Posse pela cadeia** (RN-15). Rotina, agente, colunas e o workspace da nota de saída de outra
+  conta dão o mesmo 404 de um id inexistente. Pedido vazio, título "da ideia" ou ação "mover" numa
+  rotina por pedido dão 422 com o motivo (CA-37). A coluna de consumidas tem de ser do quadro da entrada. Uma rotina com agente
   excluído ou coluna sumida recusa rodar com 422 `ROTINA_INVALIDA`, dizendo o motivo.
 - **Nenhuma execução fica "em andamento" para sempre** (RNF-11, CA-33).
   - A execução pulsa a cada 10 s.
@@ -129,7 +152,8 @@ rotina". `apps/web` continua sem runner de teste. O roteiro de oito itens está 
     minuto e ao iniciar outra execução.
   - O SIGTERM marca as execuções vivas como `interrompida` antes de fechar a API.
   - O cancelamento e o SSE funcionam também quando a execução roda noutra instância, pelo banco.
-  - Com um card já criado, a execução termina `concluida`. Se o consumo da ideia falhar, ela vem com
+  - Com o card ou a nota de saída já criados, a execução termina `concluida`. A varredura acha a
+    nota também pela marca, inclusive na lixeira. Se o consumo da ideia falhar, ela vem com
     o aviso `CONSUMO_FALHOU` ou `FINALIZACAO_PARCIAL`, e nunca `falhou`.
 
 ---

@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { MAX_PASSOS_DA_ROTINA } from "@yu-book/shared";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useMovimentoReduzido } from "../../lib/movimento";
 import { AvatarAgente } from "../agentes/AvatarAgente";
@@ -55,6 +55,8 @@ import type { BlocoEscolhido, PassoRascunho } from "./rascunho";
  */
 
 export interface InfoDoBloco {
+  /** O tipo à vista no rótulo: quadro para coluna, fala para pedido, folha para nota. */
+  icone?: ReactNode;
   /** Linha principal: "Ideias · LinkedIn". */
   titulo: string;
   /** Linhas menores abaixo. */
@@ -71,6 +73,20 @@ const idDoMais = (indice: number) => `yb-fluxo-mais-${indice}`;
 
 export function focarDepois(id: string) {
   requestAnimationFrame(() => document.getElementById(id)?.focus());
+}
+
+/** Rola só o primeiro ancestral com rolagem horizontal, o bastante para o bloco caber. */
+function rolarLinhaAte(bloco: HTMLElement) {
+  let linha = bloco.parentElement;
+  while (linha && !/auto|scroll/.test(getComputedStyle(linha).overflowX)) {
+    linha = linha.parentElement;
+  }
+  if (!linha) return;
+  const caixa = linha.getBoundingClientRect();
+  const alvo = bloco.getBoundingClientRect();
+  const folga = 16;
+  if (alvo.left < caixa.left) linha.scrollLeft += alvo.left - caixa.left - folga;
+  else if (alvo.right > caixa.right) linha.scrollLeft += alvo.right - caixa.right + folga;
 }
 
 /** A casca comum dos três tipos de bloco. */
@@ -116,8 +132,11 @@ function CascaBloco({
         />
       )}
       <div className="flex h-9 items-center gap-1.5 px-2.5">
-        <span className="rotulo flex min-w-0 items-center gap-1.5">{rotulo}</span>
-        <span className="ml-auto flex items-center gap-0.5">{topo}</span>
+        {/* O texto do rótulo vem num `span.truncate` de quem chama: reticência em flex só
+            funciona num filho de verdade, e o `overflow-hidden` aqui cortaria o contorno de
+            foco da alça. */}
+        <span className="rotulo flex min-w-0 flex-1 items-center gap-1.5">{rotulo}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-0.5">{topo}</span>
       </div>
       <button
         type="button"
@@ -126,8 +145,9 @@ function CascaBloco({
         aria-pressed={selecionado}
         aria-label={nomeAcessivel}
         aria-describedby={problemas.length > 0 ? idProblema : undefined}
-        className="flex min-h-0 flex-1 flex-col items-start gap-1.5 rounded-b-cartao px-3 pb-3
-                   text-left"
+        // Sem `items-start`: o filho estica até a largura do bloco, e só assim o `truncate` do
+        // nome tem limite — encolhido ao conteúdo, o título do passo vazava pela direita.
+        className="flex min-h-0 flex-1 flex-col gap-1.5 rounded-b-cartao px-3 pb-3 text-left"
       >
         {children}
       </button>
@@ -160,7 +180,7 @@ function ConteudoPasso({ passo }: { passo: PassoRascunho }) {
           tamanho="g"
           excluido={!passo.agentId}
         />
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1">
           <span
             className={`block truncate text-sm font-medium ${
               passo.agentName ? "text-titulo" : "text-ink-400"
@@ -182,7 +202,7 @@ function ConteudoPasso({ passo }: { passo: PassoRascunho }) {
           </span>
         </span>
       </span>
-      <span className="line-clamp-2 text-xs text-ink-400">
+      <span className="line-clamp-2 break-words text-xs text-ink-400">
         {passo.instruction.trim() || "Sem instrução própria — só as premissas do agente."}
       </span>
     </>
@@ -250,7 +270,7 @@ function BlocoPasso({
             >
               <IconeAlca className="size-3.5" />
             </button>
-            Passo {indice + 1}
+            <span className="truncate">Passo {indice + 1}</span>
           </>
         }
         topo={
@@ -394,12 +414,20 @@ export function FluxoEditavel({
   }, [arrastado]);
 
   /// Escolher um bloco fora da vista o traz para ela — a linha rola na
-  /// horizontal, e o anel de escolhido não pode ficar escondido.
+  /// horizontal, e o anel de escolhido não pode ficar escondido. Só a linha:
+  /// `scrollIntoView` rolaria também os ancestrais, até o `main`, e no mount
+  /// empurrava a página e deixava o cabeçalho fixo cortado no topo. Por isso
+  /// também não roda na montagem — a primeira escolha não veio de ninguém.
+  /// No dev, o StrictMode roda o efeito duas vezes e a segunda passa: é
+  /// inofensivo, porque só mexe em `scrollLeft` e o bloco inicial já está à vista.
+  const montadoRef = useRef(false);
   useEffect(() => {
-    document
-      .getElementById(idDoBloco(escolhido))
-      ?.closest("[data-bloco]")
-      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (!montadoRef.current) {
+      montadoRef.current = true;
+      return;
+    }
+    const bloco = document.getElementById(idDoBloco(escolhido))?.closest("[data-bloco]");
+    if (bloco instanceof HTMLElement) rolarLinhaAte(bloco);
   }, [escolhido]);
 
   const anuncios: Announcements = {
@@ -467,13 +495,15 @@ export function FluxoEditavel({
             onEscolher={() => onEscolher({ tipo: "entrada" })}
             rotulo={
               <>
-                <IconeBoard className="size-3.5 text-accent-400" />
-                Entrada
+                {entrada.icone ?? <IconeBoard className="size-3.5 text-accent-400" />}
+                <span className="truncate">Entrada</span>
               </>
             }
           >
-            <span className="line-clamp-2 text-sm font-medium text-titulo">{entrada.titulo}</span>
-            <span className="text-miudo text-ink-400">{entrada.detalhe}</span>
+            <span className="line-clamp-2 break-words text-sm font-medium text-titulo">
+              {entrada.titulo}
+            </span>
+            <span className="break-words text-miudo text-ink-400">{entrada.detalhe}</span>
           </CascaBloco>
         </div>
 
@@ -511,13 +541,15 @@ export function FluxoEditavel({
             onEscolher={() => onEscolher({ tipo: "saida" })}
             rotulo={
               <>
-                <IconeCheck className="size-3.5 text-accent-400" />
-                Saída
+                {saida.icone ?? <IconeCheck className="size-3.5 text-accent-400" />}
+                <span className="truncate">Saída</span>
               </>
             }
           >
-            <span className="line-clamp-2 text-sm font-medium text-titulo">{saida.titulo}</span>
-            <span className="text-miudo text-ink-400">{saida.detalhe}</span>
+            <span className="line-clamp-2 break-words text-sm font-medium text-titulo">
+              {saida.titulo}
+            </span>
+            <span className="break-words text-miudo text-ink-400">{saida.detalhe}</span>
           </CascaBloco>
         </div>
       </div>
@@ -535,7 +567,7 @@ export function FluxoEditavel({
               rotulo={
                 <>
                   <IconeAlca className="size-3.5" />
-                  Passo
+                  <span className="truncate">Passo</span>
                 </>
               }
             >

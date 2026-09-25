@@ -56,11 +56,12 @@ const MARCA_DE_AGENTE: AiMark = {
 };
 
 /**
- * Marca de rotina (Etapa E). Em produção só o **card** de saída a recebe — os
- * passos têm só ferramentas de leitura (RN-16) —, mas a linha da marca é a
- * mesma função para nota e card em `formato.ts`, e a nota é o caminho que este
- * arnês já exercita pela tool e pelo resource. A rotina não é tool (RF-62); o
- * que chega ao MCP é a marca.
+ * Marca de rotina (Etapa E). Desde a emenda da Etapa E a saída da rotina é um
+ * card **ou uma nota nova**, e as duas levam esta marca — gravada pelo código
+ * na saída, nunca pelos passos, que só têm ferramentas de leitura (RN-16). A
+ * nota é o caminho real que este arnês exercita pela tool e pelo resource; o
+ * card passa pela mesma `linhaDaMarca` de `formato.ts`. A rotina não é tool
+ * (RF-62); o que chega ao MCP é a marca.
  */
 const NOTA_DE_ROTINA_ID = "66666666-6666-4666-8666-666666666666";
 const MARCA_DE_ROTINA: AiMark = {

@@ -5,6 +5,7 @@ import type {
   BoardDetail,
   CardDetail,
   NomeDeFerramenta,
+  NoteDetail,
   RotinaEvent,
   RoutineDetail,
   RoutineInput,
@@ -210,11 +211,15 @@ async function rodarAceito(usuario: Usuario, routineId: string): Promise<string>
   return (body as RoutineRunStarted).runId;
 }
 
+/// Um IP por leitura: `esperar` relê a cada 20 ms, e no mesmo IP a releitura
+/// consome sozinha o limite global de 300/min que as outras chamadas da suíte
+/// dividem (`app.ts`) — o sintoma é um 429 no teste seguinte, longe da causa.
 const lerRun = async (usuario: Usuario, runId: string) => {
   const { status, body } = await chamar(app, {
     method: "GET",
     url: `/ai/runs/${runId}`,
     token: usuario.token,
+    ip: proximoIp(),
   });
   expect(status).toBe(200);
   return body as RoutineRunDetail;
@@ -1571,5 +1576,646 @@ describe("RNF-11: duas instâncias na janela de deploy", () => {
     } finally {
       soltar();
     }
+  });
+});
+
+/* ------------------------------------------ emenda: pedido e nota de saída */
+
+/// A primeira linha é o resumo (`inputTitle`, "Pedido: …"); o marcador, o que
+/// só existe no texto inteiro.
+const PEDIDO = "# Resumo da semana\n\nListe o que atrasou e o que andou.\nPEDIDO-MARCADOR";
+const RESUMO = "Resumo da semana";
+
+/** Rotina por pedido com saída em nota — a forma do modelo "Pedido direto". */
+function corpoPorPedido(
+  steps: RoutineInput["steps"],
+  extra: Partial<RoutineInput> = {},
+): RoutineInput {
+  return {
+    name: "Pedido direto",
+    inputKind: "pedido",
+    inputPrompt: PEDIDO,
+    outputKind: "nota",
+    outputTitle: "primeira_linha",
+    steps,
+    ...extra,
+  };
+}
+
+const lerNota = async (usuario: Usuario, id: string | null) => {
+  const { status, body } = await chamar(app, {
+    method: "GET",
+    url: `/notes/${id}`,
+    token: usuario.token,
+  });
+  expect(status).toBe(200);
+  return body as NoteDetail;
+};
+
+const issuesDe = (body: unknown) =>
+  (body as { error?: { issues?: { path: string; message: string }[] } }).error?.issues ?? [];
+
+/**
+ * Os `DD/MM/AAAA HH:MM` por que o relógio passou entre dois instantes, no
+ * fuso dado. A execução pode virar o minuto no meio: o título tem de ser um
+ * destes, e o teste não depende de ela caber num minuto só.
+ */
+function minutosEntre(inicio: number, fim: number, fuso: string): Set<string> {
+  const formato = new Intl.DateTimeFormat("pt-BR", {
+    timeZone: fuso,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const texto = (t: number) => {
+    const p = new Map(formato.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+    return `${p.get("day")}/${p.get("month")}/${p.get("year")} ${p.get("hour")}:${p.get("minute")}`;
+  };
+  const minutos = new Set<string>();
+  for (let t = inicio; t < fim; t += 60_000) minutos.add(texto(t));
+  minutos.add(texto(fim));
+  return minutos;
+}
+
+describe("CA-35 / RF-63 / RF-64: rotina por pedido com saída em nota", () => {
+  test("conclui numa nota marcada 'via rotina', ligada à execução, e nenhum card é tocado", async () => {
+    const c = await cenario("rotina-ca35");
+    const ideia = await criarCard(c.usuario, c.entrada, "Ideia que não é da rotina");
+    const workspace = await prisma.workspace.create({
+      data: { userId: c.usuario.id, name: "Relatórios" },
+    });
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      corpoPorPedido(
+        [{ agentId: escritor.id, mode: "reescreve", instruction: "INSTRUCAO-PEDIDO" }],
+        { outputWorkspaceId: workspace.id },
+      ),
+    );
+    expect(rotina).toMatchObject({
+      valid: true,
+      input: { kind: "pedido", resumo: RESUMO },
+      output: { kind: "nota", workspaceId: workspace.id, workspaceName: "Relatórios" },
+      inputPrompt: PEDIDO,
+      consumeAction: "manter",
+      consume: null,
+      // RN-18: sem ideia a escolher, não há contagem nem próxima.
+      eligibleCount: null,
+      nextIdea: null,
+    });
+    const cardsDaConta = () =>
+      prisma.card.count({ where: { column: { board: { userId: c.usuario.id } } } });
+    const cardsAntes = await cardsDaConta();
+    dublê.roteiro = [{ tipo: "texto", texto: "# Semana em uma linha\n\nCORPO-DA-NOTA" }];
+
+    const runId = await rodarAceito(c.usuario, rotina.id);
+    const run = await esperarFim(c.usuario, runId);
+
+    expect(run).toMatchObject({
+      status: "concluida",
+      inputKind: "pedido",
+      inputCardId: null,
+      inputTitle: RESUMO,
+      outputCardId: null,
+      errorCode: null,
+    });
+    expect(run.outputNoteId).not.toBeNull();
+
+    // O passo recebeu o pedido inteiro, e não uma ideia.
+    const paraOPasso = mensagem(pedidos()[0], "user");
+    emOrdem(paraOPasso, ["## Pedido", PEDIDO, "## Rascunho atual", "INSTRUCAO-PEDIDO"]);
+    expect(paraOPasso).not.toContain("## Ideia");
+
+    const nota = await lerNota(c.usuario, run.outputNoteId);
+    expect(nota.title).toBe("Semana em uma linha");
+    expect(nota.workspaceId).toBe(workspace.id);
+    emOrdem(nota.contentMd, ["CORPO-DA-NOTA", `Pedido: ${RESUMO}`]);
+    expect(nota.contentMd).not.toContain("Ideia de origem");
+    expect(nota.contentMd).not.toContain("PEDIDO-MARCADOR");
+    // INV-58: a marca é da execução, gravada pelo servidor.
+    expect(nota.ai).toMatchObject({
+      via: "rotina",
+      routineName: "Pedido direto",
+      agentName: "Escritor",
+      runId,
+      author: "estudio/conversa",
+      conversationId: null,
+      revisedAt: null,
+    });
+
+    // Nenhum card criado, movido nem arquivado.
+    expect(await cardsDaConta()).toBe(cardsAntes);
+    expect(await cardNoBanco(ideia)).toEqual({ columnId: c.entrada, archived: false });
+    expect(await cardsNaColuna(c.saida)).toBe(0);
+  });
+
+  test("card de saída numa rotina por pedido leva 'Pedido: <resumo>', e não 'Ideia de origem'", async () => {
+    const c = await cenario("rotina-pedido-card");
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      corpoPorPedido([{ agentId: escritor.id, mode: "reescreve" }], {
+        outputKind: "card",
+        outputColumnId: c.saida,
+      }),
+    );
+    dublê.roteiro = [{ tipo: "texto", texto: "Título do card\n\nCORPO-DO-CARD" }];
+
+    const run = await esperarFim(c.usuario, await rodarAceito(c.usuario, rotina.id));
+
+    expect(run).toMatchObject({ status: "concluida", inputKind: "pedido", outputNoteId: null });
+    const lido = await chamar(app, {
+      method: "GET",
+      url: `/cards/${run.outputCardId}`,
+      token: c.usuario.token,
+    });
+    const card = lido.body as CardDetail;
+    expect(card.columnId).toBe(c.saida);
+    expect(card.title).toBe("Título do card");
+    emOrdem(card.descriptionMd, ["CORPO-DO-CARD", `Pedido: ${RESUMO}`]);
+    expect(card.descriptionMd).not.toContain("Ideia de origem");
+    expect(card.ai).toMatchObject({ via: "rotina", routineName: "Pedido direto", runId: run.id });
+  });
+});
+
+describe("CA-36 / RF-64: título de nota que já existe ganha data e hora, em vez de falhar", () => {
+  test("título fixo, três execuções: o título, o título com a hora local, e com o começo do runId no mesmo minuto", async () => {
+    const c = await cenario("rotina-ca36");
+    // UTC+14: a hora local nunca coincide com a de UTC, então um título
+    // formatado no fuso do processo não passaria por acaso.
+    const FUSO = "Pacific/Kiritimati";
+    const ajuste = await chamar(app, {
+      method: "PATCH",
+      url: "/ai/settings",
+      token: c.usuario.token,
+      body: { timezone: FUSO },
+    });
+    expect(ajuste.status).toBe(200);
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      corpoPorPedido([{ agentId: escritor.id, mode: "reescreve" }], {
+        outputTitle: "fixo",
+        outputTitleText: "Relatório fixo",
+      }),
+    );
+    dublê.roteiro = [{ tipo: "texto", texto: "# Linha que não é título\n\ncorpo" }];
+
+    const execucoes: { run: RoutineRunDetail; minutos: Set<string>; utc: Set<string> }[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const inicio = Date.now();
+      const run = await esperarFim(c.usuario, await rodarAceito(c.usuario, rotina.id));
+      const fim = Date.now();
+      expect(run.status, JSON.stringify(run)).toBe("concluida");
+      execucoes.push({
+        run,
+        minutos: minutosEntre(inicio, fim, FUSO),
+        utc: minutosEntre(inicio, fim, "UTC"),
+      });
+    }
+
+    const titulos = await Promise.all(
+      execucoes.map(async (e) => (await lerNota(c.usuario, e.run.outputNoteId)).title),
+    );
+    const [um, dois, tres] = titulos;
+    const [, e2, e3] = execucoes;
+    if (!e2 || !e3) throw new Error("faltou execução");
+    expect(um).toBe("Relatório fixo");
+
+    const comHora = /^Relatório fixo · (\d{2}\/\d{2}\/\d{4} \d{2}:\d{2})$/;
+    const quando2 = dois?.match(comHora)?.[1];
+    expect(quando2, `segundo título: ${dois}`).toBeDefined();
+    expect(e2.minutos.has(quando2 ?? "")).toBe(true);
+    expect(e2.utc.has(quando2 ?? "")).toBe(false);
+
+    // A terceira colide com o título com hora se cair no mesmo minuto da
+    // segunda — aí ganha o começo do id da execução; noutro minuto, não colide.
+    const quando3 = tres?.match(comHora)?.[1];
+    if (quando3 === undefined || quando3 === quando2) {
+      expect(tres).toBe(`Relatório fixo · ${quando2} · ${e3.run.id.slice(0, 6)}`);
+    } else {
+      expect(e3.minutos.has(quando3)).toBe(true);
+    }
+    expect(new Set(execucoes.map((e) => e.run.outputNoteId)).size).toBe(3);
+  });
+
+  test("terceira tentativa: o título e o título com a hora já existem, a nota leva o começo do runId", async () => {
+    const c = await cenario("rotina-ca36-terceira");
+    const FUSO = "America/Sao_Paulo";
+    await chamar(app, {
+      method: "PATCH",
+      url: "/ai/settings",
+      token: c.usuario.token,
+      body: { timezone: FUSO },
+    });
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      corpoPorPedido([{ agentId: escritor.id, mode: "reescreve" }], {
+        outputTitle: "fixo",
+        outputTitleText: "Ocupado",
+      }),
+    );
+    dublê.roteiro = [{ tipo: "texto", texto: "corpo" }];
+
+    // Ocupa o título e o título com cada minuto que a execução pode ver. Os
+    // minutos vão um à frente, para o caso de o relógio virar no meio.
+    const agora = Date.now();
+    const ocupar = async (title: string) => {
+      const r = await chamar(app, {
+        method: "POST",
+        url: "/notes",
+        token: c.usuario.token,
+        body: { title, contentMd: "" },
+      });
+      expect(r.status, JSON.stringify(r.body)).toBe(201);
+    };
+    await ocupar("Ocupado");
+    for (const quando of minutosEntre(agora, agora + 120_000, FUSO)) {
+      await ocupar(`Ocupado · ${quando}`);
+    }
+
+    const inicio = Date.now();
+    const run = await esperarFim(c.usuario, await rodarAceito(c.usuario, rotina.id));
+    const fim = Date.now();
+    // O limite de 30 s da suíte fica dentro dos dois minutos reservados acima.
+    expect(fim - agora).toBeLessThan(120_000);
+
+    expect(run.status, JSON.stringify(run)).toBe("concluida");
+    const titulo = (await lerNota(c.usuario, run.outputNoteId)).title;
+    const quando = titulo.match(/^Ocupado · (\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}) · (\w{6})$/);
+    expect(quando, titulo).not.toBeNull();
+    expect(minutosEntre(inicio, fim, FUSO).has(quando?.[1] ?? "")).toBe(true);
+    expect(quando?.[2]).toBe(run.id.slice(0, 6));
+  });
+});
+
+describe("CA-37 / RF-63: a forma da rotina por pedido é conferida ao salvar", () => {
+  test("pedido vazio, título 'da ideia', 'mover', card sem coluna e fixo sem texto: 422 com o motivo no campo", async () => {
+    const c = await cenario("rotina-ca37");
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const passo = [{ agentId: escritor.id, mode: "reescreve" as const }];
+
+    const casos: { rotulo: string; corpo: RoutineInput; campo: string }[] = [
+      {
+        rotulo: "pedido vazio",
+        corpo: corpoPorPedido(passo, { inputPrompt: "   " }),
+        campo: "inputPrompt",
+      },
+      {
+        rotulo: "pedido nulo",
+        corpo: corpoPorPedido(passo, { inputPrompt: null }),
+        campo: "inputPrompt",
+      },
+      {
+        rotulo: "título da ideia",
+        corpo: corpoPorPedido(passo, { outputTitle: "ideia" }),
+        campo: "outputTitle",
+      },
+      {
+        rotulo: "mover",
+        corpo: corpoPorPedido(passo, { consumeAction: "mover", consumeColumnId: c.consumidas }),
+        campo: "consumeAction",
+      },
+      {
+        rotulo: "card sem coluna",
+        corpo: corpoPorPedido(passo, { outputKind: "card", outputColumnId: null }),
+        campo: "outputColumnId",
+      },
+      {
+        rotulo: "fixo sem texto",
+        corpo: corpoPorPedido(passo, { outputTitle: "fixo", outputTitleText: "  " }),
+        campo: "outputTitleText",
+      },
+    ];
+    for (const caso of casos) {
+      const { status, body } = await criarRotina(c.usuario, caso.corpo);
+      expect(status, caso.rotulo).toBe(422);
+      expect(codigo(body), caso.rotulo).toBe("VALIDATION_ERROR");
+      expect(issuesDe(body).map((i) => i.path), caso.rotulo).toContain(caso.campo);
+    }
+    expect(await prisma.aiRoutine.count({ where: { userId: c.usuario.id } })).toBe(0);
+  });
+
+  test("as mesmas regras valem num PATCH, sobre a rotina mesclada", async () => {
+    const c = await cenario("rotina-ca37-patch");
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      corpoPorPedido([{ agentId: escritor.id, mode: "reescreve" }]),
+    );
+
+    for (const [rotulo, patch] of [
+      ["pedido vazio", { inputPrompt: "" }],
+      ["título da ideia", { outputTitle: "ideia" }],
+      ["mover", { consumeAction: "mover", consumeColumnId: c.consumidas }],
+      ["card sem coluna", { outputKind: "card" }],
+      ["fixo sem texto", { outputTitle: "fixo" }],
+    ] as const) {
+      const r = await chamar(app, {
+        method: "PATCH",
+        url: `/ai/routines/${rotina.id}`,
+        token: c.usuario.token,
+        body: patch,
+      });
+      expect(r.status, rotulo).toBe(422);
+      expect(codigo(r.body), rotulo).toBe("VALIDATION_ERROR");
+    }
+    const relida = await chamar(app, {
+      method: "GET",
+      url: `/ai/routines/${rotina.id}`,
+      token: c.usuario.token,
+    });
+    expect(relida.body).toEqual(rotina);
+  });
+
+  test("RN-15 / INV-59: workspace da nota de outra conta é o mesmo 404 do inexistente, ao criar e no PATCH", async () => {
+    const c = await cenario("rotina-ws-dona");
+    const intruso = await criarUsuario("rotina-ws-alheia");
+    const alheio = await prisma.workspace.create({ data: { userId: intruso.id, name: "Alheio" } });
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const passo = [{ agentId: escritor.id, mode: "reescreve" as const }];
+
+    const deOutra = await criarRotina(
+      c.usuario,
+      corpoPorPedido(passo, { outputWorkspaceId: alheio.id }),
+    );
+    const inexistente = await criarRotina(
+      c.usuario,
+      corpoPorPedido(passo, { outputWorkspaceId: INEXISTENTE }),
+    );
+    expect(deOutra.status).toBe(404);
+    expect(deOutra.body).toEqual(inexistente.body);
+    expect(await prisma.aiRoutine.count({ where: { userId: c.usuario.id } })).toBe(0);
+
+    const rotina = await rotinaPronta(c.usuario, corpoPorPedido(passo));
+    const patchAlheio = await chamar(app, {
+      method: "PATCH",
+      url: `/ai/routines/${rotina.id}`,
+      token: c.usuario.token,
+      body: { outputWorkspaceId: alheio.id },
+    });
+    const patchInexistente = await chamar(app, {
+      method: "PATCH",
+      url: `/ai/routines/${rotina.id}`,
+      token: c.usuario.token,
+      body: { outputWorkspaceId: INEXISTENTE },
+    });
+    expect(patchAlheio.status).toBe(404);
+    expect(patchAlheio.body).toEqual(patchInexistente.body);
+    const gravada = await prisma.aiRoutine.findUniqueOrThrow({ where: { id: rotina.id } });
+    expect(gravada.outputWorkspaceId).toBeNull();
+  });
+});
+
+describe("RF-57: rotina por coluna com saída em nota", () => {
+  test("a ideia vai para as consumidas como antes, e a nota traz o rascunho, as observações e a ideia de origem", async () => {
+    const c = await cenario("rotina-coluna-nota");
+    const ideia = await criarCard(c.usuario, c.entrada, "Ideia para nota", "DESCRICAO-DA-IDEIA");
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const revisor = await agentePronto(c.usuario, { name: "Revisor" });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      // A coluna de saída vem junto, como o editor a manda ao trocar de tipo:
+      // com saída em nota ela não é gravada.
+      corpoDaRotina(
+        c,
+        [
+          { agentId: escritor.id, mode: "reescreve" },
+          { agentId: revisor.id, mode: "revisa" },
+        ],
+        { outputKind: "nota" },
+      ),
+    );
+    expect(rotina.output).toEqual({ kind: "nota", workspaceId: null, workspaceName: null });
+    const gravada = await prisma.aiRoutine.findUniqueOrThrow({ where: { id: rotina.id } });
+    expect(gravada.outputColumnId).toBeNull();
+    dublê.roteiro = [
+      { tipo: "texto", texto: "RASCUNHO-DA-NOTA" },
+      { tipo: "texto", texto: "- OBSERVACAO-DA-NOTA" },
+    ];
+
+    const run = await esperarFim(c.usuario, await rodarAceito(c.usuario, rotina.id));
+
+    expect(run).toMatchObject({
+      status: "concluida",
+      inputKind: "coluna",
+      inputCardId: ideia,
+      inputTitle: "Ideia para nota",
+      outputCardId: null,
+      errorCode: null,
+    });
+    emOrdem(mensagem(pedidos()[0], "user"), ["## Ideia", "Ideia para nota", "DESCRICAO-DA-IDEIA"]);
+    expect(mensagem(pedidos()[0], "user")).not.toContain("## Pedido");
+    // O "revisa" é avisado de que as observações vão para a nota, não para o card.
+    expect(mensagem(pedidos()[1], "user")).toContain("Observações da nota.");
+
+    const nota = await lerNota(c.usuario, run.outputNoteId);
+    expect(nota.title).toBe("Ideia para nota");
+    expect(nota.workspaceId).toBeNull();
+    emOrdem(nota.contentMd, [
+      "RASCUNHO-DA-NOTA",
+      "### Observações",
+      "Revisor",
+      "- OBSERVACAO-DA-NOTA",
+      "Ideia de origem: Ideia para nota",
+    ]);
+    expect(nota.contentMd).not.toContain("Pedido:");
+    expect(nota.ai).toMatchObject({ via: "rotina", runId: run.id, agentName: "Escritor" });
+
+    expect(await cardNoBanco(ideia)).toEqual({ columnId: c.consumidas, archived: false });
+    expect(await cardsNaColuna(c.saida)).toBe(0);
+  });
+});
+
+describe("RN-18 / RN-19: o pedido roda de novo, mas uma execução por vez", () => {
+  test("a segunda enquanto a primeira roda é 409; depois dela, roda de novo sem SEM_IDEIA", async () => {
+    const c = await cenario("rotina-pedido-de-novo");
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      corpoPorPedido([{ agentId: escritor.id, mode: "reescreve" }]),
+    );
+    const { solta, soltar } = trava();
+    dublê.roteiro = [
+      { tipo: "segura", antes: "# Primeira nota", depois: "\n\ncorpo", solta },
+      { tipo: "texto", texto: "# Segunda nota\n\ncorpo" },
+    ];
+
+    try {
+      const primeira = await rodarAceito(c.usuario, rotina.id);
+      await esperar(
+        async () => chamadasAoChat(dublê).length,
+        (n) => n === 1,
+        "o passo não chegou ao provedor",
+      );
+
+      const cedo = await rodar(c.usuario, rotina.id);
+      expect(cedo.status).toBe(409);
+      expect(codigo(cedo.body)).toBe("ROTINA_EM_ANDAMENTO");
+
+      soltar();
+      const um = await esperarFim(c.usuario, primeira);
+      const dois = await esperarFim(c.usuario, await rodarAceito(c.usuario, rotina.id));
+
+      for (const run of [um, dois]) {
+        expect(run).toMatchObject({
+          status: "concluida",
+          inputKind: "pedido",
+          inputCardId: null,
+          inputTitle: RESUMO,
+        });
+      }
+      expect(um.outputNoteId).not.toBe(dois.outputNoteId);
+      expect((await lerNota(c.usuario, um.outputNoteId)).title).toBe("Primeira nota");
+      expect((await lerNota(c.usuario, dois.outputNoteId)).title).toBe("Segunda nota");
+      expect(await prisma.aiRoutineRun.count({ where: { routineId: rotina.id } })).toBe(2);
+    } finally {
+      soltar();
+    }
+  });
+});
+
+describe("RN-16 / RNF-11: órfã por pedido que já criou a nota", () => {
+  test("a reconciliação acha a nota pela marca e fecha concluida com FINALIZACAO_PARCIAL — viva ou na lixeira", async () => {
+    const c = await cenario("rotina-orfa-com-nota");
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      corpoPorPedido([{ agentId: escritor.id, mode: "reescreve" }]),
+    );
+
+    /** Morreu entre criar a nota e registrá-la: só `note.aiRunId` aponta a execução. */
+    async function orfaComNota(titulo: string): Promise<{ orfa: string; nota: string }> {
+      const orfa = await prisma.aiRoutineRun.create({
+        data: {
+          userId: c.usuario.id,
+          routineId: rotina.id,
+          routineName: rotina.name,
+          inputKind: "pedido",
+          inputTitle: RESUMO,
+          runCapMicros: 500_000,
+          heartbeatAt: new Date(Date.now() - MINUTO),
+          steps: {
+            create: [
+              { position: 0, agentName: "Escritor", mode: "reescreve", status: "concluido" },
+            ],
+          },
+        },
+      });
+      const criada = await chamar(app, {
+        method: "POST",
+        url: "/notes",
+        token: c.usuario.token,
+        body: { title: titulo, contentMd: "pronta" },
+      });
+      expect(criada.status).toBe(201);
+      const nota = (criada.body as NoteDetail).id;
+      await prisma.note.update({
+        where: { id: nota },
+        data: { aiGeneratedAt: new Date(), aiVia: "rotina", aiRunId: orfa.id },
+      });
+      return { orfa: orfa.id, nota };
+    }
+
+    const viva = await orfaComNota("Nota da órfã");
+    expect(await reconciliarExecucoes()).toBeGreaterThanOrEqual(1);
+    const run = await lerRun(c.usuario, viva.orfa);
+    expect(run).toMatchObject({
+      status: "concluida",
+      errorCode: "FINALIZACAO_PARCIAL",
+      outputNoteId: viva.nota,
+      outputCardId: null,
+    });
+    expect(run.errorMessage).toContain("A nota foi criada");
+    // No pedido não há ideia para não ter sido movida.
+    expect(run.errorMessage).not.toContain("ideia");
+
+    const lixeira = await orfaComNota("Nota da órfã na lixeira");
+    const exclusao = await chamar(app, {
+      method: "DELETE",
+      url: `/notes/${lixeira.nota}`,
+      token: c.usuario.token,
+    });
+    expect(exclusao.status).toBe(204);
+    expect(await reconciliarExecucoes()).toBeGreaterThanOrEqual(1);
+    expect(await lerRun(c.usuario, lixeira.orfa)).toMatchObject({
+      status: "concluida",
+      errorCode: "FINALIZACAO_PARCIAL",
+      outputNoteId: lixeira.nota,
+    });
+  });
+});
+
+describe("PATCH que troca o tipo da entrada não deixa referência velha gravada", () => {
+  test("coluna → pedido limpa quadro, coluna e consumidas e grava 'manter'; pedido → coluna limpa o pedido", async () => {
+    const c = await cenario("rotina-troca-tipo");
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      corpoDaRotina(c, [{ agentId: escritor.id, mode: "reescreve" }]),
+    );
+    expect(rotina.consumeAction).toBe("mover");
+
+    // Sem mandar a ação: o "mover" gravado era da configuração por coluna.
+    const paraPedido = await chamar(app, {
+      method: "PATCH",
+      url: `/ai/routines/${rotina.id}`,
+      token: c.usuario.token,
+      body: { inputKind: "pedido", inputPrompt: PEDIDO, outputTitle: "primeira_linha" },
+    });
+    expect(paraPedido.status, JSON.stringify(paraPedido.body)).toBe(200);
+    expect(paraPedido.body).toMatchObject({
+      input: { kind: "pedido", resumo: RESUMO },
+      inputPrompt: PEDIDO,
+      consumeAction: "manter",
+      consume: null,
+      eligibleCount: null,
+      nextIdea: null,
+      valid: true,
+    });
+    expect(
+      await prisma.aiRoutine.findUniqueOrThrow({
+        where: { id: rotina.id },
+        select: {
+          inputKind: true,
+          inputBoardId: true,
+          inputColumnId: true,
+          inputPrompt: true,
+          consumeAction: true,
+          consumeColumnId: true,
+          outputColumnId: true,
+        },
+      }),
+    ).toEqual({
+      inputKind: "pedido",
+      inputBoardId: null,
+      inputColumnId: null,
+      inputPrompt: PEDIDO,
+      consumeAction: "manter",
+      consumeColumnId: null,
+      // A saída não mudou de tipo: a coluna dela fica.
+      outputColumnId: c.saida,
+    });
+
+    const paraColuna = await chamar(app, {
+      method: "PATCH",
+      url: `/ai/routines/${rotina.id}`,
+      token: c.usuario.token,
+      body: { inputKind: "coluna", inputBoardId: c.conteudo.id, inputColumnId: c.entrada },
+    });
+    expect(paraColuna.status, JSON.stringify(paraColuna.body)).toBe(200);
+    expect(paraColuna.body).toMatchObject({
+      input: { kind: "coluna", columnId: c.entrada, boardId: c.conteudo.id },
+      inputPrompt: null,
+      consumeAction: "manter",
+      eligibleCount: 0,
+      valid: true,
+    });
+    const gravada = await prisma.aiRoutine.findUniqueOrThrow({ where: { id: rotina.id } });
+    expect([gravada.inputKind, gravada.inputPrompt]).toEqual(["coluna", null]);
   });
 });

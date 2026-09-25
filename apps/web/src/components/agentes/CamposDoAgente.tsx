@@ -41,7 +41,7 @@ export function EscolhaDeCor({
 }) {
   const grupo = useId();
   return (
-    <fieldset>
+    <fieldset className="min-w-0">
       <legend className="rotulo mb-1.5">Cor</legend>
       <div className="flex flex-wrap gap-1.5">
         {AGENT_COLORS.map((c) => {
@@ -338,7 +338,7 @@ export function EscolhaDeModelo({
     has-[:focus-visible]:outline-accent-400`;
 
   return (
-    <fieldset>
+    <fieldset className="min-w-0">
       <legend className="sr-only">Modelo do agente</legend>
 
       {sumiu && (

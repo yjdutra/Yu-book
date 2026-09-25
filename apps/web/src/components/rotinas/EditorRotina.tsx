@@ -5,8 +5,9 @@ import {
   MAX_NOME_ROTINA,
   MAX_PASSOS_DA_ROTINA,
   MODELOS_DE_AGENTE,
-  MODELO_DE_ROTINA,
+  MODELOS_DE_ROTINA,
   normalizarTitulo,
+  resumoDoPedido,
 } from "@yu-book/shared";
 import type {
   AgentSummary,
@@ -20,6 +21,7 @@ import { useAgentes } from "../../lib/agentes";
 import { ApiError, api } from "../../lib/api";
 import { useGuardaDeSaida } from "../../lib/guardaDeSaida";
 import { useBoard, useBoards } from "../../lib/kanban";
+import { useWorkspaces } from "../../lib/notas";
 import {
   useAtualizarRotina,
   useCriarRotina,
@@ -35,8 +37,11 @@ import { Menu } from "../base/Menu";
 import { Tecla } from "../base/Tecla";
 import {
   IconeAlerta,
+  IconeBoard,
   IconeChevron,
+  IconeFala,
   IconeLixeira,
+  IconeNotas,
   IconeOpcoes,
   IconeRodar,
   IconeRotina,
@@ -44,6 +49,7 @@ import {
 import { NUMERO, ROTULO_CONSUMO } from "./comum";
 import { Estimativa } from "./Estimativa";
 import { FluxoEditavel, focarDepois, idDoBloco } from "./FluxoEditavel";
+import type { InfoDoBloco } from "./FluxoEditavel";
 import { HistoricoRotina } from "./HistoricoRotina";
 import { PainelDoBloco } from "./PainelDoBloco";
 import {
@@ -64,7 +70,11 @@ function doModelo(m: ModeloDeRotina): Rascunho {
     ...rascunhoVazio(),
     name: m.name,
     description: m.description,
+    inputKind: m.inputKind,
+    inputPrompt: m.inputPrompt ?? "",
+    outputKind: m.outputKind,
     outputTitle: m.outputTitle,
+    outputTitleText: m.outputTitleText ?? "",
     includeNotes: m.includeNotes,
     consumeAction: m.consumeAction,
     runCapMicros: m.runCapMicros,
@@ -92,6 +102,10 @@ interface Resolucao {
  * a mesma chave do título de nota. A entrada e a das ideias usadas precisam
  * ser do mesmo quadro, então vence o quadro que tem as duas; a saída procura
  * primeiro nele, depois em qualquer um. O que não casa fica para escolher.
+ *
+ * Modelo por pedido não tem coluna de entrada, e o que sai em nota não tem
+ * coluna de saída: os nomes nulos do modelo não casam nada nem entram na lista
+ * do que falta.
  */
 function resolver(
   r: Rascunho,
@@ -119,9 +133,11 @@ function resolver(
     (coluna(q, m.colunaDeEntrada) ? 4 : 0) +
     (coluna(q, m.colunaDeConsumidas) ? 2 : 0) +
     (coluna(q, m.colunaDeSaida) ? 1 : 0);
-  const melhor = [...quadros]
-    .filter((q) => coluna(q, m.colunaDeEntrada))
-    .sort((a, b) => pontos(b) - pontos(a))[0];
+  const melhor = m.colunaDeEntrada
+    ? [...quadros]
+        .filter((q) => coluna(q, m.colunaDeEntrada))
+        .sort((a, b) => pontos(b) - pontos(a))[0]
+    : undefined;
   const entrada = melhor ? coluna(melhor, m.colunaDeEntrada) : undefined;
   const consumida = melhor ? coluna(melhor, m.colunaDeConsumidas) : undefined;
   const quadroDaSaida =
@@ -156,11 +172,11 @@ function resolver(
           : [],
       ),
       colunas: [
-        { nome: m.colunaDeEntrada, achada: Boolean(entrada) },
+        ...(m.colunaDeEntrada ? [{ nome: m.colunaDeEntrada, achada: Boolean(entrada) }] : []),
         ...(m.colunaDeConsumidas
           ? [{ nome: m.colunaDeConsumidas, achada: Boolean(consumida) }]
           : []),
-        { nome: m.colunaDeSaida, achada: Boolean(saida) },
+        ...(m.colunaDeSaida ? [{ nome: m.colunaDeSaida, achada: Boolean(saida) }] : []),
       ],
     },
   };
@@ -182,8 +198,8 @@ export function EditorRotina({ id }: { id: string | null }) {
   const location = useLocation();
   const [busca] = useSearchParams();
   const qc = useQueryClient();
-  const modelo =
-    !id && busca.get("modelo") === MODELO_DE_ROTINA.chave ? MODELO_DE_ROTINA : undefined;
+  const chaveDoModelo = busca.get("modelo");
+  const modelo = id ? undefined : MODELOS_DE_ROTINA.find((m) => m.chave === chaveDoModelo);
 
   const existente = useRotina(id);
   const { data: agentes } = useAgentes();
@@ -490,7 +506,8 @@ export function EditorRotina({ id }: { id: string | null }) {
       ? "Salve as alterações antes de rodar."
       : problemas.length > 0
         ? "Resolva os problemas apontados antes de rodar."
-        : existente.data?.eligibleCount === 0
+        : // Só a entrada por coluna tem fila; no pedido a contagem vem nula.
+          existente.data?.input.kind === "coluna" && existente.data.eligibleCount === 0
           ? "Nenhuma ideia na coluna de entrada."
           : viva && !estaRodando
             ? `«${viva.name}» está rodando — uma execução por vez.`
@@ -507,34 +524,66 @@ export function EditorRotina({ id }: { id: string | null }) {
   const colunaEntrada = quadroEntrada?.columns.find((c) => c.id === rascunho.inputColumnId);
   const colunaSaida = quadroSaida?.columns.find((c) => c.id === rascunho.outputColumnId);
   const colunaConsumida = quadroEntrada?.columns.find((c) => c.id === rascunho.consumeColumnId);
+  const { data: workspaces } = useWorkspaces();
+  const porColuna = rascunho.inputKind === "coluna";
+  const salvaInput = existente.data?.input;
   const entradaSalva = Boolean(
-    id && existente.data && existente.data.input.columnId === rascunho.inputColumnId,
+    id &&
+      porColuna &&
+      salvaInput?.kind === "coluna" &&
+      salvaInput.columnId === rascunho.inputColumnId,
   );
+  const elegiveis = existente.data?.eligibleCount ?? 0;
+  const resumo = resumoDoPedido(rascunho.inputPrompt);
 
-  const infoEntrada = {
-    titulo: colunaEntrada
-      ? `${colunaEntrada.name} · ${quadroEntrada?.name ?? ""}`
-      : "Escolha a coluna",
-    detalhe:
-      entradaSalva && existente.data
-        ? existente.data.eligibleCount === 1
-          ? "1 ideia na fila"
-          : `${NUMERO.format(existente.data.eligibleCount)} ideias na fila`
-        : colunaEntrada
-          ? `${NUMERO.format(colunaEntrada.cards.length)} ${
-              colunaEntrada.cards.length === 1 ? "card" : "cards"
-            } na coluna`
-          : "de onde vem a ideia",
-  };
-  const infoSaida = {
-    titulo: colunaSaida ? `${colunaSaida.name} · ${quadroSaida?.name ?? ""}` : "Escolha a coluna",
-    detalhe:
-      rascunho.consumeAction === "mover"
-        ? `ideia → ${colunaConsumida?.name ?? "escolha a coluna"}`
-        : rascunho.consumeAction === "arquivar"
-          ? "ideia → arquivo"
-          : `ideia ${ROTULO_CONSUMO.manter.titulo.toLowerCase()}`,
-  };
+  const infoEntrada: InfoDoBloco = porColuna
+    ? {
+        icone: <IconeBoard className="size-3.5 text-accent-400" />,
+        titulo: colunaEntrada
+          ? `Coluna · ${colunaEntrada.name} · ${quadroEntrada?.name ?? ""}`
+          : "Escolha a coluna",
+        detalhe: entradaSalva
+          ? elegiveis === 1
+            ? "1 ideia na fila"
+            : `${NUMERO.format(elegiveis)} ideias na fila`
+          : colunaEntrada
+            ? `${NUMERO.format(colunaEntrada.cards.length)} ${
+                colunaEntrada.cards.length === 1 ? "card" : "cards"
+              } na coluna`
+            : "de onde vem a ideia",
+      }
+    : {
+        icone: <IconeFala className="size-3.5 text-accent-400" />,
+        titulo: resumo ? `Pedido · ${resumo}` : "Escreva o pedido",
+        detalhe: "o mesmo a cada execução",
+      };
+
+  const workspaceDaNota = workspaces?.find((w) => w.id === rascunho.outputWorkspaceId);
+  const detalheDaIdeia = !porColuna
+    ? null
+    : rascunho.consumeAction === "mover"
+      ? `ideia → ${colunaConsumida?.name ?? "escolha a coluna"}`
+      : rascunho.consumeAction === "arquivar"
+        ? "ideia → arquivo"
+        : `ideia ${ROTULO_CONSUMO.manter.titulo.toLowerCase()}`;
+  const infoSaida: InfoDoBloco =
+    rascunho.outputKind === "card"
+      ? {
+          icone: <IconeBoard className="size-3.5 text-accent-400" />,
+          titulo: colunaSaida
+            ? `Card · ${colunaSaida.name} · ${quadroSaida?.name ?? ""}`
+            : "Escolha a coluna",
+          detalhe: detalheDaIdeia ?? "card novo a cada execução",
+        }
+      : {
+          icone: <IconeNotas className="size-3.5 text-accent-400" />,
+          titulo: !rascunho.outputWorkspaceId
+            ? "Nota nova · sem workspace"
+            : `Nota nova · ${
+                workspaceDaNota?.name ?? (workspaces ? "(workspace excluído)" : "…")
+              }`,
+          detalhe: detalheDaIdeia ?? "nota nova a cada execução",
+        };
 
   // ---- Tela -------------------------------------------------------------
 
@@ -715,13 +764,13 @@ export function EditorRotina({ id }: { id: string | null }) {
 
       {!carregado ? (
         <div aria-hidden="true" className="flex flex-col gap-5">
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-4">
+          <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-5">
             <div
               className="h-[132px] animate-pulse rounded-cartao border border-ink-800
                          bg-superficie"
             />
             <div
-              className="h-[132px] w-64 animate-pulse rounded-cartao border border-ink-800
+              className="h-[132px] animate-pulse rounded-cartao border border-ink-800
                          bg-superficie"
             />
           </div>
@@ -738,7 +787,9 @@ export function EditorRotina({ id }: { id: string | null }) {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+          {/* A mesma grade da linha do fluxo: a estimativa fica sobre o painel de configuração,
+              com as bordas batendo. */}
+          <div className="grid grid-cols-[minmax(0,1fr)_360px] gap-5">
             <section
               aria-label="Identidade da rotina"
               className="grid grid-cols-2 gap-3 rounded-cartao border border-ink-800
@@ -872,7 +923,7 @@ export function EditorRotina({ id }: { id: string | null }) {
               </div>
             </section>
 
-            <aside aria-label="Configuração" className="sticky top-20">
+            <aside aria-label="Configuração" className="sticky top-20 min-w-0">
               <PainelDoBloco
                 escolhido={escolhido}
                 rascunho={rascunho}

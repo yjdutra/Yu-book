@@ -28,6 +28,8 @@ import {
   IconeBoard,
   IconeCheck,
   IconeChevron,
+  IconeFala,
+  IconeNotas,
   IconeParar,
   IconeRotina,
 } from "../Icones";
@@ -459,8 +461,17 @@ function DetalheDoPasso({
  *
  * A linha do tempo repete o fluxo, agora como estado; embaixo, o passo em foco
  * com o texto chegando. Fechar a tela não para nada: a execução é do servidor.
+ *
+ * `onAbrirNota` é o `abrirNota` da casca (INV-55): a nota que a execução
+ * deixou abre pelo mesmo caminho que as outras, e não por um `navigate` cru.
  */
-export function ExecucaoRotina({ runId }: { runId: string }) {
+export function ExecucaoRotina({
+  runId,
+  onAbrirNota,
+}: {
+  runId: string;
+  onAbrirNota: (id: string) => void;
+}) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const consulta = useExecucao(runId);
@@ -535,6 +546,19 @@ export function ExecucaoRotina({ runId }: { runId: string }) {
   const falhaTexto =
     vivo.erroDaExecucao?.mensagem ??
     (run.status === "falhou" || run.status === "interrompida" ? run.errorMessage : null);
+  /// A ideia só existe na entrada por coluna: no pedido não há o que "ficar na
+  /// entrada", e rodar de novo simplesmente refaz o pedido.
+  const porColuna = run.inputKind === "coluna";
+  const citado = run.inputTitle ? `«${run.inputTitle}»` : null;
+  /// Concluída sem id de saída: o card ou a nota foi excluído depois — os ids
+  /// voltam nulos, e a execução continua tendo criado alguma coisa.
+  const saidaCriada = run.outputCardId
+    ? "Card criado"
+    : run.outputNoteId
+      ? "Nota criada"
+      : run.status === "concluida"
+        ? "Saída excluída depois"
+        : null;
 
   async function abrirCard() {
     if (!run?.outputCardId) return;
@@ -591,7 +615,13 @@ export function ExecucaoRotina({ runId }: { runId: string }) {
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-400">
             <SeloStatus status={run.status} />
             <span>
-              Ideia <span className="text-ink-200">«{run.inputTitle}»</span>
+              {porColuna ? "Ideia" : "Pedido"}
+              {citado && (
+                <>
+                  {" "}
+                  <span className="text-ink-200">{citado}</span>
+                </>
+              )}
             </span>
             <span aria-hidden="true">·</span>
             <time dateTime={run.startedAt}>{quando(run.startedAt)}</time>
@@ -621,6 +651,16 @@ export function ExecucaoRotina({ runId }: { runId: string }) {
               Abrir card
             </Botao>
           )}
+          {run.outputNoteId && (
+            <Botao
+              variante="ia"
+              tamanho="m"
+              icone={<IconeNotas className="size-4" />}
+              onClick={() => run.outputNoteId && onAbrirNota(run.outputNoteId)}
+            >
+              Abrir nota
+            </Botao>
+          )}
         </div>
       </header>
 
@@ -633,14 +673,20 @@ export function ExecucaoRotina({ runId }: { runId: string }) {
       {falhaTexto && (
         <Aviso tom={run.status === "interrompida" ? "alerta" : "erro"}>
           {falhaTexto}
-          {run.status !== "concluida" && run.status !== "em_andamento" && (
-            <> A ideia ficou na entrada — o próximo “Rodar agora” a pega de novo.</>
-          )}
+          {run.status !== "concluida" &&
+            run.status !== "em_andamento" &&
+            (porColuna ? (
+              <> A ideia ficou na entrada — o próximo “Rodar agora” a pega de novo.</>
+            ) : (
+              <> Nada foi criado — o próximo “Rodar agora” refaz o pedido.</>
+            ))}
         </Aviso>
       )}
       {run.status === "cancelada" && !falhaTexto && (
         <Aviso tom="info">
-          Execução cancelada. A ideia ficou na entrada, e nenhum card foi criado.
+          {porColuna
+            ? "Execução cancelada. A ideia ficou na entrada, e nada foi criado."
+            : "Execução cancelada. Nada foi criado."}
         </Aviso>
       )}
       {vivo.erroDeConexao && emAndamento && (
@@ -709,18 +755,29 @@ export function ExecucaoRotina({ runId }: { runId: string }) {
           <ol className="flex w-max min-w-full items-stretch px-6 py-6">
             <li className="flex">
               <BlocoDoTempo
-                nomeAcessivel={`Entrada: ideia «${run.inputTitle}»`}
-                rotulo={
-                  <>
-                    <IconeBoard className="size-3.5 text-accent-400" />
-                    Entrada
-                  </>
+                nomeAcessivel={
+                  porColuna
+                    ? `Entrada: ideia ${citado ?? "sem título"}`
+                    : `Pedido${citado ? `: ${citado}` : ""}`
                 }
-                titulo={`«${run.inputTitle}»`}
+                rotulo={
+                  porColuna ? (
+                    <>
+                      <IconeBoard className="size-3.5 text-accent-400" />
+                      Entrada
+                    </>
+                  ) : (
+                    <>
+                      <IconeFala className="size-3.5 text-accent-400" />
+                      Pedido
+                    </>
+                  )
+                }
+                titulo={citado ?? (porColuna ? "Ideia sem título" : "Pedido da rotina")}
                 status={
                   <span className="inline-flex items-center gap-1 text-miudo text-ink-400">
                     <IconeCheck className="size-3" />
-                    ideia escolhida
+                    {porColuna ? "ideia escolhida" : "o pedido da rotina"}
                   </span>
                 }
               />
@@ -761,11 +818,11 @@ export function ExecucaoRotina({ runId }: { runId: string }) {
             <li className="flex">
               <BlocoDoTempo
                 nomeAcessivel={
-                  run.outputCardId
-                    ? "Saída: card criado"
+                  saidaCriada
+                    ? `Saída: ${saidaCriada.toLowerCase()}`
                     : emAndamento
                       ? "Saída: aguardando os passos"
-                      : "Saída: nenhum card criado"
+                      : "Saída: nada criado"
                 }
                 rotulo={
                   <>
@@ -773,15 +830,16 @@ export function ExecucaoRotina({ runId }: { runId: string }) {
                     Saída
                   </>
                 }
-                titulo={run.outputCardId ? "Card criado" : emAndamento ? "Aguardando" : "Sem card"}
+                titulo={saidaCriada ?? (emAndamento ? "Aguardando" : "Nada criado")}
                 status={
-                  run.outputCardId ? (
+                  saidaCriada ? (
                     <SeloStatus status="concluido" tipo="passo" />
                   ) : emAndamento ? (
                     <SeloStatus status="pendente" tipo="passo" />
                   ) : (
                     <span className="inline-flex items-center gap-1 text-miudo text-ink-400">
-                      <IconeAlerta className="size-3" />a ideia ficou na entrada
+                      <IconeAlerta className="size-3" />
+                      {porColuna ? "a ideia ficou na entrada" : "nada foi criado"}
                     </span>
                   )
                 }
@@ -811,8 +869,9 @@ export function ExecucaoRotina({ runId }: { runId: string }) {
               <h2 className="text-sm font-semibold text-titulo">Cancelar a execução?</h2>
             </div>
             <p className="mt-2 text-xs text-ink-400">
-              O passo em curso para e os seguintes não rodam. A ideia fica na entrada, nenhum
-              card é criado — e o que já foi gasto continua contando no dia.
+              O passo em curso para e os seguintes não rodam.{" "}
+              {porColuna ? "A ideia fica na entrada, nada é criado" : "Nada é criado"} — e o que
+              já foi gasto continua contando no dia.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <Botao variante="secundario" onClick={() => setConfirmando(false)}>

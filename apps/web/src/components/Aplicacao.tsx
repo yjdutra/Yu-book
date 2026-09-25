@@ -506,7 +506,7 @@ export function Aplicacao() {
           path="/assistente/rotinas/*"
           element={
             <Suspense fallback={<CarregandoTela />}>
-              <RotinasPage />
+              <RotinasPage onAbrirNota={abrirNota} />
             </Suspense>
           }
         />
@@ -514,7 +514,7 @@ export function Aplicacao() {
           path="/assistente/execucoes/:runId"
           element={
             <Suspense fallback={<CarregandoTela />}>
-              <ExecucaoAvulsaPage />
+              <ExecucaoAvulsaPage onAbrirNota={abrirNota} />
             </Suspense>
           }
         />

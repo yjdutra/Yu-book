@@ -17,9 +17,11 @@ function EditorPelaRota({ novo }: { novo: boolean }) {
 }
 
 /** A chave remonta a tela a cada execução: o fluxo assinado é de uma só. */
-function ExecucaoPelaRota() {
+function ExecucaoPelaRota({ onAbrirNota }: { onAbrirNota: (id: string) => void }) {
   const { runId } = useParams();
-  return runId ? <ExecucaoRotina key={runId} runId={runId} /> : null;
+  return runId ? (
+    <ExecucaoRotina key={runId} runId={runId} onAbrirNota={onAbrirNota} />
+  ) : null;
 }
 
 /** A moldura comum. O editor usa a tela mais larga: o fluxo corre na horizontal. */
@@ -35,15 +37,20 @@ function Moldura({ children }: { children: ReactNode }) {
  * Rotinas (Etapa E da frente de IA): a galeria, o editor de fluxo e a execução
  * ao vivo, em `/assistente/rotinas`. Na área Assistente do trilho, como os
  * agentes: rotina é agente encadeado, não área nova.
+ *
+ * `onAbrirNota` é o da casca (INV-55), para o "Abrir nota" da execução.
  */
-export function RotinasPage() {
+export function RotinasPage({ onAbrirNota }: { onAbrirNota: (id: string) => void }) {
   return (
     <Moldura>
       <Routes>
         <Route index element={<GaleriaRotinas />} />
         <Route path="novo" element={<EditorPelaRota novo />} />
         <Route path=":id" element={<EditorPelaRota novo={false} />} />
-        <Route path=":id/execucoes/:runId" element={<ExecucaoPelaRota />} />
+        <Route
+          path=":id/execucoes/:runId"
+          element={<ExecucaoPelaRota onAbrirNota={onAbrirNota} />}
+        />
         <Route path="*" element={<Navigate to="/assistente/rotinas" replace />} />
       </Routes>
     </Moldura>
@@ -55,10 +62,10 @@ export function RotinasPage() {
  * guarda a execução e não a rotina, e a rotina pode ter sido excluída: a tela
  * da execução não precisa dela.
  */
-export function ExecucaoAvulsaPage() {
+export function ExecucaoAvulsaPage({ onAbrirNota }: { onAbrirNota: (id: string) => void }) {
   return (
     <Moldura>
-      <ExecucaoPelaRota />
+      <ExecucaoPelaRota onAbrirNota={onAbrirNota} />
     </Moldura>
   );
 }

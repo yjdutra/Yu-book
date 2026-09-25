@@ -215,6 +215,7 @@ model Note {
   aiConversation AiConversation? @relation("NotasGeradas", fields: [aiConversationId], references: [id], onDelete: SetNull)
   aiRun          AiRoutineRun?   @relation("NotasDaRotina", fields: [aiRunId], references: [id], onDelete: SetNull)
   aiAgentBases  AiAgentBaseNote[]
+  runsComoSaida AiRoutineRun[]    @relation("NotaDaExecucao")
 
   @@index([userId, kind])
   @@index([userId, deletedAt, updatedAt(sort: Desc)])
@@ -734,10 +735,25 @@ enum AiConsumeAction {
   manter
 }
 
-/// De onde sai o título do card de saída.
+/// De onde sai o título da saída. `fixo` é o texto de `outputTitleText`
+/// (emenda da Etapa E); `ideia` não vale com entrada por pedido.
 enum AiOutputTitle {
   ideia
   primeira_linha
+  fixo
+}
+
+/// De onde a rotina parte (emenda da Etapa E): a próxima ideia de uma coluna,
+/// ou um pedido escrito na própria rotina, o mesmo a cada execução.
+enum AiInputKind {
+  coluna
+  pedido
+}
+
+/// O que a rotina deixa no fim: um card numa coluna, ou uma nota nova.
+enum AiOutputKind {
+  card
+  nota
 }
 
 /// Uma rotina (Etapa E da frente de IA): agentes encadeados numa sequência
@@ -753,10 +769,22 @@ model AiRoutine {
   userId          String          @map("user_id") @db.Uuid
   name            String
   description     String          @default("")
-  inputBoardId    String          @map("input_board_id") @db.Uuid
-  inputColumnId   String          @map("input_column_id") @db.Uuid
-  outputColumnId  String          @map("output_column_id") @db.Uuid
+  /// A coerência entre o tipo e os campos é do Zod (`problemasDeForma`) e do
+  /// service, que grava nulo no que o tipo não usa: `coluna` usa quadro e
+  /// coluna, `pedido` usa `inputPrompt`.
+  inputKind       AiInputKind     @default(coluna) @map("input_kind")
+  inputBoardId    String?         @map("input_board_id") @db.Uuid
+  inputColumnId   String?         @map("input_column_id") @db.Uuid
+  inputPrompt     String?         @map("input_prompt")
+  /// `card` usa `outputColumnId`; `nota`, `outputWorkspaceId` (nulo é "sem
+  /// workspace"). Nenhum dos dois é chave estrangeira: coluna e workspace que
+  /// somem viram `problems`, não saída desviada em silêncio.
+  outputKind        AiOutputKind  @default(card) @map("output_kind")
+  outputColumnId    String?       @map("output_column_id") @db.Uuid
+  outputWorkspaceId String?       @map("output_workspace_id") @db.Uuid
   outputTitle     AiOutputTitle   @default(ideia) @map("output_title")
+  /// Só com `outputTitle = fixo`.
+  outputTitleText String?         @map("output_title_text")
   includeNotes    Boolean         @default(true) @map("include_notes")
   consumeAction   AiConsumeAction @map("consume_action")
   /// Só com `mover`, e do mesmo quadro da entrada: `moverCard` não atravessa
@@ -803,9 +831,14 @@ model AiRoutineRun {
   routineId    String?     @map("routine_id") @db.Uuid
   routineName  String      @map("routine_name")
   status       AiRunStatus @default(em_andamento)
+  /// Copiado da rotina no início: ela pode mudar de tipo depois, e
+  /// `inputCardId` nulo (SetNull) não distingue um pedido de uma ideia excluída.
+  inputKind    AiInputKind @default(coluna) @map("input_kind")
   inputCardId  String?     @map("input_card_id") @db.Uuid
-  inputTitle   String      @map("input_title")
+  /// O título da ideia, ou a primeira linha do pedido.
+  inputTitle   String?     @map("input_title")
   outputCardId String?     @map("output_card_id") @db.Uuid
+  outputNoteId String?     @map("output_note_id") @db.Uuid
   runCapMicros Int         @map("run_cap_micros")
   costMicros   Int         @default(0) @map("cost_micros")
   errorCode    String?     @map("error_code")
@@ -825,6 +858,7 @@ model AiRoutineRun {
   routine    AiRoutine?         @relation(fields: [routineId], references: [id], onDelete: SetNull)
   inputCard  Card?              @relation("IdeiaDaExecucao", fields: [inputCardId], references: [id], onDelete: SetNull)
   outputCard Card?              @relation("SaidaDaExecucao", fields: [outputCardId], references: [id], onDelete: SetNull)
+  outputNote Note?              @relation("NotaDaExecucao", fields: [outputNoteId], references: [id], onDelete: SetNull)
   steps      AiRoutineRunStep[]
   usages     AiUsage[]
   notas      Note[]             @relation("NotasDaRotina")

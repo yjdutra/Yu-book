@@ -1,5 +1,10 @@
-import { MODELOS_DE_AGENTE, MODELO_DE_ROTINA } from "@yu-book/shared";
-import type { RoutineSummary } from "@yu-book/shared";
+import { MODELOS_DE_AGENTE, MODELOS_DE_ROTINA, resumoDoPedido } from "@yu-book/shared";
+import type {
+  ModeloDeRotina,
+  RoutineInputRef,
+  RoutineOutputRef,
+  RoutineSummary,
+} from "@yu-book/shared";
 import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../../lib/api";
@@ -20,12 +25,25 @@ import {
 } from "../Icones";
 import { quando, SeloStatus } from "./comum";
 import { MiniaturaFluxo } from "./MiniaturaFluxo";
+import type { EntradaDaMiniatura, SaidaDaMiniatura } from "./MiniaturaFluxo";
 import { AvisoAoRodar, rotaDaExecucao, useRodar } from "./rodar";
 
 /** A altura do cartão e do esqueleto — a mesma, para a chegada não empurrar nada. */
 const ALTURA_CARTAO = "min-h-[196px]";
 
 const nomeDaColuna = (c: { columnName: string | null }) => c.columnName ?? "(coluna excluída)";
+
+const entradaDaMiniatura = (e: RoutineInputRef): EntradaDaMiniatura =>
+  e.kind === "coluna" ? { kind: "coluna", nome: nomeDaColuna(e) } : e;
+
+/** Id com nome nulo é workspace excluído — a rotina já aparece como inválida. */
+const saidaDaMiniatura = (s: RoutineOutputRef): SaidaDaMiniatura =>
+  s.kind === "card"
+    ? { kind: "card", nome: nomeDaColuna(s) }
+    : {
+        kind: "nota",
+        workspace: s.workspaceId ? (s.workspaceName ?? "(workspace excluído)") : null,
+      };
 
 function CartaoRotina({
   rotina,
@@ -113,8 +131,8 @@ function CartaoRotina({
 
       <div className="mt-3">
         <MiniaturaFluxo
-          entrada={nomeDaColuna(rotina.input)}
-          saida={nomeDaColuna(rotina.output)}
+          entrada={entradaDaMiniatura(rotina.input)}
+          saida={saidaDaMiniatura(rotina.output)}
           passos={rotina.steps.map((p) => ({
             nome: p.agentName,
             cor: p.agentId ? p.agentColor : null,
@@ -133,9 +151,11 @@ function CartaoRotina({
             <span>{quando(ultima.startedAt)}</span>
             <span aria-hidden="true">·</span>
             <span className="tabular-nums">{emDolares(ultima.costMicros)}</span>
-            <span className="min-w-0 truncate" title={ultima.inputTitle}>
-              · «{ultima.inputTitle}»
-            </span>
+            {ultima.inputTitle && (
+              <span className="min-w-0 truncate" title={ultima.inputTitle}>
+                · «{ultima.inputTitle}»
+              </span>
+            )}
           </>
         ) : (
           <span className="text-ink-400/80">Nunca rodou</span>
@@ -206,17 +226,16 @@ function EsqueletoCartao() {
 }
 
 /**
- * O modelo pronto "Post do LinkedIn": ponto de partida, não rotina — nada é
- * criado até salvar. Os agentes aparecem pelo nome do modelo de agente de onde
- * saem; o editor casa cada um com o agente que você já tem.
+ * Um modelo pronto: ponto de partida, não rotina — nada é criado até salvar.
+ * Os agentes aparecem pelo nome do modelo de agente de onde saem; o editor
+ * casa cada um com o agente que você já tem.
  */
-function CartaoModeloPronto({ destaque }: { destaque: boolean }) {
+function CartaoModeloPronto({ m, destaque }: { m: ModeloDeRotina; destaque: boolean }) {
   const navigate = useNavigate();
-  const m = MODELO_DE_ROTINA;
   return (
     <article
-      aria-labelledby="modelo-rotina"
-      className={`relative flex max-w-xl flex-col overflow-hidden rounded-cartao border
+      aria-labelledby={`modelo-rotina-${m.chave}`}
+      className={`relative flex flex-col overflow-hidden rounded-cartao border
                   bg-superficie p-4 transition duration-[160ms] ease-(--ease-padrao)
                   hover:shadow-e2 ${
                     destaque ? "border-ink-700 shadow-e1" : "border-dashed border-ink-700"
@@ -226,25 +245,36 @@ function CartaoModeloPronto({ destaque }: { destaque: boolean }) {
         aria-hidden="true"
         className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-accent-500 to-ia-500"
       />
-      <h3 id="modelo-rotina" className="text-sm font-semibold text-titulo">
+      <h3 id={`modelo-rotina-${m.chave}`} className="text-sm font-semibold text-titulo">
         {m.name}
       </h3>
       <p className="mt-0.5 text-xs text-ink-400">{m.description}</p>
       <div className="mt-3">
         <MiniaturaFluxo
-          entrada={m.colunaDeEntrada}
-          saida={m.colunaDeSaida}
+          entrada={
+            m.inputKind === "coluna"
+              ? { kind: "coluna", nome: m.colunaDeEntrada }
+              : { kind: "pedido", resumo: resumoDoPedido(m.inputPrompt) }
+          }
+          saida={
+            m.outputKind === "card"
+              ? { kind: "card", nome: m.colunaDeSaida }
+              : { kind: "nota", workspace: null }
+          }
           passos={m.steps.map((p) => {
             const agente = MODELOS_DE_AGENTE.find((a) => a.chave === p.agente);
             return { nome: agente?.name ?? p.agente, cor: agente?.color ?? "cinza", mode: p.mode };
           })}
         />
       </div>
-      {m.colunaDeConsumidas && (
-        <p className="mt-2 text-miudo text-ink-400">
-          A ideia usada vai para «{m.colunaDeConsumidas}». Nada é publicado fora do Yu-book.
-        </p>
-      )}
+      <p className="mt-2 text-miudo text-ink-400">
+        {m.colunaDeConsumidas
+          ? `A ideia usada vai para «${m.colunaDeConsumidas}». `
+          : m.inputKind === "pedido"
+            ? "Cada execução cumpre o mesmo pedido e deixa uma nota nova. "
+            : ""}
+        Nada é publicado fora do Yu-book.
+      </p>
       <div className="mt-auto pt-4">
         <Botao
           variante={destaque ? "primario" : "secundario"}
@@ -261,8 +291,10 @@ function CartaoModeloPronto({ destaque }: { destaque: boolean }) {
 /**
  * A galeria de rotinas (Etapa E da IA), em `/assistente/rotinas`.
  *
- * Vazia, ela ensina: diz o que é uma rotina e oferece o modelo "Post do
- * LinkedIn" como ponto de partida.
+ * Vazia, ela ensina: diz o que é uma rotina e oferece os modelos prontos —
+ * "Post do LinkedIn", por coluna e em card, e "Pedido direto", por pedido e em
+ * nota — como ponto de partida. A lista é `MODELOS_DE_ROTINA`: modelo novo em
+ * `shared` aparece aqui sozinho.
  */
 export function GaleriaRotinas() {
   const navigate = useNavigate();
@@ -307,9 +339,10 @@ export function GaleriaRotinas() {
             Rotinas
           </h2>
           <p className="mt-1 max-w-2xl text-xs text-ink-400">
-            Uma rotina encadeia agentes numa sequência fixa: pega a próxima ideia de uma coluna,
-            passa por cada agente e grava o resultado como card. Roda quando você manda, no
-            servidor — pode fechar a aba e voltar. Nada sai do Yu-book.
+            Uma rotina encadeia agentes numa sequência fixa: parte da próxima ideia de uma
+            coluna ou de um pedido seu, passa por cada agente e grava o resultado como card ou
+            como nota. Roda quando você manda, no servidor — pode fechar a aba e voltar. Nada
+            sai do Yu-book.
           </p>
         </div>
         <Botao
@@ -373,7 +406,7 @@ export function GaleriaRotinas() {
                 Comece por um modelo pronto
               </h3>
               <p className="mt-1 max-w-2xl text-xs text-ink-400">
-                O modelo traz os passos e as instruções escritas. Você escolhe as colunas e os
+                O modelo traz os passos e as instruções escritas. Você confere as colunas e os
                 agentes — os que já existem com o mesmo nome entram sozinhos. Nada é criado até
                 salvar.
               </p>
@@ -383,7 +416,11 @@ export function GaleriaRotinas() {
               Começar de um modelo
             </h3>
           )}
-          <CartaoModeloPronto destaque={Boolean(vazia)} />
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
+            {MODELOS_DE_ROTINA.map((m) => (
+              <CartaoModeloPronto key={m.chave} m={m} destaque={Boolean(vazia)} />
+            ))}
+          </div>
           {vazia && (
             <p className="mt-4 text-xs text-ink-400">
               Prefere do zero?{" "}

@@ -5,10 +5,11 @@ import type { NomeDeFerramenta } from "./ferramentas.js";
 /**
  * Rotinas — Etapa E da frente de IA (`docs/prd-ia-no-yu-book.md`).
  *
- * Uma rotina encadeia agentes numa sequência fixa, disparada à mão: pega a
- * próxima ideia de uma coluna, passa por cada agente e grava o resultado como
- * card numa coluna de saída. Quatro regras que a forma daqui não mostra e o
- * servidor garante:
+ * Uma rotina encadeia agentes numa sequência fixa, disparada à mão: parte da
+ * próxima ideia de uma coluna **ou** de um pedido escrito nela, passa por cada
+ * agente e grava o resultado como card numa coluna ou como nota nova (a
+ * emenda da Etapa E trouxe o pedido e a nota). Quatro regras que a forma daqui
+ * não mostra e o servidor garante:
  *
  * - **A rotina só escreve pelo código, na saída.** Os passos recebem apenas as
  *   ferramentas de **leitura** do agente; o card de saída e o destino da ideia
@@ -18,7 +19,8 @@ import type { NomeDeFerramenta } from "./ferramentas.js";
  *   (`runCapMicros`), conferidos antes de **cada** chamada ao provedor.
  * - **Uma execução ativa por conta**, e a ideia é escolhida pelo registro: o
  *   primeiro card ativo da entrada sem execução `concluida` nem `em_andamento`
- *   desta rotina. Falhou ou foi cancelada, a mesma ideia volta na próxima.
+ *   desta rotina. Falhou ou foi cancelada, a mesma ideia volta na próxima. Na
+ *   rotina por pedido não há ideia a escolher: cada execução é independente.
  * - **A execução roda no servidor, desacoplada da aba.** Iniciar responde na
  *   hora; a tela acompanha por SSE e pode fechar e voltar.
  */
@@ -45,10 +47,25 @@ export type RoutineStepMode = (typeof ROUTINE_STEP_MODES)[number];
 export const ROUTINE_CONSUME_ACTIONS = ["mover", "arquivar", "manter"] as const;
 export type RoutineConsumeAction = (typeof ROUTINE_CONSUME_ACTIONS)[number];
 
-/// Espelha `AiOutputTitle`: o título do card de saída é o da ideia, ou a
-/// primeira linha do rascunho final.
-export const ROUTINE_OUTPUT_TITLES = ["ideia", "primeira_linha"] as const;
+/// Espelha `AiOutputTitle`: o título da saída é o da ideia, a primeira linha
+/// do rascunho final, ou um texto fixo (`outputTitleText`). `ideia` não vale
+/// com entrada por pedido — não há ideia.
+export const ROUTINE_OUTPUT_TITLES = ["ideia", "primeira_linha", "fixo"] as const;
 export type RoutineOutputTitle = (typeof ROUTINE_OUTPUT_TITLES)[number];
+
+/// Espelha `AiInputKind`: a próxima ideia de uma coluna, ou um pedido escrito
+/// na rotina, o mesmo a cada execução.
+export const ROUTINE_INPUT_KINDS = ["coluna", "pedido"] as const;
+export type RoutineInputKind = (typeof ROUTINE_INPUT_KINDS)[number];
+
+/// Espelha `AiOutputKind`: um card numa coluna, ou uma nota nova.
+export const ROUTINE_OUTPUT_KINDS = ["card", "nota"] as const;
+export type RoutineOutputKind = (typeof ROUTINE_OUTPUT_KINDS)[number];
+
+export const MAX_PEDIDO_DA_ROTINA = 4_000;
+/// Cabe no título de card (`MAX_CARD_TITULO`) e de nota com folga para o
+/// sufixo de data e hora que a nota ganha quando o título já existe.
+export const MAX_TITULO_FIXO_DA_ROTINA = 120;
 
 /// Espelha `AiRunStatus`. `interrompida` é a execução que o processo perdeu
 /// (redeploy, queda): parou de pulsar, e a varredura a fechou.
@@ -72,6 +89,31 @@ export const ROUTINE_RUN_STEP_STATUSES = [
 ] as const;
 export type RoutineRunStepStatus = (typeof ROUTINE_RUN_STEP_STATUSES)[number];
 
+/// O resumo de um pedido: o que a miniatura mostra e o `inputTitle` da execução.
+export const MAX_RESUMO_DO_PEDIDO = 80;
+
+/**
+ * A primeira linha com texto, sem a marcação de título e de ênfase. É o título
+ * da saída em `primeira_linha` e o resumo do pedido — uma definição só, para o
+ * bloco de Entrada da tela, a galeria e o histórico dizerem a mesma coisa.
+ */
+export function primeiraLinha(texto: string): string {
+  const linha = texto.split("\n").find((l) => l.trim()) ?? "";
+  return linha
+    .trim()
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/^[*_]+|[*_]+$/g, "")
+    .trim();
+}
+
+/** A primeira linha do pedido, cortada em `MAX_RESUMO_DO_PEDIDO`. Vazia se não há. */
+export function resumoDoPedido(pedido: string): string {
+  const linha = primeiraLinha(pedido);
+  return linha.length <= MAX_RESUMO_DO_PEDIDO
+    ? linha
+    : `${linha.slice(0, MAX_RESUMO_DO_PEDIDO - 1)}…`;
+}
+
 /* ---------------------------------------------------------------- entrada */
 
 export const routineStepInputSchema = z.object({
@@ -88,17 +130,39 @@ export const routineStepInputSchema = z.object({
 const camposDaRotina = z.object({
   name: z.string().trim().min(1, "Dê um nome à rotina").max(MAX_NOME_ROTINA),
   description: z.string().trim().max(MAX_DESCRICAO_ROTINA).default(""),
-  /// A coluna de entrada e o quadro dela. O quadro vem declarado e é conferido
-  /// pela cadeia: coluna de outro quadro é recusada, não corrigida.
-  inputBoardId: z.string().uuid(),
-  inputColumnId: z.string().uuid(),
-  /// De qualquer quadro: o card de saída nasce no fim dela.
-  outputColumnId: z.string().uuid(),
+  /// Padrão `coluna`: a forma de antes da emenda continua válida sem mudar.
+  inputKind: z.enum(ROUTINE_INPUT_KINDS).default("coluna"),
+  /// Só em `coluna`: a coluna de entrada e o quadro dela. O quadro vem
+  /// declarado e é conferido pela cadeia: coluna de outro quadro é recusada,
+  /// não corrigida.
+  inputBoardId: z.string().uuid().nullable().default(null),
+  inputColumnId: z.string().uuid().nullable().default(null),
+  /// Só em `pedido`: a tarefa de cada execução.
+  inputPrompt: z
+    .string()
+    .trim()
+    .max(MAX_PEDIDO_DA_ROTINA, `O pedido passa de ${MAX_PEDIDO_DA_ROTINA} caracteres`)
+    .nullable()
+    .default(null),
+  outputKind: z.enum(ROUTINE_OUTPUT_KINDS).default("card"),
+  /// Só em `card`, de qualquer quadro: o card de saída nasce no fim dela.
+  outputColumnId: z.string().uuid().nullable().default(null),
+  /// Só em `nota`. Nulo é "sem workspace".
+  outputWorkspaceId: z.string().uuid().nullable().default(null),
   outputTitle: z.enum(ROUTINE_OUTPUT_TITLES).default("ideia"),
+  /// Só com `outputTitle: "fixo"`.
+  outputTitleText: z
+    .string()
+    .trim()
+    .max(MAX_TITULO_FIXO_DA_ROTINA, `O título passa de ${MAX_TITULO_FIXO_DA_ROTINA} caracteres`)
+    .nullable()
+    .default(null),
   /// Acrescenta ao card a seção "Observações", com o que os passos "revisa"
   /// apontaram.
   includeNotes: z.boolean().default(true),
-  consumeAction: z.enum(ROUTINE_CONSUME_ACTIONS),
+  /// Só vale com entrada `coluna`. Padrão `manter` para que a rotina por
+  /// pedido não precise mandá-la; nela o servidor grava `manter` sempre.
+  consumeAction: z.enum(ROUTINE_CONSUME_ACTIONS).default("manter"),
   /// Só com `mover`, e do mesmo quadro da entrada: card não atravessa quadro
   /// (RN-04 da Fase 2). Com as outras ações o servidor grava `null`.
   consumeColumnId: z.string().uuid().nullable().default(null),
@@ -122,19 +186,70 @@ const camposDaRotina = z.object({
  * mais nada. Duas cópias da regra divergiriam.
  */
 export function problemasDeForma(rotina: {
+  inputKind: RoutineInputKind;
+  inputBoardId: string | null;
+  inputColumnId: string | null;
+  inputPrompt: string | null;
+  outputKind: RoutineOutputKind;
+  outputColumnId: string | null;
+  outputTitle: RoutineOutputTitle;
+  outputTitleText: string | null;
   steps: readonly { mode: RoutineStepMode }[];
   consumeAction: RoutineConsumeAction;
   consumeColumnId: string | null;
-  inputColumnId: string;
 }): { path: string; message: string }[] {
   const problemas: { path: string; message: string }[] = [];
   if (!rotina.steps.some((passo) => passo.mode === "reescreve")) {
     problemas.push({
       path: "steps",
-      message: "Pelo menos um passo precisa reescrever — sem ele não há rascunho para o card",
+      message: "Pelo menos um passo precisa reescrever — sem ele não há rascunho para a saída",
     });
   }
-  if (rotina.consumeAction === "mover") {
+
+  if (rotina.inputKind === "coluna") {
+    if (!rotina.inputBoardId || !rotina.inputColumnId) {
+      problemas.push({
+        path: "inputColumnId",
+        message: "Escolha a coluna de onde as ideias saem",
+      });
+    }
+  } else {
+    if (!rotina.inputPrompt?.trim()) {
+      problemas.push({
+        path: "inputPrompt",
+        message: "Escreva o pedido que cada execução vai cumprir",
+      });
+    }
+    if (rotina.outputTitle === "ideia") {
+      problemas.push({
+        path: "outputTitle",
+        message: "Sem coluna de ideias não há título de ideia: use a primeira linha ou um fixo",
+      });
+    }
+    /// `arquivar` e `manter` são ignorados no pedido (o servidor grava
+    /// `manter`); `mover` é recusado porque traz uma coluna que nada usaria.
+    if (rotina.consumeAction === "mover") {
+      problemas.push({
+        path: "consumeAction",
+        message: "Mover a ideia usada só vale quando a rotina parte de uma coluna",
+      });
+    }
+  }
+
+  if (rotina.outputKind === "card" && !rotina.outputColumnId) {
+    problemas.push({
+      path: "outputColumnId",
+      message: "Escolha a coluna onde o card de saída nasce",
+    });
+  }
+  if (rotina.outputTitle === "fixo" && !rotina.outputTitleText?.trim()) {
+    problemas.push({
+      path: "outputTitleText",
+      message: "Escreva o título fixo da saída",
+    });
+  }
+
+  if (rotina.inputKind === "coluna" && rotina.consumeAction === "mover") {
     if (!rotina.consumeColumnId) {
       problemas.push({
         path: "consumeColumnId",
@@ -215,16 +330,24 @@ export interface RoutineRunSummary {
   routineId: string | null;
   routineName: string;
   status: RoutineRunStatus;
+  /// O da rotina no início da execução: ela pode mudar de tipo depois.
+  inputKind: RoutineInputKind;
+  /// Só em `coluna`; nulo também quando a ideia foi excluída depois.
   inputCardId: string | null;
-  inputTitle: string;
+  /// O título da ideia, ou a primeira linha do pedido. Nulo se o pedido não
+  /// tem linha com texto fora da marcação.
+  inputTitle: string | null;
+  /// No máximo um dos dois, conforme a saída da rotina; nulo também quando o
+  /// card ou a nota foram excluídos depois.
   outputCardId: string | null;
+  outputNoteId: string | null;
   costMicros: number;
   runCapMicros: number;
-  /// Em `concluida` não é erro, é **aviso**: o card de saída existe, e o que
-  /// veio depois dele não terminou — `CONSUMO_FALHOU` (a ideia não foi movida
-  /// nem arquivada) ou `FINALIZACAO_PARCIAL` (o registro da execução falhou ou
-  /// foi fechado por outra instância). Execução que criou o card termina
-  /// `concluida`, sempre (RN-16).
+  /// Em `concluida` não é erro, é **aviso**: a saída (card ou nota) existe, e
+  /// o que veio depois dela não terminou — `CONSUMO_FALHOU` (a ideia não foi
+  /// movida nem arquivada) ou `FINALIZACAO_PARCIAL` (o registro da execução
+  /// falhou ou foi fechado por outra instância). Execução que criou a saída
+  /// termina `concluida`, sempre (RN-16).
   errorCode: string | null;
   errorMessage: string | null;
   startedAt: string;
@@ -259,13 +382,28 @@ export interface RoutineRunPage {
   nextCursor: string | null;
 }
 
+/** A entrada como a miniatura a desenha. */
+export type RoutineInputRef =
+  | ({ kind: "coluna" } & RoutineColumnRef)
+  /// `resumo`: a primeira linha do pedido, cortada. O texto inteiro vem em
+  /// `RoutineDetail.inputPrompt`.
+  | { kind: "pedido"; resumo: string };
+
+/** A saída como a miniatura a desenha. */
+export type RoutineOutputRef =
+  | ({ kind: "card" } & RoutineColumnRef)
+  /// `workspaceId` nulo é "sem workspace". Com id e `workspaceName` nulo, o
+  /// workspace foi excluído — e a rotina tem um problema na saída.
+  | { kind: "nota"; workspaceId: string | null; workspaceName: string | null };
+
 /** O que a galeria mostra: a miniatura do fluxo e a última execução. */
 export interface RoutineSummary {
   id: string;
   name: string;
   description: string;
-  input: RoutineColumnRef;
-  output: RoutineColumnRef;
+  input: RoutineInputRef;
+  output: RoutineOutputRef;
+  /// Na rotina por pedido é sempre `manter`, e `consume` é nulo.
   consumeAction: RoutineConsumeAction;
   consume: RoutineColumnRef | null;
   steps: RoutineStepSummary[];
@@ -277,13 +415,18 @@ export interface RoutineSummary {
 }
 
 export interface RoutineDetail extends Omit<RoutineSummary, "steps"> {
+  /// O texto inteiro do pedido; nulo em `coluna`.
+  inputPrompt: string | null;
   outputTitle: RoutineOutputTitle;
+  /// Só com `outputTitle: "fixo"`.
+  outputTitleText: string | null;
   includeNotes: boolean;
   runCapMicros: number;
   steps: RoutineStep[];
   problems: RoutineProblem[];
   /// Cards que o próximo "Rodar agora" poderia pegar, e o primeiro deles.
-  eligibleCount: number;
+  /// Nulos na rotina por pedido, que não escolhe ideia.
+  eligibleCount: number | null;
   nextIdea: { id: string; title: string } | null;
 }
 
@@ -323,33 +466,54 @@ export type RotinaEvent =
 /* ----------------------------------------------------------------- modelo */
 
 /**
- * Um modelo pronto de rotina. Não aponta para agente nem coluna nenhuma: os
- * agentes são pela `chave` de `MODELOS_DE_AGENTE`, e as colunas por nome
- * sugerido. A tela resolve os ids — casa o agente criado a partir daquele
+ * Um modelo pronto de rotina. Não aponta para agente, coluna nem workspace
+ * nenhum: os agentes são pela `chave` de `MODELOS_DE_AGENTE`, e as colunas por
+ * nome sugerido. A tela resolve os ids — casa o agente criado a partir daquele
  * modelo, oferece criá-lo se faltar, e pede as colunas.
+ *
+ * União pelos dois eixos da emenda da Etapa E, para que a tela não tenha
+ * coluna de entrada a procurar num modelo por pedido nem coluna de saída num
+ * que sai em nota.
  */
-export interface ModeloDeRotina {
+export type ModeloDeRotina = {
   chave: string;
   name: string;
   description: string;
-  colunaDeEntrada: string;
-  colunaDeSaida: string;
-  colunaDeConsumidas: string | null;
   outputTitle: RoutineOutputTitle;
+  outputTitleText: string | null;
   includeNotes: boolean;
-  consumeAction: RoutineConsumeAction;
   runCapMicros: number;
   steps: { agente: string; mode: RoutineStepMode; instruction: string }[];
-}
+} & (
+  | {
+      inputKind: "coluna";
+      colunaDeEntrada: string;
+      inputPrompt: null;
+      consumeAction: RoutineConsumeAction;
+      colunaDeConsumidas: string | null;
+    }
+  | {
+      inputKind: "pedido";
+      colunaDeEntrada: null;
+      inputPrompt: string;
+      consumeAction: "manter";
+      colunaDeConsumidas: null;
+    }
+) &
+  ({ outputKind: "card"; colunaDeSaida: string } | { outputKind: "nota"; colunaDeSaida: null });
 
-export const MODELO_DE_ROTINA: ModeloDeRotina = {
+const POST_DO_LINKEDIN = {
   chave: "post-linkedin",
   name: "Post do LinkedIn",
   description: "Pega a próxima ideia, escreve, ajusta para o público e revisa.",
+  inputKind: "coluna",
   colunaDeEntrada: "Ideias",
+  inputPrompt: null,
+  outputKind: "card",
   colunaDeSaida: "Aguardando publicar",
   colunaDeConsumidas: "Usadas",
   outputTitle: "ideia",
+  outputTitleText: null,
   includeNotes: true,
   consumeAction: "mover",
   runCapMicros: TETO_POR_EXECUCAO_PADRAO_MICROS,
@@ -389,4 +553,46 @@ export const MODELO_DE_ROTINA: ModeloDeRotina = {
       ].join("\n"),
     },
   ],
-};
+} satisfies ModeloDeRotina;
+
+/**
+ * O estado vazio que ensina a rotina por pedido: um passo só, saída em nota.
+ *
+ * **O agente é o `marketing`, por ser o mais genérico dos três modelos de
+ * agente:** o `linkedin` impõe forma de post e o `revisor` é instruído a não
+ * reescrever — os dois brigariam com um pedido qualquer num passo "reescreve".
+ * O `marketing` só exige coerência com as premissas, e é o único com
+ * `get_dashboard`, que o pedido de exemplo usa. A tela deixa trocar.
+ */
+const PEDIDO_DIRETO = {
+  chave: "pedido-direto",
+  name: "Pedido direto",
+  description: "Um pedido seu, cumprido por um agente, que vira nota nova a cada execução.",
+  inputKind: "pedido",
+  colunaDeEntrada: null,
+  inputPrompt:
+    "Monte um resumo da minha semana a partir do painel e dos quadros: o que está atrasado, " +
+    "o que andou e o que merece atenção nos próximos dias.",
+  outputKind: "nota",
+  colunaDeSaida: null,
+  colunaDeConsumidas: null,
+  outputTitle: "primeira_linha",
+  outputTitleText: null,
+  includeNotes: false,
+  consumeAction: "manter",
+  runCapMicros: TETO_POR_EXECUCAO_PADRAO_MICROS,
+  steps: [
+    {
+      agente: "marketing",
+      mode: "reescreve",
+      instruction: [
+        "Cumpra o pedido.",
+        "- Busque no acervo antes de supor; diga de que nota ou card veio cada afirmação.",
+        "- Comece por uma linha curta que sirva de título: ela vira o título da nota.",
+        "- Entregue só o resultado, pronto para guardar: sem comentário antes ou depois.",
+      ].join("\n"),
+    },
+  ],
+} satisfies ModeloDeRotina;
+
+export const MODELOS_DE_ROTINA: readonly ModeloDeRotina[] = [POST_DO_LINKEDIN, PEDIDO_DIRETO];

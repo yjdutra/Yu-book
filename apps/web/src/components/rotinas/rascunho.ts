@@ -1,6 +1,8 @@
 import {
   MAX_INSTRUCAO_DO_PASSO,
   MAX_PASSOS_DA_ROTINA,
+  MAX_PEDIDO_DA_ROTINA,
+  MAX_TITULO_FIXO_DA_ROTINA,
   TETO_POR_EXECUCAO_MAXIMO_MICROS,
   TETO_POR_EXECUCAO_PADRAO_MICROS,
   problemasDeForma,
@@ -10,6 +12,8 @@ import type {
   RoutineConsumeAction,
   RoutineDetail,
   RoutineInput,
+  RoutineInputKind,
+  RoutineOutputKind,
   RoutineOutputTitle,
   RoutineStepMode,
 } from "@yu-book/shared";
@@ -37,15 +41,27 @@ export interface PassoRascunho {
   sugestao?: { chave: string; nome: string };
 }
 
+/**
+ * Os campos dos dois tipos de entrada e de saída convivem no rascunho: trocar
+ * de "coluna" para "pedido" e voltar não perde a coluna escolhida. Quem decide
+ * o que vai ao servidor é `paraEntrada`, que manda nulo no campo que o tipo
+ * não usa — e é dele que saem a assinatura e a conferência de forma.
+ */
 export interface Rascunho {
   name: string;
   description: string;
+  inputKind: RoutineInputKind;
   inputBoardId: string;
   inputColumnId: string;
+  inputPrompt: string;
+  outputKind: RoutineOutputKind;
   /// Só da tela: o servidor guarda a coluna, e o quadro vem resolvido nela.
   outputBoardId: string;
   outputColumnId: string;
+  /// Nulo é "sem workspace".
+  outputWorkspaceId: string | null;
   outputTitle: RoutineOutputTitle;
+  outputTitleText: string;
   includeNotes: boolean;
   consumeAction: RoutineConsumeAction;
   consumeColumnId: string | null;
@@ -76,11 +92,16 @@ export function rascunhoVazio(): Rascunho {
   return {
     name: "",
     description: "",
+    inputKind: "coluna",
     inputBoardId: "",
     inputColumnId: "",
+    inputPrompt: "",
+    outputKind: "card",
     outputBoardId: "",
     outputColumnId: "",
+    outputWorkspaceId: null,
     outputTitle: "ideia",
+    outputTitleText: "",
     includeNotes: true,
     consumeAction: "mover",
     consumeColumnId: null,
@@ -93,11 +114,16 @@ export function doDetalhe(d: RoutineDetail): Rascunho {
   return {
     name: d.name,
     description: d.description,
-    inputBoardId: d.input.boardId ?? "",
-    inputColumnId: d.input.columnId,
-    outputBoardId: d.output.boardId ?? "",
-    outputColumnId: d.output.columnId,
+    inputKind: d.input.kind,
+    inputBoardId: d.input.kind === "coluna" ? (d.input.boardId ?? "") : "",
+    inputColumnId: d.input.kind === "coluna" ? d.input.columnId : "",
+    inputPrompt: d.inputPrompt ?? "",
+    outputKind: d.output.kind,
+    outputBoardId: d.output.kind === "card" ? (d.output.boardId ?? "") : "",
+    outputColumnId: d.output.kind === "card" ? d.output.columnId : "",
+    outputWorkspaceId: d.output.kind === "nota" ? d.output.workspaceId : null,
     outputTitle: d.outputTitle,
+    outputTitleText: d.outputTitleText ?? "",
     includeNotes: d.includeNotes,
     consumeAction: d.consumeAction,
     consumeColumnId: d.consume?.columnId ?? null,
@@ -115,18 +141,28 @@ export function doDetalhe(d: RoutineDetail): Rascunho {
 
 /** O corpo de `POST`/`PATCH`. Só vai ao servidor sem problemas do cliente. */
 export function paraEntrada(r: Rascunho): RoutineInput {
+  const coluna = r.inputKind === "coluna";
+  const card = r.outputKind === "card";
+  // No pedido o servidor grava `manter` sempre: mandar outra ação seria
+  // recusado (`mover`) ou ignorado.
+  const consumeAction = coluna ? r.consumeAction : "manter";
   return {
     name: r.name.trim(),
     description: r.description.trim(),
-    inputBoardId: r.inputBoardId,
-    inputColumnId: r.inputColumnId,
-    outputColumnId: r.outputColumnId,
+    inputKind: r.inputKind,
+    inputBoardId: coluna ? r.inputBoardId || null : null,
+    inputColumnId: coluna ? r.inputColumnId || null : null,
+    inputPrompt: coluna ? null : r.inputPrompt.trim(),
+    outputKind: r.outputKind,
+    outputColumnId: card ? r.outputColumnId || null : null,
+    outputWorkspaceId: card ? null : r.outputWorkspaceId,
     outputTitle: r.outputTitle,
+    outputTitleText: r.outputTitle === "fixo" ? r.outputTitleText.trim() : null,
     includeNotes: r.includeNotes,
-    consumeAction: r.consumeAction,
+    consumeAction,
     // Com as outras ações o servidor grava `null`; mandar a coluna velha só
     // sujaria a comparação.
-    consumeColumnId: r.consumeAction === "mover" ? r.consumeColumnId : null,
+    consumeColumnId: consumeAction === "mover" ? r.consumeColumnId : null,
     runCapMicros: r.runCapMicros,
     steps: r.passos.map((p) => ({
       agentId: p.agentId ?? "",
@@ -148,6 +184,13 @@ export interface Problema {
   mensagem: string;
 }
 
+/** Em que bloco cai cada campo que `problemasDeForma` aponta. */
+const BLOCO_DO_CAMPO: Partial<Record<string, Problema["bloco"]>> = {
+  steps: "passo",
+  inputColumnId: "entrada",
+  inputPrompt: "entrada",
+};
+
 /**
  * Os problemas que o cliente vê sozinho, apontados no bloco que os tem.
  * `agentes` é o conjunto de ids que existem — `null` enquanto a lista não
@@ -155,11 +198,12 @@ export interface Problema {
  */
 export function problemasDoRascunho(r: Rascunho, agentes: Set<string> | null): Problema[] {
   const lista: Problema[] = [];
-  if (!r.inputColumnId) {
+  const entrada = paraEntrada(r);
+  if (r.inputKind === "pedido" && r.inputPrompt.length > MAX_PEDIDO_DA_ROTINA) {
     lista.push({
       bloco: "entrada",
       chave: null,
-      mensagem: "Escolha a coluna de onde saem as ideias",
+      mensagem: `Pedido acima de ${MAX_PEDIDO_DA_ROTINA} caracteres`,
     });
   }
   for (const p of r.passos) {
@@ -195,8 +239,12 @@ export function problemasDoRascunho(r: Rascunho, agentes: Set<string> | null): P
       mensagem: `No máximo ${MAX_PASSOS_DA_ROTINA} passos`,
     });
   }
-  if (!r.outputColumnId) {
-    lista.push({ bloco: "saida", chave: null, mensagem: "Escolha a coluna onde o card nasce" });
+  if (r.outputTitle === "fixo" && r.outputTitleText.trim().length > MAX_TITULO_FIXO_DA_ROTINA) {
+    lista.push({
+      bloco: "saida",
+      chave: null,
+      mensagem: `Título fixo acima de ${MAX_TITULO_FIXO_DA_ROTINA} caracteres`,
+    });
   }
   if (r.runCapMicros <= 0 || r.runCapMicros > TETO_POR_EXECUCAO_MAXIMO_MICROS) {
     lista.push({
@@ -205,17 +253,22 @@ export function problemasDoRascunho(r: Rascunho, agentes: Set<string> | null): P
       mensagem: "O teto por execução precisa ficar entre US$ 0,01 e US$ 10",
     });
   }
+  // A forma que vai ao servidor, e não o rascunho cru: o campo que o tipo não
+  // usa já sai nulo, e a regra olha o que o servidor vai olhar.
   for (const f of problemasDeForma({
+    inputKind: entrada.inputKind ?? "coluna",
+    inputBoardId: entrada.inputBoardId ?? null,
+    inputColumnId: entrada.inputColumnId ?? null,
+    inputPrompt: entrada.inputPrompt ?? null,
+    outputKind: entrada.outputKind ?? "card",
+    outputColumnId: entrada.outputColumnId ?? null,
+    outputTitle: entrada.outputTitle ?? "ideia",
+    outputTitleText: entrada.outputTitleText ?? null,
     steps: r.passos,
-    consumeAction: r.consumeAction,
-    consumeColumnId: r.consumeColumnId,
-    inputColumnId: r.inputColumnId,
+    consumeAction: entrada.consumeAction ?? "manter",
+    consumeColumnId: entrada.consumeColumnId ?? null,
   })) {
-    lista.push({
-      bloco: f.path === "steps" ? "passo" : "saida",
-      chave: null,
-      mensagem: f.message,
-    });
+    lista.push({ bloco: BLOCO_DO_CAMPO[f.path] ?? "saida", chave: null, mensagem: f.message });
   }
   return lista;
 }

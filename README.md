@@ -98,16 +98,19 @@ MCP. **Também foi entregue sem conferência de interface à mão**, e o roteiro
 [`docs/historico.md`](docs/historico.md).
 
 Também em **2026-09-24** veio a **Etapa E, rotinas com "Rodar agora"**, em `/assistente/rotinas`.
-Uma rotina encadeia agentes numa sequência fixa: pega a próxima ideia de uma coluna, passa por cada
-passo ("reescreve" ou "revisa") e deixa o resultado num card novo, marcado "via rotina", sem
-publicar nada fora do Yu-book. O editor é um fluxo de blocos ligados (Entrada, até seis agentes e
-Saída), e a Saída decide também o destino da ideia usada: mover, arquivar ou manter. **A execução
-roda no servidor e não depende da aba**: a tela acompanha ao vivo, pode ser fechada e reaberta, e a
-execução pode ser cancelada. Cada execução tem teto de gasto próprio, além do diário, e fica no
-histórico com o texto de cada passo. Nos passos, o modelo só lê; o card é gravado pelo código. É o
-fim da regra "sem trabalho assíncrono", e o motivo está em [`docs/historico.md`](docs/historico.md).
-Rotinas não entram no servidor MCP. **Também foi entregue sem conferência de interface à mão.** O
-próximo passo da frente de IA é a **Etapa F**, agendamento.
+Uma rotina encadeia agentes numa sequência fixa: parte da próxima ideia de uma coluna ou de um
+pedido escrito nela, passa por cada passo ("reescreve" ou "revisa") e deixa o resultado num card
+novo ou numa nota nova, marcados "via rotina", sem publicar nada fora do Yu-book. O pedido e a nota
+vieram numa emenda de 2026-09-25, depois da primeira conferência do editor. O editor é um fluxo de
+blocos ligados (Entrada, até seis agentes e Saída). Com entrada por coluna, a Saída decide também o
+destino da ideia usada: mover, arquivar ou manter. **A execução roda no servidor e não depende da
+aba**: a tela acompanha ao vivo, pode ser fechada e reaberta, e a execução pode ser cancelada. Cada
+execução tem teto de gasto próprio, além do diário, e fica no histórico com o texto de cada passo.
+Nos passos, o modelo só lê; o card ou a nota são gravados pelo código. É o fim da regra "sem
+trabalho assíncrono", e o motivo está em [`docs/historico.md`](docs/historico.md). Rotinas não
+entram no servidor MCP. **A conferência de interface foi só parcial:** o conserto do editor não foi
+visto na tela, e o resto da etapa também não. O próximo passo da frente de IA é a **Etapa F**,
+agendamento.
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,

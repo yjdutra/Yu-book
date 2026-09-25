@@ -18,7 +18,7 @@ import { CHAVE_AJUSTES, lerEventos } from "./chat";
  *
  * Só `import type` de `@yu-book/shared`, pela mesma razão de `agentes.ts`: o
  * painel contextual lê a lista daqui para o ponto de "em andamento", e ele está
- * no bundle inicial. `MODELO_DE_ROTINA` e os schemas ficam no chunk da área.
+ * no bundle inicial. `MODELOS_DE_ROTINA` e os schemas ficam no chunk da área.
  */
 
 export const CHAVE_ROTINAS = ["ia", "rotinas"] as const;

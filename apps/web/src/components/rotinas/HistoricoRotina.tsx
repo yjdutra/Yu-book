@@ -57,8 +57,8 @@ export function HistoricoRotina({ routineId }: { routineId: string }) {
           className="rounded-cartao border border-dashed border-ink-700 px-4 py-6 text-center
                      text-xs text-ink-400"
         >
-          Nenhuma execução ainda. “Rodar agora” pega a próxima ideia da entrada e mostra cada
-          passo acontecendo.
+          Nenhuma execução ainda. “Rodar agora” pega a próxima ideia da entrada, ou cumpre o
+          pedido, e mostra cada passo acontecendo.
         </p>
       )}
 
@@ -76,8 +76,16 @@ export function HistoricoRotina({ routineId }: { routineId: string }) {
                               hover:border-ink-700 hover:text-ink-200`}
                 >
                   <SeloStatus status={r.status} />
-                  <span className="truncate text-sm text-ink-200" title={r.inputTitle}>
-                    «{r.inputTitle}»
+                  <span
+                    className="truncate text-sm text-ink-200"
+                    title={r.inputTitle ?? undefined}
+                  >
+                    {r.inputKind === "pedido" && <span className="text-ink-400">Pedido </span>}
+                    {r.inputTitle ? (
+                      `«${r.inputTitle}»`
+                    ) : (
+                      <span className="text-ink-400">sem título</span>
+                    )}
                   </span>
                   <span className="tabular-nums">
                     {ms === null ? "—" : duracao(ms)}

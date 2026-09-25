@@ -1,7 +1,7 @@
 import type { AgentColor, RoutineStepMode } from "@yu-book/shared";
 import { Fragment } from "react";
 import { AvatarAgente } from "../agentes/AvatarAgente";
-import { IconeBoard, IconeCheck } from "../Icones";
+import { IconeBoard, IconeCheck, IconeFala, IconeNotas } from "../Icones";
 import { ROTULO_MODO } from "./comum";
 
 export interface PassoDaMiniatura {
@@ -9,6 +9,16 @@ export interface PassoDaMiniatura {
   cor: AgentColor | null;
   mode: RoutineStepMode;
 }
+
+/** A ponta de entrada: uma coluna pelo nome, ou o pedido pelo resumo. */
+export type EntradaDaMiniatura =
+  | { kind: "coluna"; nome: string }
+  | { kind: "pedido"; resumo: string };
+
+/** A ponta de saída: uma coluna pelo nome, ou uma nota no workspace (nulo: nenhum). */
+export type SaidaDaMiniatura =
+  | { kind: "card"; nome: string }
+  | { kind: "nota"; workspace: string | null };
 
 /** O traço entre dois nós, com a ponta — o mesmo desenho do conector do editor. */
 function Ligacao() {
@@ -30,6 +40,8 @@ function Ligacao() {
 
 /**
  * O fluxo de uma rotina em uma linha: `Ideias → (LI) → (MK) → (RV) → Saída`.
+ * A entrada por pedido vira o chip "pedido", com o balão; a saída em nota, o
+ * chip "nota", com a folha — o tipo tem ícone **e** palavra.
  *
  * O desenho é `aria-hidden` e a frase por extenso vai para o leitor de tela —
  * uma fila de iniciais lida em voz alta não diz nada. O agente excluído
@@ -40,16 +52,20 @@ export function MiniaturaFluxo({
   passos,
   saida,
 }: {
-  entrada: string;
+  entrada: EntradaDaMiniatura;
   passos: PassoDaMiniatura[];
-  saida: string;
+  saida: SaidaDaMiniatura;
 }) {
   const frase =
-    `Fluxo: ideias de ${entrada}; ` +
+    (entrada.kind === "coluna"
+      ? `Fluxo: ideias de ${entrada.nome}; `
+      : `Fluxo: o pedido${entrada.resumo ? ` «${entrada.resumo}»` : ""}; `) +
     passos
       .map((p) => `${p.nome}${p.cor ? "" : " (excluído)"} ${ROTULO_MODO[p.mode].curto}`)
       .join(", depois ") +
-    `; o card sai em ${saida}.`;
+    (saida.kind === "card"
+      ? `; o card sai em ${saida.nome}.`
+      : `; sai uma nota nova, ${saida.workspace ? `em ${saida.workspace}` : "sem workspace"}.`);
 
   return (
     <div className="min-w-0">
@@ -59,8 +75,17 @@ export function MiniaturaFluxo({
           className="inline-flex min-w-0 shrink items-center gap-1 rounded-etiqueta border
                      border-ink-700 bg-ink-900/60 px-1.5 py-0.5 text-miudo text-ink-400"
         >
-          <IconeBoard className="size-3" />
-          <span className="truncate">{entrada}</span>
+          {entrada.kind === "coluna" ? (
+            <>
+              <IconeBoard className="size-3" />
+              <span className="truncate">{entrada.nome}</span>
+            </>
+          ) : (
+            <>
+              <IconeFala className="size-3" />
+              <span className="truncate">pedido</span>
+            </>
+          )}
         </span>
         {passos.map((p, i) => (
           <Fragment key={i}>
@@ -76,8 +101,17 @@ export function MiniaturaFluxo({
                      border-ia-500/40 bg-linear-to-r from-accent-500/10 to-ia-500/10 px-1.5
                      py-0.5 text-miudo text-accent-400"
         >
-          <IconeCheck className="size-3" />
-          <span className="truncate">{saida}</span>
+          {saida.kind === "card" ? (
+            <>
+              <IconeCheck className="size-3" />
+              <span className="truncate">{saida.nome}</span>
+            </>
+          ) : (
+            <>
+              <IconeNotas className="size-3" />
+              <span className="truncate">nota</span>
+            </>
+          )}
         </span>
       </div>
     </div>

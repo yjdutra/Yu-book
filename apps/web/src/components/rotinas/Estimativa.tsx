@@ -91,9 +91,9 @@ export function Estimativa({
   const estoura = piso > tetoMicros && tetoMicros > 0;
 
   return (
-    // Largura fixa: numa coluna `auto`, o texto longo esticaria a caixa até
-    // caber numa linha e espremeria a identidade ao lado.
-    <div className="w-80 rounded-cartao border border-ink-800 bg-superficie px-4 py-3 shadow-e1">
+    // Sem largura própria: quem a mede é a coluna fixa do editor, a mesma do painel de
+    // configuração. Numa coluna `auto`, o texto longo a esticaria até caber numa linha.
+    <div className="min-w-0 rounded-cartao border border-ink-800 bg-superficie px-4 py-3 shadow-e1">
       <p className="rotulo">Custo estimado por execução</p>
       {carregando ? (
         <div

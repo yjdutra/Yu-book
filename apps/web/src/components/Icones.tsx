@@ -256,6 +256,20 @@ export function IconeConversas(p: IconeProps) {
   );
 }
 
+/**
+ * Um balão de fala com duas linhas de texto — o pedido de uma rotina (emenda à
+ * Etapa E da IA): a tarefa escrita, no lugar da coluna de ideias. Um balão só,
+ * para não se confundir com `IconeConversas`.
+ */
+export function IconeFala(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M3.2 2.5h9.6a1.2 1.2 0 0 1 1.2 1.2v6.1a1.2 1.2 0 0 1-1.2 1.2H7.4l-2.9 2.5V11H3.2A1.2 1.2 0 0 1 2 9.8V3.7a1.2 1.2 0 0 1 1.2-1.2Z" />
+      <path d="M5 5.6h6M5 8h3.8" />
+    </Icone>
+  );
+}
+
 /** Janela com a faixa da direita — o painel lateral do assistente. */
 export function IconePainelDireito(p: IconeProps) {
   return (

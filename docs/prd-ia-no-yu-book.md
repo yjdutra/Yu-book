@@ -260,13 +260,15 @@ passo e deixa o resultado num card. É disparada à mão; agendar é a Etapa F.
 - **RF-54** — O usuário cria, edita e exclui rotinas num **editor de fluxo em blocos ligados**:
   Entrada, até 6 passos de agente e Saída. Passo se insere pelo "+" do conector e se reordena por
   arraste ou teclado.
-- **RF-55** — A **Entrada** é uma coluna de quadro; a ideia é o primeiro card ativo dela que ainda
-  não foi usado por esta rotina.
+- **RF-55** — A **Entrada** é uma coluna de quadro — a ideia é o primeiro card ativo dela que ainda
+  não foi usado por esta rotina — **ou um pedido** (RF-63). *Emendado em 2026-09-25: a entrada
+  deixou de ser obrigatoriamente uma coluna.*
 - **RF-56** — Cada **passo** tem agente, instrução e modo: **reescreve** (substitui o rascunho) ou
   **revisa** (registra observações sem tocar no rascunho; elas seguem para os passos seguintes).
-- **RF-57** — A **Saída** cria um card novo numa coluna escolhida, de qualquer quadro, com o texto
-  final, as observações (opcional) e a ideia de origem. E decide o que acontece com a ideia usada:
-  **mover** para uma coluna do mesmo quadro, **arquivar** ou **manter**.
+- **RF-57** — A **Saída** cria um **card** novo numa coluna escolhida, de qualquer quadro, **ou uma
+  nota** nova (RF-64), com o texto final, as observações (opcional) e a origem. Com entrada por
+  coluna, ela decide também o que acontece com a ideia usada: **mover** para uma coluna do mesmo
+  quadro, **arquivar** ou **manter**. *Emendado em 2026-09-25: a nota como saída.*
 - **RF-58** — **"Rodar agora"** inicia a execução no servidor e responde na hora; a tela acompanha
   passo a passo, ao vivo, e pode ser fechada e reaberta sem interromper a execução.
 - **RF-59** — A execução pode ser **cancelada**.
@@ -275,6 +277,12 @@ passo e deixa o resultado num card. É disparada à mão; agendar é a Etapa F.
 - **RF-61** — O card que uma rotina cria leva a marca com o nome da rotina e do agente, e leva à
   execução que o gerou.
 - **RF-62** — Rotinas não entram no servidor MCP (NO3, como os agentes no RF-53).
+- **RF-63** — A rotina pode começar num **pedido**: um texto fixo, escrito no bloco de Entrada, que
+  é a tarefa de toda execução. Não há ideia a consumir, e cada execução é independente. Ferramentas
+  que olham fora do acervo — busca na web, abrir uma página — são da Etapa G.
+- **RF-64** — Com saída em **nota**, o título vem da primeira linha do texto final, de um texto fixo
+  ou do título da ideia; título que já existe ganha a data e a hora da execução, em vez de falhar. A
+  nota nasce com a marca "via rotina" (RN-10) e leva à execução que a gerou.
 
 ---
 
@@ -411,8 +419,9 @@ card ↔ nota já faz.
 - **RN-17 Teto por execução, além do diário.** Antes de cada chamada ao provedor, o gasto da
   execução mais a estimativa é conferido contra o teto da rotina, e o gasto do dia contra o teto
   diário. Estourar qualquer um encerra a execução com o motivo.
-- **RN-18 Uma ideia, um post.** A idempotência é pelo registro: card com execução concluída ou em
-  andamento desta rotina não é escolhido de novo, qualquer que seja a ação de consumo.
+- **RN-18 Uma ideia, um post.** Com entrada por coluna, a idempotência é pelo registro: card com
+  execução concluída ou em andamento desta rotina não é escolhido de novo, qualquer que seja a ação
+  de consumo. Com entrada por pedido não há o que consumir, e rodar de novo é rodar de novo.
 - **RN-19 Uma execução por vez.** Só uma execução em andamento por usuário.
 
 ---
@@ -492,6 +501,13 @@ card ↔ nota já faz.
   não é tocada.
 - **CA-34** (RN-16) — Dado um agente com `create_card`, quando ele roda como passo de rotina, então
   a ferramenta não é oferecida ao modelo.
+- **CA-35** (RF-63, RF-64) — Dada uma rotina por pedido com saída em nota, quando ela conclui, então
+  existe uma nota com o texto final, a marca "via rotina" e o vínculo com a execução, e nenhum card
+  foi consumido.
+- **CA-36** (RF-64) — Dada uma rotina com título fixo, quando ela roda duas vezes, então as duas
+  notas existem, e a segunda leva a data e a hora no título.
+- **CA-37** (RF-63) — Dada uma rotina por pedido, quando se tenta salvá-la com pedido vazio, com o
+  título "da ideia" ou com a ação "mover", então a resposta é 422 com o motivo.
 
 ---
 

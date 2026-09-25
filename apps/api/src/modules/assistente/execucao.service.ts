@@ -1,18 +1,29 @@
 import { Prisma } from "@prisma/client";
-import { MAX_CARD_DESCRICAO, MAX_CARD_TITULO, MAX_PASSOS_DO_LACO } from "@yu-book/shared";
+import {
+  MAX_CARD_DESCRICAO,
+  MAX_CARD_TITULO,
+  MAX_CONTEUDO,
+  MAX_PASSOS_DO_LACO,
+  MAX_TITULO,
+  primeiraLinha,
+  resumoDoPedido,
+} from "@yu-book/shared";
 import type {
   AiFavorite,
   RotinaEvent,
   RoutineRunDetail,
   RoutineRunStatus,
   RoutineConsumeAction,
+  RoutineInputKind,
   RoutineOutputTitle,
   RoutineRunStarted,
   RoutineStepMode,
 } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
+import type { OrigemIA } from "../../lib/marca.js";
 import * as kanban from "../kanban/kanban.service.js";
+import * as notas from "../notes/notes.service.js";
 import * as agentes from "./agentes.service.js";
 import { estimarCustoMicros, garantirTeto, MAX_SAIDA_TOKENS } from "./custo.service.js";
 import * as ferramentas from "./ferramentas.service.js";
@@ -29,6 +40,7 @@ import {
   CAMPOS_DO_PASSO_EXECUTADO,
   CAMPOS_DO_RUN,
   detalheDoRun,
+  entradaPorColuna,
   ferramentasDaRotina,
   linhaDaRotina,
   ondeElegivel,
@@ -60,16 +72,22 @@ import {
  *   gravadas `interrompida` antes de `app.close()` (`encerrarExecucoes`); a
  *   que morrer sem SIGTERM para de pulsar, e a varredura a fecha
  *   (`reconciliarExecucoes`, no boot e a cada minuto). A ideia fica onde
- *   estava, e o próximo "Rodar agora" a pega — **salvo se o card de saída já
- *   existir**: aí a execução termina `concluida` com aviso, nunca `falhou`
- *   (RN-16), e a ideia não volta a ser escolhida.
+ *   estava, e o próximo "Rodar agora" a pega — **salvo se a saída (card ou
+ *   nota) já existir**: aí a execução termina `concluida` com aviso, nunca
+ *   `falhou` (RN-16), e a ideia não volta a ser escolhida.
+ *
+ * **Dois tipos de entrada** (emenda da Etapa E): a ideia de uma coluna, ou o
+ * pedido escrito na rotina. No pedido não há ideia a escolher nem a consumir,
+ * e cada execução é independente — a idempotência pelo registro (RN-18) é só
+ * da coluna; a de uma execução por conta (RN-19) vale para as duas.
  *
  * O que protege o gasto é o mesmo do chat, conferido **antes de cada chamada**
  * ao provedor (INV-47), com um corte a mais: o teto por execução.
  *
  * **A rotina só escreve pelo código, na saída.** Os passos recebem apenas as
- * ferramentas de leitura do agente (`ferramentasDaRotina`); o card de saída e
- * a ação sobre a ideia são deste arquivo, no fim de uma execução bem-sucedida.
+ * ferramentas de leitura do agente (`ferramentasDaRotina`); o card ou a nota
+ * de saída e a ação sobre a ideia são deste arquivo, no fim de uma execução
+ * bem-sucedida.
  */
 
 /// Quanto da descrição da ideia vai a cada passo. Ideia é uma linha ou um
@@ -170,33 +188,52 @@ interface Desfecho {
   status: Extract<RoutineRunStatus, "interrompida" | "cancelada" | "falhou">;
   code: string;
   mensagem: string;
+  /// Na execução por pedido não há ideia para ter ficado onde estava.
+  mensagemNoPedido?: string;
 }
 
 const INTERROMPIDA: Desfecho = {
   status: "interrompida",
   code: "INTERROMPIDA",
   mensagem: "A API foi reiniciada no meio da execução. A ideia ficou onde estava.",
+  mensagemNoPedido: "A API foi reiniciada no meio da execução.",
 };
 
 const CANCELADA: Desfecho = {
   status: "cancelada",
   code: "CANCELADA",
   mensagem: "Execução cancelada. A ideia ficou onde estava.",
+  mensagemNoPedido: "Execução cancelada.",
 };
 
-const FINALIZACAO_PARCIAL =
-  "O card foi criado, mas a execução não terminou de ser registrada. A ideia pode não ter " +
-  "sido movida nem arquivada.";
+const mensagemDo = (desfecho: Desfecho, tipo: RoutineInputKind) =>
+  tipo === "pedido" ? (desfecho.mensagemNoPedido ?? desfecho.mensagem) : desfecho.mensagem;
+
+/** A saída que a execução criou. Uma só, conforme o tipo de saída da rotina. */
+type Saida = { cardId: string } | { noteId: string };
+
+/// As colunas de `ai_routine_run` que registram a saída.
+const camposDaSaida = (saida: Saida) =>
+  "cardId" in saida ? { outputCardId: saida.cardId } : { outputNoteId: saida.noteId };
+
+function finalizacaoParcial(saida: Saida, tipo: RoutineInputKind): string {
+  const criada = "cardId" in saida ? "O card foi criado" : "A nota foi criada";
+  return (
+    `${criada}, mas a execução não terminou de ser registrada.` +
+    (tipo === "coluna" ? " A ideia pode não ter sido movida nem arquivada." : "")
+  );
+}
 
 /**
  * Fecha, pelo banco, execuções em andamento que ninguém vai terminar: a de
  * pulso vencido (varredura, cancelamento de órfã) e a que escapou do motor.
  *
- * **O card de saída decide o desfecho** (RN-16): execução que já o criou vira
- * `concluida` com `FINALIZACAO_PARCIAL`, qualquer que seja o motivo — senão a
- * ideia voltaria a ser elegível com o post dela já pronto. O card é achado
- * por `outputCardId` ou pela marca (`card.aiRunId`), que o motor grava junto
- * com o card: é o que cobre a morte entre criar o card e registrá-lo.
+ * **A saída decide o desfecho** (RN-16): execução que já criou o card ou a
+ * nota vira `concluida` com `FINALIZACAO_PARCIAL`, qualquer que seja o motivo
+ * — senão a ideia voltaria a ser elegível com o post dela já pronto. A saída é
+ * achada por `outputCardId`/`outputNoteId` ou pela marca (`card.aiRunId`,
+ * `note.aiRunId`), que o motor grava junto com ela: é o que cobre a morte
+ * entre criar a saída e registrá-la.
  *
  * O `where` é reaplicado na escrita, com `em_andamento`: uma execução que
  * pulsou entre a leitura e a escrita não é fechada.
@@ -207,27 +244,38 @@ async function fecharSemDono(
 ): Promise<number> {
   const candidatas = await prisma.aiRoutineRun.findMany({
     where: { ...onde, status: "em_andamento" },
-    select: { id: true, outputCardId: true, cards: { select: { id: true }, take: 1 } },
+    select: {
+      id: true,
+      inputKind: true,
+      outputCardId: true,
+      outputNoteId: true,
+      cards: { select: { id: true }, take: 1 },
+      /// A marca não distingue nota viva de nota na lixeira: as duas foram
+      /// criadas por esta execução, e é isso que decide o desfecho.
+      notas: { select: { id: true }, take: 1 },
+    },
   });
   let fechadas = 0;
   for (const candidata of candidatas) {
     const card = candidata.outputCardId ?? candidata.cards[0]?.id ?? null;
+    const nota = candidata.outputNoteId ?? candidata.notas[0]?.id ?? null;
+    const saida: Saida | null = card ? { cardId: card } : nota ? { noteId: nota } : null;
     const agora = new Date();
     const fechou = await prisma.$transaction(async (tx) => {
       const { count } = await tx.aiRoutineRun.updateMany({
         where: { ...onde, id: candidata.id, status: "em_andamento" },
-        data: card
+        data: saida
           ? {
               status: "concluida",
-              outputCardId: card,
+              ...camposDaSaida(saida),
               errorCode: "FINALIZACAO_PARCIAL",
-              errorMessage: FINALIZACAO_PARCIAL,
+              errorMessage: finalizacaoParcial(saida, candidata.inputKind),
               endedAt: agora,
             }
           : {
               status: desfecho.status,
               errorCode: desfecho.code,
-              errorMessage: desfecho.mensagem,
+              errorMessage: mensagemDo(desfecho, candidata.inputKind),
               endedAt: agora,
             },
       });
@@ -250,13 +298,13 @@ async function fecharSemDono(
 /** Grava `concluida`, só se ninguém a encerrou antes. `null` quando outro encerrou. */
 async function concluir(
   runId: string,
-  dados: { outputCardId: string; costMicros: number; aviso: { code: string; mensagem: string } | null },
+  dados: { saida: Saida; costMicros: number; aviso: { code: string; mensagem: string } | null },
 ) {
   const [run] = await prisma.aiRoutineRun.updateManyAndReturn({
     where: { id: runId, status: "em_andamento" },
     data: {
       status: "concluida",
-      outputCardId: dados.outputCardId,
+      ...camposDaSaida(dados.saida),
       costMicros: dados.costMicros,
       endedAt: new Date(),
       ...(dados.aviso && { errorCode: dados.aviso.code, errorMessage: dados.aviso.mensagem }),
@@ -293,9 +341,11 @@ interface Plano {
   runId: string;
   userId: string;
   routineName: string;
-  ideiaId: string;
-  outputColumnId: string;
+  /// A ideia é relida no início de `executar`; o pedido é copiado aqui.
+  entrada: { tipo: "ideia"; ideiaId: string } | { tipo: "pedido"; texto: string };
+  saida: { tipo: "card"; columnId: string } | { tipo: "nota"; workspaceId: string | null };
   outputTitle: RoutineOutputTitle;
+  outputTitleText: string | null;
   includeNotes: boolean;
   consumeAction: RoutineConsumeAction;
   consumeColumnId: string | null;
@@ -375,31 +425,62 @@ export async function iniciar(
       await garantirTeto(userId, preferencia, estimarCustoMicros(modelo, 0, MAX_SAIDA_TOKENS));
     }
 
-    const ideia = await prisma.card.findFirst({
-      where: ondeElegivel(userId, rotina),
-      orderBy: { position: "asc" },
-      select: { id: true, title: true },
-    });
-    if (!ideia) {
-      throw new AppError(
-        404,
-        "SEM_IDEIA",
-        "Nenhuma ideia para usar: a coluna de entrada está vazia, ou todas as ideias dela já " +
-          "passaram por esta rotina.",
-      );
+    /// `problemasDaRotina` já recusou a rotina sem coluna, sem pedido ou sem
+    /// coluna de saída; as guardas abaixo são para o compilador.
+    const invalida = () =>
+      new AppError(422, "ROTINA_INVALIDA", "A rotina está incompleta. Abra o editor.");
+    let entrada: Plano["entrada"];
+    let inputCardId: string | null = null;
+    let inputTitle: string | null;
+    if (rotina.inputKind === "coluna") {
+      const porColuna = entradaPorColuna(rotina);
+      if (!porColuna) throw invalida();
+      const ideia = await prisma.card.findFirst({
+        where: ondeElegivel(userId, porColuna),
+        orderBy: { position: "asc" },
+        select: { id: true, title: true },
+      });
+      if (!ideia) {
+        throw new AppError(
+          404,
+          "SEM_IDEIA",
+          "Nenhuma ideia para usar: a coluna de entrada está vazia, ou todas as ideias dela já " +
+            "passaram por esta rotina.",
+        );
+      }
+      entrada = { tipo: "ideia", ideiaId: ideia.id };
+      inputCardId = ideia.id;
+      inputTitle = ideia.title;
+    } else {
+      /// Sem ideia a escolher: cada execução é independente, e rodar de novo
+      /// cumpre o mesmo pedido outra vez.
+      const texto = rotina.inputPrompt?.trim() ?? "";
+      if (!texto) throw invalida();
+      entrada = { tipo: "pedido", texto };
+      inputTitle = resumoDoPedido(texto) || null;
+    }
+
+    let saida: Plano["saida"];
+    if (rotina.outputKind === "card") {
+      if (!rotina.outputColumnId) throw invalida();
+      saida = { tipo: "card", columnId: rotina.outputColumnId };
+    } else {
+      saida = { tipo: "nota", workspaceId: rotina.outputWorkspaceId };
     }
 
     /// Dois `iniciar` que passaram juntos pela consulta de cima — um em cada
     /// instância — escolheram a mesma ideia; o índice deixa só um criar, e o
-    /// outro recebe o mesmo 409, sem card nem passo gravado (RN-18).
+    /// outro recebe o mesmo 409, sem saída nem passo gravado (RN-18). No
+    /// pedido o índice é o mesmo, e a regra é só a de RN-19.
     const run = await prisma.$transaction(async (tx) => {
       const criado = await tx.aiRoutineRun.create({
         data: {
           userId,
           routineId: rotina.id,
           routineName: rotina.name,
-          inputCardId: ideia.id,
-          inputTitle: ideia.title,
+          inputKind: rotina.inputKind,
+          inputCardId,
+          inputTitle,
           runCapMicros: rotina.runCapMicros,
           heartbeatAt: new Date(),
         },
@@ -424,9 +505,10 @@ export async function iniciar(
       runId: run.id,
       userId,
       routineName: rotina.name,
-      ideiaId: ideia.id,
-      outputColumnId: rotina.outputColumnId,
+      entrada,
+      saida,
       outputTitle: rotina.outputTitle,
+      outputTitleText: rotina.outputTitleText,
       includeNotes: rotina.includeNotes,
       consumeAction: rotina.consumeAction,
       consumeColumnId: rotina.consumeColumnId,
@@ -453,7 +535,7 @@ export async function iniciar(
     /// Destacada da requisição **de propósito**: é a decisão da etapa. O
     /// `catch` é a última rede — `executar` já grava a própria falha, e isto
     /// só pega o que escapar dela (o banco fora do ar no meio do registro).
-    /// Passa por `fecharSemDono` para que um card já criado ainda dê
+    /// Passa por `fecharSemDono` para que uma saída já criada ainda dê
     /// `concluida` (RN-16); o que nem isso gravar, a varredura fecha quando o
     /// pulso vencer.
     viva.terminada = executar(plano, viva, preferencia)
@@ -482,33 +564,41 @@ export async function iniciar(
 
 /* --------------------------------------------------------------- execução */
 
-function pedidoDoPasso(dados: {
-  rotina: string;
-  indice: number;
-  total: number;
-  ideia: { title: string; descriptionMd: string };
-  rascunho: string;
-  observacoes: { agentName: string; texto: string }[];
-  mode: RoutineStepMode;
-  instruction: string;
-}): string {
-  const descricao = dados.ideia.descriptionMd.trim();
+/// O que o passo recebe como ponto de partida. O pedido não tem limite próprio
+/// aqui: o schema já o corta em `MAX_PEDIDO_DA_ROTINA`.
+type EntradaDoPasso =
+  | { tipo: "ideia"; title: string; descriptionMd: string }
+  | { tipo: "pedido"; texto: string };
+
+function secaoDaEntrada(entrada: EntradaDoPasso): string[] {
+  if (entrada.tipo === "pedido") return ["## Pedido", "", entrada.texto];
+  const descricao = entrada.descriptionMd.trim();
   const corpoDaIdeia = !descricao
     ? "_(sem descrição)_"
     : descricao.length > LIMITE_DESCRICAO_DA_IDEIA
       ? `${descricao.slice(0, LIMITE_DESCRICAO_DA_IDEIA)}\n\n_(descrição cortada aqui)_`
       : descricao;
+  return ["## Ideia", "", `**${entrada.title}**`, "", corpoDaIdeia];
+}
 
+function pedidoDoPasso(dados: {
+  rotina: string;
+  indice: number;
+  total: number;
+  entrada: EntradaDoPasso;
+  saida: "card" | "nota";
+  rascunho: string;
+  observacoes: { agentName: string; texto: string }[];
+  mode: RoutineStepMode;
+  instruction: string;
+}): string {
+  const semRascunho = !dados.rascunho.trim();
   const partes = [
     `Você está no passo ${dados.indice + 1} de ${dados.total} da rotina «${dados.rotina}». ` +
       "Ninguém vai responder perguntas durante a rotina: decida sozinho, e use as ferramentas " +
       "de leitura se precisar do acervo.",
     "",
-    "## Ideia",
-    "",
-    `**${dados.ideia.title}**`,
-    "",
-    corpoDaIdeia,
+    ...secaoDaEntrada(dados.entrada),
     "",
     "## Rascunho atual",
     "",
@@ -525,30 +615,109 @@ function pedidoDoPasso(dados: {
     "## Sua tarefa neste passo",
     "",
     dados.instruction.trim() ||
-      (dados.mode === "reescreve" ? "Melhore o rascunho." : "Revise o rascunho."),
+      (dados.mode === "revisa"
+        ? "Revise o rascunho."
+        : dados.entrada.tipo === "pedido" && semRascunho
+          ? "Cumpra o pedido."
+          : "Melhore o rascunho."),
     "",
     dados.mode === "reescreve"
       ? "Responda **só** com o texto completo do novo rascunho, pronto para usar: sem " +
           "preâmbulo, sem comentário depois, sem cercar em bloco de código. O que você " +
           "escrever substitui o rascunho inteiro."
       : "**Não reescreva o rascunho.** Responda só com as suas observações sobre ele, em " +
-          "lista. Elas seguem para os próximos passos e vão para a seção Observações do card.",
+          "lista. Elas seguem para os próximos passos e vão para a seção Observações " +
+          (dados.saida === "card" ? "do card." : "da nota."),
   );
   return partes.join("\n");
 }
 
-/** A primeira linha com texto, sem a marcação de título e de ênfase. */
-function primeiraLinha(texto: string): string {
-  const linha = texto.split("\n").find((l) => l.trim()) ?? "";
-  return linha
-    .trim()
-    .replace(/^#{1,6}\s+/, "")
-    .replace(/^[*_]+|[*_]+$/g, "")
-    .trim();
-}
-
 function cortar(texto: string, limite: number): string {
   return texto.length <= limite ? texto : `${texto.slice(0, limite - 1)}…`;
+}
+
+/**
+ * O título da saída. `ideia` só existe na entrada por coluna (o schema recusa
+ * no pedido); cada modo cai no seguinte quando não dá texto, e o nome da
+ * rotina é o último recurso — rascunho sem linha de texto não pode deixar a
+ * saída sem título.
+ */
+function tituloDaSaida(
+  plano: Pick<Plano, "outputTitle" | "outputTitleText" | "routineName">,
+  rascunho: string,
+  tituloDaIdeia: string | null,
+): string {
+  const fixo = plano.outputTitle === "fixo" ? plano.outputTitleText?.trim() : "";
+  const linha = plano.outputTitle === "primeira_linha" ? primeiraLinha(rascunho) : "";
+  return fixo || linha || tituloDaIdeia || primeiraLinha(rascunho) || plano.routineName;
+}
+
+/// `25/09/2026 14:03` no fuso do usuário — o de `/ajustes`, não o do processo
+/// (a API roda em UTC).
+function diaEHoraLocal(instante: Date, fuso: string): string {
+  const partes = new Map(
+    new Intl.DateTimeFormat("pt-BR", {
+      timeZone: fuso,
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(instante)
+      .map((p) => [p.type, p.value]),
+  );
+  return (
+    `${partes.get("day")}/${partes.get("month")}/${partes.get("year")} ` +
+    `${partes.get("hour")}:${partes.get("minute")}`
+  );
+}
+
+/**
+ * Os títulos que a nota de saída tenta, em ordem. Título de nota é único por
+ * conta (INV-16), e uma rotina com título fixo — ou a mesma primeira linha —
+ * colide a partir da segunda execução: a segunda tentativa ganha dia e hora, e
+ * a terceira, para duas execuções no mesmo minuto, o começo do id da execução.
+ */
+function titulosDaNota(base: string, fuso: string, runId: string): string[] {
+  const quando = diaEHoraLocal(new Date(), fuso);
+  const curto = runId.slice(0, 6);
+  return [
+    cortar(base, MAX_TITULO),
+    `${cortar(base, MAX_TITULO - quando.length - 3)} · ${quando}`,
+    `${cortar(base, MAX_TITULO - quando.length - curto.length - 6)} · ${quando} · ${curto}`,
+  ];
+}
+
+/**
+ * Cria a nota de saída pelo service de notas — posse do workspace (INV-59),
+ * wikilinks e marca vêm de lá. `conferir` roda imediatamente antes de **cada**
+ * tentativa, sem `await` entre ele e a criação (INV-60): a tentativa que
+ * colidiu não criou nada, e cancelar até a próxima ainda deixa tudo intacto.
+ */
+async function criarNotaDeSaida(
+  userId: string,
+  dados: { titulos: string[]; contentMd: string; workspaceId: string | null },
+  origem: OrigemIA,
+  conferir: () => Promise<void>,
+): Promise<string> {
+  let ultimoErro: unknown = null;
+  for (const title of dados.titulos) {
+    await conferir();
+    try {
+      const nota = await notas.criar(
+        userId,
+        { title, contentMd: dados.contentMd, workspaceId: dados.workspaceId, kind: "livre" },
+        origem,
+      );
+      return nota.id;
+    } catch (erro) {
+      if (!(erro instanceof AppError && erro.code === "TITULO_DUPLICADO")) throw erro;
+      ultimoErro = erro;
+    }
+  }
+  throw ultimoErro;
 }
 
 /** O acumulado de um passo entre as voltas do laço de ferramenta. */
@@ -566,7 +735,7 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
 
   let rascunho = "";
   const observacoes: { agentName: string; texto: string }[] = [];
-  /// A marca do card de saída: o modelo e o agente do último passo que
+  /// A marca da saída (card ou nota): o modelo e o agente do último passo que
   /// **reescreveu** — é ele que escreveu o texto que o card leva.
   let autor: string | null = null;
   let agenteAutor: string | null = null;
@@ -574,9 +743,10 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
 
   /// O passo em curso, para o `catch` gravar o que ele já gastou.
   let emCurso: { position: number; acumulado: Acumulado } | null = null;
-  /// O card de saída, assim que existe. Daqui em diante a execução só termina
+  /// A saída, assim que existe. Daqui em diante a execução só termina
   /// `concluida` (RN-16), com aviso se o resto falhar.
-  let cardDeSaida: string | null = null;
+  let saidaCriada: Saida | null = null;
+  const tipoDaEntrada: RoutineInputKind = plano.entrada.tipo === "ideia" ? "coluna" : "pedido";
 
   /// Depois de começar a gravar o desfecho, o pulso não decide mais nada: um
   /// pulso em voo que voltasse "perdida" por causa da **nossa** gravação
@@ -619,11 +789,17 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
   };
 
   try {
-    const ideia = await prisma.card.findFirst({
-      where: { id: plano.ideiaId, column: { board: { userId } } },
-      select: { title: true, descriptionMd: true },
-    });
-    if (!ideia) throw notFound("A ideia foi excluída antes de a execução começar.");
+    let ideia: { title: string; descriptionMd: string } | null = null;
+    if (plano.entrada.tipo === "ideia") {
+      ideia = await prisma.card.findFirst({
+        where: { id: plano.entrada.ideiaId, column: { board: { userId } } },
+        select: { title: true, descriptionMd: true },
+      });
+      if (!ideia) throw notFound("A ideia foi excluída antes de a execução começar.");
+    }
+    const entradaDoPasso: EntradaDoPasso = ideia
+      ? { tipo: "ideia", ...ideia }
+      : { tipo: "pedido", texto: plano.entrada.tipo === "pedido" ? plano.entrada.texto : "" };
 
     for (const passo of plano.passos) {
       await conferir();
@@ -684,7 +860,8 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
             rotina: plano.routineName,
             indice: passo.position,
             total: plano.passos.length,
-            ideia,
+            entrada: entradaDoPasso,
+            saida: plano.saida.tipo,
             rascunho,
             observacoes,
             mode: passo.mode,
@@ -844,10 +1021,7 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
 
     /* ------------------------------------------------------------ saída */
 
-    /// O último ponto em que cancelar ainda deixa a ideia intacta.
-    await conferir();
-    const titulo =
-      plano.outputTitle === "primeira_linha" ? primeiraLinha(rascunho) || ideia.title : ideia.title;
+    const titulo = tituloDaSaida(plano, rascunho, ideia?.title ?? null);
     const secoes = [rascunho];
     if (plano.includeNotes && observacoes.length) {
       secoes.push(
@@ -860,73 +1034,107 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
           .trim(),
       );
     }
-    secoes.push(`---\nIdeia de origem: ${ideia.title}`);
-
-    const card = await kanban.criarCard(
-      userId,
-      {
-        columnId: plano.outputColumnId,
-        title: cortar(titulo, MAX_CARD_TITULO),
-        descriptionMd: cortar(secoes.join("\n\n"), MAX_CARD_DESCRICAO),
-      },
-      /// A marca vem da execução, nunca do modelo (INV-58). O `runId` dela é
-      /// também o que deixa `fecharSemDono` achar o card se o processo morrer
-      /// antes da linha de baixo.
-      {
-        via: "rotina",
-        author: autor,
-        agentName: agenteAutor,
-        runId,
-        routineName: plano.routineName,
-      },
+    secoes.push(
+      plano.entrada.tipo === "pedido"
+        ? `---\nPedido: ${resumoDoPedido(plano.entrada.texto)}`
+        : `---\nIdeia de origem: ${ideia?.title ?? ""}`,
     );
-    cardDeSaida = card.id;
+    /// A marca vem da execução, nunca do modelo (INV-58). O `runId` dela é
+    /// também o que deixa `fecharSemDono` achar a saída se o processo morrer
+    /// antes do registro logo abaixo.
+    const origem: OrigemIA = {
+      via: "rotina",
+      author: autor,
+      agentName: agenteAutor,
+      runId,
+      routineName: plano.routineName,
+    };
 
-    /// RN-16: o card é gravado na execução **antes** de tocar na ideia. Daqui
+    let saida: Saida;
+    if (plano.saida.tipo === "card") {
+      /// O último ponto em que cancelar ainda deixa a ideia intacta.
+      await conferir();
+      const card = await kanban.criarCard(
+        userId,
+        {
+          columnId: plano.saida.columnId,
+          title: cortar(titulo, MAX_CARD_TITULO),
+          descriptionMd: cortar(secoes.join("\n\n"), MAX_CARD_DESCRICAO),
+        },
+        origem,
+      );
+      saida = { cardId: card.id };
+    } else {
+      saida = {
+        noteId: await criarNotaDeSaida(
+          userId,
+          {
+            titulos: titulosDaNota(titulo, preferencia.timezone, runId),
+            contentMd: cortar(secoes.join("\n\n"), MAX_CONTEUDO),
+            workspaceId: plano.saida.workspaceId,
+          },
+          origem,
+          conferir,
+        ),
+      };
+    }
+    saidaCriada = saida;
+
+    /// RN-16: a saída é gravada na execução **antes** de tocar na ideia. Daqui
     /// em diante, qualquer falha — do consumo, do registro, do processo —
     /// termina `concluida` com aviso, e `ondeElegivel` não devolve a ideia.
     const registrado = await prisma.aiRoutineRun.updateMany({
       where: { id: runId, status: "em_andamento" },
-      data: { outputCardId: card.id, costMicros: custoDoRun, heartbeatAt: new Date() },
+      data: { ...camposDaSaida(saida), costMicros: custoDoRun, heartbeatAt: new Date() },
     });
     if (registrado.count === 0) {
-      /// Outro processo a fechou entre `conferir` e o card (pulso vencido). O
-      /// card existe, e é o fato mais forte: é a única gravação do motor que
+      /// Outro processo a fechou entre `conferir` e a saída (pulso vencido). A
+      /// saída existe, e é o fato mais forte: é a única gravação do motor que
       /// passa por cima de um estado terminal alheio, e só para o `concluida`
-      /// que `fecharSemDono` teria gravado se tivesse visto o card.
+      /// que `fecharSemDono` teria gravado se a tivesse visto.
       await prisma.aiRoutineRun.updateMany({
-        where: { id: runId, outputCardId: null, status: { not: "concluida" } },
+        where: {
+          id: runId,
+          outputCardId: null,
+          outputNoteId: null,
+          status: { not: "concluida" },
+        },
         data: {
           status: "concluida",
-          outputCardId: card.id,
+          ...camposDaSaida(saida),
           errorCode: "FINALIZACAO_PARCIAL",
-          errorMessage: FINALIZACAO_PARCIAL,
+          errorMessage: finalizacaoParcial(saida, tipoDaEntrada),
         },
       });
       perder();
     }
 
-    /// O destino da ideia é do código, e só depois do card existir e estar
-    /// registrado: falha em qualquer ponto antes do card deixa a ideia intacta,
-    /// e o próximo "Rodar agora" a pega de novo. Falha **aqui** não desfaz o
-    /// card — ele já está pronto e marcado —, e a execução termina `concluida`
-    /// com o aviso: pelo registro, a ideia não volta a ser escolhida.
+    /// O destino da ideia é do código, e só depois da saída existir e estar
+    /// registrada: falha em qualquer ponto antes dela deixa a ideia intacta,
+    /// e o próximo "Rodar agora" a pega de novo. Falha **aqui** não desfaz a
+    /// saída — ela já está pronta e marcada —, e a execução termina
+    /// `concluida` com o aviso: pelo registro, a ideia não volta a ser
+    /// escolhida. No pedido não há ideia, e nada a consumir.
     let aviso: { code: string; mensagem: string } | null = null;
+    const ideiaId = plano.entrada.tipo === "ideia" ? plano.entrada.ideiaId : null;
     try {
-      if (plano.consumeAction === "mover" && plano.consumeColumnId) {
-        await kanban.moverCard(userId, plano.ideiaId, {
-          columnId: plano.consumeColumnId,
-          /// `moverCard` limita ao tamanho da coluna: é o fim dela.
-          position: Number.MAX_SAFE_INTEGER,
-        });
-      } else if (plano.consumeAction === "arquivar") {
-        await kanban.atualizarCard(userId, plano.ideiaId, { archived: true });
+      if (ideiaId) {
+        if (plano.consumeAction === "mover" && plano.consumeColumnId) {
+          await kanban.moverCard(userId, ideiaId, {
+            columnId: plano.consumeColumnId,
+            /// `moverCard` limita ao tamanho da coluna: é o fim dela.
+            position: Number.MAX_SAFE_INTEGER,
+          });
+        } else if (plano.consumeAction === "arquivar") {
+          await kanban.atualizarCard(userId, ideiaId, { archived: true });
+        }
       }
     } catch (erro) {
       aviso = {
         code: "CONSUMO_FALHOU",
         mensagem:
-          "O card foi criado, mas a ideia não pôde ser " +
+          `${"cardId" in saida ? "O card foi criado" : "A nota foi criada"}, mas a ideia não ` +
+          "pôde ser " +
           `${plano.consumeAction === "mover" ? "movida" : "arquivada"}: ` +
           (erro instanceof AppError ? erro.message : "falha inesperada") +
           ".",
@@ -935,8 +1143,8 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
 
     encerrando = true;
     clearInterval(relogio);
-    const run = await concluir(runId, { outputCardId: card.id, costMicros: custoDoRun, aviso });
-    /// `null`: outro processo a fechou — como `concluida`, pelo card. Calado.
+    const run = await concluir(runId, { saida, costMicros: custoDoRun, aviso });
+    /// `null`: outro processo a fechou — como `concluida`, pela saída. Calado.
     if (!run) {
       viva.motivo = "perdida";
       return;
@@ -949,14 +1157,14 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
     /// `null` do `finally` de `iniciar` e releem o gravado.
     if (viva.motivo === "perdida") return;
 
-    if (cardDeSaida) {
+    if (saidaCriada) {
       const run = await concluir(runId, {
-        outputCardId: cardDeSaida,
+        saida: saidaCriada,
         costMicros: custoDoRun,
         aviso: {
           code: "FINALIZACAO_PARCIAL",
           mensagem:
-            `${FINALIZACAO_PARCIAL}` +
+            finalizacaoParcial(saidaCriada, tipoDaEntrada) +
             (erro instanceof AppError && !signal.aborted ? ` (${erro.message})` : ""),
         },
       });
@@ -964,10 +1172,13 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
       return;
     }
 
-    const desfecho: Desfecho = signal.aborted
+    const abortado = signal.aborted
       ? viva.motivo === "desligamento"
         ? INTERROMPIDA
         : CANCELADA
+      : null;
+    const desfecho: Desfecho = abortado
+      ? { ...abortado, mensagem: mensagemDo(abortado, tipoDaEntrada) }
       : {
           status: "falhou",
           code: erro instanceof AppError ? erro.code : "INTERNAL_ERROR",

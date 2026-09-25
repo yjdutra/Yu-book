@@ -1,26 +1,43 @@
 import {
   FERRAMENTAS_DO_ACERVO,
   MAX_INSTRUCAO_DO_PASSO,
+  MAX_PEDIDO_DA_ROTINA,
+  MAX_TITULO_FIXO_DA_ROTINA,
   ROUTINE_CONSUME_ACTIONS,
+  ROUTINE_INPUT_KINDS,
+  ROUTINE_OUTPUT_KINDS,
   ROUTINE_OUTPUT_TITLES,
   ROUTINE_STEP_MODES,
   TETO_POR_EXECUCAO_MAXIMO_MICROS,
   microsParaDolares,
 } from "@yu-book/shared";
-import type { RoutineDetail, RoutineOutputTitle } from "@yu-book/shared";
+import type {
+  RoutineDetail,
+  RoutineInputKind,
+  RoutineOutputKind,
+  RoutineOutputTitle,
+} from "@yu-book/shared";
 import { useEffect, useId, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useAgente, useAgentes } from "../../lib/agentes";
 import { useBoard } from "../../lib/kanban";
-import { SeletorColuna, useEscolhaDeColuna } from "../agentes/CamposDoAgente";
+import { useWorkspaces } from "../../lib/notas";
+import { CLASSE_CAMPO, SeletorColuna, useEscolhaDeColuna } from "../agentes/CamposDoAgente";
 import { AvatarAgente } from "../agentes/AvatarAgente";
 import { emDolares } from "../ajustes/comum";
 import { Aviso } from "../base/Aviso";
 import { Etiqueta } from "../base/Etiqueta";
 import { Interruptor } from "../base/Interruptor";
 import { CampoMarkdown } from "../CampoMarkdown";
-import { IconeBoard, IconeCheck, IconeLapis, IconeRotina } from "../Icones";
+import {
+  IconeBoard,
+  IconeCheck,
+  IconeFala,
+  IconeLapis,
+  IconeNotas,
+  IconeRotina,
+} from "../Icones";
 import { GLIFO_MODO, NUMERO, ROTULO_CONSUMO, ROTULO_MODO } from "./comum";
 import type { BlocoEscolhido, PassoRascunho, Rascunho } from "./rascunho";
 
@@ -30,11 +47,45 @@ import type { BlocoEscolhido, PassoRascunho, Rascunho } from "./rascunho";
  * explícito, no cabeçalho do editor.
  */
 
+/*
+ * Os três `Record` são totais (INV-54): tipo novo no enum de `shared` não
+ * compila sem rótulo, e os grupos de rádio abaixo o percorrem.
+ */
+
 const ROTULO_TITULO: Record<RoutineOutputTitle, { titulo: string; explica: string }> = {
-  ideia: { titulo: "O título da ideia", explica: "O card sai com o mesmo título do card-ideia." },
+  ideia: {
+    titulo: "O título da ideia",
+    explica: "A saída leva o mesmo título do card-ideia.",
+  },
   primeira_linha: {
     titulo: "A primeira linha do rascunho",
     explica: "Bom quando o último passo escreve um gancho que serve de título.",
+  },
+  fixo: {
+    titulo: "Um título fixo",
+    explica: "O mesmo texto em toda execução.",
+  },
+};
+
+const ROTULO_ENTRADA: Record<RoutineInputKind, { titulo: string; explica: string }> = {
+  coluna: {
+    titulo: "Coluna de ideias",
+    explica: "Cada execução pega a próxima ideia de uma coluna do quadro.",
+  },
+  pedido: {
+    titulo: "Pedido",
+    explica: "O que você escrever aqui é a tarefa de cada execução.",
+  },
+};
+
+const ROTULO_SAIDA: Record<RoutineOutputKind, { titulo: string; explica: string }> = {
+  card: {
+    titulo: "Card numa coluna",
+    explica: "O resultado vira card no fim de uma coluna, de qualquer quadro.",
+  },
+  nota: {
+    titulo: "Nota nova",
+    explica: "O resultado vira uma nota, a cada execução uma nova.",
   },
 };
 
@@ -93,7 +144,7 @@ function Opcao({
 
 function Grupo({ legenda, children }: { legenda: string; children: ReactNode }) {
   return (
-    <fieldset className="grid gap-2">
+    <fieldset className="grid min-w-0 gap-2">
       <legend className="rotulo mb-1.5">{legenda}</legend>
       {children}
     </fieldset>
@@ -131,15 +182,111 @@ function ConfigEntrada({
   detalhe: RoutineDetail | undefined;
   entradaSalva: boolean;
 }) {
+  const grupoTipo = useId();
+  const idExplicaPedido = useId();
+
+  /// Trocar de tipo acerta o que o outro tipo não aceita, em vez de deixar o
+  /// problema para o salvar: sem ideia não há título "da ideia" nem ideia a
+  /// mover. A coluna escolhida fica no rascunho — voltar para "coluna" a traz.
+  function trocarTipo(tipo: RoutineInputKind) {
+    if (tipo === rascunho.inputKind) return;
+    mudar(
+      tipo === "pedido"
+        ? {
+            inputKind: tipo,
+            ...(rascunho.outputTitle === "ideia" && { outputTitle: "primeira_linha" }),
+            consumeAction: "manter",
+            consumeColumnId: null,
+          }
+        : { inputKind: tipo },
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-5 p-4">
+      <Grupo legenda="De onde vem a tarefa">
+        {ROUTINE_INPUT_KINDS.map((k) => (
+          <Opcao
+            key={k}
+            nome={grupoTipo}
+            marcada={rascunho.inputKind === k}
+            onMarcar={() => trocarTipo(k)}
+            prefixo={
+              k === "coluna" ? (
+                <IconeBoard className="size-3.5 text-ink-400" />
+              ) : (
+                <IconeFala className="size-3.5 text-ink-400" />
+              )
+            }
+            titulo={ROTULO_ENTRADA[k].titulo}
+            explica={ROTULO_ENTRADA[k].explica}
+          />
+        ))}
+      </Grupo>
+
+      {rascunho.inputKind === "coluna" ? (
+        <EntradaPorColuna
+          rascunho={rascunho}
+          mudar={mudar}
+          detalhe={detalhe}
+          entradaSalva={entradaSalva}
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-2">
+          <CampoMarkdown
+            titulo="O pedido"
+            rotuloCampo="O pedido da rotina"
+            valor={rascunho.inputPrompt}
+            onMudar={(inputPrompt) => mudar({ inputPrompt })}
+            linhas={8}
+            maxLength={MAX_PEDIDO_DA_ROTINA}
+            descricao={idExplicaPedido}
+            placeholder="Monte um resumo da minha semana a partir do painel e dos quadros…"
+            extra={
+              <span
+                className={`text-miudo tabular-nums ${
+                  rascunho.inputPrompt.length > MAX_PEDIDO_DA_ROTINA * 0.9
+                    ? "text-amber-300"
+                    : "text-ink-400"
+                }`}
+              >
+                {NUMERO.format(rascunho.inputPrompt.length)}/
+                {NUMERO.format(MAX_PEDIDO_DA_ROTINA)}
+              </span>
+            }
+          />
+          <p id={idExplicaPedido} className="text-miudo text-ink-400">
+            O pedido é a tarefa de toda execução, igual a cada vez. Cada execução é
+            independente: não lembra das anteriores, e rodar de novo faz de novo. Os agentes
+            leem o acervo; busca na web e abrir página chegam na Etapa G.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EntradaPorColuna({
+  rascunho,
+  mudar,
+  detalhe,
+  entradaSalva,
+}: {
+  rascunho: Rascunho;
+  mudar: (p: Partial<Rascunho>) => void;
+  detalhe: RoutineDetail | undefined;
+  entradaSalva: boolean;
+}) {
   const { data: quadro } = useBoard(rascunho.inputBoardId || null);
   const { quadroSumiu, colunaSumiu } = useEscolhaDeColuna(
     rascunho.inputBoardId,
     rascunho.inputColumnId,
   );
   const coluna = quadro?.columns.find((c) => c.id === rascunho.inputColumnId);
+  const elegiveis = detalhe?.eligibleCount ?? 0;
 
   return (
-    <div className="grid gap-4 p-4">
+    <>
       <div className="grid gap-2">
         <SeletorColuna
           boardId={rascunho.inputBoardId}
@@ -170,9 +317,9 @@ function ConfigEntrada({
             <>
               <p className="mt-1 text-sm text-ink-200">«{detalhe.nextIdea.title}»</p>
               <p className="mt-0.5 text-miudo text-ink-400">
-                {detalhe.eligibleCount === 1
+                {elegiveis === 1
                   ? "É a única ideia elegível."
-                  : `${NUMERO.format(detalhe.eligibleCount)} ideias elegíveis na fila.`}
+                  : `${NUMERO.format(elegiveis)} ideias elegíveis na fila.`}
               </p>
             </>
           ) : (
@@ -196,7 +343,7 @@ function ConfigEntrada({
         A rotina pega o primeiro card da coluna que ela ainda não usou com sucesso. Se a
         execução falhar ou for cancelada, a mesma ideia volta na próxima.
       </p>
-    </div>
+    </>
   );
 }
 
@@ -204,10 +351,12 @@ function ConfigPasso({
   passo,
   posicao,
   mudarPasso,
+  porColuna,
 }: {
   passo: PassoRascunho;
   posicao: number;
   mudarPasso: (p: Partial<PassoRascunho>) => void;
+  porColuna: boolean;
 }) {
   const { data: agentes, isLoading } = useAgentes();
   const { data: agente } = useAgente(passo.agentId);
@@ -218,8 +367,8 @@ function ConfigPasso({
   );
 
   return (
-    <div className="grid gap-5 p-4">
-      <fieldset>
+    <div className="grid grid-cols-1 gap-5 p-4">
+      <fieldset className="min-w-0">
         <legend className="rotulo mb-1.5">Agente</legend>
         {excluido && passo.agentName && !passo.sugestao && (
           <Aviso tom="alerta" className="mb-2">
@@ -324,7 +473,7 @@ function ConfigPasso({
         maxLength={MAX_INSTRUCAO_DO_PASSO}
         placeholder={
           passo.mode === "reescreve"
-            ? "Escreva o primeiro rascunho a partir da ideia…"
+            ? `Escreva o primeiro rascunho a partir ${porColuna ? "da ideia" : "do pedido"}…`
             : "Aponte, em lista, o que corrigir — sem reescrever…"
         }
         extra={
@@ -340,8 +489,8 @@ function ConfigPasso({
         }
       />
       <p className="-mt-3 text-miudo text-ink-400">
-        Vai junto da ideia, do rascunho atual e das observações dos passos anteriores. As
-        premissas do agente valem por cima.
+        Vai junto {porColuna ? "da ideia" : "do pedido"}, do rascunho atual e das observações
+        dos passos anteriores. As premissas do agente valem por cima.
       </p>
 
       {passo.agentId && agente && (
@@ -374,8 +523,8 @@ function ConfigPasso({
             </ul>
           )}
           <p className="mt-1.5 text-miudo text-ink-400">
-            Só para ler: na rotina, valem apenas as ferramentas de leitura. O card sai pelo
-            código, no bloco de saída — o agente não cria nada.{" "}
+            Só para ler: na rotina, valem apenas as ferramentas de leitura. O card ou a nota
+            sai pelo código, no bloco de saída — o agente não cria nada.{" "}
             <Link
               to={`/assistente/agentes/${passo.agentId}`}
               className="text-accent-400 underline underline-offset-2"
@@ -394,7 +543,15 @@ function ConfigPasso({
  * texto é local: com o número derivado a cada tecla, "0," viraria "0" antes de
  * a pessoa terminar de digitar.
  */
-function CampoTeto({ micros, onMudar }: { micros: number; onMudar: (micros: number) => void }) {
+function CampoTeto({
+  micros,
+  onMudar,
+  porColuna,
+}: {
+  micros: number;
+  onMudar: (micros: number) => void;
+  porColuna: boolean;
+}) {
   const id = useId();
   const [texto, setTexto] = useState(() => String(microsParaDolares(micros)));
   // Descartar ou salvar troca o valor por fora: o texto acompanha.
@@ -427,8 +584,9 @@ function CampoTeto({ micros, onMudar }: { micros: number; onMudar: (micros: numb
       </div>
       <p id={`${id}-ajuda`} className="mt-1 text-miudo text-ink-400">
         Antes de cada chamada ao provedor, o gasto da execução mais a próxima chamada é
-        conferido contra este teto — e contra o do dia. Estourou, a execução para, e a ideia
-        fica onde está. Máximo {emDolares(TETO_POR_EXECUCAO_MAXIMO_MICROS)}.
+        conferido contra este teto — e contra o do dia. Estourou, a execução para
+        {porColuna ? ", e a ideia fica onde está" : " sem deixar nada"}. Máximo{" "}
+        {emDolares(TETO_POR_EXECUCAO_MAXIMO_MICROS)}.
       </p>
     </div>
   );
@@ -441,40 +599,106 @@ function ConfigSaida({
   rascunho: Rascunho;
   mudar: (p: Partial<Rascunho>) => void;
 }) {
+  const grupoTipo = useId();
   const grupoTitulo = useId();
   const grupoConsumo = useId();
+  const idTituloFixo = useId();
+  const idWorkspace = useId();
   const saida = useEscolhaDeColuna(rascunho.outputBoardId, rascunho.outputColumnId);
   const consumida = useEscolhaDeColuna(rascunho.inputBoardId, rascunho.consumeColumnId ?? "");
+  const { data: workspaces } = useWorkspaces();
   const temRevisa = rascunho.passos.some((p) => p.mode === "revisa");
+  const porColuna = rascunho.inputKind === "coluna";
+  const nota = rascunho.outputKind === "nota";
+  const workspaceSumiu = Boolean(
+    rascunho.outputWorkspaceId &&
+      workspaces &&
+      !workspaces.some((w) => w.id === rascunho.outputWorkspaceId),
+  );
+  /// Sem ideia não há título dela: a opção nem aparece no pedido.
+  const titulos = ROUTINE_OUTPUT_TITLES.filter((t) => t !== "ideia" || porColuna);
 
   return (
-    <div className="grid gap-5 p-4">
-      <div>
-        <p className="rotulo mb-1.5">Onde o card nasce</p>
-        <div className="grid gap-2">
-          <SeletorColuna
-            boardId={rascunho.outputBoardId}
-            columnId={rascunho.outputColumnId}
-            onMudar={({ boardId, columnId }) =>
-              mudar({ outputBoardId: boardId, outputColumnId: columnId })
+    <div className="grid grid-cols-1 gap-5 p-4">
+      <Grupo legenda="O que a execução deixa">
+        {ROUTINE_OUTPUT_KINDS.map((k) => (
+          <Opcao
+            key={k}
+            nome={grupoTipo}
+            marcada={rascunho.outputKind === k}
+            onMarcar={() => mudar({ outputKind: k })}
+            prefixo={
+              k === "card" ? (
+                <IconeBoard className="size-3.5 text-ink-400" />
+              ) : (
+                <IconeNotas className="size-3.5 text-ink-400" />
+              )
             }
-            rotuloQuadro="Quadro de saída"
-            rotuloColuna="Coluna de saída"
+            titulo={ROTULO_SAIDA[k].titulo}
+            explica={ROTULO_SAIDA[k].explica}
           />
-        </div>
-        {(saida.quadroSumiu || saida.colunaSumiu) && (
-          <Aviso tom="alerta" className="mt-2">
-            {saida.quadroSumiu ? "O quadro" : "A coluna"} de saída não existe mais — escolha
-            outra.
-          </Aviso>
-        )}
-        <p className="mt-1.5 text-miudo text-ink-400">
-          De qualquer quadro. O card entra no fim da coluna, marcado como gerado por IA.
-        </p>
-      </div>
+        ))}
+      </Grupo>
 
-      <Grupo legenda="Título do card">
-        {ROUTINE_OUTPUT_TITLES.map((t) => (
+      {nota ? (
+        <div>
+          <label htmlFor={idWorkspace} className="rotulo">
+            Workspace da nota
+          </label>
+          <select
+            id={idWorkspace}
+            value={rascunho.outputWorkspaceId ?? ""}
+            onChange={(e) => mudar({ outputWorkspaceId: e.target.value || null })}
+            aria-invalid={workspaceSumiu || undefined}
+            className={`mt-1 ${CLASSE_CAMPO}`}
+          >
+            <option value="">Sem workspace</option>
+            {workspaceSumiu && rascunho.outputWorkspaceId && (
+              <option value={rascunho.outputWorkspaceId}>(workspace excluído)</option>
+            )}
+            {workspaces?.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+          {workspaceSumiu && (
+            <Aviso tom="alerta" className="mt-2">
+              O workspace da nota não existe mais — escolha outro, ou nenhum.
+            </Aviso>
+          )}
+          <p className="mt-1.5 text-miudo text-ink-400">
+            A nota nasce marcada como gerada por IA, com a rotina que a escreveu.
+          </p>
+        </div>
+      ) : (
+        <div>
+          <p className="rotulo mb-1.5">Onde o card nasce</p>
+          <div className="grid gap-2">
+            <SeletorColuna
+              boardId={rascunho.outputBoardId}
+              columnId={rascunho.outputColumnId}
+              onMudar={({ boardId, columnId }) =>
+                mudar({ outputBoardId: boardId, outputColumnId: columnId })
+              }
+              rotuloQuadro="Quadro de saída"
+              rotuloColuna="Coluna de saída"
+            />
+          </div>
+          {(saida.quadroSumiu || saida.colunaSumiu) && (
+            <Aviso tom="alerta" className="mt-2">
+              {saida.quadroSumiu ? "O quadro" : "A coluna"} de saída não existe mais — escolha
+              outra.
+            </Aviso>
+          )}
+          <p className="mt-1.5 text-miudo text-ink-400">
+            De qualquer quadro. O card entra no fim da coluna, marcado como gerado por IA.
+          </p>
+        </div>
+      )}
+
+      <Grupo legenda={nota ? "Título da nota" : "Título do card"}>
+        {titulos.map((t) => (
           <Opcao
             key={t}
             nome={grupoTitulo}
@@ -484,6 +708,30 @@ function ConfigSaida({
             explica={ROTULO_TITULO[t].explica}
           />
         ))}
+        {rascunho.outputTitle === "fixo" && (
+          <div className="rounded-controle border border-ink-800 bg-ink-900/40 p-2.5">
+            <label htmlFor={idTituloFixo} className="flex items-baseline justify-between">
+              <span className="text-miudo text-ink-400">Título fixo</span>
+              <span className="text-miudo tabular-nums text-ink-400">
+                {rascunho.outputTitleText.length}/{MAX_TITULO_FIXO_DA_ROTINA}
+              </span>
+            </label>
+            <input
+              id={idTituloFixo}
+              value={rascunho.outputTitleText}
+              onChange={(e) => mudar({ outputTitleText: e.target.value })}
+              maxLength={MAX_TITULO_FIXO_DA_ROTINA}
+              placeholder={nota ? "Resumo da semana" : "Post da semana"}
+              className={`mt-0.5 ${CLASSE_CAMPO}`}
+            />
+          </div>
+        )}
+        {nota && (
+          <p className="text-miudo text-ink-400">
+            Título de nota não se repete: se já houver uma nota com ele, a nova ganha a data e a
+            hora no fim.
+          </p>
+        )}
       </Grupo>
 
       <Interruptor
@@ -492,54 +740,59 @@ function ConfigSaida({
         rotulo="Incluir Observações"
         descricao={
           temRevisa
-            ? "Acrescenta ao card uma seção com o que os passos que revisam apontaram."
-            : "Acrescenta ao card o que os passos que revisam apontarem — nenhum passo revisa " +
-              "ainda."
+            ? `Acrescenta ${nota ? "à nota" : "ao card"} uma seção com o que os passos que ` +
+              "revisam apontaram."
+            : `Acrescenta ${nota ? "à nota" : "ao card"} o que os passos que revisam ` +
+              "apontarem — nenhum passo revisa ainda."
         }
       />
 
-      <Grupo legenda="A ideia usada">
-        {ROUTINE_CONSUME_ACTIONS.map((a) => (
-          <Opcao
-            key={a}
-            nome={grupoConsumo}
-            marcada={rascunho.consumeAction === a}
-            onMarcar={() => mudar({ consumeAction: a })}
-            titulo={ROTULO_CONSUMO[a].titulo}
-            explica={ROTULO_CONSUMO[a].explica}
-          />
-        ))}
-        {rascunho.consumeAction === "mover" &&
-          (rascunho.inputBoardId ? (
-            <div className="rounded-controle border border-ink-800 bg-ink-900/40 p-2.5">
-              <SeletorColuna
-                quadroFixo
-                boardId={rascunho.inputBoardId}
-                columnId={rascunho.consumeColumnId ?? ""}
-                excluir={[rascunho.inputColumnId]}
-                onMudar={({ columnId }) => mudar({ consumeColumnId: columnId || null })}
-                rotuloQuadro="Quadro das ideias usadas"
-                rotuloColuna="Coluna das ideias usadas"
-              />
-              <p className="mt-1.5 text-miudo text-ink-400">
-                Só colunas do quadro da entrada: card não muda de quadro.
-              </p>
-              {consumida.colunaSumiu && (
-                <Aviso tom="alerta" className="mt-2">
-                  A coluna das ideias usadas não existe mais — escolha outra.
-                </Aviso>
-              )}
-            </div>
-          ) : (
-            <p className="text-xs text-ink-400">
-              Escolha primeiro a coluna de entrada: a das ideias usadas é do mesmo quadro.
-            </p>
+      {/* Só há ideia a mover ou arquivar quando a rotina parte de uma coluna. */}
+      {porColuna && (
+        <Grupo legenda="A ideia usada">
+          {ROUTINE_CONSUME_ACTIONS.map((a) => (
+            <Opcao
+              key={a}
+              nome={grupoConsumo}
+              marcada={rascunho.consumeAction === a}
+              onMarcar={() => mudar({ consumeAction: a })}
+              titulo={ROTULO_CONSUMO[a].titulo}
+              explica={ROTULO_CONSUMO[a].explica}
+            />
           ))}
-      </Grupo>
+          {rascunho.consumeAction === "mover" &&
+            (rascunho.inputBoardId ? (
+              <div className="rounded-controle border border-ink-800 bg-ink-900/40 p-2.5">
+                <SeletorColuna
+                  quadroFixo
+                  boardId={rascunho.inputBoardId}
+                  columnId={rascunho.consumeColumnId ?? ""}
+                  excluir={[rascunho.inputColumnId]}
+                  onMudar={({ columnId }) => mudar({ consumeColumnId: columnId || null })}
+                  rotuloQuadro="Quadro das ideias usadas"
+                  rotuloColuna="Coluna das ideias usadas"
+                />
+                <p className="mt-1.5 text-miudo text-ink-400">
+                  Só colunas do quadro da entrada: card não muda de quadro.
+                </p>
+                {consumida.colunaSumiu && (
+                  <Aviso tom="alerta" className="mt-2">
+                    A coluna das ideias usadas não existe mais — escolha outra.
+                  </Aviso>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-ink-400">
+                Escolha primeiro a coluna de entrada: a das ideias usadas é do mesmo quadro.
+              </p>
+            ))}
+        </Grupo>
+      )}
 
       <CampoTeto
         micros={rascunho.runCapMicros}
         onMudar={(runCapMicros) => mudar({ runCapMicros })}
+        porColuna={porColuna}
       />
     </div>
   );
@@ -575,16 +828,27 @@ export function PainelDoBloco({
       className="relative animate-surgir rounded-cartao border border-ink-800 bg-superficie
                  shadow-e1"
     >
+      {/* A linha vai de ponta a ponta, como em `Bloco`, mas quem a recorta pela curva do cartão é
+          esta moldura, não um `overflow-hidden` no cartão: o que se abrir para fora do painel,
+          ou o contorno de foco rente à borda, não é cortado. */}
       <span
         aria-hidden="true"
-        className="absolute inset-x-4 top-0 h-px bg-linear-to-r from-accent-500 to-ia-500"
-      />
+        className="pointer-events-none absolute inset-0 overflow-hidden rounded-cartao"
+      >
+        <span className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-accent-500 to-ia-500" />
+      </span>
       {escolhido.tipo === "entrada" && (
         <>
           <CabecalhoPainel
-            icone={<IconeBoard className="size-4 text-accent-400" />}
+            icone={
+              rascunho.inputKind === "coluna" ? (
+                <IconeBoard className="size-4 text-accent-400" />
+              ) : (
+                <IconeFala className="size-4 text-accent-400" />
+              )
+            }
             titulo="Entrada"
-            descricao="De onde vem a ideia de cada execução."
+            descricao="De onde vem a tarefa de cada execução."
           />
           <ConfigEntrada
             rascunho={rascunho}
@@ -611,6 +875,7 @@ export function PainelDoBloco({
             passo={passo}
             posicao={posicao}
             mudarPasso={(p) => mudarPasso(passo.chave, p)}
+            porColuna={rascunho.inputKind === "coluna"}
           />
         </>
       )}
@@ -619,7 +884,11 @@ export function PainelDoBloco({
           <CabecalhoPainel
             icone={<IconeRotina className="size-4 text-accent-400" />}
             titulo="Saída"
-            descricao="O card que a execução deixa, e o que acontece com a ideia."
+            descricao={
+              rascunho.inputKind === "coluna"
+                ? "O que a execução deixa, e o que acontece com a ideia."
+                : "O que a execução deixa."
+            }
           />
           <ConfigSaida rascunho={rascunho} mudar={mudar} />
         </>

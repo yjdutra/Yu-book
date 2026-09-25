@@ -46,7 +46,13 @@ export function useRodar() {
   return { iniciar, rodando, erro, limpar: () => setErro(null) };
 }
 
-/** A recusa de "Rodar agora", com o caminho para resolver. */
+/**
+ * A recusa de "Rodar agora", com o caminho para resolver.
+ *
+ * `SEM_IDEIA` só nasce na rotina por coluna — a por pedido não escolhe ideia e
+ * roda sempre —, e por isso o texto dele fala de coluna sem perguntar o tipo.
+ * Qualquer outro código cai na mensagem do servidor.
+ */
 export function AvisoAoRodar({ erro, onFechar }: { erro: ErroAoRodar; onFechar: () => void }) {
   const { data: rotinas } = useRotinas();
   const viva = execucaoEmAndamento(rotinas);

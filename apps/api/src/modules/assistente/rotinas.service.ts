@@ -1,8 +1,19 @@
 import { Prisma } from "@prisma/client";
-import { FERRAMENTAS_DO_ACERVO, FERRAMENTAS_DO_CHAT, problemasDeForma } from "@yu-book/shared";
+import {
+  FERRAMENTAS_DO_ACERVO,
+  FERRAMENTAS_DO_CHAT,
+  problemasDeForma,
+  resumoDoPedido,
+} from "@yu-book/shared";
 import type {
   NomeDeFerramenta,
   RoutineColumnRef,
+  RoutineConsumeAction,
+  RoutineInputKind,
+  RoutineInputRef,
+  RoutineOutputKind,
+  RoutineOutputRef,
+  RoutineOutputTitle,
   RoutineDetail,
   RoutineProblem,
   RoutineRunDetail,
@@ -23,10 +34,16 @@ import { AppError, notFound } from "../../lib/errors.js";
  * Rotinas — Etapa E da frente de IA: o cadastro e a validação. O motor mora
  * em `execucao.service.ts`.
  *
- * Posse (INV-02, INV-59, RN-15): rotina, agente e coluna de outra conta dão o
- * mesmo 404 de um id inexistente. As colunas **não** são chave estrangeira —
- * `board_column` não tem `user_id` (INV-03) —, então a posse é conferida pela
- * cadeia coluna → quadro → usuário ao gravar, e de novo ao ler e ao rodar.
+ * Posse (INV-02, INV-59, RN-15): rotina, agente, coluna e workspace de outra
+ * conta dão o mesmo 404 de um id inexistente. As colunas **não** são chave
+ * estrangeira — `board_column` não tem `user_id` (INV-03) —, então a posse é
+ * conferida pela cadeia coluna → quadro → usuário ao gravar, e de novo ao ler
+ * e ao rodar. O workspace da nota de saída também não é chave estrangeira, e
+ * pelo mesmo motivo que a coluna: o que some vira problema, não desvio calado.
+ *
+ * **Dois eixos de tipo** (emenda da Etapa E): a entrada é `coluna` ou `pedido`,
+ * a saída é `card` ou `nota`. Cada conferência roda só no tipo que usa o campo,
+ * e o que o tipo não usa é gravado nulo (`paraGravar`).
  *
  * **Rotina inválida não some nem vira erro de leitura.** Agente excluído,
  * coluna excluída ou modelo que saiu dos favoritos viram `problems`, apontados
@@ -62,9 +79,11 @@ export const CAMPOS_DO_RUN = {
   routineId: true,
   routineName: true,
   status: true,
+  inputKind: true,
   inputCardId: true,
   inputTitle: true,
   outputCardId: true,
+  outputNoteId: true,
   costMicros: true,
   runCapMicros: true,
   errorCode: true,
@@ -81,9 +100,11 @@ export function paraRun(linha: RunNoBanco): RoutineRunSummary {
     routineId: linha.routineId,
     routineName: linha.routineName,
     status: linha.status,
+    inputKind: linha.inputKind,
     inputCardId: linha.inputCardId,
     inputTitle: linha.inputTitle,
     outputCardId: linha.outputCardId,
+    outputNoteId: linha.outputNoteId,
     costMicros: linha.costMicros,
     runCapMicros: linha.runCapMicros,
     errorCode: linha.errorCode,
@@ -167,10 +188,15 @@ const CAMPOS_DA_ROTINA = {
   id: true,
   name: true,
   description: true,
+  inputKind: true,
   inputBoardId: true,
   inputColumnId: true,
+  inputPrompt: true,
+  outputKind: true,
   outputColumnId: true,
+  outputWorkspaceId: true,
   outputTitle: true,
+  outputTitleText: true,
   includeNotes: true,
   consumeAction: true,
   consumeColumnId: true,
@@ -201,27 +227,38 @@ interface ColunaResolvida {
 
 /**
  * O que a validação precisa além da rotina: as colunas resolvidas pela cadeia,
- * os favoritos e o modelo do chat. Montado uma vez para a lista inteira.
+ * os workspaces, os favoritos e o modelo do chat. Montado uma vez para a lista
+ * inteira.
  */
 interface Ambiente {
   colunas: Map<string, ColunaResolvida>;
+  workspaces: Map<string, string>;
   favoritos: Map<string, { name: string; supportsTools: boolean }>;
   modeloDoChat: string | null;
 }
 
 async function ambienteDe(userId: string, rotinas: RotinaNoBanco[]): Promise<Ambiente> {
   const ids = new Set<string>();
+  const idsDeWorkspace = new Set<string>();
   for (const r of rotinas) {
-    ids.add(r.inputColumnId);
-    ids.add(r.outputColumnId);
+    /// Só o que o tipo usa: o resto está gravado nulo.
+    if (r.inputColumnId) ids.add(r.inputColumnId);
+    if (r.outputColumnId) ids.add(r.outputColumnId);
     if (r.consumeColumnId) ids.add(r.consumeColumnId);
+    if (r.outputWorkspaceId) idsDeWorkspace.add(r.outputWorkspaceId);
   }
-  const [colunas, favoritos, chat] = await Promise.all([
+  const [colunas, workspaces, favoritos, chat] = await Promise.all([
     /// INV-03: a coluna só resolve se o quadro for do usuário.
     prisma.boardColumn.findMany({
       where: { id: { in: [...ids] }, board: { userId } },
       select: { id: true, name: true, boardId: true, board: { select: { name: true } } },
     }),
+    idsDeWorkspace.size
+      ? prisma.workspace.findMany({
+          where: { id: { in: [...idsDeWorkspace] }, userId },
+          select: { id: true, name: true },
+        })
+      : [],
     prisma.aiModelFavorite.findMany({
       where: { userId },
       select: { modelId: true, name: true, supportsTools: true },
@@ -232,6 +269,7 @@ async function ambienteDe(userId: string, rotinas: RotinaNoBanco[]): Promise<Amb
     colunas: new Map(
       colunas.map((c) => [c.id, { name: c.name, boardId: c.boardId, boardName: c.board.name }]),
     ),
+    workspaces: new Map(workspaces.map((w) => [w.id, w.name])),
     favoritos: new Map(
       favoritos.map((f) => [f.modelId, { name: f.name, supportsTools: f.supportsTools }]),
     ),
@@ -261,12 +299,21 @@ function refDaColuna(ambiente: Ambiente, columnId: string): RoutineColumnRef {
 export function problemasDe(rotina: RotinaNoBanco, ambiente: Ambiente): RoutineProblem[] {
   const problemas: RoutineProblem[] = [];
 
-  const entrada = ambiente.colunas.get(rotina.inputColumnId);
-  if (!entrada || entrada.boardId !== rotina.inputBoardId) {
+  if (rotina.inputKind === "coluna") {
+    const entrada = rotina.inputColumnId ? ambiente.colunas.get(rotina.inputColumnId) : undefined;
+    if (!entrada || entrada.boardId !== rotina.inputBoardId) {
+      problemas.push({
+        block: "entrada",
+        position: null,
+        message: "A coluna de entrada não existe mais. Escolha outra.",
+      });
+    }
+  } else if (!rotina.inputPrompt?.trim()) {
+    /// O schema já recusa; isto cobre a linha gravada fora dele.
     problemas.push({
       block: "entrada",
       position: null,
-      message: "A coluna de entrada não existe mais. Escolha outra.",
+      message: "O pedido está vazio. Escreva o que cada execução deve fazer.",
     });
   }
 
@@ -311,14 +358,22 @@ export function problemasDe(rotina: RotinaNoBanco, ambiente: Ambiente): RoutineP
     }
   });
 
-  if (!ambiente.colunas.has(rotina.outputColumnId)) {
+  if (rotina.outputKind === "card") {
+    if (!rotina.outputColumnId || !ambiente.colunas.has(rotina.outputColumnId)) {
+      problemas.push({
+        block: "saida",
+        position: null,
+        message: "A coluna de saída não existe mais. Escolha outra.",
+      });
+    }
+  } else if (rotina.outputWorkspaceId && !ambiente.workspaces.has(rotina.outputWorkspaceId)) {
     problemas.push({
       block: "saida",
       position: null,
-      message: "A coluna de saída não existe mais. Escolha outra.",
+      message: "O workspace da nota não existe mais. Escolha outro, ou deixe sem workspace.",
     });
   }
-  if (rotina.consumeAction === "mover") {
+  if (rotina.inputKind === "coluna" && rotina.consumeAction === "mover") {
     const consumidas = rotina.consumeColumnId
       ? ambiente.colunas.get(rotina.consumeColumnId)
       : undefined;
@@ -340,17 +395,35 @@ export function problemasDe(rotina: RotinaNoBanco, ambiente: Ambiente): RoutineP
   return problemas;
 }
 
+function refDaEntrada(rotina: RotinaNoBanco, ambiente: Ambiente): RoutineInputRef {
+  return rotina.inputKind === "pedido"
+    ? { kind: "pedido", resumo: resumoDoPedido(rotina.inputPrompt ?? "") }
+    : { kind: "coluna", ...refDaColuna(ambiente, rotina.inputColumnId ?? "") };
+}
+
+function refDaSaida(rotina: RotinaNoBanco, ambiente: Ambiente): RoutineOutputRef {
+  return rotina.outputKind === "nota"
+    ? {
+        kind: "nota",
+        workspaceId: rotina.outputWorkspaceId,
+        workspaceName: rotina.outputWorkspaceId
+          ? (ambiente.workspaces.get(rotina.outputWorkspaceId) ?? null)
+          : null,
+      }
+    : { kind: "card", ...refDaColuna(ambiente, rotina.outputColumnId ?? "") };
+}
+
 function paraResumo(rotina: RotinaNoBanco, ambiente: Ambiente): RoutineSummary {
   const ultima = rotina.runs[0];
   return {
     id: rotina.id,
     name: rotina.name,
     description: rotina.description,
-    input: refDaColuna(ambiente, rotina.inputColumnId),
-    output: refDaColuna(ambiente, rotina.outputColumnId),
+    input: refDaEntrada(rotina, ambiente),
+    output: refDaSaida(rotina, ambiente),
     consumeAction: rotina.consumeAction,
     consume:
-      rotina.consumeAction === "mover" && rotina.consumeColumnId
+      rotina.inputKind === "coluna" && rotina.consumeAction === "mover" && rotina.consumeColumnId
         ? refDaColuna(ambiente, rotina.consumeColumnId)
         : null,
     steps: rotina.steps.map((passo) => ({
@@ -387,6 +460,26 @@ export async function linhaDaRotina(userId: string, id: string): Promise<RotinaN
   return linha;
 }
 
+interface EntradaPorColuna {
+  id: string;
+  inputBoardId: string;
+  inputColumnId: string;
+}
+
+/**
+ * A entrada da rotina, se ela parte de uma coluna. `null` na rotina por pedido
+ * — ali não há ideia a escolher, nem `eligibleCount`, nem `SEM_IDEIA`.
+ */
+export function entradaPorColuna(rotina: {
+  id: string;
+  inputKind: RoutineInputKind;
+  inputBoardId: string | null;
+  inputColumnId: string | null;
+}): EntradaPorColuna | null {
+  if (rotina.inputKind !== "coluna" || !rotina.inputBoardId || !rotina.inputColumnId) return null;
+  return { id: rotina.id, inputBoardId: rotina.inputBoardId, inputColumnId: rotina.inputColumnId };
+}
+
 /**
  * Os cards que o próximo "Rodar agora" pode pegar, na ordem da coluna.
  *
@@ -396,10 +489,7 @@ export async function linhaDaRotina(userId: string, id: string): Promise<RotinaN
  * que falhou ou foi cancelada volta a ser a primeira. A posse vai na mesma
  * consulta, pela cadeia até o quadro declarado (INV-03).
  */
-export function ondeElegivel(
-  userId: string,
-  rotina: { id: string; inputBoardId: string; inputColumnId: string },
-): Prisma.CardWhereInput {
+export function ondeElegivel(userId: string, rotina: EntradaPorColuna): Prisma.CardWhereInput {
   return {
     columnId: rotina.inputColumnId,
     archived: false,
@@ -412,15 +502,18 @@ export function ondeElegivel(
 
 export async function buscarPorId(userId: string, id: string): Promise<RoutineDetail> {
   const rotina = await linhaDaRotina(userId, id);
-  const onde = ondeElegivel(userId, rotina);
+  const porColuna = entradaPorColuna(rotina);
+  const onde = porColuna ? ondeElegivel(userId, porColuna) : null;
   const [ambiente, eligibleCount, proxima] = await Promise.all([
     ambienteDe(userId, [rotina]),
-    prisma.card.count({ where: onde }),
-    prisma.card.findFirst({
-      where: onde,
-      orderBy: { position: "asc" },
-      select: { id: true, title: true },
-    }),
+    onde ? prisma.card.count({ where: onde }) : null,
+    onde
+      ? prisma.card.findFirst({
+          where: onde,
+          orderBy: { position: "asc" },
+          select: { id: true, title: true },
+        })
+      : null,
   ]);
 
   const resumo = paraResumo(rotina, ambiente);
@@ -432,7 +525,9 @@ export async function buscarPorId(userId: string, id: string): Promise<RoutineDe
 
   return {
     ...resumo,
+    inputPrompt: rotina.inputPrompt,
     outputTitle: rotina.outputTitle,
+    outputTitleText: rotina.outputTitleText,
     includeNotes: rotina.includeNotes,
     runCapMicros: rotina.runCapMicros,
     steps,
@@ -455,34 +550,64 @@ export async function problemasDaRotina(
 
 /* ------------------------------------------------------------------ posse */
 
-/** O que já está gravado e, por isso, não se confere de novo num PATCH. */
-interface JaGravado {
-  inputBoardId: string;
-  inputColumnId: string;
-  outputColumnId: string;
+/**
+ * Os campos que dependem do tipo, como vão ao banco: o que o tipo não usa é
+ * nulo, e a rotina por pedido grava `manter`. Mesma regra de `consumeColumnId`
+ * antes da emenda — sair de `mover` zera a coluna —, estendida aos dois eixos:
+ * trocar de tipo não deixa referência velha gravada, que um `problems` ou uma
+ * conferência de posse iriam cobrar depois.
+ */
+interface Forma {
+  inputKind: RoutineInputKind;
+  inputBoardId: string | null;
+  inputColumnId: string | null;
+  inputPrompt: string | null;
+  outputKind: RoutineOutputKind;
+  outputColumnId: string | null;
+  outputWorkspaceId: string | null;
+  outputTitle: RoutineOutputTitle;
+  outputTitleText: string | null;
+  consumeAction: RoutineConsumeAction;
   consumeColumnId: string | null;
-  agentIds: Set<string>;
 }
 
-interface Referencias {
-  inputBoardId: string;
-  inputColumnId: string;
-  outputColumnId: string;
-  consumeColumnId: string | null;
-  agentIds: string[];
+/** Só depois de `problemasDeForma`: aqui `mover` num pedido viraria `manter` calado. */
+function paraGravar(f: Forma): Forma {
+  const coluna = f.inputKind === "coluna";
+  const consumeAction = coluna ? f.consumeAction : "manter";
+  return {
+    inputKind: f.inputKind,
+    inputBoardId: coluna ? f.inputBoardId : null,
+    inputColumnId: coluna ? f.inputColumnId : null,
+    inputPrompt: coluna ? null : f.inputPrompt,
+    outputKind: f.outputKind,
+    outputColumnId: f.outputKind === "card" ? f.outputColumnId : null,
+    outputWorkspaceId: f.outputKind === "nota" ? f.outputWorkspaceId : null,
+    outputTitle: f.outputTitle,
+    outputTitleText: f.outputTitle === "fixo" ? f.outputTitleText : null,
+    consumeAction,
+    consumeColumnId: consumeAction === "mover" ? f.consumeColumnId : null,
+  };
 }
+
+type Referencias = Forma & { agentIds: string[] };
+
+/** O que já está gravado e, por isso, não se confere de novo num PATCH. */
+type JaGravado = Forma & { agentIds: Set<string> };
 
 /**
- * Colunas e agentes são do usuário (RN-15, INV-59), com o mesmo 404 para o
- * alheio e o inexistente (INV-02). Devolve o nome atual de cada agente, que o
- * passo grava.
+ * Colunas, workspace e agentes são do usuário (RN-15, INV-59), com o mesmo 404
+ * para o alheio e o inexistente (INV-02). Devolve o nome atual de cada agente,
+ * que o passo grava. Recebe a forma **já normalizada** (`paraGravar`): cada
+ * referência só existe no tipo que a usa, e só nele é conferida.
  *
  * **Só o que é novo é conferido**, como nas fontes vivas do agente: o editor
  * manda a rotina inteira a cada PATCH, e uma coluna excluída depois de salvar
  * não pode tornar impossível editar o resto — ela aparece nos `problems` do
  * detalhe. A coluna de consumidas é conferida de novo sempre que ela **ou** o
  * quadro da entrada mudam: a regra é "do mesmo quadro", e os dois lados dela
- * podem mudar.
+ * podem mudar. Trocar de tipo conta como mudar: a referência gravada no tipo
+ * anterior está nula.
  */
 async function conferirReferencias(
   userId: string,
@@ -493,7 +618,7 @@ async function conferirReferencias(
     !jaGravado ||
     jaGravado.inputBoardId !== refs.inputBoardId ||
     jaGravado.inputColumnId !== refs.inputColumnId;
-  if (entradaMudou) {
+  if (refs.inputKind === "coluna" && refs.inputBoardId && refs.inputColumnId && entradaMudou) {
     const coluna = await prisma.boardColumn.findFirst({
       where: { id: refs.inputColumnId, boardId: refs.inputBoardId, board: { userId } },
       select: { id: true },
@@ -501,12 +626,29 @@ async function conferirReferencias(
     if (!coluna) throw notFound("Coluna de entrada não encontrada");
   }
 
-  if (!jaGravado || jaGravado.outputColumnId !== refs.outputColumnId) {
+  if (
+    refs.outputColumnId &&
+    (!jaGravado || jaGravado.outputColumnId !== refs.outputColumnId)
+  ) {
     const coluna = await prisma.boardColumn.findFirst({
       where: { id: refs.outputColumnId, board: { userId } },
       select: { id: true },
     });
     if (!coluna) throw notFound("Coluna de saída não encontrada");
+  }
+
+  /// A nota de saída é criada por `notes.criar`, que confere o workspace de
+  /// novo a cada execução; conferir aqui é o que recusa o id alheio ao salvar,
+  /// com o mesmo 404 do inexistente e a mesma frase de `conferirWorkspace`.
+  if (
+    refs.outputWorkspaceId &&
+    (!jaGravado || jaGravado.outputWorkspaceId !== refs.outputWorkspaceId)
+  ) {
+    const workspace = await prisma.workspace.findFirst({
+      where: { id: refs.outputWorkspaceId, userId },
+      select: { id: true },
+    });
+    if (!workspace) throw notFound("Workspace não encontrado");
   }
 
   const consumidasMudou =
@@ -566,13 +708,28 @@ function passosParaGravar(
   }));
 }
 
+/** Os campos de tipo de uma entrada ou de uma linha, sem os demais. */
+function formaDe(f: Forma): Forma {
+  return {
+    inputKind: f.inputKind,
+    inputBoardId: f.inputBoardId,
+    inputColumnId: f.inputColumnId,
+    inputPrompt: f.inputPrompt,
+    outputKind: f.outputKind,
+    outputColumnId: f.outputColumnId,
+    outputWorkspaceId: f.outputWorkspaceId,
+    outputTitle: f.outputTitle,
+    outputTitleText: f.outputTitleText,
+    consumeAction: f.consumeAction,
+    consumeColumnId: f.consumeColumnId,
+  };
+}
+
 export async function criar(userId: string, entrada: EntradaDaRotina): Promise<RoutineDetail> {
-  const consumeColumnId = entrada.consumeAction === "mover" ? entrada.consumeColumnId : null;
+  /// `routineInputSchema` já passou `problemasDeForma` sobre a entrada crua.
+  const forma = paraGravar(formaDe(entrada));
   const nomes = await conferirReferencias(userId, {
-    inputBoardId: entrada.inputBoardId,
-    inputColumnId: entrada.inputColumnId,
-    outputColumnId: entrada.outputColumnId,
-    consumeColumnId,
+    ...forma,
     agentIds: entrada.steps.map((p) => p.agentId),
   });
 
@@ -583,13 +740,8 @@ export async function criar(userId: string, entrada: EntradaDaRotina): Promise<R
           userId,
           name: entrada.name,
           description: entrada.description,
-          inputBoardId: entrada.inputBoardId,
-          inputColumnId: entrada.inputColumnId,
-          outputColumnId: entrada.outputColumnId,
-          outputTitle: entrada.outputTitle,
+          ...forma,
           includeNotes: entrada.includeNotes,
-          consumeAction: entrada.consumeAction,
-          consumeColumnId,
           runCapMicros: entrada.runCapMicros,
         },
         select: { id: true },
@@ -613,7 +765,8 @@ export async function criar(userId: string, entrada: EntradaDaRotina): Promise<R
  *
  * As regras que cruzam campo valem para a rotina **mesclada**: um PATCH que
  * troca a ação para `mover` sem mandar a coluna é recusado aqui, com a mesma
- * frase do schema de criação (`problemasDeForma`).
+ * frase do schema de criação (`problemasDeForma`). Campo ausente mantém o
+ * gravado; `null` explícito limpa.
  */
 export async function atualizar(
   userId: string,
@@ -623,9 +776,15 @@ export async function atualizar(
   const atual = await prisma.aiRoutine.findFirst({
     where: { id, userId },
     select: {
+      inputKind: true,
       inputBoardId: true,
       inputColumnId: true,
+      inputPrompt: true,
+      outputKind: true,
       outputColumnId: true,
+      outputWorkspaceId: true,
+      outputTitle: true,
+      outputTitleText: true,
       consumeAction: true,
       consumeColumnId: true,
       steps: { select: { agentId: true, agentName: true, mode: true } },
@@ -633,37 +792,37 @@ export async function atualizar(
   });
   if (!atual) throw notFound("Rotina não encontrada");
 
-  const consumeAction = patch.consumeAction ?? atual.consumeAction;
-  const mesclada = {
-    inputBoardId: patch.inputBoardId ?? atual.inputBoardId,
-    inputColumnId: patch.inputColumnId ?? atual.inputColumnId,
-    outputColumnId: patch.outputColumnId ?? atual.outputColumnId,
-    consumeAction,
-    consumeColumnId:
-      consumeAction === "mover"
-        ? patch.consumeColumnId !== undefined
-          ? patch.consumeColumnId
-          : atual.consumeColumnId
-        : null,
-    steps: patch.steps ?? atual.steps,
+  const valor = <T>(novo: T | undefined, gravado: T): T => (novo !== undefined ? novo : gravado);
+  const inputKind = valor(patch.inputKind, atual.inputKind);
+  const mesclada: Forma = {
+    inputKind,
+    inputBoardId: valor(patch.inputBoardId, atual.inputBoardId),
+    inputColumnId: valor(patch.inputColumnId, atual.inputColumnId),
+    inputPrompt: valor(patch.inputPrompt, atual.inputPrompt),
+    outputKind: valor(patch.outputKind, atual.outputKind),
+    outputColumnId: valor(patch.outputColumnId, atual.outputColumnId),
+    outputWorkspaceId: valor(patch.outputWorkspaceId, atual.outputWorkspaceId),
+    outputTitle: valor(patch.outputTitle, atual.outputTitle),
+    outputTitleText: valor(patch.outputTitleText, atual.outputTitleText),
+    /// A ação gravada era da configuração por coluna: um PATCH que passa a
+    /// pedido sem mandá-la não é recusado por um `mover` que ninguém pediu
+    /// agora. Mandada explícita, `problemasDeForma` a julga.
+    consumeAction:
+      patch.consumeAction ?? (inputKind === "pedido" ? "manter" : atual.consumeAction),
+    consumeColumnId: valor(patch.consumeColumnId, atual.consumeColumnId),
   };
-  const forma = problemasDeForma(mesclada);
+  const forma = problemasDeForma({ ...mesclada, steps: patch.steps ?? atual.steps });
   if (forma[0]) throw invalida(forma[0].message);
+  const gravar = paraGravar(mesclada);
 
   const agentIdsGravados = atual.steps.flatMap((p) => (p.agentId ? [p.agentId] : []));
   const nomes = await conferirReferencias(
     userId,
     {
-      ...mesclada,
+      ...gravar,
       agentIds: patch.steps ? patch.steps.map((p) => p.agentId) : [],
     },
-    {
-      inputBoardId: atual.inputBoardId,
-      inputColumnId: atual.inputColumnId,
-      outputColumnId: atual.outputColumnId,
-      consumeColumnId: atual.consumeColumnId,
-      agentIds: new Set(agentIdsGravados),
-    },
+    { ...formaDe(atual), agentIds: new Set(agentIdsGravados) },
   );
   const nomesGravados = new Map(
     atual.steps.flatMap((p) => (p.agentId ? [[p.agentId, p.agentName] as const] : [])),
@@ -676,15 +835,11 @@ export async function atualizar(
         data: {
           ...(patch.name !== undefined && { name: patch.name }),
           ...(patch.description !== undefined && { description: patch.description }),
-          ...(patch.inputBoardId !== undefined && { inputBoardId: patch.inputBoardId }),
-          ...(patch.inputColumnId !== undefined && { inputColumnId: patch.inputColumnId }),
-          ...(patch.outputColumnId !== undefined && { outputColumnId: patch.outputColumnId }),
-          ...(patch.outputTitle !== undefined && { outputTitle: patch.outputTitle }),
           ...(patch.includeNotes !== undefined && { includeNotes: patch.includeNotes }),
           ...(patch.runCapMicros !== undefined && { runCapMicros: patch.runCapMicros }),
-          /// Ação e coluna andam juntas: sair de `mover` zera a coluna.
-          consumeAction: mesclada.consumeAction,
-          consumeColumnId: mesclada.consumeColumnId,
+          /// Os campos de tipo vão sempre, normalizados: trocar de tipo zera o
+          /// que o tipo novo não usa, como sair de `mover` zera a coluna.
+          ...gravar,
           /// Explícito: um patch só de passos não toca em coluna nenhuma de
           /// `ai_routine`, e o "editado em" ficaria parado.
           updatedAt: new Date(),

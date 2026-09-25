@@ -9,6 +9,81 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-25 — Frente de IA, emenda à Etapa E: a rotina que começa num pedido, e o editor que quebrava
+
+O operador fez a primeira conferência da E em `/assistente/rotinas/novo`. O que ele viu gerou uma
+emenda no dia seguinte, antes de qualquer push. O que mudou está na `[0.21.0]` do changelog, e os
+requisitos na seção 5.7 do PRD de IA, emendada (RF-55 e RF-57, RF-63 e RF-64, RN-18, CA-35 a CA-37).
+
+**O que ele viu na tela.** O painel lateral transbordava o cartão em cerca de 100 px, o título do
+passo vazava do bloco e o cabeçalho sticky aparecia cortado no topo. As causas, achadas no código e
+não na tela:
+
+- os `<fieldset>` do painel têm, por padrão do navegador, `min-inline-size: min-content`, e a lista
+  de agentes, com `truncate`, alargava a única coluna da grade;
+- o `items-start` do botão do bloco anulava o `truncate` do título;
+- a linha de cima não usava a mesma grade da de baixo;
+- a linha de destaque do painel era estreita;
+- o corte do cabeçalho tem causa **provável**, não confirmada: o `scrollIntoView` no mount rolava
+  também os ancestrais. Foi trocado por `rolarLinhaAte`, que só mexe no `scrollLeft` do contêiner
+  do fluxo.
+
+**A rotina era específica demais.** Ela sempre partia de uma coluna de ideias. O operador quer que
+ela possa começar direto no agente, com um pedido fixo. Decisões dele:
+
+- **A saída pode ser card ou nota**, e a escolha vale para os dois tipos de entrada.
+- **Ferramentas web ficam na Etapa G.** Os exemplos que motivaram o pedido ("dar um ping numa
+  página", "usar a busca do OpenRouter") pedem ferramenta que olha fora do acervo, com SSRF,
+  domínios permitidos e custo a decidir. Isso não cabe numa emenda. Até a G, um pedido desses roda,
+  mas o agente não tem com que cumpri-lo.
+
+Decisões de implementação que não se veem na tela:
+
+- **RN-18 fica restrita à entrada por coluna.** No pedido não há o que consumir, e rodar de novo é
+  rodar de novo. **RN-19 fica intacta**: uma execução por vez vale para os dois tipos, pelo mesmo
+  índice parcial.
+- **Título de nota que colide não falha a execução.** A execução já pagou os passos, e perder o texto
+  por um título repetido seria o pior desfecho. A primeira tentativa acrescenta
+  ` · DD/MM/AAAA HH:MM` no fuso de `/ajustes`, e a segunda um trecho do `runId`. Descartada:
+  recusar no início, porque o título de `primeira_linha` só se conhece no fim.
+- **O workspace da nota não tem chave estrangeira**, de propósito, como as colunas da rotina. A posse
+  é conferida no service, com o mesmo 404 de um id inexistente. Com um workspace excluído depois, a
+  rotina passa a listar um problema na saída, em vez de a FK decidir por ela.
+- **Migration nova em vez de editar as da E.** As migrations da E ainda não subiram, mas o banco de
+  dev guarda a conta real e já as aplicou.
+- **O modelo "Pedido direto" usa o agente Marketing.** O LinkedIn impõe forma de post, e o Revisor é
+  instruído a não reescrever. Os dois brigariam com um pedido qualquer num passo "reescreve".
+
+**A versão continua `[0.21.0]`, sem bump novo.** A emenda muda o contrato de `packages/shared` e
+move os mesmos quatro pacotes que a E já moveu. Pela regra do `changelog-e-versao` §3.1, duas entregas
+cabem numa entrada quando movem o mesmo conjunto de pacotes. Nada da `[0.21.0]` foi publicado:
+`origin/master` para no redesenho, e C, D e E só existem localmente. Abrir a `[0.22.0]` registraria
+como "corrigido" um editor quebrado que nunca chegou a ninguém. O preço aceito: o commit `bb574a8`
+tem `packages/shared` em `0.10.0` com um contrato diferente do `0.10.0` final. Como não há tag nem
+deploy desse commit, ninguém depende dele.
+
+**Dívida: o conserto não foi conferido na tela**, e o resto da E continua sem conferência. Os
+portões cobrem o servidor. O typecheck dos quatro pacotes e os 57 testes do MCP foram medidos neste
+fechamento, e os 240 testes da API foram relatados pela sessão de implementação. Nenhum deles monta
+um componente. Roteiro do plano da emenda, **somado** ao de oito itens da E:
+
+1. Em `/assistente/rotinas/novo`, com um agente de descrição longa: o painel lateral não transborda,
+   o título do passo trunca, o cabeçalho aparece inteiro, e a estimativa se alinha com o painel.
+   Conferir também o `EditorAgente`, que tem o mesmo cabeçalho sticky.
+2. O modelo "Pedido direto": rodar e ver a nota com a faixa "via rotina" e o "Abrir nota". Rodar de
+   novo com um título fixo: a segunda nota ganha data e hora.
+3. Uma rotina por coluna com saída em nota: a ideia se move como antes.
+4. Trocar o tipo de entrada no painel: os blocos e a validação acompanham, e o grupo "A ideia usada"
+   some com o pedido.
+5. Teclado, os dois temas e `prefers-reduced-motion`.
+
+**Ficou pendente:**
+
+- A conferência acima, a da E e as das Etapas C e D.
+- As ferramentas web, na Etapa G.
+
+---
+
 ## 2026-09-24 — Frente de IA, Etapa E: rotinas, e o trabalho assíncrono que o Yu-book recusava
 
 Terceira etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md), entregue no mesmo dia da
