@@ -95,7 +95,7 @@ próximo corta (`cabe` = 0), e o `end` sem próximo não (`saidaSegura.ts:279-29
 entregava a página comprimida maior que 1 MB como se estivesse inteira (`web.test.ts:519`).
 
 *Alvo vindo do ambiente* — `links/youtube.service.ts:14-15` (oEmbed e Data API) e
-`assistente/openrouter.service.ts:113` (base em `OPENROUTER_BASE_URL`, caminho literal do nosso
+`assistente/openrouter.service.ts:139` (base em `OPENROUTER_BASE_URL`, caminho literal do nosso
 código). Nenhuma parte da URL é escolhida por quem chama: **não há superfície de SSRF**, e por isso
 nada passa por `pedirPublico`. A busca na web da Etapa G é desta classe: é um campo `plugins` no
 pedido ao OpenRouter (`passo.service.ts:202-204`), e quem abre as páginas é o provedor. O texto que
@@ -487,6 +487,24 @@ não tem dono; a exclusão é toda de escrita:
   `updatedAt` explícito (`apps/api/src/modules/assistente/rotinas.service.ts:951`), e **o motor e a
   `pulada` não escrevem em `ai_routine`** — escrita ali pularia o horário seguinte
   (`agenda.test.ts:772`).
+
+**INV-61 — As chaves do OpenRouter não saem do servidor, e a de gerenciamento só lê, por caminhos
+fixos.** A `OPENROUTER_MANAGEMENT_KEY` (Dashboard OpenRouter, 2026-09-25) **cria e apaga chaves** no
+provedor. Toda leitura dela deságua em `pedirComGestao`
+(`apps/api/src/modules/assistente/openrouter-painel.service.ts:100-113`), que aceita uma chave de
+`CAMINHOS_DE_GESTAO` (`:51-57`) — o `POST /analytics/query` é consulta; hoje a leitura é
+`chaveDeGestao` (`:88-90`), privada ao módulo. Grepe a variável antes de fechar diff que a toque. **O compilador guarda `pedirComGestao`, não a chave:**
+`pedirDoProvedor` com ela noutro lugar aceita qualquer caminho, e os testes só veem as rotas que
+existem (`apps/api/tests/openrouter-painel.test.ts:578`, `:596`). Caminho novo com ela é decisão do
+operador; `/keys`, nunca. A saída das duas chaves para o navegador:
+
+- **Rótulo `sk-…` redigido só por `rotuloPublico`** (`openrouter.service.ts:79-82`) — o padrão do
+  provedor é o prefixo da chave. `saude()` e o painel passam por ela (`assistente.service.ts:46`,
+  `openrouter-painel.service.ts:184`); leitura nova de `label` também.
+- **Campo a campo**: `paraChave` (`openrouter-painel.service.ts:176-206`) não copia
+  identificador de conta. Espalhar o `data` do provedor na resposta desfaz isso calado.
+- **401/403 sem o texto do provedor** (`openrouter.service.ts:180-188`), que ecoa a credencial:
+  `nomeDaChave` e `dicaSeRecusada` são texto nosso (`openrouter-painel.test.ts:613`).
 
 ## Servidor MCP
 

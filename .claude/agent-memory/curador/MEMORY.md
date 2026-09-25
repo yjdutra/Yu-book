@@ -4,18 +4,19 @@
 
 ## O que já nos mordeu
 
-- Ref erra **de origem**, não só de linha: código muda de arquivo. Grepe o caminho.
-- Refs em lote: difflib HEAD→árvore, confira o conteúdo e releia a faixa: `a>b` e `b>c` na mesma
-  linha a invertem. Basename repetido e regex `ts|tsx` enganam.
-- `:NNN` resolve pelo último caminho citado: ref nova depois de ref de teste leva o basename.
-- Parágrafo tocado: confira **todo** ref dele — ref velha de entrega anterior sobrevive ao lado.
+- Ref erra **de origem**, não só de linha: grepe o caminho.
+- Refs em lote: difflib HEAD→árvore e releia a faixa (`a>b`, `b>c` na mesma linha invertem).
+  Basename repetido e regex `ts|tsx` enganam.
+- `:NNN` resolve pelo último caminho citado: ref nova após ref de teste leva o basename.
+- Parágrafo tocado: confira **todo** ref dele; a velha sobrevive ao lado.
 - **Agente apodrece calado, e a paráfrase junto.** Grepe o fato, não a frase.
 - **O código alcança o registro:** comentário tardio no sítio desbanca o item.
-- Regra que troca de mecanismo vira INV novo; o número velho fica com a parte geral que sobrou.
+- Regra que troca de mecanismo vira INV novo; o velho fica com a parte geral.
 - **Registre o eixo, não o censo** — e eixo com um exemplo só é lido como o exemplo.
 - Eixo novo raramente contradiz: **estreita a cláusula**. Cace o estreito, não só o falso.
-- Categórica erra no briefing e no comentário novo: grepe antes de promover.
+- Categórica erra no briefing e no comentário: grepe antes de promover.
 - Defeito num sítio tem irmão: grepe o padrão.
+- Plano com "Fase N" é numeração nova: some-a no `CLAUDE.md` e cace o "Fase N" solto no código.
 
 ## Decisões em vigor
 

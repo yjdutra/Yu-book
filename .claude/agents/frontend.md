@@ -104,7 +104,7 @@ porque rotações concorrentes se invalidariam.
 anterior) — `useMoverCard` em `lib/kanban.ts:286`, criar link em `lib/links.ts:34`. Se duas da
 mesma chave podem estar em voo, o rollback de uma restaura a mudança otimista da outra: dê
 `mutationKey` e invalide no `onSettled` só quando `isMutating(...) <= 1`, isto é, quando a última
-termina (`useDefinirModeloDaTarefa`, `lib/ia.ts:98-131`, razão em `:122-124`).
+termina (`useDefinirModeloDaTarefa`, `lib/ia.ts:142-175`, razão em `:166-168`).
 
 **Ramifique por `code`, nunca por `message`.** O `ApiError` carrega `status`, `code` estável e
 `issues`.

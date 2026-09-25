@@ -67,9 +67,9 @@ Update parcial é sempre spread condicional, para distinguir "não enviado" de `
 padrão — então `f(chaveQueNaoExiste)` responde como se houvesse chave, e o teste de "sem chave"
 passa testando outra coisa. Mordeu duas vezes na mesma entrega da frente de IA. Quando a **ausência**
 é um caso de teste, o parâmetro é obrigatório (`temChave`,
-`apps/api/src/modules/assistente/openrouter.service.ts:63`) ou a injeção vem por objeto com checagem
+`apps/api/src/modules/assistente/openrouter.service.ts:65`) ou a injeção vem por objeto com checagem
 de `in`, que distingue "não informei" de "informei que não há" (`saude`,
-`apps/api/src/modules/assistente/assistente.service.ts:22-27`). O valor padrão continua certo quando
+`apps/api/src/modules/assistente/assistente.service.ts:23-28`). O valor padrão continua certo quando
 o que se injeta é uma **função** e a ausência não é caso de teste — `buscarTitulo(…, permitido:
 Guarda = todosPublicos)` (`apps/api/src/modules/links/titulo.service.ts:66`) e a guarda e o
 resolvedor de `abrirPagina` (`apps/api/src/modules/web/pagina.service.ts:359-363`).

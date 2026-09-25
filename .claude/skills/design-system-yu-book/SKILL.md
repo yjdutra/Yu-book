@@ -1,6 +1,6 @@
 ---
 name: design-system-yu-book
-description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), os primitivos de components/base/ (Botao, Bloco, Aviso, Dialogo com foco preso e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina), ícones SVG desenhados à mão em Icones.tsx e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web.
+description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), os primitivos de components/base/ (Botao, Bloco, Aviso, Dialogo com foco preso e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, o gráfico de dados à mão (BarrasPorDia e Indicador, com o número fora do desenho), a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina), ícones SVG desenhados à mão em Icones.tsx e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web.
 ---
 
 # Design system do Yu-book
@@ -65,12 +65,10 @@ verificação feita, não por impressão, e o resultado fica em comentário ao l
 constante `TRACO`, `currentColor` para seguir tema e estado, `aria-hidden` porque todo item tem
 texto ao lado. Ícone novo é desenhado ali, no mesmo estilo. Não instale pacote de ícones.
 
-`TRACO` e `IconeProps` são exportados (`Icones.tsx:13,21`). Desenho que só um componente usa pode
-morar nele — `SeletorTema.tsx` e `ModoNota.tsx` fazem isso —, mas **importa o `TRACO`; não o
-redeclara**. As cópias locais divergiriam do traço sem ninguém notar.
+`TRACO` e `IconeProps` são exportados (`Icones.tsx:13,21`). Desenho de um componente só pode morar
+nele (`SeletorTema.tsx`, `ModoNota.tsx`), mas **importa o `TRACO`, não o redeclara**: diverge calado.
 
-`ICONE_TIPO` mapeia `NoteKind` para ícone e precisa continuar total — um `kind` novo no enum exige
-entrada nova ali.
+`ICONE_TIPO` mapeia `NoteKind` para ícone e continua total: `kind` novo no enum exige entrada ali.
 
 Grepe `export function Icone` antes de desenhar. Ícone que só muda de orientação ganha prop, não
 cópia — `IconeChevron({ direcao })` (`Icones.tsx:338-348`).
@@ -84,8 +82,7 @@ extenso ao lado (`CartaoCard.tsx:82-84`, `:90-91`): o sinal sem cor (§4). Não 
 - **Estado nunca é comunicado só por cor.** Todo status carrega letra ou glifo: tipo de nota tem
   letra (`A/P/T/W/L`), prazo tem símbolo, link quebrado tem sublinhado tracejado **e** `(criar)`.
 - Foco visível é global e incondicional; não remova `outline`. O `:focus-visible` global **não leva
-  `border-radius`** (`index.css:241`): fora de camada vencia o `rounded-*` e o botão mudava de
-  forma.
+  `border-radius`** (`index.css:241`): fora de camada vencia o `rounded-*` e mudava a forma.
 - Ícone sem texto leva rótulo `sr-only`.
 - Erro usa `role="alert"`; status de salvamento usa `aria-live="polite"`.
 - Lista de opções usa `role="listbox"`/`role="option"`; item de navegação ativo usa `aria-current`.
@@ -105,9 +102,8 @@ extenso ao lado (`CartaoCard.tsx:82-84`, `:90-91`): o sinal sem cor (§4). Não 
 - `PainelRedimensionavel` é a primitiva de layout: largura persistida em `localStorage`, divisor
   operável por teclado (`role="separator"`, setas), limites 180–520px por padrão e `min`/`max`
   por instância — o painel do assistente usa 320–640.
-- Seção recolhível usa `Secao`/`useSecao`, e **uma seção fechada continua mostrando o que esconde**:
-  o `resumo` — filtro de tipo ativo, contagem de tags — aparece fechada. Esconder o controle nunca
-  esconde que o filtro continua valendo.
+- Seção recolhível usa `Secao`/`useSecao`, e **fechada continua mostrando o que esconde**: o `resumo`
+  (filtro de tipo ativo, contagem de tags). Esconder o controle nunca esconde que o filtro vale.
 - **Largura em flex e grade é declarada.** `<fieldset>` nasce com `min-inline-size: min-content`:
   em grade ou flex leva `min-w-0`, e grade de coluna única, `grid-cols-1` — senão um `truncate`
   dentro dele alarga a coluna (`rotinas/PainelDoBloco.tsx:149`, `:208`). Reticência só num
@@ -117,8 +113,7 @@ extenso ao lado (`CartaoCard.tsx:82-84`, `:90-91`): o sinal sem cor (§4). Não 
 
 ### A casca: trilho e painel contextual
 
-Desde a Etapa 2 do redesenho (2026-09-24) a casca de `components/Aplicacao.tsx` tem duas colunas
-de navegação, no lugar da antiga barra lateral única:
+A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 do redesenho):
 
 - **Trilho** (`components/casca/Trilho.tsx`), 56px (`w-14`): só "para onde ir" — busca, menu `+`,
   áreas, e no pé atalhos, tema e conta. Item de área navega e usa `aria-current="page"`; item que
@@ -134,10 +129,9 @@ de navegação, no lugar da antiga barra lateral única:
   (`Trilho.tsx:194-202`, texto no `aria-label`, `:190`) e o selo do workspace ativo (`:276-291`).
   O ponto vem da última lista `/n?…` visitada (`Aplicacao.tsx:426`), não da rota atual — vale
   fora de Notas. Controle novo no painel que filtre algo ganha sinal no trilho.
-- **`/ajustes` é uma casca de rotas internas** (Etapa 4): `pages/AjustesPage.tsx` só tem o
-  cabeçalho e as rotas `modelos`, `provedor` e `gasto`; as seções moram em `components/ajustes/`, e
-  o painel contextual as lista por `SECOES_DE_AJUSTES` de `ajustes/comum.ts`, não pela página
-  `lazy()` (`comum.ts:4-8`).
+- **`/ajustes` é uma casca de rotas internas** (Etapa 4): `pages/AjustesPage.tsx` tem o cabeçalho e
+  uma rota por seção de `components/ajustes/`; o painel contextual as lista por `SECOES_DE_AJUSTES`
+  (`ajustes/comum.ts:9`), não pela página `lazy()` (`:4-8`) — seção nova entra nos dois.
 - **Painel do assistente** (`components/assistente/PainelAssistente.tsx`, Etapa 3): à direita, na
   mesma linha flex, **empurra** o conteúdo em vez de cobri-lo e segue aberto enquanto se navega.
   **Não é modal** (RNF-05 da Fase 1): sem véu, sem foco preso, e por isso não é `Dialogo`. O `Esc`
@@ -152,10 +146,9 @@ de navegação, no lugar da antiga barra lateral única:
 - **A área Assistente é chat, agentes e rotinas; o painel só não existe no chat** (Etapas D e E):
   `/assistente`, `…/agentes…`, `…/rotinas…` e `…/execucoes/:runId` (o "Ver execução" da marca,
   `MarcaIA.tsx:84-87`). "Tela do chat?" é `naTelaDoChat`, nunca o prefixo (INV-56).
-- **Levar texto ao assistente preenche e abre; nunca envia, e abre conversa nova.** Uma mensagem são
-  até cinco chamadas pagas, e quem digitou ainda não viu modelo nem teto. Assim fazem o "Pergunte ao
-  seu acervo" (`pages/DashboardPage.tsx:139-158`) e o "Perguntar ao assistente" da paleta
-  (`Aplicacao.tsx:612-626`). Atalho novo para o chat segue os dois.
+- **Levar texto ao assistente preenche e abre conversa nova; nunca envia**: uma mensagem são até cinco
+  chamadas pagas, e quem digitou não viu modelo nem teto. Assim o "Pergunte ao seu acervo"
+  (`pages/DashboardPage.tsx:139-158`) e o da paleta (`Aplicacao.tsx:612-626`); atalho novo os segue.
 
 ## 6. Chaves de `localStorage`
 
@@ -184,10 +177,9 @@ início deixa só comandos (`Paleta.tsx:31-32`, `:72-75`). O `atalho` de um coma
 (`:14-17`) — continua entrando nos dois lugares acima. Ação nova do trilho ou de atalho ganha
 comando. O `Enter` espera a busca responder (`:137-142`).
 
-**Atalho de uma tela vale só com o foco dentro dela.** O `Ctrl+S` dos editores de agentes e de
-rotinas ouve no `document` e confere se o foco está na raiz: no compositor do painel ao lado não
-salva, e o diálogo em portal fica de fora (`EditorAgente.tsx:451-482`,
-`rotinas/EditorRotina.tsx:465-477`).
+**Atalho de uma tela vale só com o foco dentro dela.** O `Ctrl+S` dos editores de agentes e rotinas
+ouve no `document` e confere o foco na raiz: no compositor ao lado não salva, e o diálogo em portal
+fica de fora (`EditorAgente.tsx:451-482`, `rotinas/EditorRotina.tsx:465-477`).
 
 **No editor de notas o atalho entra em dois lugares ou em nenhum**: a `<textarea>` casa a tecla à
 mão em `Editor.tsx`, e o modo ao vivo declara no `keymap` de `editorMd.ts`. Cobrir só um faz o
@@ -201,9 +193,8 @@ variáveis `--hljs-*`, definidas nos dois temas.
 
 ## 9. Tokens do redesenho de UI
 
-O redesenho em cinco etapas (todas entregues em 2026-09-24) pôs no `@theme` de `index.css` um
-vocabulário com **nome de papel, não de tamanho**. Tela nova ou redesenhada usa estes; os valores
-avulsos antigos migram quando o arquivo é tocado.
+O redesenho (2026-09-24) pôs no `@theme` de `index.css` um vocabulário com **nome de papel, não de
+tamanho**. Tela nova usa estes; os valores avulsos antigos migram quando o arquivo é tocado.
 
 | Token | Uso |
 |---|---|
@@ -260,10 +251,9 @@ cópias à mão tinham divergido (o porquê está em `components/base/Botao.tsx:
   prop; cor vai no ícone. Precisa de outra variação? Vira prop do primitivo.
 - **`Dialogo` não serve para painel que convive com o editor** (RNF-05 da Fase 1): nota, card e
   chat não são diálogos. Ele é para o que está fora do caminho de escrita — atalhos, busca, gaveta.
-- **O que flutua fora de um `Dialogo` aberto fica inalcançável** por teclado e por leitor de tela:
-  foco preso e `aria-modal`. Ação que precisa existir com ele aberto mora dentro dele — o desfazer
-  do link aparece na gaveta (`GavetaLinks.tsx:453-463`) e a casca esconde o `Toast` enquanto ela
-  está aberta (`Aplicacao.tsx:554-556`).
+- **O que flutua fora de um `Dialogo` aberto fica inalcançável** (foco preso, `aria-modal`). Ação que
+  precisa existir com ele aberto mora dentro: o desfazer do link na gaveta (`GavetaLinks.tsx:453-463`),
+  e a casca esconde o `Toast` enquanto ela está aberta (`Aplicacao.tsx:554-556`).
 - **Handler do conteúdo de um `Dialogo` não pega o foco que está na caixa.** Ela tem
   `tabIndex={-1}` (`Dialogo.tsx:70`) e o recebe num clique em área vazia; dali o evento não passa
   por filho nenhum. Tecla de lista vai num wrapper e só vale com o foco num filho (`Paleta.tsx:191`);
@@ -288,7 +278,7 @@ e o fluxo de rotina (`components/rotinas/FluxoEditavel.tsx`). Arraste novo copia
   (`:185-208`) — e a regra aparece **antes** do arraste, numa `Etiqueta` na coluna (`:471-475`).
 - `data-arrastando` no `<html>` mantém o cursor de "segurando" o gesto inteiro (`:237-242`).
 - A mesma escolha existe sem arrastar, num `Menu`: "Usar para…" no quadro de modelos (`:431-438`,
-  recusa igual nos dois por `podeServir`, `ajustes/comum.ts:40`) e "Mover para a esquerda/direita"
+  recusa igual nos dois por `podeServir`, `ajustes/comum.ts:41`) e "Mover para a esquerda/direita"
   no fluxo (`FluxoEditavel.tsx:295-302`).
 
 ## 12. A marca de conteúdo gerado por IA
@@ -298,3 +288,12 @@ Nota e card com `ai` não nulo (Etapa C da IA) se mostram só por `components/Ma
 agente que escreveu e "Abrir conversa" — ou, vinda de rotina, «Rotina» · «Agente» e "Ver execução".
 A tela só **mostra** (INV-58); faísca **e** palavra, nunca só cor (RNF-09 da IA). Superfície nova
 que liste nota ou card usa uma das duas.
+
+## 13. Gráfico de dados
+
+O primeiro é `ajustes/BarrasPorDia.tsx` (2026-09-25): SVG à mão, sem biblioteca, cor só por classe
+de token. Série por dia o reusa; gráfico novo copia as regras. **O desenho não é o único caminho até
+o número** (RNF-09): resumo no `aria-label` do `role="img"`, `<title>` por barra e tabela num
+`<details>` (`:93`, `:106`, `:151-181`). Largura em %, altura em px (`:43-45`); `clipPath` com id de
+`useId()` limpo (`:57-58`). O dia chega `YYYY-MM-DD` no fuso de quem chama; `diaCurto` corta texto,
+porque `new Date` o levaria ao do navegador (`:20-28`). Número com nome é `ajustes/Indicador.tsx`.

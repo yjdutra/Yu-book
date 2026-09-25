@@ -305,7 +305,7 @@ funciona, só fica lento.
 de modelos deriva uma coluna por tarefa de `TAREFAS_COM_MODELO`
 (`apps/web/src/components/ajustes/QuadroDeModelos.tsx:461`, e a grade conta as colunas em `:387`) e
 tira os rótulos de um `Record<TarefaComModelo, …>` **total**
-(`apps/web/src/components/ajustes/comum.ts:25`, razão em `:15-24`). As duas metades fazem
+(`apps/web/src/components/ajustes/comum.ts:26`, razão em `:16-25`). As duas metades fazem
 trabalho diferente: o `Record` faz o **compilador** cobrar a tarefa nova — é o portão que o front
 compra no lugar do teste que não existe — e o `.map` faz a coluna nascer sozinha.
 
