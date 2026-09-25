@@ -5,22 +5,23 @@
 
 ## Onde ficam as coisas
 
-- Suítes vitest: `apps/api/tests/` (Postgres) e `apps/mcp/tests/` (nada no ar).
 - Arnês JSON-RPC do MCP: `apps/mcp/tests/arnes.ts` — o `Client` do SDK não manda `authInfo`.
-- Dublê SSE do provedor: `apps/api/tests/provedor.ts`; turno `segura` (`:47`) para agir no meio.
+- Dublê SSE do provedor: `apps/api/tests/provedor.ts`; turno `segura` (`:71`) para agir no meio.
 
 ## O que já nos mordeu
 
 - A suíte da API roda no `yubook` real; duas rodadas se derrubam pelo `limpar()`
   (`apps/api/tests/apoio.ts:26`) e pela porta 39333 do dublê.
 - `reconciliarExecucoes()` fecha órfã de qualquer conta: asserir `>= 1` (`rotinas.test.ts:985`).
-- O dublê repete o último turno (`provedor.ts:148-149`): depois de um `segura`, troque o roteiro.
-- O SDK MCP valida argumentos antes do handler: `argumentosMinimos`
-  (`apps/mcp/tests/escrita.test.ts:65`).
+- O dublê repete o último turno (`provedor.ts:200-201`): depois de um `segura`, troque o roteiro.
+- O SDK MCP valida argumentos antes do handler: `argumentosMinimos` (`escrita.test.ts:65`).
 - `chamar` faz `JSON.parse` (`apoio.ts:63`): corpo não-JSON por `app.inject`
   (`agentes.test.ts:1088`); SSE no meio pede `listen({ port: 0 })` + `fetch` (`rotinas.test.ts:55`).
-- Limite de 300/min por IP (`apps/api/src/app.ts:47`): releitura em laço usa `proximoIp`
+- Limite de 300/min por IP (`apps/api/src/app.ts:47`): laço de releitura usa `proximoIp`
   (`rotinas.test.ts:218-229`).
+- Limite de bytes: potência de 2 cai na fronteira do pedaço do gunzip; use-a só se o alvo for ela
+  (`web.test.ts:519`).
+- `lerHtml` decodifica entidade **depois** de tirar tag (`pagina.service.ts:331`): `&lt;p&gt;` vira `<p>`.
 
 ## Decisões em vigor
 
@@ -29,5 +30,6 @@
 - Dublê de resposta tipado pelo tipo de `shared` (`apps/mcp/tests/marca.test.ts:29-43`).
 - Corrida sem tempo: `vi.spyOn(...).mockImplementationOnce` no meio (`agentes.test.ts:977`).
 - Execução assíncrona: `esperar` (`rotinas.test.ts:229`) até a condição, nunca `sleep` fixo.
-- Refatoração "comportamento inalterado": rode a função nova e uma cópia da do HEAD sobre a mesma
-  varredura de entradas, e compare.
+- Executor que usa a guarda de produção: `vi.mock` + `vi.hoisted` embrulhando o service
+  (`web.test.ts:68-80`).
+- "Comportamento inalterado": rode a nova e uma cópia da do HEAD nas mesmas entradas, e compare.

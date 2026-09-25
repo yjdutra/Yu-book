@@ -241,48 +241,48 @@ uma ação chamada antes do desmonte, não efeito do painel — e o que ela gara
 
 **INV-56 — O laço do servidor não roda sem superfície visível.** Uma mensagem do chat são até cinco
 chamadas ao provedor, cada uma gravando contra o teto do dia (INV-47). Desde a Etapa 3 do redesenho
-de UI o fluxo mora em `ProvedorSessaoChat` (`apps/web/src/lib/sessaoChat.tsx:165`), montado acima da
+de UI o fluxo mora em `ProvedorSessaoChat` (`apps/web/src/lib/sessaoChat.tsx:167`), montado acima da
 casca (`apps/web/src/App.tsx:38-40`) — **desmontar a superfície não solta a conexão.** A garantia
 deixou de ser uma limpeza de efeito e virou cinco pontos, cada um fechando um caminho:
 
 1. **Fechar o painel para o fluxo:** `fecharPainel` chama `parar()` antes de desmontar
-   (`sessaoChat.tsx:278-279`).
-2. **O logout aborta:** sair da sessão desmonta o provedor, e a limpeza aborta (`sessaoChat.tsx:205`).
+   (`sessaoChat.tsx:280-281`).
+2. **O logout aborta:** sair da sessão desmonta o provedor, e a limpeza aborta (`sessaoChat.tsx:207`).
 3. **Sair da tela do chat com fluxo em curso reabre o painel** (`Aplicacao.tsx:185-190`, lendo
-   `temFluxo()`, `sessaoChat.tsx:220`). Sem isso a resposta seguiria em tela nenhuma.
-4. **O `AbortController` nasce antes de criar a conversa** (`sessaoChat.tsx:304-305`, razão em
-   `:184-190`), e enquanto ele existe outro envio não começa (`:302`). Nascido depois do
-   `criar.mutateAsync` (`:327`), fechar nessa janela chamava um `parar()` sem nada para parar; a
-   conferência de `:336` é o que segura o fluxo ali.
+   `temFluxo()`, `sessaoChat.tsx:222`). Sem isso a resposta seguiria em tela nenhuma.
+4. **O `AbortController` nasce antes de criar a conversa** (`sessaoChat.tsx:306-307`, razão em
+   `:186-192`), e enquanto ele existe outro envio não começa (`:304`). Nascido depois do
+   `criar.mutateAsync` (`:330`), fechar nessa janela chamava um `parar()` sem nada para parar; a
+   conferência de `:339` é o que segura o fluxo ali.
 5. **Conversa nova pedida com fluxo em curso não troca a conversa** (Etapa D): mostra a resposta —
-   no painel, ou no campo da tela do chat — e diz por quê (`avisoDeEspera`, `sessaoChat.tsx:107`).
+   no painel, ou no campo da tela do chat — e diz por quê (`avisoDeEspera`, `sessaoChat.tsx:109`).
    Vale para "Conversar" com um agente (`components/agentes/acoesDoAgente.tsx:125-137`) e para o
    pedido que chega à tela do chat (`pages/AssistentePage.tsx:40-64`).
 
-**"Tela do chat" é `naTelaDoChat` (`sessaoChat.tsx:91`), não a área `/assistente`.** Desde a Etapa D
+**"Tela do chat" é `naTelaDoChat` (`sessaoChat.tsx:93`), não a área `/assistente`.** Desde a Etapa D
 a área tem a galeria e o editor de agentes (`/assistente/agentes…`), e desde a E as rotinas
 (`/assistente/rotinas…`, `/assistente/execucoes/:runId`); em todas elas o painel existe.
 `pathname.startsWith("/assistente")` faria a resposta sumir ao ir do chat para a galeria —
 nenhuma superfície à vista, o laço pagando. Quem decide "o painel existe aqui?" chama a função:
-a casca (`Aplicacao.tsx:177`), o trilho (`casca/Trilho.tsx:254`) e a conversa (`Conversa.tsx:191`).
+a casca (`Aplicacao.tsx:177`), o trilho (`casca/Trilho.tsx:254`) e a conversa (`Conversa.tsx:165`).
 Os três perguntavam pela área até a Etapa D. `areaDe` (`casca/PainelContexto.tsx:18`) continua por
 prefixo, e está certo: ali a pergunta é qual painel contextual mostrar, não se o chat está à vista.
 
 **A conversa nova pedida de fora troca ao chegar, nunca antes do `navigate`.** Ela viaja no `state`
-da navegação (`EstadoRotaChat`, `sessaoChat.tsx:102-104`) e é aplicada por `AssistentePage`. Trocar
+da navegação (`EstadoRotaChat`, `sessaoChat.tsx:104-106`) e é aplicada por `AssistentePage`. Trocar
 antes quebra duas coisas: a guarda de saída do editor de agentes segura o `navigate` e a conversa
 já teria mudado com a pessoa ainda no editor; e um envio feito pelo painel enquanto o diálogo da
 guarda estava aberto sumiria da tela — este invariante.
 
 **Expandir para a tela do chat não toca no fluxo**: trocar de superfície não é fechar
-(`sessaoChat.tsx:270-272`), e a rota não passa por `fecharPainel`. Caminho novo que esconda a
+(`sessaoChat.tsx:272-274`), e a rota não passa por `fecharPainel`. Caminho novo que esconda a
 última superfície visível — outra rota, outro atalho, outro "fechar" — chama `fecharPainel` ou
 entra nesta lista. Nenhum portão executa o front: a quebra aparece como gasto no teto sem resposta
 na tela.
 
 **Defeito aberto, anterior à Etapa D — o ponto 5 ainda não vale em todo sítio.** "Nova conversa" e
 escolher outra conversa chamam `novaConversa`/`selecionar` sem olhar `temFluxo()`: a fala em curso
-só aparece na conversa dela (`components/assistente/Conversa.tsx:663`), e some com o laço pagando.
+só aparece na conversa dela (`components/assistente/Conversa.tsx:637`), e some com o laço pagando.
 Exemplo: `ListaConversas.tsx:176`. Quem for fechar, grepe os dois nomes em `apps/web/src` e passe
 todo chamador pelo mesmo desvio de `avisoDeEspera`.
 
@@ -293,8 +293,8 @@ o atalho (`Aplicacao.tsx:299`) e o comando da paleta (`:399`); o botão do trilh
 existir ali (`casca/Trilho.tsx:254`). Caminho novo que alterne o painel entra nesta lista.
 
 A armadilha vizinha: **os dois contextos da sessão não se fundem.** `useAcoesChat`
-(`sessaoChat.tsx:468`) dá as ações e `painelAberto` a quem só abre o chat — casca, editor, card —;
-`useSessaoChat` (`:475`) dá o estado, que muda a cada delta do streaming, e é só das superfícies
+(`sessaoChat.tsx:474`) dá as ações e `painelAberto` a quem só abre o chat — casca, editor, card —;
+`useSessaoChat` (`:481`) dá o estado, que muda a cada delta do streaming, e é só das superfícies
 (razão em `:31-35`). Fundir os dois, ou assinar `useSessaoChat` fora de `components/assistente/`,
 faz quadro e editor re-renderizarem dezenas de vezes por segundo durante a resposta. Compila,
 funciona, só fica lento.
@@ -327,7 +327,7 @@ vendo um modelo marcado conclui que o erro é falso.
 **Não vale para todo enum: vale para o enum cujo membro pede configuração.** `LINK_KINDS` é citado à
 mão de propósito em `apps/web/src/components/ZonasDeSoltura.tsx:123-134` — cada zona tem texto e
 ícone próprios, e ali o enum só discrimina. Enum que rotula ou discrimina pode ser citado (é também
-o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:463` já
+o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:478` já
 mantém total); enum cujo membro exige um valor que **só a interface** coleta, não.
 
 O resto da tela também percorre, e cada um é um `.map` que o typecheck não cobra: os itens "Usar

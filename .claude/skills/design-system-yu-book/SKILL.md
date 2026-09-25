@@ -110,7 +110,7 @@ extenso ao lado (`CartaoCard.tsx:82-84`, `:90-91`): o sinal sem cor (§4). Não 
   esconde que o filtro continua valendo.
 - **Largura em flex e grade é declarada.** `<fieldset>` nasce com `min-inline-size: min-content`:
   em grade ou flex leva `min-w-0`, e grade de coluna única, `grid-cols-1` — senão um `truncate`
-  dentro dele alarga a coluna (`rotinas/PainelDoBloco.tsx:147`, `:206`). Reticência só num
+  dentro dele alarga a coluna (`rotinas/PainelDoBloco.tsx:149`, `:208`). Reticência só num
   `span.truncate` filho do flex, sem `items-start` no pai (`rotinas/FluxoEditavel.tsx:135-150`).
 - **`scrollIntoView` rola todo ancestral, até o `main` da casca** (`h-screen overflow-hidden`,
   `Aplicacao.tsx:422`), e cortava o cabeçalho sticky: role só o contêiner (`FluxoEditavel.tsx:78-90`).
@@ -145,8 +145,8 @@ de navegação, no lugar da antiga barra lateral única:
   `:60-64`), e quem tem `Esc` próprio lá dentro — menu do `@` no `Compositor`, `Menu`, renomear
   conversa — para a propagação. **`Dialogo` lá dentro é o avesso**: o `Esc` dele mora no
   `document`, e `stopPropagation` o calaria; ele vai num wrapper `contents` com `preventDefault`,
-  e o `<aside>` ignora o `Esc` já tratado (`Conversa.tsx:530-538`; `PainelAssistente.tsx:61`).
-  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:278-287`).
+  e o `<aside>` ignora o `Esc` já tratado (`Conversa.tsx:504-512`; `PainelAssistente.tsx:61`).
+  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:280-289`).
   `Ctrl+Shift+Y` e a paleta alternam; na tela do chat focam o campo (INV-56). **A tela do chat
   não tem id de conversa**: é `selecionar(id)` e `abrirPainel()` (`MarcaIA.tsx:145-148`).
 - **A área Assistente é chat, agentes e rotinas; o painel só não existe no chat** (Etapas D e E):
@@ -186,7 +186,7 @@ comando. O `Enter` espera a busca responder (`:137-142`).
 
 **Atalho de uma tela vale só com o foco dentro dela.** O `Ctrl+S` dos editores de agentes e de
 rotinas ouve no `document` e confere se o foco está na raiz: no compositor do painel ao lado não
-salva, e o diálogo em portal fica de fora (`EditorAgente.tsx:440-471`,
+salva, e o diálogo em portal fica de fora (`EditorAgente.tsx:451-482`,
 `rotinas/EditorRotina.tsx:465-477`).
 
 **No editor de notas o atalho entra em dois lugares ou em nenhum**: a `<textarea>` casa a tecla à
@@ -236,7 +236,7 @@ cópias à mão tinham divergido (o porquê está em `components/base/Botao.tsx:
 | Arquivo | Exporta |
 |---|---|
 | `Botao.tsx` | `Botao` (variantes `primario`, `secundario`, `fantasma`, `perigo`, `ia`; `carregando`) e `BotaoIcone`, cujo `rotulo` vira nome acessível e dica, com `tamanho` `p`/`m`/`g` |
-| `Bloco.tsx` | `Bloco` (variante `ia` com fio de gradiente), `Vazio`, `Esqueleto` de altura fixa. **Tem `overflow-hidden`**: lista ou menu que abre para fora é cortado — seção de formulário é `Parte`; fio de gradiente fora dele vai numa moldura própria (`rotinas/PainelDoBloco.tsx:831-839`) |
+| `Bloco.tsx` | `Bloco` (variante `ia` com fio de gradiente), `Vazio`, `Esqueleto` de altura fixa. **Tem `overflow-hidden`**: lista ou menu que abre para fora é cortado — seção de formulário é `Parte`; fio de gradiente fora dele vai numa moldura própria (`rotinas/PainelDoBloco.tsx:871-879`) |
 | `Parte.tsx` | Seção de formulário com título e descrição, **sem** `overflow-hidden`; variante `ia` |
 | `Aviso.tsx` | Aviso inline, tom `erro`/`alerta`/`info`, glifo sempre; `urgente` promove `status` a `alert` |
 | `IndicadorSalvamento.tsx` | Estado do autosave com texto, único para nota e card |
@@ -244,7 +244,7 @@ cópias à mão tinham divergido (o porquê está em `components/base/Botao.tsx:
 | `Toast.tsx` | `PilhaFlutuante`, o pé da tela que empilha o que flutua, e `Toast` (`role="status"`, uma ação no máximo); erro ali dentro continua `Aviso` |
 | `Tecla.tsx` | Combinação de teclas partida em `<kbd>` |
 | `Menu.tsx` | Menu de ações com gatilho por render prop; ↑/↓/Home/End, `Esc` para ali e devolve o foco; `lado` inclui `baixo-fim`, alinhado à direita do gatilho, e `cima`, para gatilho no pé |
-| `Etiqueta.tsx` | Pílula de informação, tom `neutro`/`destaque`/`ia`; vira `<button>` só com `como="button"` |
+| `Etiqueta.tsx` | Pílula de informação, tom `neutro`/`destaque`/`ia`; vira `<button>` só com `como="button"` e link **externo** com `como="a"` — sempre nova aba, `noopener noreferrer`, aviso ao leitor de tela. Ela **não confere** o `href`: endereço de terceiro chega já filtrado para `http(s)` (`assistente/Fontes.tsx:17-24`), ou um `javascript:` executaria no Yu-book |
 | `Interruptor.tsx` | Liga/desliga: `<button role="switch">`, `aria-checked`, rótulo e descrição acessíveis, e "ligado"/"desligado" escrito à vista |
 
 - **Primitivo só nasce na etapa que tem consumidor.** Campo e Dica não existem — não os antecipe.

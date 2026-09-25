@@ -107,7 +107,9 @@ Ao ser chamado neste modo:
   servidor publica e o que o chat da `apps/api` imprime e paga por turno, e **nenhum teste fica
   vermelho**. Não toque nesses dois arquivos sem dizer no relato que as duas superfícies mudaram;
   o resto de `packages/shared` continua sendo de quem cuida do pacote. Ver §4.6 da skill
-  `contrato-compartilhado`.
+  `contrato-compartilhado`. **Nem tudo ali é deste servidor:** `FERRAMENTAS_DA_WEB` (`open_page`,
+  Etapa G) é só do assistente da API. Registre tool à mão, módulo por módulo; um laço sobre
+  `DEFINICOES_DO_ASSISTENTE` ou `FERRAMENTAS_DO_CHAT` publicaria `open_page` sem handler.
 
 ## Verificação
 

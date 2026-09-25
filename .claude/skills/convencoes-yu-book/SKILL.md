@@ -70,8 +70,9 @@ passa testando outra coisa. Mordeu duas vezes na mesma entrega da frente de IA. 
 `apps/api/src/modules/assistente/openrouter.service.ts:63`) ou a injeção vem por objeto com checagem
 de `in`, que distingue "não informei" de "informei que não há" (`saude`,
 `apps/api/src/modules/assistente/assistente.service.ts:22-27`). O valor padrão continua certo quando
-o que se injeta é uma **função** e a ausência não é caso de teste — `buscarTitulo(…, permitido =
-destinoPermitido)` (`apps/api/src/modules/links/titulo.service.ts:151`).
+o que se injeta é uma **função** e a ausência não é caso de teste — `buscarTitulo(…, permitido:
+Guarda = todosPublicos)` (`apps/api/src/modules/links/titulo.service.ts:66`) e a guarda e o
+resolvedor de `abrirPagina` (`apps/api/src/modules/web/pagina.service.ts:359-363`).
 
 **Injetar o relógio num laço sobre todas as contas pede também o escopo, obrigatório.** A suíte da
 API roda no banco de desenvolvimento, que guarda a conta real: uma volta global com `agora`
@@ -117,9 +118,10 @@ utilitários puros e módulos de query — não reorganize.
 
 **Caractere invisível ou de controle vai no fonte como escape `\uXXXX`, nunca literal** — em
 regex inclusive (`[\u0300-\u036f]`, `U+2028`, `U+FEFF`). Literal não se vê na revisão, e `U+2028`
-dentro de regex é quebra de linha para o parser. As ferramentas de edição de agente já gravaram o
-literal no lugar do escape: grave por script e confira com
-`grep -nP '[\x{0001}-\x{0008}\x{007f}-\x{009f}\x{0300}-\x{036f}\x{2028}\x{2029}\x{feff}]'`.
+dentro de regex é quebra de linha para o parser. As ferramentas Write/Edit do agente convertem o
+escape em literal ao gravar — mordeu de novo na Etapa G: grave por script (heredoc com aspas
+simples) e confira com
+`grep -nP '[\x{0000}-\x{0008}\x{000b}\x{000c}\x{000e}-\x{001f}\x{007f}-\x{009f}\x{0300}-\x{036f}\x{2028}\x{2029}\x{feff}]'`.
 
 ## 6. Verificação
 

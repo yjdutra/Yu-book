@@ -33,15 +33,18 @@ API, e revoga a decisão de "sem trabalho assíncrono" (motivo e custo na entrad
 `docs/historico.md`). No deploy da Railway duas instâncias da API convivem; o motor decide pelo
 banco, nunca pela memória do processo (INV-60). A **Etapa F** (2026-09-25) agendou as rotinas: um
 relógio interno da API, nas duas instâncias, dispara no fuso do usuário; recusa de início tenta três
-vezes, a cada 5 minutos, e vira `pulada`, e execução que começou nunca se repete. A Fase 6 de produto (Google Calendar) segue sendo o
-item de menor prioridade.
+vezes, a cada 5 minutos, e vira `pulada`, e execução que começou nunca se repete. A **Etapa G**
+(2026-09-25) deu aos agentes pesquisa externa, opt-in por agente: busca na web pelo plugin do
+OpenRouter e "Abrir página" (`open_page`). Endereço escolhido de fora — pelo usuário ou pelo modelo
+— sai só por `apps/api/src/lib/saidaSegura.ts`, com a conexão presa ao IP conferido (INV-08). A
+Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
 
 **Cinco numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
 identidade) foi entregue em 2026-09-01; o **roteiro de IA aplicada** tem fases próprias, e a 5 dele é
 a frente de IA; dentro dessa frente, o **PRD de IA** tem as suas, de 1 a 4, entregues em etapas com
-letra — a Etapa A cobriu as fases 1 e 2 dele, a Etapa B a fase 3, e as Etapas C a F não são fase
-dele (§5.5–§5.8); e o **redesenho de UI/UX** de `apps/web` tem cinco etapas próprias, entregues em 2026-09-24 sem conferência na tela a cada etapa e
+letra — a Etapa A cobriu as fases 1 e 2 dele, a Etapa B a fase 3, e as Etapas C a G não são fase
+dele (§5.5–§5.9); e o **redesenho de UI/UX** de `apps/web` tem cinco etapas próprias, entregues em 2026-09-24 sem conferência na tela a cada etapa e
 conferidas à mão pelo usuário no fechamento — relato, não checklist item por item (registro em
 `docs/historico.md`); essa numeração está fechada. "Etapa 4" não é
 "Fase 4", e o mesmo número significa coisas diferentes em cada eixo. Não unifique nem renumere — a

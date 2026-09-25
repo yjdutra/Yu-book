@@ -5,7 +5,8 @@
 ## O que já nos mordeu
 
 - Ref erra **de origem**, não só de linha: código muda de arquivo. Grepe o caminho.
-- Refs em lote: difflib HEAD→árvore e confira o conteúdo; basename repetido e regex `ts|tsx` enganam.
+- Refs em lote: difflib HEAD→árvore, confira o conteúdo e releia a faixa: `a>b` e `b>c` na mesma
+  linha a invertem. Basename repetido e regex `ts|tsx` enganam.
 - `:NNN` resolve pelo último caminho citado: ref nova depois de ref de teste leva o basename.
 - Parágrafo tocado: confira **todo** ref dele — ref velha de entrega anterior sobrevive ao lado.
 - **Agente apodrece calado, e a paráfrase junto.** Grepe o fato, não a frase.
@@ -23,8 +24,8 @@
 - **Ponteiro não é duplicação; cópia do argumento é.**
 - Sítio único com muitas cláusulas que parecem limpeza → INV como mapa de ponteiros, sem o porquê.
 - **Número medido é memória de agente, não skill.** Grave a receita, não o número.
-- **Skill no limite: comprima o recém-escrito e o censo antes de cortar doutrina**; extraia só o
-  que se lê *depois* de escrever.
+- **Skill no limite: comprima o recém-escrito e o censo antes da doutrina**; extraia só o que se
+  lê *depois* de escrever.
 - **Não renumere seção nem INV.** Doutrina nova vira subseção; item novo entra no fim da série.
 - Não vira registro: fato sem `arquivo:linha`, com prazo, ou medida que varia por rodada. Fato do
   `historico.md`/`CLAUDE.md` não se copia; ponteiro datado cabe.

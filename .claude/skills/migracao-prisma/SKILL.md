@@ -100,12 +100,12 @@ await prisma.$queryRaw`SELECT id FROM note WHERE user_id = ${userId}::uuid LIMIT
 com mensagem em português. A violação de título é detectada por `meta.target` conter `"title"`,
 porque o Prisma reporta a expressão do índice e não o nome dele. **Índice parcial sobre coluna
 simples** reporta as colunas: `ehOutraEmAndamento`
-(`apps/api/src/modules/assistente/execucao.service.ts:155-166`) casa `meta.target = ["user_id"]`
+(`apps/api/src/modules/assistente/execucao.service.ts:157-168`) casa `meta.target = ["user_id"]`
 **e** `meta.modelName`, para que o `P2002` de outro único do mesmo modelo suba como é. O mesmo
 índice dispara também no `updateManyAndReturn` que converte uma `pulada` em `em_andamento` (Etapa F,
-`execucao.service.ts:581`), com o mesmo `meta.target` do `create` — os dois caem no mesmo `catch`
-(`:629-633`). O único do horário vem como `["routine_id", "scheduled_for"]`, e `ehHorarioTomado`
-(`:170-180`) o separa: índice novo no mesmo modelo pede helper próprio, não um `includes` mais largo.
+`execucao.service.ts:590`), com o mesmo `meta.target` do `create` — os dois caem no mesmo `catch`
+(`:638-642`). O único do horário vem como `["routine_id", "scheduled_for"]`, e `ehHorarioTomado`
+(`:172-182`) o separa: índice novo no mesmo modelo pede helper próprio, não um `includes` mais largo.
 
 ## 6. Antes de fechar
 

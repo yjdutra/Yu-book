@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
+description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto, e a ferramenta da web, que só o assistente consome). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
 ---
 
 # O contrato compartilhado
@@ -40,6 +40,10 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    por `apps/web/src/components/rotinas/comum.tsx:1-8` e `lib/rotinas.ts`, só com tipo; quem traz
    valor dele (`Agenda.tsx`, `rascunho.ts`) entra por rota ou bloco `lazy`
    (`apps/web/src/pages/DashboardPage.tsx:26`). Um import de valor num módulo do painel desfaz isso.
+   `chat.ts` (Etapa G) é o terceiro: `lib/sessaoChat.tsx`, sempre montado, **não** deduplica as
+   fontes por `chaveDaFonteDoChat` (`:362-372`, medido) — quem tira a repetição é
+   `components/assistente/Fontes.tsx:89-96`. Não "conserte" a sessão com o import, nem com uma
+   segunda definição de "a mesma fonte" escrita à mão.
 
 **`"sideEffects": false` no `package.json` de `shared` não é enfeite, e não se remove.** Sem ele o
 bundler não pode presumir que importar `@yu-book/shared` é inócuo, e **todo** módulo do pacote entra
@@ -137,7 +141,7 @@ formata por `Intl` com `timeZone`. **O parâmetro `fuso` não tem valor padrão,
 principal** — um padrão traria de volta exatamente o defeito que a Etapa B consertou, o fuso do
 *processo* passando por fuso do usuário. Quem chama declara de qual fuso está falando: o MCP
 pergunta à API (`apps/mcp/src/fuso.ts:43`) e o chat recebe o `fuso` no contexto da ferramenta
-(`apps/api/src/modules/assistente/ferramentas.service.ts:68-71`). As quatro funções escritas à mão
+(`apps/api/src/modules/assistente/ferramentas.service.ts:85-88`). As quatro funções escritas à mão
 viraram duas, num lugar só. **Desde a Etapa F a volta passa por `instanteLocal`**
 (`packages/shared/src/agenda.ts:165`), a mesma conversão de relógio de parede em instante que a
 agenda de rotina usa: mexer nela move o prazo e o horário da rotina juntos, e o portão das duas é
@@ -170,13 +174,24 @@ O caso invertido: aqui **não** há duas implementações. O metadado das açõe
 título, `descricao` e schema de entrada — mora só em `packages/shared/src/ferramentas.ts`, e é
 exatamente o que a doutrina manda. O risco mudou de forma, não de tamanho.
 
+**Desde a Etapa G o arquivo tem dois objetos, e só um vai ao MCP.** `FERRAMENTAS_DO_ACERVO` tem os
+dois consumidores abaixo; `FERRAMENTAS_DA_WEB` (`:333`, `open_page`) só o assistente da API (RF-74).
+O MCP fica fora dela **só porque registra tool à mão**, módulo por módulo: um laço sobre
+`DEFINICOES_DO_ASSISTENTE` ou `FERRAMENTAS_DO_CHAT` no MCP publicaria `open_page` sem handler, e
+nada falharia — o sinal é o `tools/list` sair da baseline da memória do agente `mcp`. Do outro lado,
+definição de um nome do assistente se lê por `DEFINICOES_DO_ASSISTENTE` (`:374`), total sobre as
+duas origens; nome que chega como `string` passa por uma guarda sobre ele
+(`ehDoAssistente`, `apps/web/src/components/rotinas/ExecucaoRotina.tsx:64-66`). O cast
+`nome as NomeDeFerramenta` compila: sem guarda, `FERRAMENTAS_DO_ACERVO[nome].titulo` lança com
+`open_page`; com guarda só sobre o acervo, ela cai no nome cru.
+
 **Dois consumidores, dois contratos diferentes, um arquivo:**
 
 - `apps/mcp` publica esse metadado em `tools/list` (`src/tools/kanban.ts:18`, `notas.ts`,
   `kanban-escrita.ts`, `notas-escrita.ts`) — a `descricao` é o contrato de conversa do servidor MCP
   com qualquer modelo que se conecte;
 - `apps/api` o oferece ao provedor no campo `tools` de **todo turno** do chat
-  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:242`, só as de
+  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:288`, só as de
   `FERRAMENTAS_DO_CHAT`, estreitadas pela lista do agente — e, num passo de rotina, só a leitura dele) — ali a `descricao` é
   contrato **e** custo por turno.
 

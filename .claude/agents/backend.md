@@ -74,6 +74,9 @@ essa separação.
   instâncias convivem: o que decide sobre uma execução ou um horário pergunta ao banco, nunca ao
   `Map` em memória (INV-60). Quem chama o provedor passa por `passoNoProvedor`, onde mora
   o teto (INV-47).
+- **Conexão para endereço escolhido de fora — usuário ou modelo — sai só por `pedirPublico`**
+  (`src/lib/saidaSegura.ts`), com `node:http` e a conexão presa ao IP conferido. Voltar ao `fetch`
+  compila e reabre o DNS rebinding (INV-08).
 
 Antes de alterar qualquer um desses pontos, leia o comentário que os acompanha e confirme com o
 operador. Carregue a skill `invariantes-yu-book` e abra `referencias/servidor.md` — a skill traz

@@ -48,8 +48,10 @@ Dívidas já conhecidas, que você deve continuar listando enquanto existirem:
 **Nunca reporte estes itens como resquício:**
 
 - **`Company` e `Event`** no schema. São entidades planejadas; `Event` é a Fase 6 (agenda).
-- **O parâmetro `permitido`** de `apps/api/src/modules/links/titulo.service.ts` — existe para que os
-  testes injetem a checagem de destino.
+- **Os parâmetros `permitido` e `resolver`** de `buscarTitulo`
+  (`apps/api/src/modules/links/titulo.service.ts`), de `abrirPagina`
+  (`apps/api/src/modules/web/pagina.service.ts`) e de `PedidoPublico` (`apps/api/src/lib/saidaSegura.ts`)
+  — produção nunca os passa; existem para que os testes injetem a guarda e um DNS hostil.
 - **Comentários que documentam decisão de planner do Postgres** ou identidade de callback do React.
   Eles explicam por que o código tem a forma estranha que tem. Removê-los não é limpeza.
 - **O termo repetido em `porSimilaridade`** — não é duplicação, é o que mantém o índice.

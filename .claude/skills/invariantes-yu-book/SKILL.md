@@ -1,6 +1,6 @@
 ---
 name: invariantes-yu-book
-description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, as defesas de saída decididas pela origem do alvo (SSRF só onde a URL vem do usuário), escopo por usuário, a precisão do arraste do kanban e a alça única do quadro de modelos, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna impresso num lugar só — hoje em packages/shared —, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda, e a frente de IA — teto de gasto conferido antes de cada conexão e a cada passo do laço de ferramenta, cascata de custo de três degraus, guarda de wikilink por conjunto, o dia local gravado em vez de calculado, a fronteira do chat com o modelo fechada pelo compilador nos dois sentidos, a marca de conteúdo gerado, gravada só pelo servidor e que nunca some, e o motor de rotina, que decide pelo banco e não pelo Map em memória porque o deploy junta duas instâncias da API, e a agenda de rotina que as duas rodam juntas —, o id relacionado vindo do cliente conferido contra o usuário, e a montagem condicional de painel no front, que nunca entrega aberto: false, o laço do chat que não roda sem superfície visível, o enum cuja escolha só existe se a tela o percorrer, e os filtros de notas na URL, que toda navegação em /n precisa carregar. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
+description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, as defesas de saída decididas pela origem do alvo (SSRF onde a URL vem do usuário ou do modelo, com a conexão presa ao IP conferido), escopo por usuário, a precisão do arraste do kanban e a alça única do quadro de modelos, o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna impresso num lugar só — hoje em packages/shared —, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda, e a frente de IA — teto de gasto conferido antes de cada conexão e a cada passo do laço de ferramenta, cascata de custo de três degraus, guarda de wikilink por conjunto, o dia local gravado em vez de calculado, a fronteira do chat com o modelo fechada pelo compilador nos dois sentidos, a marca de conteúdo gerado, gravada só pelo servidor e que nunca some, e o motor de rotina, que decide pelo banco e não pelo Map em memória porque o deploy junta duas instâncias da API, e a agenda de rotina que as duas rodam juntas —, o id relacionado vindo do cliente conferido contra o usuário, e a montagem condicional de painel no front, que nunca entrega aberto: false, o laço do chat que não roda sem superfície visível, o enum cuja escolha só existe se a tela o percorrer, e os filtros de notas na URL, que toda navegação em /n precisa carregar. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
 ---
 
 # Invariantes do Yu-book
@@ -35,7 +35,7 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-05 | `TOKEN_EXPIRED` e `UNAUTHORIZED` são códigos distintos de propósito |
 | INV-06 | Refresh token: rotação e consumo atômico; reuso com janela de graça de 30 s |
 | INV-07 | Login paga custo constante |
-| INV-08 | A origem do alvo decide a defesa de saída: três pontos, duas classes |
+| INV-08 | A origem do alvo decide a defesa de saída; a de fora sai só por `pedirPublico`, presa ao IP conferido |
 | INV-10 | Destaque de busca usa caracteres de controle, não HTML |
 | INV-11 | Posições são contíguas, sempre |
 | INV-12 | Card não atravessa board |
@@ -216,11 +216,19 @@ dentro da API, nas duas instâncias ao mesmo tempo. Nenhuma invariante nova — 
 criação grava `em_andamento`": a conversão da `pulada` também grava, pelo mesmo índice. A lição é a do "só": **cláusula de exclusividade é censo
 de um**, e envelhece no primeiro sítio novo que faz a mesma coisa por outro caminho.
 
+A **Etapa G da frente de IA** (2026-09-25, §5.9 do PRD de IA) deu ao agente pesquisa externa —
+busca na web pelo provedor e `open_page` — e **reescreveu INV-08** pela segunda vez: "só
+`titulo.service.ts`… a única superfície de SSRF" era censo de um, e o segundo consumidor veio do
+**modelo**, não do usuário. A saída virou `pedirPublico`, e com ela a cláusula nova, a conexão presa
+ao IP conferido. Estreitou INV-10 e INV-17 (texto de terceiro), INV-47 e INV-48 (a busca), e INV-52,
+cuja primeira condição virou o teto do agente. A lição: **o que conta "quem escolhe o alvo" também
+envelhece** — o eixo era certo, a lista de quem escolhe, não.
+
 O que ainda não tem código: **busca semântica** (§5.4). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
 **menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece: reconfira
 as referências antes de confiar nelas. Quando a fase vier, três invariantes ficam na linha de tiro:
 
-- **INV-08.** A agenda abre o quarto ponto de saída, e ele nasce com classe a decidir: host do
+- **INV-08.** A agenda abre um ponto de saída novo, e ele nasce com classe a decidir: host do
   Google fixado pelo ambiente cai na segunda classe, mas id de calendário vindo do cliente entra no
   **caminho** da URL. Classifique antes de escrever, pela regra do próprio INV-08.
 - **INV-01 a INV-04.** Credencial de terceiro por usuário é dado novo sob escopo: id de calendário
