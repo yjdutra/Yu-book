@@ -1,16 +1,18 @@
 import { useQueries } from "@tanstack/react-query";
-import { FERRAMENTAS_DO_ACERVO, MAX_PASSOS_DO_LACO } from "@yu-book/shared";
+import { DEFINICOES_DO_ASSISTENTE, MAX_PASSOS_DO_LACO } from "@yu-book/shared";
 import type { AgentDetail, AgentPreview, AgentPreviewInput } from "@yu-book/shared";
 import { chaveDoAgente } from "../../lib/agentes";
 import { api } from "../../lib/api";
 import { emDolares } from "../ajustes/comum";
-import { IconeAlerta } from "../Icones";
+import { IconeAlerta, IconeGlobo } from "../Icones";
 import type { PassoRascunho } from "./rascunho";
 
 /**
  * O contexto que o agente recebe num passo de rotina: o dele, com só as
  * ferramentas de leitura — as de escrita não vão ao provedor na rotina, e o
- * catálogo delas também custa.
+ * catálogo delas também custa. `open_page` é de leitura e fica. A busca na web
+ * vai junto (Etapa G): o passo busca na primeira chamada, como a mensagem do
+ * chat, e a prévia devolve o que ela soma.
  */
 function entradaDaPrevia(a: AgentDetail): AgentPreviewInput {
   return {
@@ -19,7 +21,8 @@ function entradaDaPrevia(a: AgentDetail): AgentPreviewInput {
     color: a.color,
     instructionsMd: a.instructionsMd,
     modelId: a.modelId,
-    tools: a.tools.filter((t) => !FERRAMENTAS_DO_ACERVO[t].escrita),
+    tools: a.tools.filter((t) => !DEFINICOES_DO_ASSISTENTE[t].escrita),
+    webSearch: a.webSearch,
     baseNoteIds: a.baseNotes.map((n) => n.id),
     liveSources: a.liveSources
       .filter((f) => f.columnName !== null)
@@ -77,6 +80,7 @@ export function Estimativa({
     detalhes.some((d) => d.isLoading) || previas.some((p, i) => entradas[i] && p.isLoading);
 
   let piso = 0;
+  let buscas = 0;
   const semEstimativa: string[] = [];
   let semAgente = 0;
   for (const p of passos) {
@@ -85,8 +89,12 @@ export function Estimativa({
       continue;
     }
     const previa = porAgente.get(p.agentId);
-    if (previa?.costPerStepMicros != null) piso += previa.costPerStepMicros;
-    else if (previa) semEstimativa.push(p.agentName);
+    if (previa?.costPerStepMicros != null) {
+      // A busca é uma por passo — só a primeira chamada dele busca —, então
+      // entra no piso inteira, e não por volta do laço.
+      piso += previa.costPerStepMicros + previa.webSearchMicros;
+      if (previa.webSearchMicros > 0) buscas += 1;
+    } else if (previa) semEstimativa.push(p.agentName);
   }
   const estoura = piso > tetoMicros && tetoMicros > 0;
 
@@ -113,6 +121,13 @@ export function Estimativa({
         Uma chamada por passo, com o contexto de cada agente e a saída máxima. Consultar o acervo
         soma chamadas — até {MAX_PASSOS_DO_LACO} por passo. Teto: {emDolares(tetoMicros)}.
       </p>
+      {buscas > 0 && (
+        <p className="mt-1 flex items-start gap-1 text-miudo text-ink-400">
+          <IconeGlobo className="mt-px size-3" />
+          {buscas === 1 ? "Um passo busca" : `${buscas} passos buscam`} na web, uma vez cada — a
+          busca está somada.
+        </p>
+      )}
       {semAgente > 0 && (
         <p className="mt-1 text-miudo text-ink-400">
           {semAgente === 1 ? "Um passo" : `${semAgente} passos`} sem agente, fora da conta.

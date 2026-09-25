@@ -34,6 +34,7 @@ import {
 } from "../Icones";
 import { useAgenteDaConversa } from "./agenteDaConversa";
 import { ApresentacaoAgente } from "./ApresentacaoAgente";
+import { Fontes } from "./Fontes";
 
 /**
  * As falas de uma conversa (RF-17 a RF-26 da IA) — a mesma nas duas
@@ -57,37 +58,10 @@ const ROTULO_DA_ACAO: Record<string, string> = {
   // gravado — é a hora em que o usuário mais precisa saber o que acontece.
   create_card: "criando card",
   create_note: "criando nota",
+  // Etapa G: a única que sai do Yu-book. A espera é a rede de um terceiro, e
+  // pode chegar a segundos.
+  open_page: "abrindo página",
 };
-
-/**
- * Nota e quadro têm rota própria. **Card não tem rota sem o quadro**
- * (`/b/:boardId/c/:cardId`), e a fonte carrega só o id do card — então o chip
- * de um card não navega, e por isso ele não é um botão: um controle que não
- * faz nada é pior do que um rótulo honesto.
- */
-function Fontes({ fontes, onAbrir }: { fontes: ChatSource[]; onAbrir: (f: ChatSource) => void }) {
-  if (fontes.length === 0) return null;
-  return (
-    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-      <span className="text-miudo text-ink-400">consultou</span>
-      {fontes.map((f) =>
-        f.kind === "card" ? (
-          <Etiqueta key={`${f.kind}-${f.id}`}>{f.title}</Etiqueta>
-        ) : (
-          <Etiqueta
-            key={`${f.kind}-${f.id}`}
-            tom="destaque"
-            como="button"
-            onClick={() => onAbrir(f)}
-            titulo={f.kind === "note" ? "Abrir a nota" : "Abrir o quadro"}
-          >
-            {f.title}
-          </Etiqueta>
-        ),
-      )}
-    </div>
-  );
-}
 
 /**
  * Avatar de quem responde. Sem agente, a faísca do trilho no gradiente de IA;
@@ -710,7 +684,11 @@ export function Conversa({
                 ? `${ROTULO_DA_ACAO[emCurso.ferramenta] ?? emCurso.ferramenta}…`
                 : emCurso.texto
                   ? ""
-                  : "pensando…"}
+                  : emCurso.buscando
+                    ? // Etapa G: a primeira chamada com busca demora mais que as
+                      // outras, e o silêncio seria sem explicação.
+                      "buscando na web…"
+                    : "pensando…"}
             </p>
             {emCurso.texto && (
               <div

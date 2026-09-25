@@ -2,17 +2,19 @@ import { env } from "../../env.js";
 import { AppError } from "../../lib/errors.js";
 
 /**
- * Transporte para o OpenRouter — o **terceiro** ponto em que este servidor abre
- * conexão para fora, e o segundo com host fixo.
+ * Transporte para o OpenRouter — saída com **host fixo**.
  *
- * Como em `youtube.service.ts`, o alvo não vem do usuário: sai do ambiente e
- * nenhuma parte da URL é escolhida por quem chama. **Não há superfície de SSRF
- * aqui**, ao contrário da busca genérica de título — por isso nada passa por
- * `destinoPermitido`.
+ * Como em `youtube.service.ts`, o alvo não vem do usuário nem do modelo: sai do
+ * ambiente e nenhuma parte da URL é escolhida por quem chama. **Não há
+ * superfície de SSRF aqui**, ao contrário da leitura de título dos links e da
+ * ferramenta `open_page`, cujo alvo é de terceiro — por isso nada passa por
+ * `pedirPublico` (INV-08). A busca na web é um campo `plugins` deste pedido, não
+ * uma saída nossa.
  *
- * A diferença em relação aos outros dois: lá falhar vira `null`, porque não pode
- * impedir o link de ser salvo. Aqui o erro **sobe** com código estável — o
- * usuário clicou num botão e precisa saber que não aconteceu (RF-06).
+ * A diferença em relação às saídas de alvo de terceiro: lá a falha vira `null`
+ * (o link é salvo mesmo assim) ou texto para o modelo (`open_page`). Aqui o erro
+ * **sobe** com código estável — o usuário clicou num botão e precisa saber que
+ * não aconteceu (RF-06).
  */
 
 /// Leitura de metadado é barata; geração de texto não passa por aqui ainda.

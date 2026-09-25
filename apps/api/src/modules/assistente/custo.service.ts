@@ -1,5 +1,10 @@
 import type { AiCostSource, AiTask, AiUsageSummary } from "@yu-book/shared";
-import { diaLocal, microsParaDolares } from "@yu-book/shared";
+import {
+  CHARS_ESTIMADOS_DA_BUSCA,
+  CUSTO_ESTIMADO_BUSCA_MICROS,
+  diaLocal,
+  microsParaDolares,
+} from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError } from "../../lib/errors.js";
 
@@ -63,6 +68,26 @@ export function estimarCustoMicros(
   return Math.ceil(
     custoDeTokens(tokensEntrada, preco.promptMicros) +
       custoDeTokens(maxTokensSaida, preco.completionMicros),
+  );
+}
+
+/**
+ * A estimativa de uma chamada que pode levar a busca na web (Etapa G). Com
+ * ela, soma a tarifa **e** os caracteres que os resultados injetam no contexto
+ * — cobrados como entrada, ao preço do modelo (INV-47). É a conta única do
+ * passo, do 402 de `iniciar` e da prévia do agente: as três têm de concordar,
+ * ou a prévia promete um custo que o teto não usa.
+ */
+export function estimarComBusca(
+  preco: PrecoDoModelo,
+  charsEntrada: number,
+  maxTokensSaida: number,
+  buscaNaWeb: boolean,
+): number {
+  if (!buscaNaWeb) return estimarCustoMicros(preco, charsEntrada, maxTokensSaida);
+  return (
+    estimarCustoMicros(preco, charsEntrada + CHARS_ESTIMADOS_DA_BUSCA, maxTokensSaida) +
+    CUSTO_ESTIMADO_BUSCA_MICROS
   );
 }
 
@@ -167,6 +192,35 @@ export function custoDaResposta(uso: UsoDoProvedor | undefined, preco: PrecoDoMo
   }
 
   return { promptTokens: 0, completionTokens: 0, costMicros: 0, costSource: "desconhecido" };
+}
+
+/**
+ * A parcela da busca na web (Etapa G), quando a chamada a levou.
+ *
+ * **Decisão sem medição, e declarada.** O `usage.cost` do OpenRouter é
+ * descrito como o total cobrado pela chamada, e a busca é cobrada nos créditos
+ * da mesma chamada — que ela entre nesse número é a leitura mais provável, mas
+ * não foi medida com uma resposta real neste projeto (a etapa foi escrita sem
+ * rede). Então:
+ *
+ * - `provedor`: o custo informado é tomado como já incluindo a busca, e nada
+ *   se soma. Somar de novo contaria a busca duas vezes e moveria o teto antes
+ *   da hora.
+ * - `estimado` (o provedor mandou tokens, não custo): a estimativa da busca é
+ *   somada — a conta por tokens não a enxerga, e sem ela o teto só veria o
+ *   texto.
+ * - `desconhecido`: continua zero, sem somar. O terceiro degrau existe para
+ *   sinalizar que o provedor parou de informar (INV-48); dar a ele um valor
+ *   o tiraria da contagem de chamadas sem custo e apagaria o sinal.
+ *
+ * O que falta, em produção: uma mensagem com a busca ligada e conferir, no
+ * painel do OpenRouter, se o custo da geração (`generationId` gravado em
+ * `ai_usage`) é o mesmo de `cost_micros` ou o dele mais a busca. Se não
+ * incluir, o ramo `provedor` passa a somar também.
+ */
+export function comBusca(custo: CustoApurado, buscou: boolean, buscaMicros: number): CustoApurado {
+  if (!buscou || custo.costSource !== "estimado") return custo;
+  return { ...custo, costMicros: custo.costMicros + buscaMicros };
 }
 
 export interface RegistroDeUso extends CustoApurado {

@@ -57,6 +57,8 @@ export interface EmCurso {
   anexos: Anexo[];
   texto: string;
   ferramenta: string | null;
+  /** O provedor está buscando na web antes de responder (Etapa G) — até o primeiro pedaço. */
+  buscando: boolean;
   fontes: ChatSource[];
   /** O que a resposta já gravou no acervo (Etapa C da IA) — chega antes do fim. */
   criados: ChatCreated[];
@@ -312,6 +314,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       anexos: enviados,
       texto: "",
       ferramenta: null,
+      buscando: false,
       fontes: [],
       criados: [],
       cortados: [],
@@ -351,19 +354,22 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
                   premissasCortadas: evento.premissasCortadas ?? [],
                 };
               case "delta":
-                return { ...f, texto: f.texto + evento.texto, ferramenta: null };
+                return { ...f, texto: f.texto + evento.texto, ferramenta: null, buscando: false };
               case "ferramenta":
-                return { ...f, ferramenta: evento.nome };
-              case "fontes": {
-                /// Sem repetir: buscar e depois ler a mesma nota é o caminho
-                /// normal do laço, e cada evento traz a lista **daquela**
-                /// ferramenta, não o acumulado. Concatenar mostraria a nota
-                /// duas vezes e repetiria a chave React em `Fontes`.
-                const novas = evento.fontes.filter(
-                  (x) => !f.fontes.some((j) => j.kind === x.kind && j.id === x.id),
-                );
-                return novas.length ? { ...f, fontes: [...f.fontes, ...novas] } : f;
-              }
+                return { ...f, ferramenta: evento.nome, buscando: false };
+              case "busca":
+                return { ...f, buscando: true };
+              case "fontes":
+                /// Acumula sem deduplicar, de propósito: quem tira a repetição
+                /// é `Fontes` (`components/assistente/Fontes.tsx`), pela
+                /// `chaveDaFonteDoChat` da API. Chamá-la aqui traria o módulo
+                /// `chat` de `shared` — com os schemas dele — para o bundle
+                /// inicial, onde este provedor mora (medido na Etapa G). Uma
+                /// segunda definição de "a mesma fonte" escrita aqui seria o
+                /// espelhamento frágil que ela existe para evitar.
+                return evento.fontes.length
+                  ? { ...f, fontes: [...f.fontes, ...evento.fontes] }
+                  : f;
               case "criado": {
                 const novos = evento.criados.filter(
                   (x) => !f.criados.some((j) => chaveCriado(j) === chaveCriado(x)),

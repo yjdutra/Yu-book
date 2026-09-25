@@ -1,4 +1,4 @@
-import { MAX_PASSOS_DO_LACO } from "@yu-book/shared";
+import { chaveDaFonteDoChat, MAX_PASSOS_DO_LACO } from "@yu-book/shared";
 import type {
   AiCallUsage,
   ChatEvent,
@@ -7,7 +7,7 @@ import type {
   ChatMessageInput,
   ChatSource,
 } from "@yu-book/shared";
-import type { AiFavorite, NomeDeFerramenta } from "@yu-book/shared";
+import type { AiFavorite, NomeDoAssistente } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError } from "../../lib/errors.js";
 import * as agentes from "./agentes.service.js";
@@ -50,7 +50,7 @@ import type { PreferenciaDeIa } from "./preferencias.service.js";
 
 /// A mensagem `system` não mora mais aqui: desde a Etapa D ela sai de
 /// `montarContextoDoAgente`, que com a conversa sem agente devolve as regras
-/// de sempre para a lista inteira do chat (`instrucoesPara`). E o passo com o
+/// de sempre para `FERRAMENTAS_SEM_AGENTE` (`instrucoesPara`). E o passo com o
 /// provedor — teto, fluxo, custo e uso — saiu para `passo.service.ts` na
 /// Etapa E, quando a rotina passou a precisar do mesmo.
 
@@ -144,9 +144,12 @@ export interface Sessao {
   /// Premissas do agente que não couberam, pela mesma regra (Etapa D).
   premissasCortadas: string[];
   /// O que esta conversa pode executar: a lista do agente cortada pela do
-  /// chat, ou a do chat inteira sem agente. Vazia, o campo `tools` sai da
-  /// requisição.
-  permitidas: NomeDeFerramenta[];
+  /// chat, ou `FERRAMENTAS_SEM_AGENTE` sem agente. Vazia, o campo `tools` sai
+  /// da requisição.
+  permitidas: NomeDoAssistente[];
+  /// O agente busca na web: a primeira chamada de cada mensagem leva o plugin
+  /// (Etapa G). Sempre `false` sem agente.
+  buscaNaWeb: boolean;
   /// O agente da conversa, para a marca do que ele criar.
   agentName: string | null;
 }
@@ -242,7 +245,11 @@ export async function preparar(
   /// ela tem que ser um 402 com nada transmitido, igual à formatação. A do laço
   /// existe porque o histórico cresce a cada passo, e o passo 4 custa mais que
   /// o passo 1.
-  await garantirTeto(userId, preferencia, estimarPasso(modelo, mensagens));
+  await garantirTeto(
+    userId,
+    preferencia,
+    estimarPasso(modelo, mensagens, contextoDoAgente.buscaNaWeb),
+  );
 
   /// **Só agora a pergunta é gravada**, e a ordem é o requisito.
   ///
@@ -268,6 +275,7 @@ export async function preparar(
     cortados,
     premissasCortadas: contextoDoAgente.cortados,
     permitidas: contextoDoAgente.permitidas,
+    buscaNaWeb: contextoDoAgente.buscaNaWeb,
     agentName: agente?.name ?? null,
   };
 }
@@ -378,6 +386,20 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
   const criadosDoTurno: ChatCreated[] = [];
   let ultima: ChatMessage | null = null;
 
+  /// Acrescenta ao turno o que ainda não está nele e devolve só o novo. A
+  /// chave é a de `packages/shared`, a mesma que a tela usa: id no acervo,
+  /// endereço na web.
+  const acrescentarFontes = (fontes: ChatSource[]): ChatSource[] => {
+    const novas: ChatSource[] = [];
+    for (const fonte of fontes) {
+      const chave = chaveDaFonteDoChat(fonte);
+      if (fontesDoTurno.some((j) => chaveDaFonteDoChat(j) === chave)) continue;
+      fontesDoTurno.push(fonte);
+      novas.push(fonte);
+    }
+    return novas;
+  };
+
   /** Se `criadosDoTurno` já está gravado em alguma fala — o `finally` confere. */
   let criadosGravados = false;
 
@@ -418,6 +440,11 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
       /// O teto é conferido **dentro** de `passoNoProvedor`, a cada passo e
       /// antes de a conexão sair (INV-47). Recusa ali lança antes do primeiro
       /// delta; as duas recusas se distinguem pelo código.
+      /// A busca na web só no primeiro passo: as voltas seguintes já têm os
+      /// resultados no histórico, e cada busca é cobrada (Etapa G).
+      const buscaNaWeb = sessao.buscaNaWeb && passo === 1;
+      if (buscaNaWeb) yield { tipo: "busca", passo };
+
       let resultado: ResultadoDoPasso;
       try {
         const passoAtual = passoNoProvedor({
@@ -429,6 +456,7 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
           maxTokens: saida.maxTokens,
           task: "chat",
           vinculo: { conversationId },
+          buscaNaWeb,
         });
         while (true) {
           const pedaco = await passoAtual.next();
@@ -457,6 +485,19 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
       }
 
       usos.push(resultado.usage);
+
+      /// As citações da busca viram fontes `web` do turno **antes** de gravar
+      /// a fala: se ela fecha o turno, é ela que leva a lista.
+      if (resultado.citacoes.length) {
+        const novas = acrescentarFontes(
+          resultado.citacoes.map((c) => ({
+            kind: "web" as const,
+            url: c.url,
+            title: c.title || ferramentas.tituloDoEndereco(c.url),
+          })),
+        );
+        if (novas.length) yield { tipo: "fontes", fontes: novas };
+      }
 
       /// A fala do assistente é gravada mesmo quando ela é só um pedido de
       /// ferramenta sem texto: é ela que carrega os `tool_calls` que o provedor
@@ -513,14 +554,12 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
             yield { tipo: "criado", criados };
           }
           if (saida.fontes.length) {
-            const fontes = saida.fontes.map((f) => ({ kind: f.tipo, id: f.id, title: f.titulo }));
-            /// Sem repetir: duas ferramentas costumam tocar a mesma nota — buscar
-            /// e depois lê-la é o caminho normal.
-            for (const fonte of fontes) {
-              if (!fontesDoTurno.some((j) => j.kind === fonte.kind && j.id === fonte.id)) {
-                fontesDoTurno.push(fonte);
-              }
-            }
+            const fontes = saida.fontes.map(ferramentas.paraFonteDoChat);
+            /// Sem repetir no turno: duas ferramentas costumam tocar a mesma
+            /// nota — buscar e depois lê-la é o caminho normal. O evento leva a
+            /// lista inteira da ação, como sempre levou; a tela deduplica pela
+            /// mesma chave.
+            acrescentarFontes(fontes);
             yield { tipo: "fontes", fontes };
           }
         } catch (erro) {

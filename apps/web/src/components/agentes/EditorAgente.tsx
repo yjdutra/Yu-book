@@ -1,11 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  CUSTO_ESTIMADO_BUSCA_MICROS,
   MAX_DESCRICAO_AGENTE,
   MAX_FONTES_VIVAS,
   MAX_INSTRUCOES_AGENTE,
   MAX_NOME_AGENTE,
   MAX_NOTAS_BASE,
   MAX_PREMISSAS_DO_AGENTE,
+  MAX_RESULTADOS_DA_BUSCA,
   MODELOS_DE_AGENTE,
   normalizarTitulo,
 } from "@yu-book/shared";
@@ -15,7 +17,7 @@ import type {
   AgentInput,
   AgentPreviewInput,
   ModeloDeAgente,
-  NomeDeFerramenta,
+  NomeDoAssistente,
 } from "@yu-book/shared";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -31,6 +33,7 @@ import { useGuardaDeSaida } from "../../lib/guardaDeSaida";
 import { useCriarNota, useTitulos } from "../../lib/notas";
 import type { TituloSugerido } from "../../lib/notas";
 import { useWorkspaceAtivo } from "../../lib/workspace";
+import { emDolares } from "../ajustes/comum";
 import { Aviso } from "../base/Aviso";
 import { Botao, BotaoIcone } from "../base/Botao";
 import { Dialogo } from "../base/Dialogo";
@@ -44,6 +47,7 @@ import {
   IconeAlerta,
   IconeChevron,
   IconeFechar,
+  IconeGlobo,
   IconeLapis,
   IconeMais,
   IconeNotas,
@@ -59,7 +63,8 @@ import {
   LinhaFonte,
 } from "./CamposDoAgente";
 import type { FonteRascunho } from "./CamposDoAgente";
-import { FERRAMENTAS_DO_AGENTE, FERRAMENTAS_PADRAO } from "./ferramentas";
+import { FERRAMENTAS_DO_AGENTE, FERRAMENTAS_PADRAO, levaOAcervoParaFora } from "./ferramentas";
+import type { FerramentaOferecida } from "./ferramentas";
 import { PreviaAgente } from "./PreviaAgente";
 
 const NUMERO = new Intl.NumberFormat("pt-BR");
@@ -78,7 +83,10 @@ interface Rascunho {
   color: AgentColor;
   instructionsMd: string;
   modelId: string | null;
-  tools: NomeDeFerramenta[];
+  tools: NomeDoAssistente[];
+  /// A busca na web (Etapa G): não é ferramenta — o modelo não a chama, o
+  /// provedor a faz na primeira chamada de cada mensagem.
+  webSearch: boolean;
   notas: NotaBase[];
   fontes: FonteRascunho[];
 }
@@ -93,6 +101,7 @@ const VAZIO: Rascunho = {
   instructionsMd: "",
   modelId: null,
   tools: FERRAMENTAS_PADRAO,
+  webSearch: false,
   notas: [],
   fontes: [],
 };
@@ -105,6 +114,7 @@ function doDetalhe(a: AgentDetail): Rascunho {
     instructionsMd: a.instructionsMd,
     modelId: a.modelId,
     tools: a.tools,
+    webSearch: a.webSearch,
     notas: a.baseNotes.map((n) => ({ ...n })),
     fontes: a.liveSources.map((f) => ({
       chave: novaChave(),
@@ -131,7 +141,7 @@ function doModelo(m: ModeloDeAgente): Rascunho {
 const completa = (f: FonteRascunho) => Boolean(f.boardId && f.columnId);
 
 /** A ordem de `FERRAMENTAS_DO_AGENTE`: marcar e desmarcar não pode "sujar" o rascunho. */
-function emOrdem(tools: NomeDeFerramenta[]): NomeDeFerramenta[] {
+function emOrdem(tools: NomeDoAssistente[]): NomeDoAssistente[] {
   return FERRAMENTAS_DO_AGENTE.map((f) => f.nome).filter((n) => tools.includes(n));
 }
 
@@ -143,6 +153,7 @@ function paraEntrada(r: Rascunho): AgentInput {
     instructionsMd: r.instructionsMd,
     modelId: r.modelId,
     tools: emOrdem(r.tools),
+    webSearch: r.webSearch,
     baseNoteIds: r.notas.map((n) => n.id),
     liveSources: r.fontes.filter(completa).map((f) => ({
       tipo: "coluna" as const,
@@ -500,8 +511,41 @@ export function EditorAgente({ id }: { id: string | null }) {
   }
 
   const nomeVisivel = rascunho.name.trim() || (id ? "Sem nome" : "Novo agente");
-  const escrita = FERRAMENTAS_DO_AGENTE.filter((f) => f.escrita);
-  const leitura = FERRAMENTAS_DO_AGENTE.filter((f) => !f.escrita);
+  const escrita = FERRAMENTAS_DO_AGENTE.filter((f) => f.escrita && !f.web);
+  const leitura = FERRAMENTAS_DO_AGENTE.filter((f) => !f.escrita && !f.web);
+  const naWeb = FERRAMENTAS_DO_AGENTE.filter((f) => f.web);
+
+  function interruptorDe(f: FerramentaOferecida) {
+    return (
+      <Interruptor
+        key={f.nome}
+        ligado={rascunho.tools.includes(f.nome)}
+        onMudar={(ligar) =>
+          mudar({
+            tools: ligar
+              ? emOrdem([...rascunho.tools, f.nome])
+              : rascunho.tools.filter((t) => t !== f.nome),
+          })
+        }
+        rotulo={f.titulo}
+        descricao={
+          f.escrita
+            ? `${f.explicacao} O que criar fica marcado como gerado por IA, ` +
+              "com o nome do agente."
+            : f.explicacao
+        }
+        extra={
+          f.escrita ? (
+            <Etiqueta tom="ia" icone={<IconeLapis className="size-3" />}>
+              escreve no acervo
+            </Etiqueta>
+          ) : f.web ? (
+            <Etiqueta icone={<IconeGlobo className="size-3" />}>sai para a web</Etiqueta>
+          ) : undefined
+        }
+      />
+    );
+  }
 
   return (
     <div ref={raiz} className="flex flex-col gap-5">
@@ -925,8 +969,8 @@ export function EditorAgente({ id }: { id: string | null }) {
               titulo="Ferramentas"
               descricao={
                 <>
-                  O que o agente pode fazer no acervo. Só esta lista concede — nada do que estiver
-                  nas instruções liga uma ferramenta.
+                  O que o agente pode fazer no acervo e na web. Só esta lista concede — nada do
+                  que estiver nas instruções liga uma ferramenta.
                 </>
               }
               acao={<Contador n={rascunho.tools.length} max={FERRAMENTAS_DO_AGENTE.length} />}
@@ -938,37 +982,65 @@ export function EditorAgente({ id }: { id: string | null }) {
                 ].map(({ grupo, lista }) => (
                   <div key={grupo} role="group" aria-label={grupo}>
                     <p className="rotulo mb-2">{grupo}</p>
-                    <div className="grid gap-3">
-                      {lista.map((f) => (
-                        <Interruptor
-                          key={f.nome}
-                          ligado={rascunho.tools.includes(f.nome)}
-                          onMudar={(ligar) =>
-                            mudar({
-                              tools: ligar
-                                ? emOrdem([...rascunho.tools, f.nome])
-                                : rascunho.tools.filter((t) => t !== f.nome),
-                            })
-                          }
-                          rotulo={f.titulo}
-                          descricao={
-                            f.escrita
-                              ? `${f.explicacao} O que criar fica marcado como gerado por IA, ` +
-                                "com o nome do agente."
-                              : f.explicacao
-                          }
-                          extra={
-                            f.escrita ? (
-                              <Etiqueta tom="ia" icone={<IconeLapis className="size-3" />}>
-                                escreve no acervo
-                              </Etiqueta>
-                            ) : undefined
-                          }
-                        />
-                      ))}
-                    </div>
+                    <div className="grid gap-3">{lista.map(interruptorDe)}</div>
                   </div>
                 ))}
+
+                {/* Etapa G: o que sai do acervo. A busca não é ferramenta — o
+                    modelo não a chama nem escolhe o termo; o provedor busca a
+                    partir do pedido, na primeira chamada de cada mensagem. */}
+                <div role="group" aria-label="Na web">
+                  <p className="rotulo mb-2 flex items-center gap-1.5">
+                    <IconeGlobo className="size-3" />
+                    Na web
+                  </p>
+                  <div className="grid gap-3">
+                    <Interruptor
+                      ligado={rascunho.webSearch}
+                      onMudar={(webSearch) => mudar({ webSearch })}
+                      rotulo="Busca na web"
+                      descricao={
+                        <>
+                          A primeira resposta de cada mensagem busca até{" "}
+                          {MAX_RESULTADOS_DA_BUSCA} páginas na web a partir do seu pedido, e cita
+                          os endereços. O texto da mensagem vai para o motor de busca, que é de
+                          terceiro. Custa por busca, e o custo conta no teto do dia.
+                        </>
+                      }
+                      extra={
+                        <Etiqueta
+                          icone={<IconeGlobo className="size-3" />}
+                          titulo={
+                            "Tarifa pelo preço público da busca do provedor. Os resultados " +
+                            "entram no contexto e custam como entrada do modelo — a prévia " +
+                            "ao lado soma os dois."
+                          }
+                        >
+                          {emDolares(CUSTO_ESTIMADO_BUSCA_MICROS)} por busca + os resultados
+                        </Etiqueta>
+                      }
+                    />
+                    {naWeb.map(interruptorDe)}
+                  </div>
+                  {levaOAcervoParaFora(
+                    rascunho.tools,
+                    rascunho.notas.length > 0 || rascunho.fontes.length > 0,
+                  ) && (
+                    <Aviso tom="alerta" className="mt-3">
+                      Abrir páginas com o acervo à mão é um caminho de saída: uma página
+                      maliciosa pode tentar levar o agente a ler suas notas e mandá-las para
+                      fora, embutidas no endereço de outra página. Ligue as duas coisas juntas
+                      só em agente de confiança — e, em rotina que lê o acervo, prefira um
+                      agente sem «Abrir páginas».
+                    </Aviso>
+                  )}
+                  <p className="mt-2 text-miudo text-ink-400">
+                    O agente é instruído a tratar o que vem da web como dado e a ignorar
+                    pedidos escritos nas páginas — é uma instrução ao modelo, não uma garantia.
+                    Garantido é só que nada numa página liga uma ferramenta: quem concede é
+                    esta lista.
+                  </p>
+                </div>
               </div>
             </Parte>
           </div>

@@ -1,5 +1,5 @@
 import {
-  FERRAMENTAS_DO_ACERVO,
+  DEFINICOES_DO_ASSISTENTE,
   MAX_INSTRUCAO_DO_PASSO,
   MAX_PEDIDO_DA_ROTINA,
   MAX_TITULO_FIXO_DA_ROTINA,
@@ -25,6 +25,7 @@ import { useBoard } from "../../lib/kanban";
 import { useWorkspaces } from "../../lib/notas";
 import { CLASSE_CAMPO, SeletorColuna, useEscolhaDeColuna } from "../agentes/CamposDoAgente";
 import { AvatarAgente } from "../agentes/AvatarAgente";
+import { ehDaWeb, levaOAcervoParaFora } from "../agentes/ferramentas";
 import { emDolares } from "../ajustes/comum";
 import { Aviso } from "../base/Aviso";
 import { Etiqueta } from "../base/Etiqueta";
@@ -34,6 +35,7 @@ import {
   IconeBoard,
   IconeCheck,
   IconeFala,
+  IconeGlobo,
   IconeLapis,
   IconeNotas,
   IconeRotina,
@@ -258,7 +260,7 @@ function ConfigEntrada({
           <p id={idExplicaPedido} className="text-miudo text-ink-400">
             O pedido é a tarefa de toda execução, igual a cada vez. Cada execução é
             independente: não lembra das anteriores, e rodar de novo faz de novo. Os agentes
-            leem o acervo; busca na web e abrir página chegam na Etapa G.
+            leem o acervo e, quando ligadas neles, a busca e as páginas da web.
           </p>
         </div>
       )}
@@ -496,17 +498,38 @@ function ConfigPasso({
       {passo.agentId && agente && (
         <div>
           <p className="rotulo mb-1.5">Ferramentas do agente</p>
-          {agente.tools.length === 0 ? (
+          {agente.tools.length === 0 && !agente.webSearch ? (
             <p className="text-xs text-ink-400">
               Nenhuma — o agente responde só com o contexto.
             </p>
           ) : (
             <ul className="flex flex-wrap gap-1" aria-label="Ferramentas do agente">
+              {agente.webSearch && (
+                // Etapa G: a busca não é ferramenta, mas vale no passo — a
+                // primeira chamada dele busca, e isso custa.
+                <li>
+                  <Etiqueta
+                    tom="ia"
+                    icone={<IconeGlobo className="size-3" />}
+                    titulo="A primeira chamada do passo busca na web, a partir da ideia ou pedido"
+                  >
+                    busca na web
+                  </Etiqueta>
+                </li>
+              )}
               {agente.tools.map((t) => {
-                const f = FERRAMENTAS_DO_ACERVO[t];
+                const f = DEFINICOES_DO_ASSISTENTE[t];
                 return (
                   <li key={t}>
-                    {f.escrita ? (
+                    {ehDaWeb(t) ? (
+                      <Etiqueta
+                        tom="destaque"
+                        icone={<IconeGlobo className="size-3" />}
+                        titulo="Leitura na web: vale na rotina"
+                      >
+                        {f.titulo}
+                      </Etiqueta>
+                    ) : f.escrita ? (
                       <Etiqueta
                         icone={<IconeLapis className="size-3" />}
                         titulo="Fora na rotina: quem escreve no acervo é a rotina, na saída"
@@ -525,6 +548,11 @@ function ConfigPasso({
           <p className="mt-1.5 text-miudo text-ink-400">
             Só para ler: na rotina, valem apenas as ferramentas de leitura. O card ou a nota
             sai pelo código, no bloco de saída — o agente não cria nada.{" "}
+            {(agente.webSearch || agente.tools.some(ehDaWeb)) &&
+              "As páginas que ele usar saem citadas na seção «Fontes» da saída. "}
+            {agente.webSearch &&
+              `A busca manda o texto do passo — ${porColuna ? "a ideia" : "o pedido"} e o ` +
+                "rascunho — para o motor de busca, que é de terceiro. "}
             <Link
               to={`/assistente/agentes/${passo.agentId}`}
               className="text-accent-400 underline underline-offset-2"
@@ -532,6 +560,18 @@ function ConfigPasso({
               Editar o agente
             </Link>
           </p>
+          {/* A rotina roda sem ninguém olhando: o aviso do editor do agente,
+              curto, onde se escolhe o agente do passo. */}
+          {levaOAcervoParaFora(
+            agente.tools,
+            agente.baseNotes.length > 0 || agente.liveSources.length > 0,
+          ) && (
+            <Aviso tom="alerta" className="mt-2">
+              Este agente abre páginas e lê o acervo, e a rotina roda sem ninguém olhando: uma
+              página maliciosa pode tentar fazê-lo mandar notas para fora pelo endereço de
+              outra página. Prefira aqui um agente sem «Abrir páginas».
+            </Aviso>
+          )}
         </div>
       )}
     </div>

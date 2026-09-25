@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { AvatarAgente } from "../agentes/AvatarAgente";
 import { contar, rotuloDoModelo } from "../agentes/comum";
 import { Etiqueta } from "../base/Etiqueta";
-import { IconeBoard, IconeLapis, IconeNotas } from "../Icones";
+import { IconeBoard, IconeGlobo, IconeLapis, IconeNotas } from "../Icones";
 
 /**
  * O convite da conversa vazia quando há agente escolhido (Etapa D da IA): quem
@@ -64,6 +64,12 @@ export function ApresentacaoAgente({
             </>
           )}
         </Etiqueta>
+        {agente.webSearch && (
+          // Etapa G: sai do acervo — e cada busca é cobrada. Glifo e palavra.
+          <Etiqueta icone={<IconeGlobo className="size-3" />} titulo="Busca na web ligada">
+            busca na web
+          </Etiqueta>
+        )}
         <Etiqueta tom="ia">{rotuloDoModelo(agente)}</Etiqueta>
       </div>
 

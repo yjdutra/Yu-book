@@ -1,5 +1,5 @@
 import {
-  FERRAMENTAS_DO_CHAT,
+  FERRAMENTAS_SEM_AGENTE,
   FUSO_PADRAO,
   MAX_PASSOS_DO_LACO,
   formatarNota,
@@ -420,7 +420,8 @@ describe("o que o modelo pode pedir", () => {
 
     const corpo = dublê.corpos.at(-1) as { tools?: { function: { name: string } }[] };
     const nomes = (corpo.tools ?? []).map((f) => f.function.name).sort();
-    expect(nomes).toEqual([...FERRAMENTAS_DO_CHAT].sort());
+    // Sem agente, o acervo sem a web (Etapa G): `FERRAMENTAS_SEM_AGENTE`.
+    expect(nomes).toEqual([...FERRAMENTAS_SEM_AGENTE].sort());
     expect(nomes).not.toContain("trash_note");
     expect(nomes).not.toContain("move_card");
     expect(nomes).not.toContain("restore_note");

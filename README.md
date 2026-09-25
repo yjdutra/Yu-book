@@ -119,7 +119,21 @@ começar, ela tenta de novo a cada 5 minutos, até 3 vezes, e depois fica "pulad
 execução que começou nunca se repete, para não cobrar de novo. O **Início** ganhou o bloco Rotinas,
 com o que rodou, falhou ou foi pulado desde a última visita, e os próximos horários. **Foi entregue
 sem conferência de interface à mão**, e o roteiro está em [`docs/historico.md`](docs/historico.md).
-O próximo passo da frente de IA é a **Etapa G**, pesquisa externa.
+
+Ainda em **2026-09-25** veio a **Etapa G, pesquisa externa**. O agente pode ter a **busca na web**,
+pelo plugin do OpenRouter, que busca uma vez por mensagem ou passo de rotina, a partir do pedido. Pode
+ter também a ferramenta **"Abrir página"**, que lê status, título e texto de uma página pública e
+recusa LinkedIn. As duas vêm desligadas e se ligam agente a agente, e o Assistente sem agente não
+as tem. As páginas usadas aparecem como fontes clicáveis no chat e na seção "Fontes" do que a rotina
+gera. O custo estimado da busca entra no teto antes de conectar. A saída para endereço de terceiro
+virou uma só, com a conexão presa ao IP conferido, e isso fechou uma brecha de DNS rebinding que a
+leitura de título dos links tinha desde a Fase 3. Nada disso entra no servidor MCP. **Foi entregue
+sem conferência de interface à mão, e o custo real da busca não foi medido.** Os riscos que
+sobraram estão declarados em [`docs/historico.md`](docs/historico.md).
+
+**Com a G, a frente de agentes de acervo (Etapas C a G) está concluída**, mas nenhuma dessas etapas
+foi publicada. O próximo passo é a conferência à mão, com os roteiros somados das cinco etapas em
+[`docs/historico.md`](docs/historico.md), e depois a decisão de publicar.
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
@@ -515,12 +529,15 @@ Para ligar a duração: crie uma chave da **YouTube Data API v3** no Google Clou
 
 ### Sobre ler o título da página
 
-Este é o único ponto do Yu-book em que **o servidor abre conexão para um endereço que veio de
-fora**, então ele é tratado como hostil:
+Este é um dos dois pontos do Yu-book em que **o servidor abre conexão para um endereço que veio de
+fora**. O outro é a ferramenta "Abrir página" do assistente. Os dois tratam o endereço como hostil e
+saem pela mesma função, `pedirPublico`, em `apps/api/src/lib/saidaSegura.ts`. Os limites abaixo são
+os do título. "Abrir página" usa 8 segundos e 1 MB.
 
 | Defesa | O que impede |
 |---|---|
 | Recusa IP de laço, privado, link-local, CGNAT e multicast | usar o Yu-book para varrer a rede interna da Railway |
+| Conecta no IP que foi conferido, sem resolver o nome de novo | um DNS que responde público na conferência e privado na conexão (DNS rebinding) |
 | Revalida **a cada redirecionamento**, no máximo 3 saltos | um endereço público que redireciona para `localhost` |
 | Recusa `169.254.169.254` como qualquer outro link-local | ler as credenciais de metadados da nuvem |
 | Lê no máximo 512 KB, e só se for HTML | derrubar a API com uma resposta de 2 GB |

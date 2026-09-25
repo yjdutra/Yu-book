@@ -34,10 +34,34 @@ export const MODELOS = [
   },
 ];
 
+/** Uma página citada pela busca na web do provedor (Etapa G). */
+export interface CitacaoDoDublê {
+  url: string;
+  title: string;
+}
+
+/**
+ * O que um turno pode acrescentar à forma de sempre (Etapa G). Sem nada disto,
+ * o fluxo sai byte a byte igual ao de antes.
+ *
+ * - `citacoes`: `annotations` do tipo `url_citation`, na forma documentada do
+ *   plugin `web`. Vão num evento de `delta` depois do texto (`citacoesNa:
+ *   "delta"`, o padrão) ou numa `message` inteira no evento do
+ *   `finish_reason` (`"mensagem"`) — os dois lugares que `fluxo.ts` lê.
+ * - `uso`: `"com_custo"` é o de sempre; `"sem_custo"` manda tokens sem `cost`
+ *   (o degrau `estimado` do INV-48); `"nenhum"` não manda `usage` algum (o
+ *   degrau `desconhecido`).
+ */
+interface Extras {
+  citacoes?: CitacaoDoDublê[];
+  citacoesNa?: "delta" | "mensagem";
+  uso?: "com_custo" | "sem_custo" | "nenhum";
+}
+
 /** Um turno roteirizado do provedor. */
 export type Turno =
-  | { tipo: "texto"; texto: string; custoMicros?: number }
-  | { tipo: "ferramenta"; nome: string; argumentos: string; custoMicros?: number }
+  | ({ tipo: "texto"; texto: string; custoMicros?: number } & Extras)
+  | ({ tipo: "ferramenta"; nome: string; argumentos: string; custoMicros?: number } & Extras)
   /// O provedor respondendo 500 — o passo morre antes do primeiro byte do fluxo.
   | { tipo: "falha" }
   /// Manda `antes` e **para**, com a conexão aberta, até `solta` resolver; aí
@@ -62,12 +86,36 @@ export function comoSse(turno: Exclude<Turno, { tipo: "falha" } | { tipo: "segur
   const id = "gen-teste";
   const base = { id, object: "chat.completion.chunk", model: "estudio/conversa" };
   const eventos: unknown[] = [];
+  const anotacoes = (turno.citacoes ?? []).map((c) => ({
+    type: "url_citation",
+    url_citation: { url: c.url, title: c.title },
+  }));
+  const naMensagem = turno.citacoesNa === "mensagem";
+  /// No `delta`, as anotações chegam num evento próprio, depois do texto.
+  const citarNoDelta = () => {
+    if (anotacoes.length && !naMensagem) {
+      eventos.push({ ...base, choices: [{ index: 0, delta: { annotations: anotacoes } }] });
+    }
+  };
+  /// Na `message`, vêm inteiras no evento do `finish_reason`.
+  const fechar = (motivo: string) => ({
+    ...base,
+    choices: [
+      {
+        index: 0,
+        delta: {},
+        ...(anotacoes.length && naMensagem && { message: { annotations: anotacoes } }),
+        finish_reason: motivo,
+      },
+    ],
+  });
 
   if (turno.tipo === "texto") {
     for (const pedaco of turno.texto.match(/.{1,12}/gs) ?? []) {
       eventos.push({ ...base, choices: [{ index: 0, delta: { content: pedaco } }] });
     }
-    eventos.push({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }] });
+    citarNoDelta();
+    eventos.push(fechar("stop"));
   } else {
     eventos.push({
       ...base,
@@ -94,18 +142,22 @@ export function comoSse(turno: Exclude<Turno, { tipo: "falha" } | { tipo: "segur
         choices: [{ index: 0, delta: { tool_calls: [{ index: 0, function: { arguments: naco } }] } }],
       });
     }
-    eventos.push({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }] });
+    citarNoDelta();
+    eventos.push(fechar("tool_calls"));
   }
 
   /// O evento separado do `usage`, depois do `finish_reason`.
+  const uso = turno.uso ?? "com_custo";
   eventos.push({
     ...base,
     choices: [{ index: 0, delta: {}, finish_reason: turno.tipo === "texto" ? "stop" : "tool_calls" }],
-    usage: {
-      prompt_tokens: 10,
-      completion_tokens: 5,
-      cost: (turno.custoMicros ?? 0) / 1_000_000,
-    },
+    ...(uso !== "nenhum" && {
+      usage: {
+        prompt_tokens: 10,
+        completion_tokens: 5,
+        ...(uso === "com_custo" && { cost: (turno.custoMicros ?? 0) / 1_000_000 }),
+      },
+    }),
   });
 
   return `${eventos.map((e) => `data: ${JSON.stringify(e)}`).join("\n\n")}\n\ndata: [DONE]\n\n`;

@@ -2,7 +2,8 @@ import { z } from "zod";
 import { AGENDA_DESLIGADA, scheduleSchema, scheduleUpdateSchema } from "./agenda.js";
 import type { RoutineSchedule } from "./agenda.js";
 import type { AgentColor } from "./agentes.js";
-import type { NomeDeFerramenta } from "./ferramentas.js";
+import type { ChatSource } from "./chat.js";
+import type { NomeDoAssistente } from "./ferramentas.js";
 
 /**
  * Rotinas — Etapa E da frente de IA (`docs/prd-ia-no-yu-book.md`).
@@ -339,8 +340,10 @@ export interface RoutineStep extends RoutineStepSummary {
   instruction: string;
   /// As ferramentas do agente, para o painel mostrar só para leitura. Na
   /// rotina valem só as de leitura (`FERRAMENTAS_DE_LEITURA`), e o painel diz
-  /// isso.
-  agentTools: NomeDeFerramenta[];
+  /// isso. `open_page` é de leitura, e vale (Etapa G).
+  agentTools: NomeDoAssistente[];
+  /// O agente busca na web na primeira chamada do passo (Etapa G).
+  agentWebSearch: boolean;
 }
 
 /** Um problema que impede a rotina de rodar, apontado no bloco que o tem. */
@@ -405,6 +408,10 @@ export interface RoutineRunStep {
   errorCode: string | null;
   startedAt: string | null;
   endedAt: string | null;
+  /// O que o passo consultou — acervo e web, sem repetir (Etapa G). Vazio no
+  /// passo que não terminou e nas execuções anteriores à etapa. As de `web`
+  /// vão também para a seção "Fontes" da saída.
+  sources: ChatSource[];
 }
 
 export interface RoutineRunDetail extends RoutineRunSummary {

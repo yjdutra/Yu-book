@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import {
-  FERRAMENTAS_DO_ACERVO,
+  DEFINICOES_DO_ASSISTENTE,
   FERRAMENTAS_DO_CHAT,
   FUSO_PADRAO,
   PROXIMOS_HORARIOS,
@@ -10,7 +10,8 @@ import {
   resumoDoPedido,
 } from "@yu-book/shared";
 import type {
-  NomeDeFerramenta,
+  ChatSource,
+  NomeDoAssistente,
   RoutineSchedule,
   RoutineColumnRef,
   RoutineConsumeAction,
@@ -65,15 +66,24 @@ const invalida = (mensagem: string) => new AppError(422, "VALIDATION_ERROR", men
  * As ferramentas que um passo de rotina oferece ao modelo: as do agente, só as
  * de **leitura**, e só dentro de `FERRAMENTAS_DO_CHAT`. A escrita da rotina é
  * do código, na saída — texto de instrução não concede ferramenta (RN-14), e
- * aqui nem a lista do agente concede escrita.
+ * aqui nem a lista do agente concede escrita. `open_page` é de leitura e
+ * passa (Etapa G): um passo que o agente liga à web lê páginas.
+ *
+ * **"Só leitura" não quer dizer "sem saída".** Um passo com `open_page` e as
+ * leituras do acervo junta dado privado, página não confiável e rede: a
+ * página pode mandar abrir um endereço com o que ele leu na query string, e a
+ * cerca "é dado, não instrução" é forjável (risco descrito no cabeçalho de
+ * `web/pagina.service.ts`). E a busca na web do agente parte do texto do
+ * passo — a ideia ou o rascunho —, que vai ao motor de busca de terceiro. A
+ * mitigação é o opt-in por agente e o aviso na tela, não garantia.
  */
-export function ferramentasDaRotina(tools: readonly string[]): NomeDeFerramenta[] {
+export function ferramentasDaRotina(tools: readonly string[]): NomeDoAssistente[] {
   return FERRAMENTAS_DO_CHAT.filter(
-    (nome) => tools.includes(nome) && !FERRAMENTAS_DO_ACERVO[nome].escrita,
+    (nome) => tools.includes(nome) && !DEFINICOES_DO_ASSISTENTE[nome].escrita,
   );
 }
 
-function ferramentasDoAgente(tools: readonly string[]): NomeDeFerramenta[] {
+function ferramentasDoAgente(tools: readonly string[]): NomeDoAssistente[] {
   return FERRAMENTAS_DO_CHAT.filter((nome) => tools.includes(nome));
 }
 
@@ -141,17 +151,41 @@ export const CAMPOS_DO_PASSO_EXECUTADO = {
   errorCode: true,
   startedAt: true,
   endedAt: true,
+  sources: true,
 } satisfies Prisma.AiRoutineRunStepSelect;
 
 type PassoExecutadoNoBanco = Prisma.AiRoutineRunStepGetPayload<{
   select: typeof CAMPOS_DO_PASSO_EXECUTADO;
 }>;
 
+/**
+ * As fontes gravadas de um passo, relidas com a forma conferida item a item.
+ * A coluna é JSON escrito só pelo motor, mas um item fora da forma — de uma
+ * versão futura, ou escrito à mão — sai da lista em vez de derrubar a leitura
+ * da execução. Na web, só `http`/`https`: a tela o transforma em link.
+ */
+export function fontesDoPasso(valor: Prisma.JsonValue | null): ChatSource[] {
+  if (!Array.isArray(valor)) return [];
+  return valor.flatMap((item): ChatSource[] => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+    const { kind, id, url, title } = item as Record<string, unknown>;
+    if (typeof title !== "string") return [];
+    if (kind === "web") {
+      return typeof url === "string" && /^https?:\/\//i.test(url) ? [{ kind, url, title }] : [];
+    }
+    if ((kind === "note" || kind === "card" || kind === "board") && typeof id === "string") {
+      return [{ kind, id, title }];
+    }
+    return [];
+  });
+}
+
 export function paraPassoExecutado(linha: PassoExecutadoNoBanco): RoutineRunStep {
   return {
     ...linha,
     startedAt: linha.startedAt?.toISOString() ?? null,
     endedAt: linha.endedAt?.toISOString() ?? null,
+    sources: fontesDoPasso(linha.sources),
   };
 }
 
@@ -225,7 +259,9 @@ const CAMPOS_DA_ROTINA = {
       agentName: true,
       mode: true,
       instruction: true,
-      agent: { select: { name: true, color: true, tools: true, modelId: true } },
+      agent: {
+        select: { name: true, color: true, tools: true, webSearch: true, modelId: true },
+      },
     },
   },
   runs: { orderBy: { startedAt: "desc" }, take: 1, select: CAMPOS_DO_RUN },
@@ -561,6 +597,7 @@ export async function buscarPorId(userId: string, id: string): Promise<RoutineDe
     ...(resumo.steps[indice] as RoutineSummary["steps"][number]),
     instruction: passo.instruction,
     agentTools: passo.agent ? ferramentasDoAgente(passo.agent.tools) : [],
+    agentWebSearch: passo.agent?.webSearch ?? false,
   }));
 
   return {

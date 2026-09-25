@@ -14,6 +14,7 @@ import {
   IconeAlerta,
   IconeAssistente,
   IconeBoard,
+  IconeGlobo,
   IconeLapis,
   IconeMais,
   IconeNotas,
@@ -102,6 +103,12 @@ function CartaoAgente({
             </>
           )}
         </Etiqueta>
+        {agente.webSearch && (
+          // Etapa G: sai do acervo — e cada busca é cobrada. Glifo e palavra.
+          <Etiqueta icone={<IconeGlobo className="size-3" />} titulo="Busca na web ligada">
+            busca na web
+          </Etiqueta>
+        )}
         {agente.liveSourceCount > 0 && (
           <Etiqueta icone={<IconeBoard className="size-3" />}>
             {contar(agente.liveSourceCount, "fonte viva", "fontes vivas")}

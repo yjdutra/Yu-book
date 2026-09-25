@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { FERRAMENTAS_DO_ACERVO } from "@yu-book/shared";
+import { DEFINICOES_DO_ASSISTENTE } from "@yu-book/shared";
 import type {
-  NomeDeFerramenta,
+  NomeDoAssistente,
   RoutineRunDetail,
   RoutineRunStep,
   RotinaEvent,
@@ -34,6 +34,9 @@ import {
   IconeParar,
   IconeRotina,
 } from "../Icones";
+import { ehDaWeb } from "../agentes/ferramentas";
+import { Fontes } from "../assistente/Fontes";
+import type { FonteDoAcervo } from "../assistente/Fontes";
 import { ResumoDaPulada, textoDoGatilho } from "./Agenda";
 import {
   duracao,
@@ -53,10 +56,17 @@ import {
 /** Quantas vezes reassinar sozinho quando a conexão cai no meio. */
 const REASSINATURAS = 5;
 
+/**
+ * O nome vem do servidor como texto: o `in` sobre `DEFINICOES_DO_ASSISTENTE`
+ * — as duas origens, acervo e web (Etapa G) — é o que autoriza o cast. Sobre
+ * só o acervo, `open_page` cairia no nome cru.
+ */
+function ehDoAssistente(nome: string): nome is NomeDoAssistente {
+  return Object.hasOwn(DEFINICOES_DO_ASSISTENTE, nome);
+}
+
 function tituloDaFerramenta(nome: string): string {
-  return nome in FERRAMENTAS_DO_ACERVO
-    ? FERRAMENTAS_DO_ACERVO[nome as NomeDeFerramenta].titulo
-    : nome;
+  return ehDoAssistente(nome) ? DEFINICOES_DO_ASSISTENTE[nome].titulo : nome;
 }
 
 /**
@@ -346,14 +356,17 @@ function DetalheDoPasso({
   parcial,
   ferramenta,
   agora,
+  onAbrirFonte,
 }: {
   passo: RoutineRunStep;
   total: number;
   parcial: string | null;
   ferramenta: string | null;
   agora: number;
+  onAbrirFonte: (f: FonteDoAcervo) => void;
 }) {
   const rodando = passo.status === "rodando";
+  const naWeb = ferramenta !== null && ehDoAssistente(ferramenta) && ehDaWeb(ferramenta);
   const texto = rodando ? (parcial ?? "") : passo.text;
   // Sanitizado por DOMPurify em renderMarkdown (INV-09): o texto veio do modelo.
   const html = useMemo(() => (texto ? renderMarkdown(texto) : ""), [texto]);
@@ -408,7 +421,7 @@ function DetalheDoPasso({
         {rodando && ferramenta && (
           <p className="mb-2 flex items-center gap-2 text-xs text-accent-400">
             <Pulso />
-            Consultando o acervo: {tituloDaFerramenta(ferramenta)}
+            {naWeb ? "Na web" : "Consultando o acervo"}: {tituloDaFerramenta(ferramenta)}
           </p>
         )}
         {rodando && !ferramenta && !texto && (
@@ -440,6 +453,9 @@ function DetalheDoPasso({
             escrevendo…
           </p>
         )}
+        {/* Etapa G: o que o passo consultou, gravado com ele. A da web é link
+            externo; a do acervo abre pela casca, como no chat. */}
+        <Fontes fontes={passo.sources} onAbrir={onAbrirFonte} className="mt-3" />
         {passoCancelado(passo) ? (
           <Aviso tom="info" className="mt-3">
             Este passo foi cancelado antes de terminar.
@@ -488,6 +504,13 @@ export function ExecucaoRotina({
   const titulo = useRef<HTMLHeadingElement>(null);
   const emAndamento = run?.status === "em_andamento";
   const fuso = useAiAjustes().data?.timezone ?? null;
+
+  /// A fonte do acervo abre como no chat: a nota pela casca (INV-55), o
+  /// quadro pela rota dele. Card não chega aqui — sem o quadro, não tem rota.
+  function abrirFonte(fonte: FonteDoAcervo) {
+    if (fonte.kind === "note") onAbrirNota(fonte.id);
+    else if (fonte.kind === "board") navigate(`/b/${fonte.id}`);
+  }
 
   // O relógio da duração anda só enquanto há o que medir.
   useEffect(() => {
@@ -878,6 +901,7 @@ export function ExecucaoRotina({
             vivo.ferramenta?.position === foco.position ? vivo.ferramenta.nome : null
           }
           agora={agora}
+          onAbrirFonte={abrirFonte}
         />
       )}
 

@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { CUSTO_ESTIMADO_BUSCA_MICROS, MAX_RESULTADOS_DA_BUSCA } from "@yu-book/shared";
 import type { AiCallUsage, AiFavorite, AiTask } from "@yu-book/shared";
 import { AppError } from "../../lib/errors.js";
 import {
+  comBusca,
   custoDaResposta,
-  estimarCustoMicros,
+  estimarComBusca,
   garantirTeto,
   MAX_SAIDA_TOKENS,
   registrarUso,
@@ -12,7 +14,7 @@ import {
 import type { CustoApurado } from "./custo.service.js";
 import type { FerramentaParaProvedor } from "./ferramentas.service.js";
 import { lerFluxo } from "./fluxo.js";
-import type { PedidoDeFerramenta } from "./fluxo.js";
+import type { Citacao, PedidoDeFerramenta } from "./fluxo.js";
 import { abrirNoProvedor, politicaDeDados } from "./openrouter.service.js";
 import type { PreferenciaDeIa } from "./preferencias.service.js";
 
@@ -48,9 +50,30 @@ export function charsDe(mensagens: MensagemDoProvedor[]): number {
   return mensagens.reduce((soma, m) => soma + m.content.length, 0);
 }
 
-export function estimarPasso(modelo: AiFavorite, mensagens: MensagemDoProvedor[]): number {
-  return estimarCustoMicros(modelo, charsDe(mensagens), MAX_SAIDA_TOKENS);
+/**
+ * Quanto o passo deve custar, para o teto decidir antes de conectar (INV-47).
+ * Com a busca na web, soma a tarifa dela **e** os tokens dos resultados que o
+ * provedor injeta no contexto desta mesma chamada (`estimarComBusca`): um teto
+ * que só olhasse as mensagens deixaria passar a chamada que o estoura.
+ * `buscaNaWeb` sem valor padrão: esquecê-la é erro de compilação, não uma
+ * estimativa que perde a busca calada.
+ */
+export function estimarPasso(
+  modelo: AiFavorite,
+  mensagens: MensagemDoProvedor[],
+  buscaNaWeb: boolean,
+): number {
+  return estimarComBusca(modelo, charsDe(mensagens), MAX_SAIDA_TOKENS, buscaNaWeb);
 }
+
+/**
+ * O plugin de busca. `engine: "exa"` fixa o motor para que a tarifa de
+ * `CUSTO_ESTIMADO_BUSCA_MICROS` valha: sem ele o OpenRouter escolhe, e a busca
+ * nativa de alguns modelos tem outro preço. O campo `engine` e o preço do Exa
+ * vêm da documentação do OpenRouter e não foram conferidos com uma chamada
+ * real — a conferir em produção junto do custo (ver `comBusca`).
+ */
+const PLUGIN_DA_BUSCA = { id: "web", engine: "exa", max_results: MAX_RESULTADOS_DA_BUSCA };
 
 export function paraToolCalls(pedidos: PedidoDeFerramenta[]): unknown[] {
   return pedidos.map((p) => ({
@@ -104,6 +127,13 @@ export interface PedidoDoPasso {
   task: AiTask;
   vinculo: VinculoDoUso;
   /**
+   * Leva o plugin de busca na web do provedor (Etapa G). Quem chama liga só na
+   * **primeira** chamada de cada mensagem do chat e de cada passo de rotina:
+   * as voltas do laço de ferramenta não buscam de novo, porque cada busca é
+   * cobrada. Sem valor padrão, pelo mesmo motivo de `estimarPasso`.
+   */
+  buscaNaWeb: boolean;
+  /**
    * Um segundo corte, conferido **depois** do teto diário e antes de qualquer
    * conexão, com a mesma estimativa. Lança para recusar. É o teto por
    * execução da rotina; o chat não tem.
@@ -114,6 +144,8 @@ export interface PedidoDoPasso {
 
 export interface ResultadoDoPasso {
   texto: string;
+  /// As páginas que a busca na web citou. Vazio sem busca.
+  citacoes: Citacao[];
   pedidos: PedidoDeFerramenta[];
   usage: AiCallUsage;
   custo: CustoApurado;
@@ -139,7 +171,7 @@ export async function* passoNoProvedor(
 ): AsyncGenerator<string, ResultadoDoPasso, undefined> {
   const { userId, preferencia, modelo, mensagens, catalogo } = pedido;
 
-  const estimativa = estimarPasso(modelo, mensagens);
+  const estimativa = estimarPasso(modelo, mensagens, pedido.buscaNaWeb);
   const { localDay } = await garantirTeto(userId, preferencia, estimativa);
   if (pedido.tetoExtra) await pedido.tetoExtra(estimativa);
 
@@ -167,6 +199,9 @@ export async function* passoNoProvedor(
         stream_options: { include_usage: true },
         messages: mensagens,
         ...(catalogo.length > 0 && { tools: catalogo }),
+        ...(pedido.buscaNaWeb && {
+          plugins: [PLUGIN_DA_BUSCA],
+        }),
         ...politicaDeDados(preferencia.allowTraining),
       },
     });
@@ -181,6 +216,12 @@ export async function* passoNoProvedor(
       yield pedaco.value;
     }
   } catch (erro) {
+    /// Com a busca ligada, ela pode ter sido cobrada mesmo assim: o provedor
+    /// busca antes de gerar, e a falha pode vir depois (no meio do fluxo, por
+    /// cancelamento, por tempo). Esta linha grava 0 e `desconhecido` mesmo
+    /// então — não há `usage` para ler, e inventar a tarifa aqui tiraria a
+    /// chamada da contagem de "sem custo", que é o sinal do INV-48. O gasto
+    /// real, se houve, fica no painel do OpenRouter e fora do teto.
     await registrarUso({
       ...registro,
       promptTokens: 0,
@@ -199,7 +240,11 @@ export async function* passoNoProvedor(
   }
 
   const durationMs = Date.now() - inicio;
-  const custo = custoDaResposta(resultado.usage, modelo);
+  const custo = comBusca(
+    custoDaResposta(resultado.usage, modelo),
+    pedido.buscaNaWeb,
+    CUSTO_ESTIMADO_BUSCA_MICROS,
+  );
   await registrarUso({
     ...registro,
     modelUsed: resultado.modelUsed,
@@ -211,6 +256,7 @@ export async function* passoNoProvedor(
 
   return {
     texto: resultado.texto,
+    citacoes: resultado.citacoes,
     pedidos: resultado.pedidos,
     usage: {
       modelId: modelo.id,

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { FERRAMENTAS_DO_CHAT } from "./ferramentas.js";
-import type { NomeDeFerramenta } from "./ferramentas.js";
+import type { NomeDoAssistente } from "./ferramentas.js";
 
 /**
  * Agentes especialistas — Etapa D da frente de IA (`docs/prd-ia-no-yu-book.md`).
@@ -62,12 +62,47 @@ export const liveSourceSchema = z.object({
 export type LiveSourceInput = z.input<typeof liveSourceSchema>;
 export type LiveSource = z.infer<typeof liveSourceSchema>;
 
+/**
+ * A busca na web do agente (Etapa G da frente de IA): o plugin `web` do
+ * OpenRouter, na **primeira** chamada de cada mensagem do chat e de cada passo
+ * de rotina — as voltas do laço de ferramenta não buscam de novo, porque cada
+ * busca é cobrada. O modelo não escolhe o termo: a busca parte do pedido.
+ */
+export const MAX_RESULTADOS_DA_BUSCA = 5;
+
+/**
+ * A tarifa de uma busca, em µUSD, para o teto decidir **antes** de conectar.
+ * Preço do motor Exa na documentação do OpenRouter (US$ 4 por mil
+ * resultados) vezes `MAX_RESULTADOS_DA_BUSCA`: US$ 0,02 por busca. O motor é
+ * fixado no pedido (`passo.service.ts`) para que este número valha; a conferir
+ * em produção junto do custo real. Estimativa, e declarada como tal — quem
+ * cobra é o provedor. Mora aqui porque a prévia do editor mostra o mesmo
+ * número que o teto usa.
+ *
+ * **A tarifa não é o custo inteiro da busca.** Ver `CHARS_ESTIMADOS_DA_BUSCA`.
+ */
+export const CUSTO_ESTIMADO_BUSCA_MICROS = 4_000 * MAX_RESULTADOS_DA_BUSCA;
+
+/**
+ * Quantos caracteres os resultados da busca somam ao contexto da chamada que a
+ * levou (INV-47). O provedor injeta os trechos das páginas no prompt, e eles
+ * são cobrados como tokens de entrada, ao preço do modelo — num modelo caro,
+ * mais que a tarifa. Um teto que só somasse a tarifa deixaria passar a chamada
+ * que o estoura.
+ *
+ * **Estimativa conservadora, não medida:** cerca de 3 000 caracteres por
+ * resultado. O tamanho real do trecho injetado não foi conferido neste
+ * projeto; a medir em produção, pelo `prompt_tokens` de uma chamada com e sem
+ * a busca.
+ */
+export const CHARS_ESTIMADOS_DA_BUSCA = 3_000 * MAX_RESULTADOS_DA_BUSCA;
+
 const ferramentaDoChatSchema = z
   .string()
   .refine((nome) => (FERRAMENTAS_DO_CHAT as readonly string[]).includes(nome), {
     message: "Ferramenta que o chat não oferece",
   })
-  .transform((nome) => nome as NomeDeFerramenta);
+  .transform((nome) => nome as NomeDoAssistente);
 
 const semRepetir = <T>(lista: T[]) => new Set(lista).size === lista.length;
 
@@ -84,6 +119,9 @@ export const agentInputSchema = z.object({
     .max(FERRAMENTAS_DO_CHAT.length)
     .refine(semRepetir, "Ferramenta repetida")
     .default([]),
+  /// Etapa G. Desligada por padrão: cada busca é cobrada, e o agente liga de
+  /// propósito.
+  webSearch: z.boolean().default(false),
   /// Em ordem: é a ordem em que entram no contexto, e a que o corte respeita.
   baseNoteIds: z
     .array(z.string().uuid())
@@ -147,6 +185,8 @@ export interface AgentSummary {
   toolCount: number;
   /// Alguma das ferramentas escreve no acervo.
   writes: boolean;
+  /// A busca na web está ligada (Etapa G).
+  webSearch: boolean;
   liveSourceCount: number;
   createdAt: string;
   updatedAt: string;
@@ -154,7 +194,7 @@ export interface AgentSummary {
 
 export interface AgentDetail extends AgentSummary {
   instructionsMd: string;
-  tools: NomeDeFerramenta[];
+  tools: NomeDoAssistente[];
   baseNotes: AgentBaseNote[];
   liveSources: AgentLiveSource[];
 }
@@ -186,6 +226,13 @@ export interface AgentPreview {
   /// máxima. Uma mensagem custa de 1 a `MAX_PASSOS_DO_LACO` passos. `null`
   /// quando não há modelo utilizável — `warnings` diz por quê.
   costPerStepMicros: number | null;
+  /// O que a busca na web soma à **primeira** chamada de cada mensagem: a
+  /// tarifa (`CUSTO_ESTIMADO_BUSCA_MICROS`) mais os tokens dos resultados
+  /// (`CHARS_ESTIMADOS_DA_BUSCA`) ao preço de entrada do modelo; só a tarifa
+  /// quando não há modelo, 0 sem a busca. `costPerStepMicros` mais este é
+  /// exatamente o que o teto estima para a primeira chamada com este contexto.
+  /// Separado porque as voltas seguintes não buscam.
+  webSearchMicros: number;
   modelId: string | null;
   modelName: string | null;
   blocks: AgentContextBlock[];
@@ -211,7 +258,7 @@ export interface ModeloDeAgente {
   description: string;
   color: AgentColor;
   instructionsMd: string;
-  tools: NomeDeFerramenta[];
+  tools: NomeDoAssistente[];
   notasSugeridas: string[];
 }
 

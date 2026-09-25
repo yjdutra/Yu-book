@@ -3,7 +3,7 @@ import type { AgentContextBlock, AgentPreview } from "@yu-book/shared";
 import { ApiError } from "../../lib/api";
 import { emDolares } from "../ajustes/comum";
 import { Aviso } from "../base/Aviso";
-import { IconeBoard, IconeCheck, IconeInfo, IconeNotas } from "../Icones";
+import { IconeBoard, IconeCheck, IconeGlobo, IconeInfo, IconeNotas } from "../Icones";
 
 const NUMERO = new Intl.NumberFormat("pt-BR");
 
@@ -82,6 +82,9 @@ export function PreviaAgente({
 }) {
   const uso = previa ? Math.min(previa.premisesChars / Math.max(previa.premisesLimit, 1), 1) : 0;
   const custo = previa?.costPerStepMicros ?? null;
+  /// A busca na web (Etapa G) entra uma vez por mensagem, não por passo: só a
+  /// primeira chamada busca. Por isso soma nas duas pontas, sem multiplicar.
+  const busca = previa?.webSearchMicros ?? 0;
 
   return (
     <section
@@ -158,7 +161,13 @@ export function PreviaAgente({
               <p className="mt-0.5 text-sm text-ink-200">sem modelo utilizável</p>
             ) : (
               <p className="mt-0.5 text-sm font-medium tabular-nums text-titulo">
-                {emDolares(custo)} a {emDolares(custo * MAX_PASSOS_DO_LACO)}
+                {emDolares(custo + busca)} a {emDolares(custo * MAX_PASSOS_DO_LACO + busca)}
+              </p>
+            )}
+            {busca > 0 && (
+              <p className="mt-1 flex items-center gap-1 text-miudo text-ink-200">
+                <IconeGlobo className="size-3 text-accent-400" />
+                inclui {emDolares(busca)} da busca na web, uma vez por mensagem
               </p>
             )}
             <p className="mt-1 text-miudo text-ink-400">

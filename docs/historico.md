@@ -9,6 +9,142 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-25 — Frente de IA, Etapa G: pesquisa externa, e a saída que não resolve duas vezes
+
+Quinta e última etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md), feita no mesmo
+dia da F. O que mudou está na `[0.23.0]` do changelog, e os requisitos na seção 5.9 do PRD de IA
+(RF-70 a RF-74, RN-24 a RN-26, RNF-12, CA-43 a CA-46). Com ela, as etapas C a G estão entregues.
+Nenhuma foi publicada, e a conferência à mão de todas segue pendente.
+
+**Busca pelo plugin do OpenRouter, e não por uma API de busca própria** (decisão do operador). O
+plugin é um campo a mais no pedido que já sai. Não pede chave nem serviço novo, é cobrado na mesma
+conta e cai no mesmo teto. Uma API própria seria um segredo novo, uma segunda saída de rede a
+defender e uma conta a mais a acompanhar. O preço: **o modelo não escolhe o termo**. A busca parte do
+pedido, antes de o modelo pensar, e não existe ferramenta `web_search` que ele chame quando precisa.
+O motor fica fixado em `engine: "exa"`, porque sem isso o OpenRouter escolhe, e a busca nativa de
+alguns modelos tem outro preço. Nem o nome do campo nem o preço foram conferidos com uma resposta
+real.
+
+**Opt-in por agente, nas duas pontas.** `web_search` nasce `false`, e `open_page` não entra nas
+ferramentas padrão de agente novo. O Assistente sem agente recebe `FERRAMENTAS_SEM_AGENTE`, uma
+lista explícita sem a web. `FERRAMENTAS_DO_CHAT` passou a ser o **teto** do que um agente pode ligar,
+e não o que toda conversa recebe. O motivo é que a web é saída de rede e custa por uso: quem a quer
+liga de propósito, e o editor mostra o custo e o risco na hora de ligar. Descartado: dar a web ao
+Assistente, que tornaria toda pergunta ao acervo uma chamada cobrada e com rede.
+
+**`open_page` fora de `FERRAMENTAS_DO_ACERVO`.** Ela mora em `FERRAMENTAS_DA_WEB`, e o metadado das
+duas origens se lê por `DEFINICOES_DO_ASSISTENTE`. `FERRAMENTAS_DO_ACERVO` é o vocabulário que o MCP
+publica, e quem usa o MCP já tem modelo e ferramentas do outro lado (NO3, RF-74). Pôr a ferramenta
+lá a deixaria a um handler de distância de aparecer no `tools/list`. Os `Record` totais do front
+(`EXPLICACAO`) passaram a cobrir `NomeDoAssistente`, e o compilador cobra a entrada de ferramenta
+nova das duas origens.
+
+**Uma busca por mensagem ou passo** (RN-25). Só a primeira chamada leva o plugin. As voltas do laço
+de ferramenta já têm os resultados no histórico, e cada busca é cobrada. Numa mensagem com cinco
+voltas, buscar em todas seria cinco tarifas pelo mesmo pedido.
+
+**A estimativa soma a tarifa e o texto dos resultados.** O provedor injeta os trechos das páginas
+no prompt, e eles custam como entrada ao preço do modelo. Num modelo caro, isso passa da tarifa. Um
+teto que só somasse a tarifa deixaria passar a chamada que o estoura (INV-47). Por isso
+`estimarComBusca` é **a conta única** do passo, do 402 de "Rodar agora" e da prévia do agente. Se as
+três divergissem, a prévia prometeria um custo que o teto não usa. `CHARS_ESTIMADOS_DA_BUSCA`
+(3 000 caracteres por resultado) é chute conservador, não medida.
+
+**O custo registrado depende do degrau, e a regra foi decidida sem medição.** `comBusca` age
+conforme o degrau de custo:
+
+- `provedor`: toma o `usage.cost` como já incluindo a busca e não soma nada. Somar de novo contaria
+  a busca duas vezes e moveria o teto antes da hora;
+- `estimado`: soma a estimativa da busca, porque a conta por tokens não a enxerga;
+- `desconhecido`: fica em zero. Dar valor a ele apagaria o sinal de que o provedor parou de informar
+  custo (INV-48).
+
+Descartado: somar sempre, no escuro. Contar a busca duas vezes é tão errado quanto não contar, e
+pelo menos o primeiro erro se desfaz com uma medição.
+
+**Uma saída só para URL de terceiro: `pedirPublico`, em `apps/api/src/lib/saidaSegura.ts`.** O
+`open_page` precisava de toda a defesa de SSRF que o leitor de título dos links já tinha. Copiá-la
+daria duas guardas para divergir. Ao extraí-la apareceu a brecha. **O leitor de título conferia o IP
+com `dns.lookup` e depois chamava `fetch`, que resolvia o nome de novo.** Um DNS que respondesse
+público na primeira pergunta e privado na segunda passava pela guarda e conectava na rede interna.
+Estava assim desde a Fase 3. O conserto:
+
+- `node:http`/`node:https` no lugar do `fetch`, porque o `fetch` do Node não aceita `lookup` por
+  requisição;
+- a conexão recebe `lookupPreso`, que entrega ao socket os endereços **já conferidos**, sem
+  resolver de novo;
+- `agent: false`, para não reaproveitar um socket de outro pedido;
+- o IP literal é conferido como o próprio endereço, porque o Node não chama `lookup` para ele;
+- o nome original segue no `Host` e no SNI.
+
+O `titulo.service.ts` passou a usar `pedirPublico` com os limites de antes, e a suíte de links é a
+rede de segurança. Sem o `fetch`, a descompressão virou nossa (gzip, deflate e br), e o corte de
+bytes passou a valer **depois** dela.
+
+**Problema achado no corte de bytes.** O gunzip entrega pedaços de 16 KiB, e 1 MB é múltiplo disso.
+Um pedaço que enchia o limite **exatamente** não era cortado, e o texto maior que o limite saía sem
+a marca de truncado. Agora o corte só se decide quando chega o pedaço seguinte, e aí corta, ou
+quando o fluxo acaba, e aí não havia mais.
+
+**O que vem de terceiro não vira estrutura.** Na seção "Fontes" da saída da rotina, título e URL
+entram com `[`, `]`, `(` e `)` codificados. Nem um nem outro planta `[[wikilink]]` no acervo, que
+criaria vínculo derivado com nota do usuário. Os títulos perdem caracteres de controle e têm teto de
+300 (INV-10). Na tela, `Fontes.tsx` só aceita `href` com `http` ou `https`.
+
+**LinkedIn recusado por domínio** (RN-26), antes de qualquer requisição. Os termos de uso proíbem a
+raspagem, e a conta em risco é a mesma em que o operador publica.
+
+**Riscos residuais, declarados e não resolvidos:**
+
+- **A cerca "é dado, não instrução" é texto, e a página pode forjá-la.** A instrução do agente e a
+  descrição da ferramenta dizem que a web é dado (RN-24). Isso reduz o risco, mas não garante nada.
+- **Exfiltração pela query string.** Um agente com `open_page` e leitura do acervo junta dado
+  privado, conteúdo hostil e saída de rede. Uma página pode pedir que ele abra
+  `https://atacante/?q=<o que leu>`, e isso passa por todas as guardas de `pedirPublico`, que
+  protegem a rede interna e não o conteúdo. A mitigação é o opt-in, o aviso no editor e o alerta no
+  passo da rotina. Nenhum deles é garantia.
+- **Numa rotina por coluna**, a ideia está no contexto do passo e poderia sair pelo mesmo caminho.
+- **A busca na rotina manda o texto do passo**, a ideia ou o rascunho, ao motor de busca de
+  terceiro. O painel do passo diz isso.
+
+**Ficaram fora, por decisão do operador:** a gaveta de links como entrada de rotina, a rotina
+"Garimpar ideias" e as fontes RSS. Não foram adiadas para uma etapa seguinte, porque o plano acaba
+na G.
+
+**A versão abre a `[0.23.0]`, com bump dos quatro pacotes.** O motivo é o mesmo da F: etapa nova,
+com seção própria no PRD. Pela §3.1 caberia na `[0.22.0]`, porque move os mesmos pacotes e nada foi
+publicado, mas fundir apagaria a fronteira entre as duas etapas.
+
+**A medir em produção, antes de confiar no teto com a busca ligada:**
+
+1. Se o `usage.cost` inclui a busca. Com uma mensagem com a busca ligada, comparar no painel do
+   OpenRouter o custo da geração (o `generationId` fica em `ai_usage`) com o `cost_micros` gravado.
+   Se não incluir, o ramo `provedor` de `comBusca` passa a somar.
+2. Se `engine: "exa"` é aceito como está e se o preço é US$ 4 por mil resultados, que dá
+   `CUSTO_ESTIMADO_BUSCA_MICROS` = US$ 0,02 por busca.
+3. `CHARS_ESTIMADOS_DA_BUSCA`, pelo `prompt_tokens` de uma mesma chamada com e sem a busca.
+
+**Dívida: nada foi conferido na tela**, e nenhuma chamada com o plugin saiu para o provedor. O
+roteiro do plano se **soma** aos das Etapas C, D, E e F e ao da emenda:
+
+1. Num agente, ligar "Busca na web" e perguntar algo atual. A resposta traz fontes web clicáveis, e o
+   custo aparece no gasto do dia.
+2. Ligar "Abrir páginas" e pedir para ver se uma página está no ar. A resposta traz status e título,
+   e a fonte é a página.
+3. Pedir para abrir `http://localhost`, `http://169.254.169.254` e uma URL do LinkedIn. As três
+   recusas vêm explicadas.
+4. Rodar uma rotina por pedido com esse agente. O card ou a nota sai com a seção "Fontes".
+5. Teclado, os dois temas e `prefers-reduced-motion`.
+
+**Ficou pendente:**
+
+- A conferência acima e as das etapas anteriores.
+- As três medições.
+- A decisão de publicar C a G, que estão em `master` local desde a C. `origin/master` segue em
+  `90d2be0`.
+
+---
+
 ## 2026-09-25 — Frente de IA, Etapa F: agendamento, e quem dispara
 
 Quarta etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md), feita no mesmo dia da

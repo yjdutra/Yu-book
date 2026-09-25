@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import {
+  chaveDaFonteDoChat,
   MAX_CARD_DESCRICAO,
   MAX_CARD_TITULO,
   MAX_CONTEUDO,
@@ -10,6 +11,7 @@ import {
 } from "@yu-book/shared";
 import type {
   AiFavorite,
+  ChatSource,
   ErrorCode,
   RotinaEvent,
   RoutineRunDetail,
@@ -26,7 +28,7 @@ import type { OrigemIA } from "../../lib/marca.js";
 import * as kanban from "../kanban/kanban.service.js";
 import * as notas from "../notes/notes.service.js";
 import * as agentes from "./agentes.service.js";
-import { estimarCustoMicros, garantirTeto, MAX_SAIDA_TOKENS } from "./custo.service.js";
+import { estimarComBusca, garantirTeto, MAX_SAIDA_TOKENS } from "./custo.service.js";
 import * as ferramentas from "./ferramentas.service.js";
 import {
   motivoDaFalha,
@@ -511,7 +513,14 @@ async function comecar(
     const primeiro = rotina.steps[0]?.agent;
     if (primeiro) {
       const modelo = await modeloDoAgente(userId, primeiro);
-      await garantirTeto(userId, preferencia, estimarCustoMicros(modelo, 0, MAX_SAIDA_TOKENS));
+      /// A busca na web do primeiro passo entra já aqui (Etapa G), tarifa e
+      /// tokens dos resultados: é custo da primeira chamada, e esta é a recusa
+      /// de quem não tem teto para ela.
+      await garantirTeto(
+        userId,
+        preferencia,
+        estimarComBusca(modelo, 0, MAX_SAIDA_TOKENS, primeiro.webSearch),
+      );
     }
 
     /// `problemasDaRotina` já recusou a rotina sem coluna, sem pedido ou sem
@@ -851,6 +860,43 @@ async function criarNotaDeSaida(
   throw ultimoErro;
 }
 
+/** Acrescenta a `lista` o que ainda não está nela, pela chave do contrato do chat. */
+function juntarFontes(lista: ChatSource[], novas: readonly ChatSource[]): void {
+  for (const fonte of novas) {
+    const chave = chaveDaFonteDoChat(fonte);
+    if (!lista.some((j) => chaveDaFonteDoChat(j) === chave)) lista.push(fonte);
+  }
+}
+
+/// Link Markdown que o conteúdo de terceiro não consegue quebrar: o título não
+/// fecha o colchete nem abre `[[…]]` (que viraria wikilink na nota de saída), e
+/// o endereço não fecha o parêntese, não tem espaço e **não leva colchete** —
+/// `https://a.com/[[Projetos]]` casaria com `WIKILINK` pela URL e plantaria um
+/// `note_link` na saída (INV-17).
+function linkMarkdown(fonte: { url: string; title: string }): string {
+  const titulo = (fonte.title || fonte.url)
+    .replace(/\s+/g, " ")
+    .replace(/[\\[\]]/g, (c) => `\\${c}`);
+  /// `encodeURIComponent` deixa os parênteses passarem; eles, à mão. O
+  /// colchete ele já codifica (`%5B`/`%5D`) — basta estar na classe.
+  const url = fonte.url.replace(/[()[\]\s<>]/g, (c) =>
+    c === "(" ? "%28" : c === ")" ? "%29" : encodeURIComponent(c),
+  );
+  return `[${titulo}](${url})`;
+}
+
+/**
+ * A seção "Fontes" da saída (Etapa G, RN-05): as páginas da web que os passos
+ * usaram — abertas por `open_page` ou citadas pela busca —, na ordem em que
+ * apareceram e sem repetir. As do acervo não entram: a saída já nasce ligada à
+ * execução, que as lista passo a passo.
+ */
+function secaoDeFontes(fontes: readonly ChatSource[]): string | null {
+  const web = fontes.flatMap((f) => (f.kind === "web" ? [f] : []));
+  if (!web.length) return null;
+  return ["### Fontes", "", ...web.map((f) => `- ${linkMarkdown(f)}`)].join("\n");
+}
+
 /** O acumulado de um passo entre as voltas do laço de ferramenta. */
 interface Acumulado {
   promptTokens: number;
@@ -871,6 +917,8 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
   let autor: string | null = null;
   let agenteAutor: string | null = null;
   let custoDoRun = 0;
+  /// O que todos os passos consultaram, para a seção "Fontes" da saída.
+  const fontesDaExecucao: ChatSource[] = [];
 
   /// O passo em curso, para o `catch` gravar o que ele já gastou.
   let emCurso: { position: number; acumulado: Acumulado } | null = null;
@@ -963,6 +1011,9 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
         modelUsed: null,
       };
       emCurso = { position: passo.position, acumulado };
+      /// O que este passo consultou — ferramentas e citações da busca —, gravado
+      /// com ele ao concluir.
+      const fontesDoPasso: ChatSource[] = [];
       /// Condicional pela execução: o passo de uma execução que outro processo
       /// encerrou não volta a `rodando`.
       const comecou = await prisma.aiRoutineRunStep.updateMany({
@@ -1027,6 +1078,9 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
           task: "rotina",
           vinculo: { runId },
           signal,
+          /// Só a primeira volta busca: as seguintes já têm os resultados no
+          /// histórico, e cada busca é cobrada (Etapa G).
+          buscaNaWeb: agente.webSearch && volta === 1,
           /// O teto da execução, no mesmo ponto do diário: antes de a conexão
           /// sair, com a mesma estimativa. `custoDoRun` já inclui as voltas
           /// anteriores deste passo.
@@ -1057,6 +1111,14 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
         acumulado.costMicros += resultado.custo.costMicros;
         acumulado.durationMs += resultado.durationMs;
         acumulado.modelUsed = resultado.modelUsed ?? acumulado.modelUsed;
+        juntarFontes(
+          fontesDoPasso,
+          resultado.citacoes.map((c) => ({
+            kind: "web" as const,
+            url: c.url,
+            title: c.title || ferramentas.tituloDoEndereco(c.url),
+          })),
+        );
 
         if (resultado.pedidos.length === 0) {
           final = resultado.texto;
@@ -1093,6 +1155,7 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
               permitidas: contexto.permitidas,
             });
             texto = saidaDaFerramenta.texto;
+            juntarFontes(fontesDoPasso, saidaDaFerramenta.fontes.map(ferramentas.paraFonteDoChat));
           } catch (erro) {
             /// Volta ao modelo, como no chat: é erro que ele pode corrigir.
             texto = `Erro em ${pedido.nome}: ${motivoDaFalha(erro)}`;
@@ -1124,6 +1187,7 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
           costMicros: acumulado.costMicros,
           durationMs: acumulado.durationMs,
           endedAt: new Date(),
+          ...(fontesDoPasso.length && { sources: fontesDoPasso as Prisma.InputJsonValue }),
         },
         select: CAMPOS_DO_PASSO_EXECUTADO,
       });
@@ -1135,6 +1199,7 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
       if (custoGravado.count === 0) perder();
       emCurso = null;
       viva.parcial = null;
+      juntarFontes(fontesDaExecucao, fontesDoPasso);
       emitir(viva, {
         tipo: "passo-fim",
         step: paraPassoExecutado(gravado),
@@ -1165,6 +1230,8 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
           .trim(),
       );
     }
+    const fontes = secaoDeFontes(fontesDaExecucao);
+    if (fontes) secoes.push(fontes);
     secoes.push(
       plano.entrada.tipo === "pedido"
         ? `---\nPedido: ${resumoDoPedido(plano.entrada.texto)}`

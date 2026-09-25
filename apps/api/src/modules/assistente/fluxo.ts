@@ -1,5 +1,6 @@
 import type { UsoDoProvedor } from "./custo.service.js";
 import { AppError } from "../../lib/errors.js";
+import { limparTituloDaFonte } from "../web/pagina.service.js";
 
 /**
  * A leitura do `text/event-stream` do provedor.
@@ -19,7 +20,19 @@ import { AppError } from "../../lib/errors.js";
  * 3. `delta.content` vem `""` enquanto o modelo raciocina; o raciocínio vai
  *    num campo `reasoning` à parte. Ele é **cobrado** (`reasoning_tokens`) e
  *    não é resposta — por isso não entra no texto.
+ *
+ * **As citações da busca na web (Etapa G) não foram capturadas ainda.** A
+ * forma abaixo é a documentada pelo OpenRouter para o plugin `web` —
+ * `annotations: [{ type: "url_citation", url_citation: { url, title } }]` —, e
+ * a leitura aceita os dois lugares em que ela pode vir: no `delta` de um chunk
+ * ou numa `message` inteira no chunk final. Anotação que não case com a forma
+ * é ignorada, nunca derruba o passo: a resposta vale mais que a citação.
  */
+
+interface AnotacaoDoProvedor {
+  type?: unknown;
+  url_citation?: { url?: unknown; title?: unknown };
+}
 
 interface PedacoDeToolCall {
   index?: unknown;
@@ -33,7 +46,12 @@ interface ChunkDoProvedor {
   usage?: UsoDoProvedor;
   error?: { message?: unknown; code?: unknown };
   choices?: {
-    delta?: { content?: unknown; tool_calls?: PedacoDeToolCall[] };
+    delta?: {
+      content?: unknown;
+      tool_calls?: PedacoDeToolCall[];
+      annotations?: unknown;
+    };
+    message?: { annotations?: unknown };
     finish_reason?: unknown;
   }[];
 }
@@ -48,8 +66,16 @@ export interface PedidoDeFerramenta {
   argumentos: string;
 }
 
+/** Uma página citada pela busca na web do provedor. */
+export interface Citacao {
+  url: string;
+  title: string;
+}
+
 export interface PassoDoProvedor {
   texto: string;
+  /// As citações da busca na web, na ordem em que vieram e sem repetir URL.
+  citacoes: Citacao[];
   pedidos: PedidoDeFerramenta[];
   usage: UsoDoProvedor | undefined;
   modelUsed: string | null;
@@ -83,6 +109,26 @@ export async function* lerFluxo(
   let modelUsed: string | null = null;
   let generationId: string | null = null;
   let terminou = false;
+  const citacoes = new Map<string, Citacao>();
+
+  /// Só `http`/`https`: a citação vira link clicável na tela e na saída da
+  /// rotina, e um `javascript:` vindo do provedor não pode chegar lá. O título
+  /// passa pela mesma limpeza do de `open_page`: o trecho da busca pode trazer
+  /// `U+0001`/`U+0002`, que são o destaque da busca do Yu-book (INV-10).
+  const anotar = (anotacoes: unknown) => {
+    if (!Array.isArray(anotacoes)) return;
+    for (const anotacao of anotacoes as AnotacaoDoProvedor[]) {
+      if (anotacao?.type !== "url_citation") continue;
+      const url = anotacao.url_citation?.url;
+      if (typeof url !== "string" || url.length > 2_000 || !/^https?:\/\//i.test(url)) continue;
+      if (citacoes.has(url)) continue;
+      const titulo = anotacao.url_citation?.title;
+      citacoes.set(url, {
+        url,
+        title: typeof titulo === "string" ? limparTituloDaFonte(titulo) : "",
+      });
+    }
+  };
 
   try {
     while (!terminou) {
@@ -132,8 +178,10 @@ export async function* lerFluxo(
         /// comportamento certo caso venha mais de um.
         if (chunk.usage) usage = chunk.usage;
 
+        anotar(chunk.choices?.[0]?.message?.annotations);
         const delta = chunk.choices?.[0]?.delta;
         if (!delta) continue;
+        anotar(delta.annotations);
 
         if (typeof delta.content === "string" && delta.content.length > 0) {
           texto += delta.content;
@@ -167,5 +215,5 @@ export async function* lerFluxo(
     .map(([, pedido]) => pedido)
     .filter((pedido) => pedido.nome);
 
-  return { texto, pedidos, usage, modelUsed, generationId };
+  return { texto, citacoes: [...citacoes.values()], pedidos, usage, modelUsed, generationId };
 }

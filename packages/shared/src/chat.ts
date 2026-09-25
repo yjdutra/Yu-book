@@ -32,10 +32,22 @@ export const MAX_MENSAGEM_CHAT = 4_000;
 /// este só evita montar 200 consultas antes de descobrir isso.
 export const MAX_ANEXOS_POR_MENSAGEM = 10;
 
-export interface ChatSource {
-  kind: "note" | "card" | "board";
-  id: string;
-  title: string;
+/**
+ * O que um turno consultou. União pelo `kind` desde a Etapa G: a fonte do
+ * acervo abre pelo id, a da web é um endereço — página aberta por `open_page`
+ * ou citação da busca na web.
+ */
+export type ChatSource =
+  | { kind: "note" | "card" | "board"; id: string; title: string }
+  | { kind: "web"; url: string; title: string };
+
+/**
+ * A chave de "a mesma fonte": o id no acervo, o endereço na web. Uma função só
+ * para a API e o front, para que o histórico gravado e a tela ao vivo
+ * dedupliquem igual.
+ */
+export function chaveDaFonteDoChat(fonte: ChatSource): string {
+  return fonte.kind === "web" ? `web:${fonte.url}` : `${fonte.kind}:${fonte.id}`;
 }
 
 /**
@@ -123,8 +135,15 @@ export type ChatEvent =
   /// mostra como "consultando o acervo" — sem isto, a espera do passo de
   /// ferramenta é um silêncio sem explicação.
   | { tipo: "ferramenta"; nome: string; passo: number }
+  /**
+   * A chamada deste passo leva a busca na web do agente (Etapa G). Só no
+   * primeiro passo de cada mensagem, e só com a busca ligada. Vem antes dos
+   * deltas daquele passo.
+   */
+  | { tipo: "busca"; passo: number }
   /// O que aquela ação consultou (RN-05). Determinístico: não depende de o
-  /// modelo citar.
+  /// modelo citar. Desde a Etapa G também as citações da busca na web, que o
+  /// provedor devolve junto da resposta.
   | { tipo: "fontes"; fontes: ChatSource[] }
   /// O que aquela ação criou no acervo, já gravado e marcado como gerado por
   /// IA. Chega ao vivo para o painel oferecer "desfazer" antes do fim.

@@ -678,6 +678,9 @@ model AiAgent {
   /// não tabela: a posse da coluna é conferida pela cadeia ao gravar e de novo
   /// ao ler, e uma coluna que sumiu vira aviso, não erro de FK.
   liveSources    Json         @default("[]") @map("live_sources")
+  /// Etapa G: a primeira chamada de cada mensagem (e de cada passo de rotina)
+  /// leva o plugin de busca na web do provedor. Opt-in: cada busca é cobrada.
+  webSearch      Boolean      @default(false) @map("web_search")
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
@@ -927,6 +930,9 @@ model AiRoutineRunStep {
   errorCode        String?         @map("error_code")
   startedAt        DateTime?       @map("started_at")
   endedAt          DateTime?       @map("ended_at")
+  /// Etapa G: o que o passo consultou — acervo e web, na forma de `ChatSource`.
+  /// Nulo nas execuções anteriores a ela e no passo que não chegou ao fim.
+  sources          Json?
 
   run AiRoutineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 

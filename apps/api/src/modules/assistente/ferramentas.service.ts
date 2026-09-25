@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import {
+  DEFINICOES_DO_ASSISTENTE,
   diaParaPrazo,
+  FERRAMENTAS_DA_WEB,
   FERRAMENTAS_DO_ACERVO,
   FERRAMENTAS_DO_CHAT,
   formatarBusca,
@@ -12,13 +14,14 @@ import {
   formatarNotaBreve,
   formatarQuadro,
 } from "@yu-book/shared";
-import type { NomeDeFerramenta } from "@yu-book/shared";
+import type { ChatSource, NomeDoAssistente } from "@yu-book/shared";
 import { AppError } from "../../lib/errors.js";
 import type { OrigemDoAssistente } from "../../lib/marca.js";
 import * as dashboard from "../dashboard/dashboard.service.js";
 import * as kanban from "../kanban/kanban.service.js";
 import * as notes from "../notes/notes.service.js";
 import * as search from "../notes/search.service.js";
+import { abrirPagina, paginaComoTexto } from "../web/pagina.service.js";
 
 /**
  * O outro consumidor do vocabulário do acervo (Etapa B da frente de IA).
@@ -35,13 +38,27 @@ import * as search from "../notes/search.service.js";
  * servidor a partir da conversa, nunca dos argumentos do modelo. As outras três
  * ações de escrita seguem **sem executor**: um executor a mais neste mapa é a
  * diferença entre um chat que cria a pedido e um que apaga nota.
+ *
+ * **Desde a Etapa G uma ação sai do acervo**: `open_page`, de
+ * `FERRAMENTAS_DA_WEB`, que o MCP não publica. O mapa abaixo cobre as duas
+ * origens, e o tipo total cobra a decisão para cada nome das duas.
  */
 
-export interface Fonte {
+/** Algo do acervo, que abre pelo id. É também a forma do que se cria. */
+export interface FonteDoAcervo {
   tipo: "note" | "card" | "board";
   id: string;
   titulo: string;
 }
+
+/** Uma página da web: aberta por `open_page` ou citada pela busca (Etapa G). */
+export interface FonteDaWeb {
+  tipo: "web";
+  url: string;
+  titulo: string;
+}
+
+export type Fonte = FonteDoAcervo | FonteDaWeb;
 
 export interface ResultadoDeFerramenta {
   /// O texto que volta ao modelo.
@@ -60,7 +77,7 @@ export interface ResultadoDeFerramenta {
    * evento `criado` e é gravado em `AiMessage.created`, para o chat mostrar
    * e oferecer desfazer. `board` nunca aparece aqui: o chat não cria quadro.
    */
-  criados: Fonte[];
+  criados: FonteDoAcervo[];
 }
 
 export interface ContextoDeFerramenta {
@@ -77,13 +94,14 @@ export interface ContextoDeFerramenta {
   origem: OrigemDoAssistente;
   /**
    * O que **esta** conversa pode executar (Etapa D): a lista do agente, já
-   * cortada por `FERRAMENTAS_DO_CHAT`. O Assistente sem agente passa a lista
-   * inteira do chat, **explicitamente**: sem valor padrão, esquecer o campo é
+   * cortada por `FERRAMENTAS_DO_CHAT`. O Assistente sem agente passa
+   * `FERRAMENTAS_SEM_AGENTE` — o acervo, sem a web (Etapa G) —,
+   * **explicitamente**: sem valor padrão, esquecer o campo é
    * erro de compilação, e não uma conversa que ganha tudo em silêncio. É uma
    * terceira condição, e não substitui as duas de INV-52: um nome aqui que não
    * esteja no chat continua recusado.
    */
-  permitidas: readonly NomeDeFerramenta[];
+  permitidas: readonly NomeDoAssistente[];
 }
 
 type Executor = (
@@ -122,7 +140,7 @@ function prazoDoDia(dia: string, fuso: string): Date {
   }
 }
 
-const EXECUTORES: Record<NomeDeFerramenta, Executor | undefined> = {
+const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
   search_notes: async (argumentos, { userId }) => {
     const { q, limit } = conferir(FERRAMENTAS_DO_ACERVO.search_notes.entrada, argumentos);
     const dados = await search.buscar(userId, q, limit);
@@ -218,7 +236,35 @@ const EXECUTORES: Record<NomeDeFerramenta, Executor | undefined> = {
   move_card: undefined,
   trash_note: undefined,
   restore_note: undefined,
+
+  /// A URL vem do modelo: `abrirPagina` sai só por `pedirPublico` (INV-08).
+  /// Página que não abriu **não** lança — volta como texto, e sem fonte: não
+  /// se cita o que não foi lido. Página que respondeu, mesmo 404, é fonte: é
+  /// dela que vem o status que a resposta relata.
+  open_page: async (argumentos) => {
+    const { url } = conferir(FERRAMENTAS_DA_WEB.open_page.entrada, argumentos);
+    const pagina = await abrirPagina(url);
+    const titulo = pagina.ok ? (pagina.titulo ?? tituloDoEndereco(pagina.urlFinal)) : "";
+    const fontes: Fonte[] = pagina.ok ? [{ tipo: "web", url: pagina.urlFinal, titulo }] : [];
+    return { texto: paginaComoTexto(pagina, url), fontes, criados: [] };
+  },
 };
+
+/** A fonte na forma do contrato do chat (`ChatSource`). */
+export function paraFonteDoChat(fonte: Fonte): ChatSource {
+  return fonte.tipo === "web"
+    ? { kind: "web", url: fonte.url, title: fonte.titulo }
+    : { kind: fonte.tipo, id: fonte.id, title: fonte.titulo };
+}
+
+/** O nome do site, para a fonte web que não trouxe título. */
+export function tituloDoEndereco(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
 
 /** A forma que o provedor espera no campo `tools` da requisição. */
 export interface FerramentaParaProvedor {
@@ -240,13 +286,13 @@ export interface FerramentaParaProvedor {
  * as ações pelo mesmo código, não por duas traduções parecidas.
  */
 export function catalogoParaProvedor(
-  permitidas: readonly NomeDeFerramenta[],
+  permitidas: readonly NomeDoAssistente[],
 ): FerramentaParaProvedor[] {
   /// A lista do chat continua sendo a fonte: `permitidas` só estreita. Um nome
   /// fora dela, vindo de um agente gravado antes de a lista mudar, não entra.
   return FERRAMENTAS_DO_CHAT.filter((nome) => permitidas.includes(nome) && EXECUTORES[nome]).map(
     (nome) => {
-      const definicao = FERRAMENTAS_DO_ACERVO[nome];
+      const definicao = DEFINICOES_DO_ASSISTENTE[nome];
       return {
         type: "function",
         function: {
@@ -278,9 +324,9 @@ export async function executar(
   contexto: ContextoDeFerramenta,
 ): Promise<ResultadoDeFerramenta> {
   const permitida =
-    FERRAMENTAS_DO_CHAT.includes(nome as NomeDeFerramenta) &&
-    contexto.permitidas.includes(nome as NomeDeFerramenta);
-  const executor = permitida ? EXECUTORES[nome as NomeDeFerramenta] : undefined;
+    FERRAMENTAS_DO_CHAT.includes(nome as NomeDoAssistente) &&
+    contexto.permitidas.includes(nome as NomeDoAssistente);
+  const executor = permitida ? EXECUTORES[nome as NomeDoAssistente] : undefined;
   if (!executor) {
     throw new AppError(422, "VALIDATION_ERROR", `Ferramenta desconhecida: ${nome}`);
   }

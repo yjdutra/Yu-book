@@ -473,11 +473,12 @@ describe("apagar a conversa não apaga a marca", () => {
 });
 
 describe("CA-21 / RN-12: o chat escreve só criando", () => {
-  test("o catálogo oferecido ao provedor tem sete ações, e nenhuma de mover ou apagar", () => {
+  test("o catálogo oferecido ao provedor tem oito ações, e nenhuma de mover ou apagar", () => {
+    // Sete do acervo mais `open_page`, da web (Etapa G).
     const nomes = catalogoParaProvedor(FERRAMENTAS_DO_CHAT).map((f) => f.function.name);
 
-    expect(nomes).toHaveLength(7);
-    expect(new Set(nomes).size).toBe(7);
+    expect(nomes).toHaveLength(8);
+    expect(new Set(nomes).size).toBe(8);
     expect(nomes).not.toContain("move_card");
     expect(nomes).not.toContain("trash_note");
     expect(nomes).not.toContain("restore_note");

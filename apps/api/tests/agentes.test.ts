@@ -1109,6 +1109,7 @@ describe("RF-52: o agente exporta como Markdown com frontmatter", () => {
       color: "verde",
       model: null,
       tools: ["search_notes", "get_note"],
+      webSearch: false,
       // Por título: o id não significa nada fora deste banco.
       baseNotes: ["Guia: tom e voz"],
       liveSources: [{ board: "Publicações", column: "Feito", limit: 10, detail: "faces" }],

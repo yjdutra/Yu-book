@@ -295,6 +295,18 @@ em `prd-ia-no-yu-book.md`, seção 5.8 (RF-65 a RF-69, RN-20 a RN-23, CA-38 a CA
 resumo; aceitar ou descartar com um gesto; palavras-chave de pesquisa editáveis junto do agente de
 marketing.
 
+**Como ficou (2026-09-25).** O operador escolheu o **plugin de busca do OpenRouter**, e não uma API
+de busca própria: é um interruptor no agente, sem chave nem serviço novo, que busca na primeira
+chamada de cada mensagem ou passo (até 5 resultados) — o modelo não escolhe o termo, e o custo
+estimado entra no teto antes de conectar. Entrou também a ferramenta **"Abrir página"**
+(`open_page`), que lê status, título e texto de uma página pública; LinkedIn é recusado. A saída
+para URL de terceiro virou uma só (`pedirPublico`), com a conexão presa ao IP conferido — o que
+fechou também uma brecha de DNS rebinding que a leitura de título dos links tinha. Texto vindo da
+web é dado, nunca instrução. Ficaram **fora**, por decisão do operador: a gaveta de links como
+entrada de rotina, a rotina "Garimpar ideias" e as fontes RSS. O custo real da busca ainda precisa
+ser medido em produção. Requisitos em `prd-ia-no-yu-book.md`, seção 5.9 (RF-70 a RF-74, RN-24 a
+RN-26, RNF-12, CA-43 a CA-46).
+
 ---
 
 ## Ordem e dependências

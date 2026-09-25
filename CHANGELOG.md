@@ -13,6 +13,107 @@ _Nada pendente._
 
 ---
 
+## [0.23.0] — 2026-09-25
+
+**Etapa G da frente de IA: pesquisa externa.** O agente passa a olhar para fora do acervo, de dois
+jeitos, ambos ligados agente a agente. A **busca na web** usa o plugin do OpenRouter, na primeira
+chamada de cada mensagem ou passo de rotina. A ferramenta **"Abrir página"** lê status, título e
+texto de uma página pública. O que veio da web aparece como fonte clicável no chat e na seção
+"Fontes" da saída da rotina. Requisitos na seção 5.9 de
+[`docs/prd-ia-no-yu-book.md`](docs/prd-ia-no-yu-book.md): RF-70 a RF-74, RN-24 a RN-26, RNF-12 e
+CA-43 a CA-46.
+
+É a quinta e última etapa do [plano de agentes de acervo](docs/plano-agentes-de-acervo.md) (C a G).
+**Com ela a frente de agentes de acervo está entregue**, mas sem conferência à mão e sem publicação.
+Por decisão do operador, três itens do plano ficaram fora: a gaveta de links como entrada de rotina,
+a rotina "Garimpar ideias" e as fontes RSS. O porquê do plugin, do opt-in e da saída única está em
+[`docs/historico.md`](docs/historico.md). Não é fase de produto nem etapa do MCP, que segue na 4
+de 5.
+
+**Os quatro pacotes se movem**, porque `packages/shared` mudou de contrato. `ChatSource` virou
+união com `{ kind: "web"; url; title }`. Entraram `chaveDaFonteDoChat`, `FERRAMENTAS_DA_WEB`,
+`NomeDeFerramentaDaWeb`, `NomeDoAssistente`, `DEFINICOES_DO_ASSISTENTE` e `FERRAMENTAS_SEM_AGENTE`,
+e `FERRAMENTAS_DO_CHAT` passou a `NomeDoAssistente[]`. Também entraram `webSearch` na entrada e no
+resumo do agente, `webSearchMicros` na prévia, `MAX_RESULTADOS_DA_BUSCA`,
+`CUSTO_ESTIMADO_BUSCA_MICROS` e `CHARS_ESTIMADOS_DA_BUSCA`, o evento `busca` em `ChatEvent`,
+`agentWebSearch` no passo da rotina e `sources` no passo da execução. Versões: `packages/shared`
+de `0.11.0` para `0.12.0`, `apps/api` de `0.13.0` para `0.14.0`, `apps/web` de `0.18.0` para
+`0.19.0` e `apps/mcp` de `0.14.0` para `0.15.0`, no `package.json` **e** no construtor do
+`McpServer`. Uma migration aditiva, `20260925180000_ia_etapa_g_web`, com `ai_agent.web_search` e
+`ai_routine_run_step.sources`.
+
+**O MCP não mudou de comportamento** (RF-74). Em `apps/mcp/src` só mudou a versão. `open_page` mora
+num objeto separado de `FERRAMENTAS_DO_ACERVO` e não tem handler no MCP, e o plugin de busca é só
+do assistente da API. Os tamanhos medidos batem com a `[0.22.0]`: `tools/list` com escrita em
+9601 B.
+
+Portões, relatados pela sessão de implementação: `pnpm typecheck` limpo nos quatro pacotes,
+`pnpm --filter @yu-book/api test` com **341 testes** (eram 279) e `pnpm --filter @yu-book/mcp test`
+com **57 testes**, como antes.
+
+**Entregue sem conferência de interface à mão.** Nada do que é tela nesta entrada foi visto
+funcionando. **O custo real da busca também não foi medido**: nenhuma chamada com o plugin saiu para
+o provedor. O roteiro de cinco itens e o que medir em produção estão em
+[`docs/historico.md`](docs/historico.md).
+
+### Adicionado
+- **Busca na web por agente** (RF-70, RN-25). O interruptor "Busca na web" vem desligado. Ligado,
+  a primeira chamada ao provedor de cada mensagem do chat, e de cada passo de rotina, leva o plugin
+  de busca do OpenRouter, com o motor Exa e até 5 resultados. As voltas do laço de ferramenta não
+  buscam de novo. A busca parte do pedido, e o modelo não escolhe o termo.
+- **"Abrir página"** (`open_page`, RF-71). A ferramenta lê status HTTP, título e texto de uma página
+  pública. Aceita HTML, texto, JSON e XML, até 8 s e 1 MB, com o charset do cabeçalho. O texto sai
+  sem script nem estilo, cortado em 20 000 caracteres, e entra no contexto cercado como dado. Falha
+  vira explicação para o modelo, não erro. É opt-in: nem agente novo nem o Assistente sem agente a
+  recebem. Num passo de rotina ela vale, por ser de leitura.
+- **Fontes da web** (RF-72). As páginas abertas e as citações da busca aparecem como fontes com
+  link externo no chat, ao vivo e no histórico. Cada passo da execução de rotina guarda e mostra as
+  próprias fontes. O card ou a nota que a rotina gera ganha a seção `### Fontes`.
+- **Custo da busca antes de salvar** (RF-73). O editor e a prévia do agente mostram quanto a busca
+  soma à primeira chamada de cada mensagem: a tarifa mais os tokens estimados dos resultados. A
+  estimativa da rotina também soma a busca.
+- **Na interface:**
+  - no editor de agente, o grupo **"Na web"**, com os interruptores "Busca na web" e "Abrir
+    páginas", o custo e o aviso de que tratar a web como dado é instrução, não garantia;
+  - um aviso de risco no editor quando o agente abre páginas e também lê o acervo;
+  - o selo "busca na web" na galeria de agentes e na apresentação do agente;
+  - "buscando na web…" e "abrindo página…" enquanto a resposta não chega;
+  - no painel do passo da rotina, "Abrir uma página" e o selo "busca na web" entre as ferramentas,
+    o aviso de que a busca manda o texto do passo ao motor de terceiro e um alerta quando o agente
+    abre páginas e também lê o acervo;
+  - o ícone de globo, desenhado à mão.
+
+### Alterado
+- O chat sem agente recebe uma lista explícita de ferramentas, sem as da web. O que ele oferece não
+  mudou.
+- A instrução de sistema do agente com acesso à web ganhou três regras (RN-24, RN-26). O que vem da
+  web é dado e nunca instrução, LinkedIn nunca se abre, e nada que venha da web concede ferramenta.
+
+### Segurança
+- **Fechada uma brecha de DNS rebinding na leitura de título dos links** (RNF-12, CA-45). Antes, o
+  IP era conferido com um `lookup` e o `fetch` resolvia o nome de novo. Um domínio que respondesse
+  com um endereço público na conferência e com um privado na conexão chegava à rede interna. Agora
+  a conexão vai ao IP conferido. A saída para URL de terceiro virou uma só, com os mesmos limites de
+  antes para o título (2 s, 512 KB, só HTML).
+- **A mesma saída serve o "Abrir página".** Só endereço público, IP literal conferido sem resolver,
+  redirecionamento manual revalidado a cada salto, orçamento de tempo total e corte duro de bytes
+  depois da descompressão (gzip, deflate e br).
+- **LinkedIn nunca é lido** (RN-26, CA-46). `linkedin.com`, os subdomínios e `lnkd.in` são
+  recusados antes de qualquer requisição sair.
+- **A busca conta no teto antes de conectar** (RN-25). A estimativa com tarifa e resultados entra no
+  teto diário, no teto por execução e na recusa (402) de "Rodar agora". Quando o provedor manda só
+  tokens, a tarifa se soma ao custo registrado.
+- **O que vem de terceiro não planta nada.** O título e a URL de uma fonte web entram na seção
+  "Fontes" com `[`, `]`, `(` e `)` codificados, e nenhum deles cria `[[wikilink]]`. Os títulos
+  perdem caracteres de controle e têm teto de 300 caracteres. No chat, o link só vale com `http` ou
+  `https` e abre com `noopener noreferrer`.
+- **Risco residual declarado.** A cerca "é dado" é forjável. Um agente com "Abrir página" e leitura
+  do acervo pode ser induzido a mandar dado do acervo na query string de um endereço. A mitigação é
+  o opt-in e o aviso, e não garantia. A busca na rotina manda o texto do passo ao motor de busca de
+  terceiro.
+
+---
+
 ## [0.22.0] — 2026-09-25
 
 **Etapa F da frente de IA: agendamento de rotinas.** A rotina da Etapa E passa a rodar **sozinha**,

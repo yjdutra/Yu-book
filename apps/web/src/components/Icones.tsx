@@ -400,6 +400,21 @@ export function IconeInfo(p: IconeProps) {
   );
 }
 
+/**
+ * Globo — a web (Etapa G da IA): a busca do agente e a página que ele abriu.
+ * Meridiano e dois paralelos, para não se confundir com o relógio nem com o
+ * círculo da informação.
+ */
+export function IconeGlobo(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="8" cy="8" r="5.8" />
+      <path d="M2.2 8h11.6M3 5h10M3 11h10" />
+      <path d="M8 2.2c-1.7 1.6-2.6 3.6-2.6 5.8s.9 4.2 2.6 5.8c1.7-1.6 2.6-3.6 2.6-5.8S9.7 3.8 8 2.2Z" />
+    </Icone>
+  );
+}
+
 /** Seta da seção recolhível: aponta para a direita fechada, para baixo aberta. */
 export function IconeSeta({ aberta, className = "size-3" }: IconeProps & { aberta: boolean }) {
   return (

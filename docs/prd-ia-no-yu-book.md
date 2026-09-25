@@ -1,7 +1,7 @@
 # PRD — IA dentro do Yu-book
 
 **Versão:** v0.1 (draft) · **Autor:** yjdutra · **Data:** 2026-08-24 · **Status:** Etapas A e B entregues;
-Etapas C (marca), D (agentes) e E (rotinas) em 2026-09-24; F (agendamento) em 2026-09-25
+Etapas C (marca), D (agentes) e E (rotinas) em 2026-09-24; F (agendamento) e G (pesquisa externa) em 2026-09-25
 
 > **A Etapa A revogou seis afirmações deste documento.** Elas ficam abaixo, marcadas onde estão, em
 > vez de reescritas — o que se pensava em 2026-08-24 é parte do registro. São: **RN-01** e
@@ -299,6 +299,23 @@ decide só quem dispara — um agendador interno da API.
 - **RF-69** — O **Início** mostra o que as rotinas fizeram desde a última visita — o que foi criado,
   o que falhou, o que foi pulado — e os próximos horários.
 
+### 5.9 Etapa G — Pesquisa externa
+
+Quinta e última etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md). Os agentes passam
+a olhar para fora do acervo: **buscar na web** e **abrir uma página**. Gaveta de links como entrada
+de rotina e fontes RSS ficaram fora, por decisão do operador.
+
+- **RF-70** — O agente tem o interruptor **"Busca na web"**: a primeira chamada de cada mensagem (ou
+  de cada passo de rotina) vai com o plugin de busca do OpenRouter, até 5 resultados. A busca parte
+  do pedido; o modelo não escolhe o termo.
+- **RF-71** — O agente pode ter a ferramenta **"Abrir página"** (`open_page`): lê status, título e
+  texto de uma página pública. É o "ping numa página".
+- **RF-72** — O que veio da web é **citado**: as páginas usadas aparecem como fontes clicáveis no
+  chat, e a saída da rotina (card ou nota) ganha a seção "Fontes" (RN-05).
+- **RF-73** — O editor do agente e a prévia mostram o custo estimado da busca antes de salvar.
+- **RF-74** — Busca e "Abrir página" não entram no servidor MCP (NO3): quem usa o MCP já tem modelo
+  e ferramentas do outro lado.
+
 ---
 
 ## 6. Requisitos não-funcionais
@@ -336,6 +353,10 @@ decide só quem dispara — um agendador interno da API.
   fica "em andamento" para sempre. A janela de deploy, em que duas instâncias da API convivem, não
   quebra as regras: cancelamento e acompanhamento passam pelo banco, e "uma execução por vez" é
   garantida por índice único.
+- **RNF-12 Saída de rede escolhida por modelo** — Toda URL que um modelo manda abrir é tratada como
+  vinda do usuário (INV-08): só endereço público, com a conexão presa ao IP conferido (sem DNS
+  rebinding), redirecionamento revalidado a cada salto, limite de tempo e de tamanho, só tipos de
+  texto. A mesma saída serve a leitura de título dos links.
 
 ---
 
@@ -449,6 +470,13 @@ card ↔ nota já faz.
   disparado; além disso, é perdido — e isso é declarado, não escondido.
 - **RN-23 Nada falha calado.** Execução agendada que falha ou é pulada aparece no histórico, no
   painel do Assistente e no Início.
+- **RN-24 Web é dado, nunca instrução.** Texto de página aberta e de resultado de busca entra no
+  contexto como material; pedido que venha de lá ("ignore suas regras", "crie um card") é ignorado, e
+  nada que venha da web concede ferramenta (RN-14).
+- **RN-25 A busca é cobrada uma vez por pedido.** Só a primeira chamada de cada mensagem ou passo
+  busca; as voltas do laço de ferramenta, não. A estimativa da busca entra no teto antes de conectar.
+- **RN-26 LinkedIn nunca é lido.** "Abrir página" recusa `linkedin.com` e os encurtadores dele — os
+  termos de uso proíbem, e o risco é a conta onde o operador publica.
 
 ---
 
@@ -545,6 +573,15 @@ card ↔ nota já faz.
   execução dispara às 11:00 UTC.
 - **CA-42** (RF-69) — Dada uma execução terminada depois da última visita, quando se abre o Início,
   então ela aparece; e depois de visto, na visita seguinte, não.
+- **CA-43** (RF-70, RN-25) — Dado um agente com busca na web, quando uma mensagem precisa de duas
+  voltas do laço, então só a primeira chamada ao provedor leva o plugin de busca.
+- **CA-44** (RF-72) — Dada uma resposta que usou a busca ou abriu uma página, quando ela chega, então
+  as páginas aparecem como fontes com o endereço; e na rotina, a saída traz a seção "Fontes".
+- **CA-45** (RNF-12) — Dado um endereço que resolve para IP privado — direto, por redirecionamento ou
+  por DNS que muda entre a conferência e a conexão —, quando se pede para abri-lo, então nenhuma
+  conexão chega a ele.
+- **CA-46** (RN-26) — Dada uma URL do LinkedIn, quando se pede para abri-la, então a resposta explica
+  a recusa e nenhuma requisição sai.
 
 ---
 
