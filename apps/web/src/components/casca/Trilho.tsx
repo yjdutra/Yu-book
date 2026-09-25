@@ -132,6 +132,14 @@ export function Trilho({
       >
         Yu
       </span>
+      {contextoRecolhido && (
+          <BotaoIcone
+            id={ID_MOSTRAR_CONTEXTO}
+            rotulo="Mostrar painel lateral (Ctrl+\)"
+            icone={<IconeRecolher className="size-4 -scale-x-100" />}
+            onClick={onMostrarContexto}
+          />
+        )}
 
       <BotaoIcone
         rotulo="Buscar (Ctrl+K)"
@@ -221,6 +229,14 @@ export function Trilho({
         <IconeAssistente className="size-5" />
       </ItemTrilho>
       <ItemTrilho
+        rotulo="Ajustes"
+        dica="Ajustes"
+        ativo={area === "ajustes"}
+        onClick={() => navigate("/ajustes")}
+      >
+        <IconeAjustes className="size-5" />
+      </ItemTrilho>
+      <ItemTrilho
         rotulo={linksParaVer ? `Links, ${linksParaVer} para ver depois` : "Links"}
         dica="Links (Ctrl+Shift+L)"
         onClick={onAbrirGaveta}
@@ -238,14 +254,6 @@ export function Trilho({
         }
       >
         <IconeLink className="size-5" />
-      </ItemTrilho>
-      <ItemTrilho
-        rotulo="Ajustes"
-        dica="Ajustes"
-        ativo={area === "ajustes"}
-        onClick={() => navigate("/ajustes")}
-      >
-        <IconeAjustes className="size-5" />
       </ItemTrilho>
 
       <div className="mt-auto flex flex-col items-center gap-1">
@@ -288,14 +296,7 @@ export function Trilho({
             {ativo.name.charAt(0).toUpperCase()}
           </button>
         )}
-        {contextoRecolhido && (
-          <BotaoIcone
-            id={ID_MOSTRAR_CONTEXTO}
-            rotulo="Mostrar painel lateral (Ctrl+\)"
-            icone={<IconeRecolher className="size-4 -scale-x-100" />}
-            onClick={onMostrarContexto}
-          />
-        )}
+
         <BotaoIcone
           rotulo="Atalhos de teclado (Ctrl+/)"
           icone={<IconeTeclado />}
