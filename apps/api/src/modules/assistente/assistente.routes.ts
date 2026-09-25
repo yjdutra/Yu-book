@@ -28,6 +28,7 @@ import * as conversas from "./conversas.service.js";
 import * as execucao from "./execucao.service.js";
 import * as formatar from "./formatar.service.js";
 import * as modelos from "./modelos.service.js";
+import * as painel from "./openrouter-painel.service.js";
 import * as preferencias from "./preferencias.service.js";
 import * as rotinas from "./rotinas.service.js";
 
@@ -81,6 +82,27 @@ export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", authenticate);
 
   app.get("/ai/health", async () => service.saude());
+
+  /// Painel do OpenRouter em `/ajustes/openrouter`. Três rotas, e não uma, para
+  /// cada bloco carregar e falhar sozinho: sem management key, o bloco da chave
+  /// continua de pé. Cada uma fala com o provedor, daí o limite próprio.
+  app.get(
+    "/ai/openrouter/key",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async () => painel.chaveAtual(),
+  );
+
+  app.get(
+    "/ai/openrouter/account",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async () => painel.contaNoProvedor(),
+  );
+
+  app.get(
+    "/ai/openrouter/metrics",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async () => painel.metricasNoProvedor(),
+  );
 
   app.get("/ai/models", async (request) => {
     const query = listAiModelsQuerySchema.parse(request.query);

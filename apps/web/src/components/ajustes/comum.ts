@@ -10,6 +10,7 @@ export const SECOES_DE_AJUSTES = [
   { caminho: "modelos", titulo: "Modelos" },
   { caminho: "provedor", titulo: "Provedor" },
   { caminho: "gasto", titulo: "Gasto" },
+  { caminho: "openrouter", titulo: "Dashboard OpenRouter" },
 ] as const;
 
 /**

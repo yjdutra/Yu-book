@@ -66,6 +66,20 @@ export function temChave(chave: string | undefined): boolean {
   return Boolean(chave);
 }
 
+/**
+ * O rótulo da chave que pode sair para o navegador.
+ *
+ * O rótulo padrão do provedor é o prefixo da própria chave (`sk-or-v1-…`).
+ * Esconder isso no JSX não bastava: o corpo da resposta chega ao navegador, à
+ * aba de rede e a qualquer cache no caminho. A redação pertence ao servidor, e
+ * mora aqui para `saude()` e o painel do OpenRouter seguirem a mesma regra. Só
+ * sai rótulo que a pessoa nomeou no painel do provedor.
+ */
+export function rotuloPublico(bruto: unknown): string | null {
+  if (typeof bruto !== "string" || /^sk-/i.test(bruto)) return null;
+  return bruto;
+}
+
 export interface OpcoesDoProvedor {
   metodo?: "GET" | "POST";
   corpo?: unknown;
@@ -88,6 +102,16 @@ export interface OpcoesDoProvedor {
    * ninguém cancela continua precisando de teto de tempo por chamada.
    */
   signal?: AbortSignal;
+  /**
+   * Qual chave o provedor recusou, na frase do 401/403 — "a chave de
+   * gerenciamento" em vez de "a chave configurada". Existe porque o painel do
+   * OpenRouter fala com duas chaves, e "recusou a chave configurada" diante de
+   * um `/credits` mandaria a pessoa conferir a chave errada.
+   */
+  nomeDaChave?: string;
+  /// Frase que segue a recusa, dita por quem conhece o erro provável — no painel,
+  /// colar a chave comum no lugar da de gerenciamento. Texto nosso, nunca do provedor.
+  dicaSeRecusada?: string;
 }
 
 /**
@@ -158,7 +182,9 @@ export async function abrirNoProvedor(
       /// ecoar a credencial na própria mensagem ("Invalid API key: sk-…"), e
       /// 200 caracteres cabem um prefixo de chave com folga. É também onde o
       /// detalhe menos acrescenta — a frase já diz o que aconteceu.
-      throw indisponivel(`O provedor de IA recusou a chave configurada (${caminho})`);
+      const qual = opcoes.nomeDaChave ?? "configurada";
+      const dica = opcoes.dicaSeRecusada ? `. ${opcoes.dicaSeRecusada}` : "";
+      throw indisponivel(`O provedor de IA recusou a chave ${qual} (${caminho})${dica}`);
     }
     /// 402 é crédito acabado; 429 é limite de taxa **ou** cota diária do modelo
     /// gratuito. Os dois pedem a mesma coisa de quem está na tela: esperar.

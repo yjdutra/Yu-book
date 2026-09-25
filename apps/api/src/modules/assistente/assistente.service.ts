@@ -1,7 +1,7 @@
 import type { AiHealth } from "@yu-book/shared";
 import { env } from "../../env.js";
 import { AppError } from "../../lib/errors.js";
-import { pedirDoProvedor, temChave } from "./openrouter.service.js";
+import { pedirDoProvedor, rotuloPublico, temChave } from "./openrouter.service.js";
 
 /**
  * Regra do módulo de IA (RF-01). O provedor é um só — OpenRouter —, e por isso
@@ -15,8 +15,9 @@ const ORCAMENTO_SAUDE_MS = 5_000;
 /**
  * RF-08: diz se o provedor responde, **sem executar inferência**.
  *
- * Não recebe `userId` — e é a única função do módulo que não recebe. Não toca em
- * dado de usuário: o que ela responde é sobre o servidor, igual para todo mundo.
+ * Não recebe `userId`, como as leituras do painel do OpenRouter
+ * (`openrouter-painel.service.ts`). Não toca em dado de usuário: o que ela
+ * responde é sobre o servidor, igual para todo mundo.
  * A rota continua exigindo autenticação.
  */
 export async function saude(opcoes: { chave?: string | undefined } = {}): Promise<AiHealth> {
@@ -37,17 +38,12 @@ export async function saude(opcoes: { chave?: string | undefined } = {}): Promis
       orcamentoMs: ORCAMENTO_SAUDE_MS,
       chave,
     });
-    /// O rótulo padrão do provedor é o prefixo da própria chave. Esconder isso
-    /// no JSX não bastava: o corpo desta resposta chega ao navegador, à aba de
-    /// rede e a qualquer cache no caminho. A redação pertence aqui. Só sai
-    /// rótulo que a pessoa nomeou no painel do provedor.
-    const bruto = dados.data?.label;
-    const rotulo = typeof bruto === "string" && /^sk-/i.test(bruto) ? undefined : bruto;
+    /// Redigido por `rotuloPublico`: o padrão do provedor é o prefixo da chave.
     return {
       provider: "openrouter",
       configured: true,
       reachable: true,
-      label: typeof rotulo === "string" ? rotulo : null,
+      label: rotuloPublico(dados.data?.label),
       checkedAt,
     };
   } catch (erro) {

@@ -135,6 +135,14 @@ sobraram estão declarados em [`docs/historico.md`](docs/historico.md).
 foi publicada. O próximo passo é a conferência à mão, com os roteiros somados das cinco etapas em
 [`docs/historico.md`](docs/historico.md), e depois a decisão de publicar.
 
+Ainda em **2026-09-25** veio o **Dashboard OpenRouter**, a primeira de duas fases de painel de
+gasto. Em `/ajustes/openrouter` aparece o que o provedor conta: o gasto da chave, o teto e a cota
+de modelos gratuitos, e, com a chave de gerenciamento opcional, o saldo da conta, os últimos 30 dias
+por dia, modelo e provedor, e as métricas agregadas. Só consulta, sem gravar nada e sem gastar. A
+tela foi vista pela sessão num navegador automatizado. **Os blocos da conta nunca foram vistos com
+dado real**, porque a chave de gerenciamento ainda não foi criada. A segunda fase, o painel sobre o
+uso que o próprio Yu-book grava, vem depois.
+
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
   links `[[wiki]]` com backlinks, busca full-text por `Ctrl+K` e lixeira.
@@ -374,6 +382,10 @@ NIXPACKS_NODE_VERSION=22
 - **`OPENROUTER_API_KEY` é opcional.** Sem ela a API sobe igual e só as funções de IA ficam
   indisponíveis, com o motivo na tela de ajustes. Com ela, o conteúdo da nota que você mandar
   formatar **sai da máquina**.
+- **`OPENROUTER_MANAGEMENT_KEY` é opcional.** É a *management key* do OpenRouter, e só alimenta o
+  saldo, o histórico e as métricas de `/ajustes/openrouter`. No provedor ela cria e apaga chaves; a
+  API só a usa para ler, em caminhos fixos, e ela nunca chega ao navegador. Sem ela, a seção mostra
+  só o que a chave comum sabe.
 
 ### 4. Variáveis do web
 
@@ -585,9 +597,10 @@ em vez de engolir o que você acabou de escrever.
   medido em 2026-09-23.
 - **`[[wikilinks]]` são intocáveis.** A resposta do modelo é conferida antes de ser aplicada: se o
   conjunto de alvos mudar, ela é recusada. Não é instrução no prompt, é código.
-- **Ajustes em `/ajustes`**, em três seções: **modelos** (catálogo buscável e o quadro em que se
-  arrasta um favorito para cada tarefa, ou se usa o menu "Usar para…"), **provedor** e **gasto**
-  (o teto diário, US$ 0,20 por padrão). O gasto de hoje fica no cabeçalho, visível nas três.
+- **Ajustes em `/ajustes`**, em quatro seções: **modelos** (catálogo buscável e o quadro em que se
+  arrasta um favorito para cada tarefa, ou se usa o menu "Usar para…"), **provedor**, **gasto**
+  (o teto diário, US$ 0,20 por padrão) e **Dashboard OpenRouter** (o que o provedor conta, com dia
+  em UTC). O gasto de hoje fica no cabeçalho, visível nas quatro, no seu fuso.
 - **O catálogo não mostra tudo que o provedor mostra.** Ficam de fora as variantes `:batch`, que o
   provedor recusa na chamada que fazemos; os modelos que devolvem imagem ou áudio, que não servem à
   tarefa; e os apelidos `…-latest`, porque o favorito guarda uma **cópia** do preço e ela ficaria

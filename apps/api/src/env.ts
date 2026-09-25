@@ -33,6 +33,14 @@ const envSchema = z.object({
   /// Atribuição no painel do OpenRouter (header `HTTP-Referer`). Sem ela a
   /// chamada funciona igual.
   OPENROUTER_APP_URL: z.string().url().optional(),
+  /// Opcional. A *management key* do OpenRouter, que alimenta o saldo, o
+  /// histórico de 30 dias e as métricas de `/ajustes/openrouter`. Ela **não faz
+  /// inferência**, e no provedor **cria e apaga chaves** — por isso a API a usa
+  /// só em leitura, em caminhos fixos: `GET /credits`, `GET /activity`,
+  /// `GET /analytics/meta` e `POST /analytics/query` (consulta, não escrita).
+  /// Nunca `/keys`, nada que mude estado, e ela nunca aparece numa resposta
+  /// (`openrouter-painel.service.ts`). Sem ela, a tela mostra só a chave comum.
+  OPENROUTER_MANAGEMENT_KEY: z.string().optional(),
 
   /// Feche depois de criar sua conta. Signup aberto na internet = lixo no banco.
   ALLOW_SIGNUP: z

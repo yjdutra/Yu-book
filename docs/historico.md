@@ -9,6 +9,102 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-25 — Dashboard OpenRouter (fase 1 de 2): o que o provedor diz, e a chave que só lê
+
+Pedido do operador no mesmo dia da Etapa G, num plano de duas fases. Esta é a primeira, e o que
+mudou está na `[0.24.0]` do changelog. A segunda, o painel de uso sobre `ai_usage`, vem depois. As
+duas ficam separadas **pela origem do dado**. Esta mostra o que o OpenRouter conta, e a outra o que
+o Yu-book gravou. Os números vão divergir (chamadas feitas fora do Yu-book com a mesma chave, custo
+que o provedor não informou), e juntá-los numa tela esconderia de onde vem cada um. Não é etapa da
+frente de IA, e o nome fica "Dashboard OpenRouter (fase 1 de 2)", sem número de etapa. **O NO5 do
+PRD de IA** (não fazer painel de gastos) caiu em 2026-09-22, e este painel é continuação daquela
+decisão, não uma revogação nova.
+
+**A chave de gerenciamento é opcional, e só lê.** `/credits`, `/activity` e `/analytics/*` não
+aceitam a chave de inferência, e o provedor exige uma management key, que **cria e apaga chaves**.
+Pô-la no ambiente da API dá ao servidor um poder que ele não usa. Por isso:
+
+- a variável é opcional. Sem ela a seção mostra os três blocos da chave comum e um aviso;
+- os caminhos permitidos moram em `CAMINHOS_DE_GESTAO`, em
+  `apps/api/src/modules/assistente/openrouter-painel.service.ts`: `GET /credits`, `GET /activity`,
+  `GET /analytics/meta` e `POST /analytics/query`. `pedirComGestao` só recebe uma chave desse objeto,
+  e o compilador recusa um `/keys` escrito por engano. O `POST` é consulta, com o filtro no corpo;
+- ela nunca chega ao navegador. A tela sabe que ela existe pelo booleano `managementConfigured`,
+  que vem na resposta da chave comum.
+
+**Dias em UTC no painel, fuso do usuário no cabeçalho.** O provedor conta `usage_daily`, a semana,
+o mês e a cota gratuita em UTC. O "Gasto de hoje" do cabeçalho de `/ajustes` conta no fuso do
+usuário, pelo `ai_usage`. Converter o do provedor não é possível, porque ele manda o total, não as
+chamadas. Os dois números discordam perto da meia-noite, e a tela diz isso por extenso na legenda
+do bloco, em vez de fingir que são o mesmo dia.
+
+**Duas janelas de 30 dias, de propósito.** O `/activity` só entrega dia completo, e a janela das
+barras vai de D-30 a D-1 em UTC, com "o dia de hoje entra amanhã" na tela. As métricas pedem os
+30 dias **até agora**, hoje incluído, porque o `/analytics/query` aceita instante. Uniformizar
+cortaria o dia de hoje das métricas sem ganho. Linha do `/activity` fora da janela fica fora dos
+três cortes (dia, modelo e provedor), para os totais baterem entre eles.
+
+**Métricas pedidas sem `granularity`.** A resposta vem numa linha agregada, e as taxas
+(`cache_hit_rate`, `avg_latency`) vêm calculadas pelo provedor sobre a janela inteira. Pedir por dia
+e agregar aqui daria média de médias, errada quando o volume varia de um dia para outro. Só se pede
+métrica que o `/analytics/meta` anuncia, porque uma métrica aposentada faria a consulta inteira
+falhar. O meta fica em cache de módulo por 1 h, no desenho do catálogo de modelos.
+
+**`rotuloPublico` virou regra única.** A redação do rótulo `sk-…`, que o provedor usa por padrão com
+o prefixo da própria chave, morava dentro de `saude()`. O painel devolve o mesmo rótulo, e copiar a
+regra daria duas redações para divergir. Ela foi extraída para `openrouter.service.ts`, e o teste de
+rótulo de `saude()` cobre a função.
+
+**`nomeDaChave` e `dicaSeRecusada` no 401/403.** Com duas chaves, "o provedor recusou a chave
+configurada" diante de um `/credits` mandaria conferir a chave errada. O erro mais provável é colar
+a chave comum no lugar da de gerenciamento, e a dica diz isso. As duas frases são nossas. O detalhe
+do provedor continua fora desse ramo, porque é onde ele ecoa a credencial.
+
+**`tests/setup.ts` sobrescreve `OPENROUTER_MANAGEMENT_KEY`, e não usa `??=`.** Com um valor fixo e
+não vazio no ambiente, o teste de "sem chave" pela injeção `{ chaveDeGestao: undefined }` tem dente.
+Se a checagem por `in` virar valor padrão de parâmetro, a chamada cai de volta no ambiente, abre
+conexão com o dublê, e o teste cai. Com o ambiente vazio, ele passaria testando outra coisa. A
+sobrescrita também impede que uma chave real no `.env` de desenvolvimento mude o que a suíte
+responde.
+
+**Problema achado, e anterior a esta entrega:** o `setup.ts` usa `??=` para `OPENROUTER_API_KEY`.
+Com a chave real no `.env` de desenvolvimento, é ela que vai como `Bearer` ao dublê local. Não
+vaza para fora da máquina, porque o dublê está em `127.0.0.1`, mas a suíte depende do `.env` de quem
+roda. Não foi corrigido aqui.
+
+Os comentários do código citam o CA-02 e o RNF-09 do PRD de IA por extensão. O CA-02 vale ao pé da
+letra: sem chave, nenhuma conexão. O RNF-09 é o da marca de IA sem depender de cor, e aqui foi
+emprestado o princípio para a barra do teto e as barras por dia: o número está no texto, e o
+desenho só ilustra.
+
+**Verificação.** `pnpm typecheck` limpo e 362 testes da API (eram 341), 21 na suíte nova. A tela foi
+vista em Chrome headless pela sessão, não pelo operador. Os blocos da chave e o aviso sem chave de
+gerenciamento foram vistos com a chave real, nos dois temas. Os blocos de conta, histórico e
+métricas só foram vistos com respostas simuladas.
+
+**Dívidas:**
+
+1. **Os blocos de conta, histórico e métricas nunca foram vistos com dado real.** Falta o operador
+   criar a management key em openrouter.ai/settings/management-keys e pô-la no `apps/api/.env`.
+2. **A unidade de `avg_latency` é suposta em milissegundos.** O `display_format: "latency"` não diz
+   a unidade, e a documentação também não. Conferir com a primeira resposta real.
+3. **Nos ramos 402, 429 e demais, o texto do provedor (até 200 caracteres) vai à tela**, e agora
+   também para os endpoints de gestão. Não se verificou se algum deles ecoa identificador de conta.
+4. **Qualquer conta autenticada veria o saldo e o histórico da conta OpenRouter do operador.** As
+   rotas não recebem `userId`, como `saude()`, porque o dado é do servidor. É seguro enquanto o
+   Yu-book for single-user com `ALLOW_SIGNUP` fechado. Abrir cadastro exige restringir as três rotas.
+5. **Em produção, `OPENROUTER_MANAGEMENT_KEY` precisa ser definida no serviço da API na Railway.**
+   Sem ela, a seção sobe só com os três blocos da chave e o aviso.
+6. O `??=` de `OPENROUTER_API_KEY` no `setup.ts`, descrito acima.
+
+**A versão abre a `[0.24.0]`, com bump dos quatro pacotes.** `packages/shared` ganhou tipos e
+constantes, só aditivos, e a regra dos quatro pacotes existe para que a versão diga contra qual
+contrato cada pacote foi construído (`changelog-e-versao` §3). O pedido original era não mover o
+`apps/mcp`, que não mudou de comportamento. Todas as entradas anteriores com contrato novo em
+`packages/shared` moveram o `apps/mcp`, inclusive a `[0.23.0]`, em que só mudou a versão dele.
+
+---
+
 ## 2026-09-25 — Frente de IA, Etapa G: pesquisa externa, e a saída que não resolve duas vezes
 
 Quinta e última etapa do [plano de agentes de acervo](plano-agentes-de-acervo.md), feita no mesmo

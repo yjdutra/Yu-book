@@ -21,3 +21,16 @@ process.env.OPENROUTER_BASE_URL ??= "http://127.0.0.1:39333/api/v1";
 // de `openrouter.service.ts`, que lança ao ver o host real em modo de teste.
 // Os testes de "sem chave" usam a costura explícita do service, não o ambiente.
 process.env.OPENROUTER_API_KEY ??= "chave-de-teste";
+
+// A management key do painel do OpenRouter, fixada **com sobrescrita**, e não
+// com `??=` como a de cima, por dois motivos:
+// - se um dia a chave real for para o `.env` de desenvolvimento, ela iria no
+//   header para o dublê e mudaria o que as rotas respondem ("sem management
+//   key" passaria a ser "com") — a suíte dependeria da máquina;
+// - com um valor fixo e não vazio no ambiente, o teste de "sem chave" pela
+//   injeção `{ chaveDeGestao: undefined }` fica com dente: se a checagem de
+//   `in` virar valor padrão de parâmetro, a chamada cai de volta aqui, abre
+//   conexão, e o teste cai. Com o ambiente vazio, ele passaria testando outra
+//   coisa (ver `convencoes-yu-book`, §3).
+// Nenhuma outra suíte lê esta variável.
+process.env.OPENROUTER_MANAGEMENT_KEY = "gestao-de-teste";

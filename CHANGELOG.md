@@ -13,6 +13,84 @@ _Nada pendente._
 
 ---
 
+## [0.24.0] — 2026-09-25
+
+**Dashboard OpenRouter (fase 1 de 2).** Uma seção nova em `/ajustes/openrouter` mostra o que **o
+provedor** diz sobre a chave e a conta: gasto, teto, cota gratuita e, com uma chave de gerenciamento
+opcional, saldo, histórico de 30 dias e métricas. Pedido do operador em 2026-09-25, num plano de
+duas fases. A segunda, o painel de uso sobre `ai_usage`, que lê o que **o Yu-book** gravou, vem
+depois e fica separada pela origem do dado.
+
+**Não é etapa da frente de IA** (A a G), nem fase de produto, nem etapa do MCP, que segue na 4 de 5.
+Não tem PRD nem identificadores próprios. O NO5 do PRD de IA, que proibia painel de gastos, está
+revogado desde a `[0.10.0]`, e este painel continua aquela decisão.
+
+**Só consulta.** Nada é gravado, não há migration, nenhuma chamada faz inferência, e nenhuma entra
+no teto diário, porque o provedor não cobra por elas.
+
+**Os quatro pacotes se movem**, porque `packages/shared` mudou de contrato. Entraram em
+`packages/shared/src/ia.ts` os tipos `OpenRouterKeyInfo`, `OpenRouterKeyReport`,
+`OpenRouterAccount`, `OpenRouterDailyCost`, `OpenRouterModelActivity`,
+`OpenRouterProviderActivity`, `OpenRouterMetric` e `OpenRouterMetrics`, e as constantes
+`OPENROUTER_LIMIT_RESETS` e `OPENROUTER_METRIC_FORMATS`. A mudança é só aditiva. Versões:
+`packages/shared` de `0.12.0` para `0.13.0`, `apps/api` de `0.14.0` para `0.15.0`, `apps/web` de
+`0.19.0` para `0.20.0` e `apps/mcp` de `0.15.0` para `0.16.0`, no `package.json` **e** no
+construtor do `McpServer`. **O MCP não mudou de comportamento:** em `apps/mcp/src` só mudou a
+versão.
+
+Portões, relatados pela sessão de implementação: `pnpm typecheck` limpo e
+`pnpm --filter @yu-book/api test` com **362 testes** (eram 341), 21 deles na suíte nova
+`openrouter-painel.test.ts`. A suíte do MCP não foi rodada, porque nada do que ela cobre mudou.
+
+**A tela foi conferida em Chrome headless pela sessão, não à mão.** Os blocos da chave (gasto, teto
+e cota gratuita) e o aviso de falta da chave de gerenciamento foram vistos com a chave real, nos dois
+temas. **Os blocos de conta, histórico e métricas só foram vistos com respostas simuladas.** Ninguém
+os viu com dado real, porque a chave de gerenciamento ainda não existe. As dívidas estão em
+[`docs/historico.md`](docs/historico.md).
+
+### Adicionado
+- **Seção "Dashboard OpenRouter"** em `/ajustes/openrouter`, último item do painel de Ajustes, com
+  o botão "Atualizar" e a hora da consulta.
+- **Com a chave de inferência de sempre**, por `GET /key` no provedor:
+  - o gasto da chave hoje, na semana, no mês e no total. Dia, semana e mês são **UTC**, e a tela diz
+    isso, porque o "Gasto de hoje" do cabeçalho conta no fuso do usuário. O gasto com chave própria
+    de provedor (BYOK) só aparece quando existe;
+  - o teto da chave, com a barra do restante, a periodicidade da renovação e a expiração, ou a frase
+    "Sem teto na chave";
+  - a cota diária de requisições a modelos gratuitos, em UTC, e a etiqueta "free tier" quando o
+    provedor classifica a conta assim.
+- **Com a chave de gerenciamento**, na variável nova e opcional `OPENROUTER_MANAGEMENT_KEY`:
+  - o saldo da conta, com o comprado e o usado (`/credits`);
+  - os últimos 30 dias em barras por dia, com uma tabela por modelo (requisições, tokens de
+    entrada, saída e raciocínio, custo) e outra por provedor (`/activity`). A janela termina ontem,
+    porque o provedor só fecha dia completo;
+  - as métricas dos 30 dias até agora, hoje incluído: requisições, gasto, tokens, taxa de acerto de
+    cache, latência média, gasto com busca na web e com cache (`/analytics/meta` e
+    `POST /analytics/query`). Aparecem só as que o provedor anuncia.
+- **Sem a chave de gerenciamento**, um aviso diz o que falta, onde criá-la e em que variável da API
+  defini-la. A chave de inferência continua mostrando os três primeiros blocos.
+- Rotas `GET /ai/openrouter/key`, `GET /ai/openrouter/account` e `GET /ai/openrouter/metrics`,
+  autenticadas e com limite de 10 por minuto. São três para que cada bloco carregue e falhe sozinho.
+
+### Alterado
+- Quando o provedor recusa a chave de gerenciamento (401 ou 403), a mensagem nomeia essa chave e
+  sugere conferir se ela é mesmo uma management key, em vez de dizer "a chave configurada".
+
+### Segurança
+- **A chave de gerenciamento nunca chega ao navegador.** Nenhuma das duas chaves aparece nas
+  respostas, e a tela decide o aviso por um booleano.
+- **A chave de gerenciamento só lê.** No provedor, ela cria e apaga chaves. Aqui só vai a quatro
+  caminhos fixos: `GET /credits`, `GET /activity`, `GET /analytics/meta` e
+  `POST /analytics/query`, que é consulta. `/keys` fica de fora, e o compilador recusa outro
+  caminho.
+- Os identificadores de conta que `GET /key` devolve (`creator_user_id`, `organization_id`,
+  `workspace_id`) não são copiados para a resposta. O rótulo `sk-…` da chave continua redigido pela
+  mesma regra de `GET /ai/health`.
+- **Risco declarado:** qualquer conta autenticada veria o saldo e o histórico da conta OpenRouter do
+  operador. É seguro enquanto o Yu-book for single-user com `ALLOW_SIGNUP` fechado.
+
+---
+
 ## [0.23.0] — 2026-09-25
 
 **Etapa G da frente de IA: pesquisa externa.** O agente passa a olhar para fora do acervo, de dois

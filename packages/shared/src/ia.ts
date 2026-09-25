@@ -269,3 +269,114 @@ export interface FormatNoteResult {
   contentMd: string;
   usage: AiCallUsage;
 }
+
+/**
+ * Painel do OpenRouter em `/ajustes/openrouter`: o que **o provedor** diz sobre
+ * a chave e a conta. Só consulta — nada daqui é gravado nem passa pelo teto
+ * diário, porque nenhuma destas leituras é cobrada.
+ *
+ * Dinheiro em µUSD inteiros, como o resto do módulo; a conversão acontece no
+ * servidor, por `dolaresParaMicros`.
+ */
+export const OPENROUTER_LIMIT_RESETS = ["daily", "weekly", "monthly"] as const;
+export type OpenRouterLimitReset = (typeof OPENROUTER_LIMIT_RESETS)[number];
+
+export interface OpenRouterKeyInfo {
+  /// Já redigido: rótulo `sk-…` (o prefixo da própria chave) chega como `null`.
+  label: string | null;
+  /// Dia, semana e mês em **UTC**, contados pelo provedor — não no fuso do usuário.
+  usageMicros: number;
+  usageDailyMicros: number;
+  usageWeeklyMicros: number;
+  usageMonthlyMicros: number;
+  byokUsageMicros: number;
+  byokUsageMonthlyMicros: number;
+  /// `null` quando a chave não tem teto no provedor.
+  limitMicros: number | null;
+  limitRemainingMicros: number | null;
+  limitReset: OpenRouterLimitReset | null;
+  includeByokInLimit: boolean;
+  isFreeTier: boolean;
+  /// Cota diária (UTC) de requisições a modelos gratuitos.
+  freeModelRequests: { used: number; limit: number; remaining: number } | null;
+  expiresAt: string | null;
+}
+
+export interface OpenRouterKeyReport {
+  /// Existe `OPENROUTER_API_KEY` no servidor.
+  configured: boolean;
+  /// Existe `OPENROUTER_MANAGEMENT_KEY`. É por aqui que a tela decide mostrar os
+  /// blocos de conta ou o aviso — a chave em si nunca sai do servidor.
+  managementConfigured: boolean;
+  key: OpenRouterKeyInfo | null;
+  checkedAt: string;
+}
+
+export interface OpenRouterDailyCost {
+  /// `YYYY-MM-DD`, dia UTC.
+  date: string;
+  costMicros: number;
+  byokMicros: number;
+  requests: number;
+}
+
+export interface OpenRouterModelActivity {
+  model: string;
+  requests: number;
+  promptTokens: number;
+  completionTokens: number;
+  reasoningTokens: number;
+  costMicros: number;
+}
+
+export interface OpenRouterProviderActivity {
+  provider: string;
+  requests: number;
+  costMicros: number;
+}
+
+export interface OpenRouterAccount {
+  managementConfigured: boolean;
+  /// Saldo = comprado − usado, calculado em µUSD.
+  credits: { purchasedMicros: number; usedMicros: number; balanceMicros: number } | null;
+  activity: {
+    /// Dias UTC. A janela termina **ontem**: o provedor só fecha dia completo.
+    from: string;
+    to: string;
+    /// Sempre 30 pontos, de `from` a `to`, com zero nos dias sem uso.
+    daily: OpenRouterDailyCost[];
+    /// Ordenados por custo, depois por requisições.
+    byModel: OpenRouterModelActivity[];
+    byProvider: OpenRouterProviderActivity[];
+  } | null;
+  checkedAt: string;
+}
+
+/// O `display_format` do provedor. `percent` chega como fração (0,25 = 25%);
+/// `latency` e `throughput` na unidade do provedor, que a documentação não diz.
+export const OPENROUTER_METRIC_FORMATS = [
+  "number",
+  "currency",
+  "percent",
+  "latency",
+  "throughput",
+] as const;
+export type OpenRouterMetricFormat = (typeof OPENROUTER_METRIC_FORMATS)[number];
+
+export interface OpenRouterMetric {
+  /// Identificador do provedor (`request_count`, `cache_hit_rate`…). O rótulo em
+  /// português é texto de tela e mora no front.
+  name: string;
+  format: OpenRouterMetricFormat;
+  /// `currency` já convertido para µUSD; `null` quando o provedor não tem valor.
+  value: number | null;
+}
+
+export interface OpenRouterMetrics {
+  managementConfigured: boolean;
+  /// Instantes ISO em UTC: 30 dias até agora, **incluindo** hoje.
+  window: { from: string; to: string } | null;
+  /// Só as métricas que o provedor anuncia, na ordem fixa do servidor.
+  items: OpenRouterMetric[];
+  checkedAt: string;
+}

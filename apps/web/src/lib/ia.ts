@@ -6,6 +6,9 @@ import type {
   AiSettings,
   AiSettingsPatch,
   FormatNoteResult,
+  OpenRouterAccount,
+  OpenRouterKeyReport,
+  OpenRouterMetrics,
   TarefaComModelo,
 } from "@yu-book/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,6 +38,47 @@ export function useAiAjustes() {
     queryKey: AJUSTES,
     queryFn: () => api.get<AiSettings>("/ai/settings"),
     staleTime: 30_000,
+  });
+}
+
+/**
+ * O painel do OpenRouter (`/ajustes/openrouter`). Três consultas, e não uma,
+ * para cada bloco carregar e falhar sozinho: sem a management key, o bloco da
+ * chave continua de pé. O botão Atualizar invalida as três por este prefixo.
+ *
+ * `retry: false` de propósito: o erro aqui é resposta do provedor, e aparece na
+ * hora. Tentar de novo só gastaria o rate limit das rotas (10 por minuto).
+ */
+export const CHAVE_OPENROUTER = ["ia", "openrouter"] as const;
+
+export function useOpenRouterChave() {
+  return useQuery({
+    queryKey: [...CHAVE_OPENROUTER, "chave"],
+    queryFn: () => api.get<OpenRouterKeyReport>("/ai/openrouter/key"),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/// `habilitada` vem do `managementConfigured` da resposta da chave: sem a
+/// management key, a consulta nem sai — a resposta já se sabe qual é.
+export function useOpenRouterConta(habilitada: boolean) {
+  return useQuery({
+    queryKey: [...CHAVE_OPENROUTER, "conta"],
+    queryFn: () => api.get<OpenRouterAccount>("/ai/openrouter/account"),
+    enabled: habilitada,
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+export function useOpenRouterMetricas(habilitada: boolean) {
+  return useQuery({
+    queryKey: [...CHAVE_OPENROUTER, "metricas"],
+    queryFn: () => api.get<OpenRouterMetrics>("/ai/openrouter/metrics"),
+    enabled: habilitada,
+    staleTime: 60_000,
+    retry: false,
   });
 }
 
