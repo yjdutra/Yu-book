@@ -138,10 +138,18 @@ foi publicada. O próximo passo é a conferência à mão, com os roteiros somad
 Ainda em **2026-09-25** veio o **Dashboard OpenRouter**, a primeira de duas fases de painel de
 gasto. Em `/ajustes/openrouter` aparece o que o provedor conta: o gasto da chave, o teto e a cota
 de modelos gratuitos, e, com a chave de gerenciamento opcional, o saldo da conta, os últimos 30 dias
-por dia, modelo e provedor, e as métricas agregadas. Só consulta, sem gravar nada e sem gastar. A
-tela foi vista pela sessão num navegador automatizado. **Os blocos da conta nunca foram vistos com
-dado real**, porque a chave de gerenciamento ainda não foi criada. A segunda fase, o painel sobre o
-uso que o próprio Yu-book grava, vem depois.
+por dia, modelo e provedor, e as métricas agregadas. Só consulta, sem gravar nada e sem gastar.
+Os blocos da conta foram vistos com dado real depois que o operador criou a chave de gerenciamento,
+no mesmo dia.
+
+Ainda em **2026-09-25** veio a segunda fase, o **AI usage dash**, e com ela **o plano do painel de
+gasto está fechado**. Em `/ajustes/uso` aparece o que **o próprio Yu-book gravou** a cada chamada ao
+provedor, inclusive as que falharam, em 7, 30 ou 90 dias contados no seu fuso: o gasto com a
+variação contra o período anterior, o gasto por dia, tabelas por modelo, por tarefa e por origem do
+custo, os erros mais comuns e as últimas 50 chamadas, cada uma com link para a nota, a execução ou a
+conversa de onde veio. Só leitura, sem ir ao provedor. As duas fases foram vistas pela sessão num
+navegador automatizado, **não à mão pelo operador**, e as dívidas estão em
+[`docs/historico.md`](docs/historico.md).
 
 - **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
 - **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
@@ -597,10 +605,11 @@ em vez de engolir o que você acabou de escrever.
   medido em 2026-09-23.
 - **`[[wikilinks]]` são intocáveis.** A resposta do modelo é conferida antes de ser aplicada: se o
   conjunto de alvos mudar, ela é recusada. Não é instrução no prompt, é código.
-- **Ajustes em `/ajustes`**, em quatro seções: **modelos** (catálogo buscável e o quadro em que se
+- **Ajustes em `/ajustes`**, em cinco seções: **modelos** (catálogo buscável e o quadro em que se
   arrasta um favorito para cada tarefa, ou se usa o menu "Usar para…"), **provedor**, **gasto**
-  (o teto diário, US$ 0,20 por padrão) e **Dashboard OpenRouter** (o que o provedor conta, com dia
-  em UTC). O gasto de hoje fica no cabeçalho, visível nas quatro, no seu fuso.
+  (o teto diário, US$ 0,20 por padrão), **Dashboard OpenRouter** (o que o provedor conta, com dia
+  em UTC) e **AI usage dash** (o que o Yu-book gravou, com dia no seu fuso). O gasto de hoje fica
+  no cabeçalho, visível nas cinco, no seu fuso.
 - **O catálogo não mostra tudo que o provedor mostra.** Ficam de fora as variantes `:batch`, que o
   provedor recusa na chamada que fazemos; os modelos que devolvem imagem ou áudio, que não servem à
   tarefa; e os apelidos `…-latest`, porque o favorito guarda uma **cópia** do preço e ela ficaria

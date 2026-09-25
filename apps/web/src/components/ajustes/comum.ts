@@ -11,6 +11,7 @@ export const SECOES_DE_AJUSTES = [
   { caminho: "provedor", titulo: "Provedor" },
   { caminho: "gasto", titulo: "Gasto" },
   { caminho: "openrouter", titulo: "Dashboard OpenRouter" },
+  { caminho: "uso", titulo: "AI usage dash" },
 ] as const;
 
 /**
@@ -56,6 +57,17 @@ const DINHEIRO = new Intl.NumberFormat("pt-BR", {
 
 export function emDolares(micros: number): string {
   return DINHEIRO.format(microsParaDolares(micros));
+}
+
+const INTEIRO = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const DECIMAL = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+
+/**
+ * Duração de uma resposta: "850 ms", "3 s", "12,4 s". A mesma escala para a
+ * latência do provedor e para a duração que o Yu-book grava em `ai_usage`.
+ */
+export function duracao(ms: number): string {
+  return ms >= 1000 ? `${DECIMAL.format(ms / 1000)} s` : `${INTEIRO.format(ms)} ms`;
 }
 
 /** Contexto em milhares, como o provedor costuma anunciar. */

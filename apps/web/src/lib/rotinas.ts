@@ -12,7 +12,7 @@ import type {
   RotinaEvent,
 } from "@yu-book/shared";
 import { api, apiStream } from "./api";
-import { CHAVE_AJUSTES, lerEventos } from "./chat";
+import { CHAVE_AJUSTES, CHAVE_USO, lerEventos } from "./chat";
 
 /**
  * Rotinas (Etapa E da frente de IA).
@@ -206,6 +206,7 @@ export function invalidarDepoisDaExecucao(qc: QueryClient, routineId: string | n
   void qc.invalidateQueries({ queryKey: ["search"], refetchType: "none" });
   void qc.invalidateQueries({ queryKey: ["dashboard"] });
   void qc.invalidateQueries({ queryKey: CHAVE_AJUSTES });
+  void qc.invalidateQueries({ queryKey: CHAVE_USO });
   void qc.invalidateQueries({ queryKey: CHAVE_ROTINAS });
   if (routineId) {
     void qc.invalidateQueries({ queryKey: chaveDaRotina(routineId) });

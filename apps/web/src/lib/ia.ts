@@ -5,14 +5,17 @@ import type {
   AiModelSort,
   AiSettings,
   AiSettingsPatch,
+  AiUsageReport,
   FormatNoteResult,
   OpenRouterAccount,
   OpenRouterKeyReport,
   OpenRouterMetrics,
+  PeriodoDeUso,
   TarefaComModelo,
 } from "@yu-book/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
+import { CHAVE_USO } from "./chat";
 
 /**
  * A frente de IA no front.
@@ -82,6 +85,25 @@ export function useOpenRouterMetricas(habilitada: boolean) {
   });
 }
 
+/**
+ * O AI usage dash (`/ajustes/uso`): o que o Yu-book gravou em `ai_usage` no
+ * período. Só lê o banco — nada vai ao provedor, e por isso aqui não há o
+ * `retry: false` do painel do OpenRouter.
+ *
+ * `keepPreviousData` segura o período anterior na tela enquanto o novo chega:
+ * trocar de 30 para 90 dias não pisca o esqueleto. A chave é a mesma que o
+ * chat, a rotina e o formatar invalidam — gasto novo aparece sem esperar os
+ * 30 s.
+ */
+export function useUsoIa(dias: PeriodoDeUso) {
+  return useQuery({
+    queryKey: [...CHAVE_USO, dias],
+    queryFn: () => api.get<AiUsageReport>(`/ai/usage?days=${dias}`),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
 /** O que a tela pergunta ao catálogo. `maxPrice` em µUSD por milhão; `null` = sem teto. */
 export interface FiltrosDeModelo {
   q: string;
@@ -111,8 +133,13 @@ export function useAtualizarAjustes() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: AiSettingsPatch) => api.patch<AiSettings>("/ai/settings", patch),
-    // O servidor devolve o objeto inteiro: costura em vez de invalidar.
-    onSuccess: (ajustes) => qc.setQueryData(AJUSTES, ajustes),
+    // O servidor devolve o objeto inteiro: costura em vez de invalidar. O AI
+    // usage dash, não: trocar o fuso muda o `to` e o nome do fuso que ele
+    // mostra, e só o servidor recalcula o período.
+    onSuccess: (ajustes) => {
+      qc.setQueryData(AJUSTES, ajustes);
+      void qc.invalidateQueries({ queryKey: CHAVE_USO });
+    },
   });
 }
 
@@ -185,9 +212,16 @@ export function useFormatarNota() {
     mutationFn: ({ id, contentMd }: { id: string; contentMd: string }) =>
       api.post<FormatNoteResult>(`/ai/notes/${id}/format`, { contentMd }),
     // Não toca no cache de notas — quem grava a nota é o autosave (INV-23). Mas
-    // acabou de gastar dinheiro, e o gasto do dia tem `staleTime` de 30 s: sem
+    // pode ter gastado dinheiro, e o gasto do dia tem `staleTime` de 30 s: sem
     // isto a tela de ajustes mostraria um número velho logo depois da ação que
-    // o mudou.
-    onSuccess: () => qc.invalidateQueries({ queryKey: AJUSTES }),
+    // o mudou. `onSettled`, e não `onSuccess`, nos dois: a falha também custa —
+    // `RESPOSTA_INVALIDA` é gravada depois de o provedor responder
+    // (`formatar.service.ts`), e toda chamada que falhou vira linha em
+    // `ai_usage`. `void`: quem espera o `mutateAsync` não precisa esperar
+    // estes refetches.
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: AJUSTES });
+      void qc.invalidateQueries({ queryKey: CHAVE_USO });
+    },
   });
 }

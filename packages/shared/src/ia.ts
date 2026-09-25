@@ -1,6 +1,6 @@
 import { z } from "zod";
 /// Os enums espelhados do Prisma moram todos em `enums.ts`.
-import type { AiCostSource, TarefaComModelo } from "./enums.js";
+import type { AiCostSource, AiTask, TarefaComModelo } from "./enums.js";
 
 /**
  * Contrato da frente de IA — Fase 5 do roteiro, detalhada em
@@ -379,4 +379,139 @@ export interface OpenRouterMetrics {
   /// Só as métricas que o provedor anuncia, na ordem fixa do servidor.
   items: OpenRouterMetric[];
   checkedAt: string;
+}
+
+/**
+ * AI usage dash em `/ajustes/uso`: o que **o próprio Yu-book** registrou em
+ * `ai_usage`, uma linha por chamada ao provedor, inclusive as que falharam. É
+ * a outra metade do painel de gasto — o `OpenRouter*` acima é o que o provedor
+ * diz; este é o que o servidor gravou, com tarefa, vínculo e origem do custo.
+ *
+ * Todo dia é **dia local do usuário**, o mesmo `localDay` que o teto grava
+ * (INV-50) — não o dia UTC do painel do OpenRouter. Os dois painéis não
+ * precisam bater dia a dia, e não batem por construção.
+ */
+export const PERIODOS_DE_USO = [7, 30, 90] as const;
+export type PeriodoDeUso = (typeof PERIODOS_DE_USO)[number];
+
+/// O query string chega como texto. `z.coerce.number()` aceitaria `15` e
+/// `7.5`; a lista fechada recusa tudo o que a tela não oferece, com 422.
+const PERIODO_DO_TEXTO = { "7": 7, "30": 30, "90": 90 } as const satisfies Record<
+  `${PeriodoDeUso}`,
+  PeriodoDeUso
+>;
+
+export const aiUsageQuerySchema = z.object({
+  days: z
+    .enum(["7", "30", "90"], {
+      errorMap: () => ({ message: "O período deve ser de 7, 30 ou 90 dias" }),
+    })
+    .default("30")
+    .transform((texto): PeriodoDeUso => PERIODO_DO_TEXTO[texto]),
+});
+
+export type AiUsageQuery = z.infer<typeof aiUsageQuerySchema>;
+
+export interface AiUsageTotals {
+  costMicros: number;
+  calls: number;
+  failedCalls: number;
+  promptTokens: number;
+  completionTokens: number;
+  /// Arredondado a inteiro. `null` sem nenhuma chamada no período — zero seria
+  /// uma medição que não houve.
+  avgDurationMs: number | null;
+  /// A parte de `costMicros` que é estimativa: o provedor mandou tokens, não
+  /// custo, e a conta usou o preço do catálogo (INV-48).
+  estimatedMicros: number;
+  /// Chamadas com custo `desconhecido`: gravaram zero, e zero não move o teto.
+  /// Maior que zero, a soma do período está abaixo do gasto real.
+  callsWithoutCost: number;
+}
+
+export interface AiUsageDay {
+  /// `AAAA-MM-DD`, dia local do usuário.
+  localDay: string;
+  costMicros: number;
+  calls: number;
+  failedCalls: number;
+}
+
+export interface AiUsageByModel {
+  /// `modelUsed ?? modelId`: o que o provedor de fato serviu, que é o que custou.
+  model: string;
+  calls: number;
+  failedCalls: number;
+  promptTokens: number;
+  completionTokens: number;
+  costMicros: number;
+  /// Arredondado a inteiro. Nunca nulo: a linha só existe se houve chamada.
+  avgDurationMs: number;
+}
+
+export interface AiUsageByTask {
+  task: AiTask;
+  calls: number;
+  failedCalls: number;
+  costMicros: number;
+}
+
+export interface AiUsageByCostSource {
+  source: AiCostSource;
+  calls: number;
+  costMicros: number;
+}
+
+export interface AiUsageError {
+  /// O `errorCode` gravado — em geral um `ErrorCode`, mas também `CANCELADA` e
+  /// `FINALIZACAO_PARCIAL`, que não são resposta HTTP. Por isso `string`.
+  code: string;
+  calls: number;
+}
+
+export interface AiUsageCall {
+  id: string;
+  createdAt: string;
+  /// O dia gravado, o mesmo que o teto contou. A tela mostra este, e não o dia
+  /// de `createdAt` no fuso de hoje: depois de uma troca de fuso, os dois
+  /// divergem perto da meia-noite, e só o gravado cai dentro de `from`–`to`.
+  localDay: string;
+  task: AiTask;
+  /// `modelUsed ?? modelId`, como em `byModel`.
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  costMicros: number;
+  costSource: AiCostSource;
+  durationMs: number;
+  ok: boolean;
+  errorCode: string | null;
+  noteId: string | null;
+  conversationId: string | null;
+  runId: string | null;
+}
+
+export interface AiUsageReport {
+  days: PeriodoDeUso;
+  timezone: string;
+  /// `AAAA-MM-DD`, os dois inclusive: `to` é hoje no fuso do usuário e `from`
+  /// fica `days − 1` dias antes.
+  from: string;
+  to: string;
+  totals: AiUsageTotals;
+  /// Gasto dos `days` dias imediatamente antes de `from`, para a variação.
+  previousCostMicros: number;
+  /// Exatamente `days` pontos, de `from` a `to`, com zero nos dias sem uso.
+  daily: AiUsageDay[];
+  /// Por custo, depois por chamadas.
+  byModel: AiUsageByModel[];
+  /// Sempre as três tarefas, na ordem de `AI_TASKS`, com zero quando não houve.
+  byTask: AiUsageByTask[];
+  /// Sempre as três origens, na ordem de `AI_COST_SOURCES`, com zero.
+  byCostSource: AiUsageByCostSource[];
+  /// Até cinco códigos, do mais frequente ao menos. Falha gravada sem código
+  /// fica fora da lista, mas conta em `failedCalls` e aparece em `recent`.
+  errors: AiUsageError[];
+  /// Até 50 chamadas do período, da mais nova para a mais velha.
+  recent: AiUsageCall[];
 }

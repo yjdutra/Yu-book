@@ -5,6 +5,7 @@ import { SecaoGasto } from "../components/ajustes/SecaoGasto";
 import { SecaoModelos } from "../components/ajustes/SecaoModelos";
 import { SecaoOpenRouter } from "../components/ajustes/SecaoOpenRouter";
 import { SecaoProvedor } from "../components/ajustes/SecaoProvedor";
+import { SecaoUsoIa } from "../components/ajustes/SecaoUsoIa";
 
 /**
  * Ajustes de IA — a única tela de configuração do Yu-book.
@@ -32,6 +33,7 @@ export function AjustesPage() {
           <Route path="gasto" element={<SecaoGasto onErro={setErro} />} />
           {/* Sem `onErro`: a seção só consulta, e cada bloco mostra o próprio erro. */}
           <Route path="openrouter" element={<SecaoOpenRouter />} />
+          <Route path="uso" element={<SecaoUsoIa />} />
           <Route path="*" element={<Navigate to="modelos" replace />} />
         </Routes>
       </div>

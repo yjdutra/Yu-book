@@ -9,6 +9,103 @@ eu fiz hoje" sem decisão dentro.
 
 ---
 
+## 2026-09-25 — AI usage dash (fase 2 de 2): o que o Yu-book gravou, contado no dia do usuário
+
+Segunda e última fase do plano do painel de gasto, feita no mesmo dia da primeira. O que mudou está
+na `[0.25.0]` do changelog. **Com ela o plano de duas fases está fechado.** A Fase 1 mostra o que o
+OpenRouter conta, e esta o que o Yu-book gravou em `ai_usage`. A separação pela origem do dado,
+decidida na entrada da Fase 1, foi mantida: nenhuma tela soma as duas, e esta não concilia custo
+local com o do provedor pelo `generationId`. Conciliar é outra entrega.
+
+**Os dias vêm do `localDay` gravado, nunca de `createdAt`.** É o INV-50: o dia é o do usuário na
+hora da chamada, o mesmo que o teto e o "Gasto de hoje" usam. Recalcular pelo `createdAt` com o fuso
+de agora mudaria o passado quando o usuário trocasse de fuso, e o painel discordaria do teto no mesmo
+dia. O `from` e o período anterior saem de aritmética de calendário sobre o texto `AAAA-MM-DD`, sem
+fuso do processo. **`somarDias` foi exportada de `packages/shared/src/agenda.ts`** e reusada, em vez
+de uma segunda cópia em `uso.service.ts`, que seria mais um lugar para divergir. O filtro compara
+texto (`gte`/`lte`), o que vale porque o formato é fixo, e o índice `[userId, localDay]` já cobria o
+recorte.
+
+**Modelo é `modelUsed ?? modelId`.** O que custou foi o que o provedor serviu, e com roteamento ele
+pode não ser o pedido. Agrupar pelo pedido esconderia o fallback. O agrupamento é feito no banco pelos
+dois campos e dobrado em JS.
+
+**`?days=` numa lista fechada, 7, 30 ou 90.** `z.coerce.number()` aceitaria `15` e `7.5`, e o
+servidor passaria a responder períodos que a tela não oferece. Outro valor dá 422. O período mora na
+URL (`?dias=`) para sobreviver ao recarregar e virar link.
+
+**Sem limite de requisição próprio.** As três rotas do Dashboard OpenRouter têm 10 por minuto porque
+cada chamada vai ao provedor. `GET /ai/usage` só lê o banco, e vale o limite global.
+
+**A invalidação de `CHAVE_USO` fica nos mesmos pontos da `CHAVE_AJUSTES`:** o fim de uma mensagem do
+chat, o fim de uma execução de rotina e o formatar nota. No formatar, as duas passaram para o
+`onSettled`, porque a falha também custa: `RESPOSTA_INVALIDA` é gravada depois de o provedor
+responder, e toda chamada que falhou vira linha em `ai_usage`. **O `AJUSTES` no `onSuccess` era uma
+dívida anterior a esta entrega**, achada na revisão. Até aqui, um formatar que falhava deixava o
+"Gasto de hoje" velho por até 30 s. A troca de fuso também invalida `CHAVE_USO`, porque o servidor
+recalcula o `to` e o nome do fuso.
+
+**A conversa não tem rota por id, e o link abre o painel lateral.** Nota vai a `/n/:id` e execução a
+`/assistente/execucoes/:runId`. A conversa abre como o "Abrir conversa" da `FaixaIA`. Com uma resposta
+chegando, a tela não troca a conversa, porque a resposta em curso sumiria de vista com o laço pagando
+(INV-56). **Esse caminho não foi exercitado na tela.**
+
+### A Fase 1 conferida com a chave de gerenciamento real
+
+O operador criou a management key em 2026-09-25 e a pôs no `.env`. A sessão a usou só em leitura, e
+isso fechou as dívidas 1 e 2 da entrada da Fase 1:
+
+- **Saldo, 30 dias e métricas foram vistos com dado real.** `/credits` devolveu 200, e as sete
+  métricas pedidas existem no meta.
+- **`avg_latency` vem em milissegundos.** O valor real foi 2962, cerca de 3 s por resposta. Saiu o
+  comentário "UNIDADE NÃO CONFIRMADA" da latência, e o formato passou a ser a mesma função `duracao`
+  que o AI usage dash usa. O `throughput` segue sem unidade confirmada, e nenhuma métrica pedida o usa.
+- **`usage_cache` vem negativo** (−0,000301). É o desconto do cache, e não um gasto. O rótulo "Gasto
+  com cache" com "-US$ 0,0003" passaria por gasto com o sinal perdido na leitura. Virou "Cache", com o
+  negativo escrito como "economia de US$ …". Positivo continua como gasto.
+- **O `/activity` manda `date` como `"2026-09-22 00:00:00"`**, e não `"AAAA-MM-DD"` como diz a
+  documentação. O `slice(0, 10)` do service já tratava, mas nenhum teste cobria esse formato. Ganhou
+  um teste com o formato real, que também confere que o dia de hoje continua fora da janela.
+- **A conta é free tier e nunca comprou crédito:** `total_credits` 0 e uso positivo. O saldo, que é
+  conta nossa (comprado menos usado), sai negativo, e sozinho parecia defeito da tela. Ganhou a
+  explicação "o uso já passou do crédito comprado".
+
+**Verificação.** `pnpm typecheck` limpo, 383 testes da API (eram 362), 19 na suíte nova
+`uso-ia.test.ts` e 1 novo em `openrouter-painel.test.ts`, e 57 do MCP, como antes. A tela foi vista
+em Chrome headless **pela sessão, não à mão pelo operador**: `/ajustes/uso` em 7, 30 e 90 dias, nos
+dois temas, com os números conferidos contra uma consulta direta a `ai_usage`; `/ajustes/openrouter`
+com a management key real; e o foco do seletor de período pelo teclado, com a resposta atrasada.
+
+**Dívidas:**
+
+1. **A guarda do INV-56 no botão "conversa" não foi exercitada na tela.**
+2. **O defeito do INV-56 segue aberto nos outros quatro chamadores:** `MarcaIA`, `ContextoInicio`,
+   `PainelAssistente` e `ListaConversas`. Esta entrega protegeu só o seu.
+3. **`packages/shared/src/ia.ts` entra inteiro no bundle inicial**, com os schemas de nível de
+   módulo, pelo import de valor de `microsParaDolares` em `apps/web/src/components/ajustes/comum.ts:1`.
+   Vem de 9b2aec6, o redesenho de UI, e não desta entrega, mas esta aumentou o módulo com
+   `aiUsageQuerySchema`. É o quarto caso do item 6 do §2 da skill `contrato-compartilhado`, e,
+   ao contrário dos três de lá, não está resolvido.
+4. **O teste "sem days vale 30" usa o relógio real.** Pode falhar na virada da meia-noite de São
+   Paulo, entre o `hoje` do teste e o do servidor.
+5. **`OPENROUTER_MANAGEMENT_KEY` ainda precisa ser definida na Railway**, a dívida 5 da Fase 1. A
+   chave existe só no `.env` local.
+6. **Qualquer conta autenticada vê os dados da conta OpenRouter**, a dívida 4 da Fase 1, que segue
+   igual. O AI usage dash não tem esse problema, porque filtra pelo usuário em todas as consultas
+   (INV-01).
+7. **MCP:** o `revisor` sugeriu que o agente `mcp` decida se o uso de IA vira resource. Não foi
+   feito, e nada quebra sem isso.
+
+A dívida 3 da Fase 1 (o texto do provedor que vai à tela nos ramos 402 e 429) e a 6 (o `??=` de
+`OPENROUTER_API_KEY` no `setup.ts`) não foram tocadas.
+
+**A versão abre a `[0.25.0]`, com bump minor dos quatro pacotes.** `packages/shared` ganhou schema e
+tipos, só aditivos, e exportou `somarDias`. É a mesma regra da `[0.24.0]`: contrato novo em shared
+move os quatro, `apps/mcp` incluído, mesmo sem mudança de comportamento. Fase 1 e Fase 2 ficaram em
+entradas separadas porque são entregas separadas, cada uma com o seu bump.
+
+---
+
 ## 2026-09-25 — Dashboard OpenRouter (fase 1 de 2): o que o provedor diz, e a chave que só lê
 
 Pedido do operador no mesmo dia da Etapa G, num plano de duas fases. Esta é a primeira, e o que

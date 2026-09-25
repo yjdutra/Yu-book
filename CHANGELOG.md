@@ -13,6 +13,94 @@ _Nada pendente._
 
 ---
 
+## [0.25.0] — 2026-09-25
+
+**AI usage dash (fase 2 de 2).** Uma seção nova em `/ajustes/uso` mostra o que **o Yu-book gravou**
+em `ai_usage`: uma linha por chamada ao provedor, inclusive as que falharam, com tarefa, modelo,
+custo, origem do custo e o vínculo com nota, conversa ou execução de rotina. É a segunda metade do
+plano de 2026-09-25, e **com ela o plano de duas fases do painel de uso está fechado**. A primeira,
+o Dashboard OpenRouter da `[0.24.0]`, mostra o que o provedor conta. As duas continuam separadas
+pela origem do dado, e os números não precisam bater dia a dia.
+
+Como a `[0.24.0]`, **não é etapa da frente de IA** (A a G), nem fase de produto, nem etapa do MCP,
+que segue na 4 de 5. Não tem PRD nem identificadores próprios.
+
+**Só leitura.** Não há migration nem coluna nova, e nada vai ao provedor. Por isso a rota não tem
+limite próprio, e vale o global.
+
+**A Fase 1 foi conferida com dado real.** O operador criou a chave de gerenciamento em 2026-09-25.
+Saldo, histórico de 30 dias e métricas foram vistos com a resposta real do provedor. Os três ajustes
+que isso revelou estão abaixo, em "Alterado" e "Corrigido".
+
+**Os quatro pacotes se movem**, porque `packages/shared` mudou de contrato. Entraram em
+`packages/shared/src/ia.ts` `PERIODOS_DE_USO`, `PeriodoDeUso`, `aiUsageQuerySchema`, `AiUsageQuery`
+e os tipos da resposta: `AiUsageReport`, `AiUsageTotals`, `AiUsageDay`, `AiUsageByModel`,
+`AiUsageByTask`, `AiUsageByCostSource`, `AiUsageError` e `AiUsageCall`. Em
+`packages/shared/src/agenda.ts`, `somarDias` passou a ser exportada. A mudança é só aditiva.
+Versões: `packages/shared` de `0.13.0` para `0.14.0`, `apps/api` de `0.15.0` para `0.16.0`,
+`apps/web` de `0.20.0` para `0.21.0` e `apps/mcp` de `0.16.0` para `0.17.0`, no `package.json`
+**e** no construtor do `McpServer`. **O MCP não mudou de comportamento:** em `apps/mcp/src` só mudou
+a versão.
+
+Portões, relatados pela sessão de implementação: `pnpm typecheck` limpo,
+`pnpm --filter @yu-book/api test` com **383 testes** (eram 362), 19 deles na suíte nova
+`uso-ia.test.ts` e 1 novo em `openrouter-painel.test.ts`, e `pnpm --filter @yu-book/mcp test` com
+**57 testes**, como antes.
+
+**A tela foi conferida em Chrome headless pela sessão, não à mão pelo operador.** `/ajustes/uso`
+foi vista em 7, 30 e 90 dias nos dois temas, e os números bateram com uma consulta direta ao banco.
+`/ajustes/openrouter` foi vista com a chave de gerenciamento real. O foco do seletor de período foi
+conferido pelo teclado, com a resposta atrasada. **O botão "conversa" das últimas chamadas não foi
+exercitado na tela**, e com ele a guarda do INV-56. As dívidas estão em
+[`docs/historico.md`](docs/historico.md).
+
+### Adicionado
+- **Seção "AI usage dash"** em `/ajustes/uso`, depois de "Dashboard OpenRouter" no painel de
+  Ajustes. Ela lê só `ai_usage`, o que o Yu-book gravou, e nada do que o provedor conta.
+- **Período de 7, 30 ou 90 dias**, num seletor segmentado. O período fica na URL (`?dias=30`), e
+  sobrevive ao recarregar. Trocar de período mantém o anterior na tela até o novo chegar.
+- **Os dias são os do usuário**, no fuso de `/ajustes`, pelo dia local que cada chamada gravou
+  (INV-50), e nunca pela hora de criação. É o mesmo dia do teto e do "Gasto de hoje" do cabeçalho.
+  A janela termina hoje, inclusive, e a legenda diz o fuso.
+- **Resumo:** gasto no período, com a variação contra o período anterior do mesmo tamanho, chamadas,
+  falhas e a taxa, tokens de entrada e de saída e duração média.
+- **Avisos sobre o número:** quanto do gasto é estimativa, porque o provedor não informou o custo,
+  e quantas chamadas ficaram sem custo nenhum, gravadas com zero e fora do teto.
+- **Gasto por dia**, em barras, com zero nos dias sem chamada.
+- **Tabelas por modelo, por tarefa e por origem do custo.** O modelo é o que o provedor de fato
+  serviu (`modelUsed`), e o pedido (`modelId`) só quando o provedor não disse qual serviu. Por
+  tarefa, as três aparecem sempre, com zero. Por origem, provedor, estimado e desconhecido, cada uma
+  com o que significa.
+- **Erros mais comuns**, até cinco, por frequência. Só aparece quando houve falha.
+- **Últimas 50 chamadas**, com quando, tarefa, modelo, tokens, custo, duração e status em texto
+  (RNF-09). O custo estimado ou desconhecido leva etiqueta. Cada linha leva à origem: a nota, a
+  execução de rotina ou a conversa, que abre no painel lateral. Com uma resposta chegando, a
+  conversa em curso não é trocada (INV-56).
+- **O painel se atualiza sozinho** depois de uma mensagem do chat, de uma execução de rotina e de
+  um formatar nota, inclusive quando o formatar falha, porque a falha também grava. Trocar o fuso
+  também o recarrega.
+- Rota `GET /ai/usage?days=7|30|90`, autenticada. Sem `days`, vale 30. Outro valor dá 422.
+
+### Alterado
+- **Dashboard OpenRouter:** o saldo negativo ganhou a explicação "o uso já passou do crédito
+  comprado". O provedor devolve `total_credits` 0 numa conta free tier que nunca comprou crédito, e
+  o saldo é comprado menos usado.
+- **Dashboard OpenRouter:** a métrica de cache passou a se chamar "Cache". Quando é negativa, que é
+  o desconto do cache, aparece como "economia de US$ …".
+
+### Corrigido
+- **Dashboard OpenRouter:** o valor negativo de cache aparecia como "Gasto com cache: -US$ 0,0003",
+  com o sinal fácil de perder na leitura.
+- **Formatar nota que falhava não atualizava o "Gasto de hoje"** até passarem 30 s. A falha também
+  grava custo, e o gasto do dia agora é recarregado ao fim da ação, com ou sem sucesso.
+
+### Segurança
+- `GET /ai/usage` filtra pelo usuário em todas as consultas (INV-01). Ao contrário das três rotas do
+  Dashboard OpenRouter, que mostram a conta do provedor a qualquer conta autenticada, esta só mostra
+  o que o próprio usuário gastou.
+
+---
+
 ## [0.24.0] — 2026-09-25
 
 **Dashboard OpenRouter (fase 1 de 2).** Uma seção nova em `/ajustes/openrouter` mostra o que **o

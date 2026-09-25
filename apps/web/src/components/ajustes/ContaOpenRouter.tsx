@@ -11,7 +11,7 @@ import type { useOpenRouterConta, useOpenRouterMetricas } from "../../lib/ia";
 import { Aviso } from "../base/Aviso";
 import { Bloco, Esqueleto, Vazio } from "../base/Bloco";
 import { BarrasPorDia, diaCurto } from "./BarrasPorDia";
-import { emDolares } from "./comum";
+import { duracao, emDolares } from "./comum";
 import { Indicador } from "./Indicador";
 
 /**
@@ -61,7 +61,16 @@ export function ContaOpenRouter({ conta }: { conta: ReturnType<typeof useOpenRou
       <Bloco titulo="Conta no provedor">
         {credits ? (
           <dl className="grid grid-cols-3 gap-4 px-4 py-3">
-            <Indicador rotulo="Saldo" valor={emDolares(credits.balanceMicros)} />
+            {/* Saldo é conta nossa: comprado − usado. Medido em 2026-09-25 numa
+                conta free tier que nunca comprou crédito: `total_credits` 0 e
+                uso positivo, e o número negativo sozinho parecia defeito da tela. */}
+            <Indicador
+              rotulo="Saldo"
+              valor={emDolares(credits.balanceMicros)}
+              detalhe={
+                credits.balanceMicros < 0 ? "o uso já passou do crédito comprado" : undefined
+              }
+            />
             <Indicador rotulo="Comprado" valor={emDolares(credits.purchasedMicros)} />
             <Indicador rotulo="Usado" valor={emDolares(credits.usedMicros)} />
           </dl>
@@ -216,7 +225,10 @@ const ROTULO_DA_METRICA: Record<string, string> = {
   cache_hit_rate: "Acerto de cache",
   avg_latency: "Latência média",
   usage_web: "Gasto com busca na web",
-  usage_cache: "Gasto com cache",
+  // "Cache", e não "Gasto com cache": o provedor manda o valor negativo — é o
+  // desconto do cache, não um gasto (−0,000301 com a management key real, em
+  // 2026-09-25). Ver `ValorDaMetrica`.
+  usage_cache: "Cache",
 };
 
 const FORMATO: Record<OpenRouterMetricFormat, (valor: number) => string> = {
@@ -226,10 +238,10 @@ const FORMATO: Record<OpenRouterMetricFormat, (valor: number) => string> = {
   // O provedor manda fração (0,25 = 25%), e o formato de porcentagem do
   // `Intl` já multiplica por 100.
   percent: (v) => PORCENTAGEM.format(v),
-  // UNIDADE NÃO CONFIRMADA. A documentação do provedor não diz em que unidade
-  // vem a latência; supomos milissegundos. Conferir com a management key real
-  // e trocar aqui se vier em segundos.
-  latency: (v) => (v >= 1000 ? `${DECIMAL.format(v / 1000)} s` : `${INTEIRO.format(v)} ms`),
+  // Milissegundos. A documentação do provedor não diz a unidade; conferido com
+  // a management key real em 2026-09-25: `avg_latency` = 2962, cerca de 3 s
+  // por resposta.
+  latency: duracao,
   // UNIDADE NÃO CONFIRMADA, e nenhuma métrica pedida hoje tem este formato:
   // vai o número sem unidade, em vez de uma unidade inventada.
   throughput: (v) => DECIMAL.format(v),
@@ -243,6 +255,12 @@ function ValorDaMetrica({ metrica }: { metrica: OpenRouterMetric }) {
         <span className="sr-only">sem valor</span>
       </>
     );
+  }
+  // Cache negativo é economia, e dito assim: "-US$ 0,0003" passaria por gasto
+  // com o sinal perdido na leitura. Positivo continua como gasto. Só com o
+  // formato `currency`, o único em que o valor já chega em µUSD.
+  if (metrica.name === "usage_cache" && metrica.format === "currency" && metrica.value < 0) {
+    return <>economia de {emDolares(-metrica.value)}</>;
   }
   return <>{FORMATO[metrica.format](metrica.value)}</>;
 }

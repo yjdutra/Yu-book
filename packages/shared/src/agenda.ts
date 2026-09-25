@@ -198,8 +198,16 @@ export function instanteLocal(dia: string, hora: string, fuso: string): Date {
   return new Date(alto * MINUTO_MS);
 }
 
-/** `AAAA-MM-DD` mais `n` dias de calendário. */
-function somarDias(dia: string, n: number): string {
+/**
+ * `AAAA-MM-DD` mais `n` dias de calendário (`n` pode ser negativo).
+ *
+ * Aritmética sobre as partes do texto, com `Date.UTC` e o corte do ISO — que é
+ * UTC por construção, e por isso aqui o `.slice(0, 10)` é seguro. Não passa
+ * pelo fuso do processo nem pelo do usuário: o dia já chega local. Exportada
+ * para a janela do AI usage dash (`uso.service.ts`), que conta dias sobre o
+ * `localDay` gravado; uma segunda cópia seria mais um lugar para divergir.
+ */
+export function somarDias(dia: string, n: number): string {
   const [ano, mes, d] = dia.split("-").map(Number);
   return new Date(Date.UTC(ano ?? 0, (mes ?? 1) - 1, (d ?? 1) + n)).toISOString().slice(0, 10);
 }

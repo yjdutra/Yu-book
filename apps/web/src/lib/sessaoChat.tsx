@@ -13,6 +13,7 @@ import type { ReactNode, RefObject } from "react";
 import { ApiError } from "./api";
 import {
   CHAVE_AJUSTES,
+  CHAVE_USO,
   CHAVE_CONVERSAS,
   chaveDaConversa,
   enviarMensagem,
@@ -416,6 +417,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       if (alvo) await qc.invalidateQueries({ queryKey: chaveDaConversa(alvo) });
       await qc.invalidateQueries({ queryKey: CHAVE_CONVERSAS });
       await qc.invalidateQueries({ queryKey: CHAVE_AJUSTES });
+      await qc.invalidateQueries({ queryKey: CHAVE_USO });
     }
   }, [criar, qc]);
 

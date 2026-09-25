@@ -449,6 +449,40 @@ describe("saldo e histórico da conta", () => {
     expect(soma(atividade?.byProvider)).toBe(519_624);
   });
 
+  test("a data com hora que o /activity real manda cai no dia certo, e o dia de hoje continua fora", async () => {
+    // Formato conferido com a management key real em 2026-09-25: o provedor
+    // manda `"AAAA-MM-DD 00:00:00"`, não o `AAAA-MM-DD` da documentação.
+    congelarRelogio();
+    dublê.responder = (caminho, chave) =>
+      caminho === "/api/v1/activity"
+        ? {
+            corpo: {
+              data: [
+                linha("2026-09-22 00:00:00", "estudio/gpt-x", "Estúdio", 0.002, 2),
+                linha("2026-08-26 00:00:00", "estudio/gpt-x", "Estúdio", 0.001, 1),
+                linha("2026-09-25 00:00:00", "estudio/intruso", "Intruso", 9, 9),
+              ],
+            },
+          }
+        : respostaPadrao(caminho, chave);
+
+    const atividade = (await contaNoProvedor({ chaveDeGestao: "gestao-x" })).activity;
+    const diario = atividade?.daily ?? [];
+
+    expect(diario).toHaveLength(30);
+    expect(diario.find((d) => d.date === "2026-09-22")).toEqual({
+      date: "2026-09-22",
+      costMicros: 2_000,
+      byokMicros: 0,
+      requests: 2,
+    });
+    expect(diario[0]).toEqual({ date: "2026-08-26", costMicros: 1_000, byokMicros: 0, requests: 1 });
+    // O dia continua `AAAA-MM-DD` na resposta: a hora do provedor não vaza.
+    expect(diario.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d.date))).toBe(true);
+    expect(diario.reduce((t, d) => t + d.requests, 0)).toBe(3);
+    expect(atividade?.byModel.map((m) => m.model)).toEqual(["estudio/gpt-x"]);
+  });
+
   test("403 em /credits diz que a chave de gerenciamento foi recusada, sem ecoar o provedor", async () => {
     // O provedor costuma pôr a credencial na própria mensagem de recusa.
     dublê.responder = (caminho, chave) =>

@@ -32,6 +32,9 @@ export const CHAVE_CONVERSAS = ["ia", "conversas"] as const;
 export const chaveDaConversa = (id: string) => ["ia", "conversa", id] as const;
 /// A tela de ajustes mostra o gasto do dia, e uma mensagem do chat o move.
 export const CHAVE_AJUSTES = ["ia", "ajustes"] as const;
+/// O AI usage dash (`/ajustes/uso`) lê `ai_usage`, e toda chamada ao provedor
+/// grava uma linha ali. Invalidado nos mesmos pontos que `CHAVE_AJUSTES`.
+export const CHAVE_USO = ["ia", "uso"] as const;
 
 const CONVERSAS = CHAVE_CONVERSAS;
 const conversa = chaveDaConversa;

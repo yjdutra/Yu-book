@@ -6,6 +6,7 @@ import {
   agentInputSchema,
   agentPreviewSchema,
   agentUpdateSchema,
+  aiUsageQuerySchema,
   chatMessageInputSchema,
   conversationInputSchema,
   formatNoteSchema,
@@ -31,6 +32,7 @@ import * as modelos from "./modelos.service.js";
 import * as painel from "./openrouter-painel.service.js";
 import * as preferencias from "./preferencias.service.js";
 import * as rotinas from "./rotinas.service.js";
+import * as uso from "./uso.service.js";
 
 /**
  * Caminho em **inglês** com prefixo `/ai`, como todo o resto da fronteira; o
@@ -103,6 +105,14 @@ export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
     { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
     async () => painel.metricasNoProvedor(),
   );
+
+  /// AI usage dash em `/ajustes/uso`: o que o Yu-book gravou em `ai_usage`.
+  /// Sem limite próprio, ao contrário das três de cima: só lê o banco, nunca
+  /// fala com o provedor. Vale o global.
+  app.get("/ai/usage", async (request) => {
+    const { days } = aiUsageQuerySchema.parse(request.query);
+    return uso.relatorio(request.userId, days);
+  });
 
   app.get("/ai/models", async (request) => {
     const query = listAiModelsQuerySchema.parse(request.query);
