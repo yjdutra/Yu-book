@@ -1,690 +1,328 @@
 # Yu-book
 
-Segundo cérebro pessoal: notas de aula, projetos, trilha de estudos e trabalho, com kanban por
-workspace, gaveta de links e um dashboard que responde o que precisa de você agora.
+**A personal second brain with an AI assistant that works on top of your own notes.**
 
-Proposta e decisões de escopo em
-[docs/old/PROPOSTA-inicial.md](docs/old/PROPOSTA-inicial.md) — registro do que se decidiu no começo,
-não do estado de hoje.
-Requisitos por fase em [docs/old/prd-fase-1-notas.md](docs/old/prd-fase-1-notas.md),
-[docs/old/prd-fase-2-kanban.md](docs/old/prd-fase-2-kanban.md),
-[docs/old/prd-fase-3-links.md](docs/old/prd-fase-3-links.md),
-[docs/old/prd-fase-4-dashboard.md](docs/old/prd-fase-4-dashboard.md) e
-[docs/old/prd-fase-5-refino.md](docs/old/prd-fase-5-refino.md).
+Notes, a kanban board per workspace, a read-later link drawer and a dashboard that answers one
+question: *what needs me now?* On top of that, an assistant that reads your knowledge base, a team
+of specialist agents you configure yourself, and routines that chain those agents into a fixed
+pipeline, on demand or on a schedule. It also works the other way around: an MCP server lets
+external AI clients (Claude, IDEs) read and write the same knowledge base, with OAuth.
 
-**Status: Fases 0 a 5 concluídas.** A Fase 5 fechou com as três etapas entregues. A próxima fase de
-produto é a **Fase 6**, a agenda no Google Calendar, hoje o item de menor prioridade.
+Single-user by design, running in production on Railway. Built solo, with Claude Code and a set
+of project-specific agents and skills that live in this repository.
 
-O **servidor MCP** (`apps/mcp`) tem numeração própria e corre em paralelo: está na **Etapa 4 de 5 da
-proposta de MCP** — as três primitivas do protocolo, com escrita, sobre **dois transportes**: o
-`stdio` de sempre e um transporte **HTTP** com identidade por OAuth, em que cada requisição age como
-quem apresentou o token. Desde 2026-09-04 ele **é hospedável**: tem `railway.json`, e o primeiro
-deploy sobe com a escrita desligada (`MCP_ESCRITA_HABILITADA=0`), por decisão do operador. Etapa de
-MCP não é fase de produto, e os dois números não se convertem um no outro. Ver [apps/mcp/README.md](apps/mcp/README.md) e o roteiro em
-[docs/applied-ai-read-trip.md](docs/applied-ai-read-trip.md).
-
-A **frente de IA aplicada** — o caminho oposto ao do MCP, em que o Yu-book é **cliente** de um
-modelo — entregou a **Etapa A em 2026-09-22**: tela de ajustes em `/ajustes`, catálogo de modelos,
-favoritos, modelo por tarefa, teto de gasto diário e o **botão de formatar a nota**, com desfazer
-por 8 segundos. É a **Fase 5 daquele roteiro**, uma terceira numeração que também não se converte
-nas outras duas; PRD em [docs/prd-ia-no-yu-book.md](docs/prd-ia-no-yu-book.md). **O provedor é de
-nuvem e só ele**: o Ollama saiu do escopo porque a API roda na Railway, sem GPU — veja
-[Formatar nota por IA](#formatar-nota-por-ia-e-o-teto-de-gasto) antes de usar. Em **2026-09-23** o
-catálogo foi refeito — variantes que o provedor recusa na chamada saíram, e entraram filtro de
-custo, ordenação e os índices de qualidade — e, no mesmo dia, **a política de dados virou escolha do
-usuário**: fixá-la em `data_collection: "deny"` era o que tornava os modelos gratuitos
-inalcançáveis.
-
-Ainda em **2026-09-23** veio a **Etapa B, o chat que lê**: painel por `Ctrl+Shift+Y`, resposta em
-streaming, conversas persistidas, anexo de nota, card ou quadro pelo `@` e, o que muda a natureza da
-coisa, **um laço de ferramenta** — o assistente chama até cinco das nove ações do acervo para
-responder, em vez de só falar sobre o que foi anexado. São as **mesmas nove** que o servidor MCP
-publica, agora definidas uma vez só em `packages/shared`. Para usá-lo é preciso **pôr um modelo na
-tarefa de chat, no quadro de `/ajustes/modelos`**, e ele precisa saber chamar ferramenta.
-
-**Esta é a primeira entrega em sete com conferência de interface à mão — e a conferência cobrou na
-hora.** A sequência sem conferência parou em seis: ao usar o chat pela primeira vez, o operador
-encontrou em minutos um defeito que nenhum portão automático via — `/ajustes` não tinha como
-escolher o modelo do chat —, e mais um que só a prova ao vivo acharia: busca sem resultado fazia o
-assistente desistir numa volta só. Os dois foram corrigidos. **A conferência foi parcial**: o
-painel, a escolha de modelo, o laço e o gasto do dia foram vistos funcionando; o anexo pelo `@`, os
-chips de origem, o corte pelo teto, renomear/excluir conversa e o atalho `Ctrl+Shift+Y` **continuam
-sem execução**. `apps/web` segue sem runner de teste.
-
-Em **2026-09-24** foi feito, e concluído no mesmo dia, um **redesenho de UI/UX** de `apps/web`,
-em cinco etapas e posto **antes da Etapa C** da frente de IA: 1 fundação visual, 2 casca e
-navegação, 3 assistente em painel lateral e em `/assistente`, 4 `/ajustes` com quadro de modelos
-por tarefa, 5 polimento das telas. É uma **quinta numeração**, que não se converte nas outras. A **Etapa 1** está entregue: fonte Inter
-(servida pelo Google Fonts), tokens de superfície, raio, sombra e movimento nos dois temas, texto
-miúdo a 11 px e os primeiros primitivos de interface em `apps/web/src/components/base/`. A **Etapa
-2** também: trilho de áreas com painel contextual recolhível no lugar da barra lateral, e os filtros
-de notas na URL — o workspace continua fora dela. A **Etapa 3** também: o chat modal deu lugar a um
-**painel do assistente** à direita, que empurra o conteúdo, e à rota **`/assistente`** em tela
-cheia, duas vistas da mesma conversa. Passar de uma à outra não interrompe a resposta, e fechar o
-painel interrompe. A **Etapa 4** também: `/ajustes` virou três seções (modelos, provedor e gasto)
-com o gasto do dia no cabeçalho, e o modelo de cada tarefa se escolhe num **quadro arrastável**, com
-menu como alternativa sem arraste e o chat recusando modelo sem ferramentas. A **Etapa 5**, a
-última, levou os primitivos e os tokens às telas antigas. O dashboard ganhou saudação, o bloco
-"Pergunte ao seu acervo" e o bloco de boards. A paleta (`Ctrl+K`) ganhou comandos, com `>` para
-ver só eles. A gaveta de links virou diálogo lateral. Sem escolha manual, o tema passa a seguir o
-sistema a cada carga.
-
-**O redesenho está concluído e foi conferido à mão no fechamento.** As cinco etapas foram entregues
-sem que ninguém visse a tela. Depois da última, ainda em 2026-09-24, o usuário fez a conferência de
-interface das cinco e relatou que tudo funcionou. É um relato, não um checklist marcado item por
-item; o alcance está no fechamento, em [`docs/historico.md`](docs/historico.md). A Etapa 5 achou
-que **mover card pelo teclado nunca funcionou**, desde a Fase 2, embora a lista abaixo o dê como
-entregue. O defeito foi corrigido, e a correção está entre o que foi conferido. Ficam duas dívidas:
-o arraste do kanban tem a janela de concorrência de mutação otimista que o quadro de modelos já
-fechou, e `apps/web` segue sem runner de teste.
-
-Ainda em **2026-09-24** veio a **Etapa C da frente de IA, a marca de conteúdo gerado**. Nota e card
-guardam no dado se foram escritos por um modelo, por qual superfície (chat ou MCP), por quem e
-quando foram revisados à mão. **Com a marca, o chat passou a escrever.** Ele cria card e nota quando
-você pede, mostra o que criou e oferece desfazer, e qualquer resposta dele pode **virar nota**. O
-servidor MCP ganhou `create_note` e tem **dez tools**. A lista de notas filtra por "Geradas por IA".
-É a primeira etapa do [plano de agentes de acervo](docs/plano-agentes-de-acervo.md), que vai de C a
-G. **Foi entregue sem conferência de interface à mão**, e o roteiro está em
-[`docs/historico.md`](docs/historico.md).
-
-No mesmo dia veio a **Etapa D, agentes especialistas**, em `/assistente/agentes`. Um agente é uma
-conversa com premissas: instruções próprias, até 10 **notas-base** do acervo que entram em toda
-mensagem, até 5 **fontes vivas** (os cards de uma coluna de quadro, relidos a cada mensagem), modelo
-próprio e uma lista de ferramentas. Ele é escolhido ao abrir a conversa e fica com ela. O editor
-mostra o que o agente recebe e quanto custa por mensagem antes de salvar, e o agente se exporta em
-Markdown com frontmatter. Três modelos prontos servem de ponto de partida: Especialista em LinkedIn,
-Marketing e Revisor. O que um agente cria leva o nome dele na marca. Agentes não entram no servidor
-MCP. **Também foi entregue sem conferência de interface à mão**, e o roteiro está em
-[`docs/historico.md`](docs/historico.md).
-
-Também em **2026-09-24** veio a **Etapa E, rotinas com "Rodar agora"**, em `/assistente/rotinas`.
-Uma rotina encadeia agentes numa sequência fixa: parte da próxima ideia de uma coluna ou de um
-pedido escrito nela, passa por cada passo ("reescreve" ou "revisa") e deixa o resultado num card
-novo ou numa nota nova, marcados "via rotina", sem publicar nada fora do Yu-book. O pedido e a nota
-vieram numa emenda de 2026-09-25, depois da primeira conferência do editor. O editor é um fluxo de
-blocos ligados (Entrada, até seis agentes e Saída). Com entrada por coluna, a Saída decide também o
-destino da ideia usada: mover, arquivar ou manter. **A execução roda no servidor e não depende da
-aba**: a tela acompanha ao vivo, pode ser fechada e reaberta, e a execução pode ser cancelada. Cada
-execução tem teto de gasto próprio, além do diário, e fica no histórico com o texto de cada passo.
-Nos passos, o modelo só lê; o card ou a nota são gravados pelo código. É o fim da regra "sem
-trabalho assíncrono", e o motivo está em [`docs/historico.md`](docs/historico.md). Rotinas não
-entram no servidor MCP. **A conferência de interface foi só parcial:** o conserto do editor não foi
-visto na tela, e o resto da etapa também não.
-
-Em **2026-09-25** veio a **Etapa F, agendamento de rotinas**. A rotina roda sozinha em dias da
-semana e até quatro horários, no fuso de `/ajustes`, e se pausa e retoma com um clique. O editor e a
-galeria mostram as próximas execuções. Quem dispara é um relógio dentro da própria API, e cada
-horário roda no máximo uma vez, mesmo com duas instâncias no ar. Se no horário a rotina não pode
-começar, ela tenta de novo a cada 5 minutos, até 3 vezes, e depois fica "pulada" com o motivo. Uma
-execução que começou nunca se repete, para não cobrar de novo. O **Início** ganhou o bloco Rotinas,
-com o que rodou, falhou ou foi pulado desde a última visita, e os próximos horários. **Foi entregue
-sem conferência de interface à mão**, e o roteiro está em [`docs/historico.md`](docs/historico.md).
-
-Ainda em **2026-09-25** veio a **Etapa G, pesquisa externa**. O agente pode ter a **busca na web**,
-pelo plugin do OpenRouter, que busca uma vez por mensagem ou passo de rotina, a partir do pedido. Pode
-ter também a ferramenta **"Abrir página"**, que lê status, título e texto de uma página pública e
-recusa LinkedIn. As duas vêm desligadas e se ligam agente a agente, e o Assistente sem agente não
-as tem. As páginas usadas aparecem como fontes clicáveis no chat e na seção "Fontes" do que a rotina
-gera. O custo estimado da busca entra no teto antes de conectar. A saída para endereço de terceiro
-virou uma só, com a conexão presa ao IP conferido, e isso fechou uma brecha de DNS rebinding que a
-leitura de título dos links tinha desde a Fase 3. Nada disso entra no servidor MCP. **Foi entregue
-sem conferência de interface à mão, e o custo real da busca não foi medido.** Os riscos que
-sobraram estão declarados em [`docs/historico.md`](docs/historico.md).
-
-**Com a G, a frente de agentes de acervo (Etapas C a G) está concluída**, mas nenhuma dessas etapas
-foi publicada. O próximo passo é a conferência à mão, com os roteiros somados das cinco etapas em
-[`docs/historico.md`](docs/historico.md), e depois a decisão de publicar.
-
-Ainda em **2026-09-25** veio o **Dashboard OpenRouter**, a primeira de duas fases de painel de
-gasto. Em `/ajustes/openrouter` aparece o que o provedor conta: o gasto da chave, o teto e a cota
-de modelos gratuitos, e, com a chave de gerenciamento opcional, o saldo da conta, os últimos 30 dias
-por dia, modelo e provedor, e as métricas agregadas. Só consulta, sem gravar nada e sem gastar.
-Os blocos da conta foram vistos com dado real depois que o operador criou a chave de gerenciamento,
-no mesmo dia.
-
-Ainda em **2026-09-25** veio a segunda fase, o **AI usage dash**, e com ela **o plano do painel de
-gasto está fechado**. Em `/ajustes/uso` aparece o que **o próprio Yu-book gravou** a cada chamada ao
-provedor, inclusive as que falharam, em 7, 30 ou 90 dias contados no seu fuso: o gasto com a
-variação contra o período anterior, o gasto por dia, tabelas por modelo, por tarefa e por origem do
-custo, os erros mais comuns e as últimas 50 chamadas, cada uma com link para a nota, a execução ou a
-conversa de onde veio. Só leitura, sem ir ao provedor. As duas fases foram vistas pela sessão num
-navegador automatizado, **não à mão pelo operador**, e as dívidas estão em
-[`docs/historico.md`](docs/historico.md).
-
-- **Fase 0 — fundação:** monorepo, banco, autenticação JWT, deploy configurado.
-- **Fase 1 — notas:** CRUD, editor Markdown com preview lado a lado e autosave, tags, workspaces,
-  links `[[wiki]]` com backlinks, busca full-text por `Ctrl+K` e lixeira.
-- **Fase 2 — workspace global + kanban:** seletor que troca o contexto da aplicação inteira,
-  boards por workspace, arrasto com mouse e teclado, cards com prazo, prioridade e checklist,
-  vínculo card ↔ nota nos dois sentidos e cards na paleta de busca.
-- **Fase 3 — gaveta de links:** favoritos e "ver depois", captura arrastando o link para dentro da
-  janela, título lido da página com guarda contra endereço interno.
-- **Fase 4 — dashboard e tema claro:** tela inicial em `/` com prazos, notas recentes e a fila de
-  links; a aplicação deixou de ser dark-only.
-- **Fase 5 — refino do que já existe**, em três etapas independentes, todas entregues.
-  **Etapa A:** tags de card no kanban, com barra de filtro no quadro, e busca na lista de tags da
-  barra lateral. **Etapa B:** precisão e fluidez do arraste — destino decidido pelo ponteiro, vão
-  tracejado no lugar do card fantasma e menos repintura durante o gesto. **Etapa C:** botão de
-  copiar a nota inteira como Markdown e um quarto modo de edição, **"ao vivo"**, que esconde a
-  marcação fora da linha do cursor e passa a ser o padrão.
-
-**Os critérios de aceitação das Etapas B e C estão implementados e não foram verificados à mão** —
-não existe teste de front no projeto, e no caso da Etapa C isso significa que um editor inteiro foi
-escrito sem nunca ter sido executado. Ver [docs/historico.md](docs/historico.md).
-
-Próximo: **Fase 6** — agenda no Google Calendar, hoje o item de menor prioridade do roadmap.
+![Yu-book: note editor with the assistant panel open](.github/assets/hero.png)
 
 ---
 
-## Estrutura
+## Contents
 
+- [Features](#features)
+- [Architecture](#architecture)
+- [Engineering highlights](#engineering-highlights)
+- [How it was built](#how-it-was-built)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [Deploying to Railway](#deploying-to-railway)
+- [Project status and known limitations](#project-status-and-known-limitations)
+
+---
+
+## Features
+
+### Knowledge base
+
+- **Notes of every kind in one entity:** class notes, projects, study tracks, work and free notes,
+  with per-type fields stored as JSONB, so one search crosses every context.
+- **Live Markdown editor** (CodeMirror 6): the markup disappears from what you have already written
+  and comes back on the cursor line. Split, source and reading modes are still there.
+- **`[[wikilinks]]` with backlinks.** Renaming a note rewrites every link that points to it, and a
+  link to a missing title creates the note on click.
+- **Full-text search in Portuguese:** accent-insensitive, stemmed (`autenticar` finds
+  `autenticação`), with a trigram fallback that tolerates typos. `Ctrl+K` searches notes and cards
+  from anywhere, with inline filters (`tipo:aula`, `tag:jwt`, `#workspace`).
+- **Autosave** 800 ms after you stop typing, and a 30-day trash that restores tags and links intact.
+
+### Kanban
+
+- Boards per workspace, cards with Markdown description, due date, priority, checklist, tags and an
+  optional link to a note.
+- **Drag with the mouse or with the keyboard** (`Space` to pick up, arrows to move), announced to
+  screen readers. Moves are optimistic and roll back if the API refuses.
+- Optional WIP limit per column, which flags the column instead of blocking.
+
+![Kanban board, with the assistant answering a question about it](.github/assets/kanban.png)
+
+### Link drawer
+
+- Drag a link from any other window and drop it anywhere in the app to save it as a favorite or to
+  the read-later queue.
+- Real page titles, fetched by the server through an SSRF-hardened client. YouTube videos get title
+  and thumbnail, and the duration if an API key is set.
+- Nothing expires on its own: the queue shows how long each item has been waiting.
+
+![Link drawer with favorites and the read-later queue](.github/assets/links.png)
+
+### AI assistant
+
+- **Chat that reads your knowledge base.** The model calls tools (search notes, open a note, list
+  and open boards, read the dashboard) in a loop of up to five steps per message, answers with
+  streaming and cites every source it used. `@` attaches a note, card or board to a message.
+- **Creates when you ask, and only then:** it can create cards and notes, but it cannot move,
+  delete or edit. Everything it creates carries an AI-generated mark with the model and the
+  conversation it came from, plus an undo.
+- **Specialist agents:** each agent has its own instructions, base notes from your knowledge base,
+  live sources (a board column read fresh on every message), its own model and its own tool set.
+  The editor previews exactly what the model will receive, and at what cost.
+- **Routines:** agents chained in a fixed sequence (up to six steps) that start from an idea in a
+  column or from a written request, and end as a new card or a new note. Steps only read; the code
+  writes the output at the end. Runs are executed on the server, detached from the browser tab,
+  with a live view of each step, its tokens and its cost.
+- **Scheduling:** routines run on their own at the times you set, in your time zone.
+- **Web research, opt-in per agent:** web search through the provider, and an "open page" tool
+  behind the same SSRF defenses as the link drawer.
+- **Format note:** one click reorganizes a note's Markdown, with an 8-second undo. The response is
+  checked in code so that `[[wikilinks]]` can never change.
+
+![Routine editor chaining specialist agents](.github/assets/routine-editor.png)
+
+![A routine run with per-step tokens and cost](.github/assets/routine-run.png)
+
+![Specialist agent editor](.github/assets/agent-editor.png)
+
+### Cost control
+
+- **Daily spend cap** (US$ 0.20 by default), checked before every call to the provider and again
+  at every step of the tool loop; routines also have a cap per run.
+- **Model catalog** with price filters, quality indexes and per-task model choice, arranged by
+  drag and drop.
+- **Two usage dashboards, never summed:** what the provider reports about the key and the account,
+  and what Yu-book itself recorded, per day in your time zone, by model, task and cost source.
+
+![Provider usage dashboard: key spend, cap and daily history](.github/assets/usage.png)
+
+### MCP server
+
+`apps/mcp` exposes the knowledge base to any MCP client: 10 tools (5 read, 5 write), 6 resources
+and 2 prompts. It runs over **stdio** on your machine or over **Streamable HTTP** as a hosted
+service, where it is its own **OAuth 2.1** authorization server and every request acts as whoever
+presented the token. Writing is locked behind two independent layers. Details in
+[apps/mcp/README.md](apps/mcp/README.md).
+
+![Claude Code reading a Yu-book board through the MCP server](.github/assets/mcp-claude.png)
+
+---
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph clients[Clients]
+    web[apps/web<br/>React SPA]
+    mcpc[MCP clients<br/>Claude, IDEs]
+  end
+
+  subgraph railway[Railway]
+    api[apps/api<br/>Fastify + Prisma]
+    mcp[apps/mcp<br/>MCP server + OAuth 2.1]
+    db[(Postgres 16)]
+  end
+
+  or[OpenRouter<br/>LLM provider]
+  www[Public web]
+
+  web -- REST + SSE --> api
+  mcpc -- Streamable HTTP --> mcp
+  mcp -- REST, as the user --> api
+  api --> db
+  api -- chat, agents, routines --> or
+  api -- SSRF-hardened fetch --> www
+
+  shared[[packages/shared<br/>Zod schemas, tool metadata, formatting]]
+  shared -.-> web
+  shared -.-> api
+  shared -.-> mcp
 ```
-yu-book/
-├─ apps/api/        Fastify + Prisma + Postgres
-├─ apps/web/        React + Vite + Tailwind
-├─ apps/mcp/        servidor MCP — stdio local ou HTTP hospedado
-└─ packages/shared/ schemas Zod e tipos usados pelos dois
-```
 
-`packages/shared` é compilado antes dos apps — é de lá que saem os schemas de validação que a
-API e o front usam **em comum**, então uma regra de senha nunca fica divergente entre os dois.
+| Package | Stack | Role |
+|---|---|---|
+| `apps/api` | Fastify 5, Prisma 6, Postgres 16 | REST API, AI orchestration, background runs and scheduler |
+| `apps/web` | React 19, Vite 6, Tailwind v4, TanStack Query | Desktop-only SPA, with no UI or icon library |
+| `apps/mcp` | Official MCP TypeScript SDK | MCP server, a client of the API, never of the database |
+| `packages/shared` | Zod 3 | Single source of truth for the contract the other three share |
 
-## Rodando local
+A note on naming: the **domain is written in Portuguese** (`criar`, `mover`, `renumerarCards`) and
+the **API boundary in English** (`title`, `contentMd`, `dueDate`). Both live in the same function
+on purpose.
 
-Requisitos: Node ≥ 20.19, pnpm 9, um Postgres.
+---
+
+## Engineering highlights
+
+- **One contract, three consumers.** Validation schemas, error codes and the metadata of the
+  knowledge-base tools are defined once in `packages/shared`. The in-app chat and the MCP server
+  offer the same tools from the same definition.
+- **The MCP server is a client of its own API.** It inherits user scoping, ownership checks and
+  stable error codes instead of reimplementing them against the database.
+- **Ownership by chain.** Cards and columns have no `user_id`; ownership is resolved in the query
+  through card → column → board → owner. Someone else's id returns 404, never 403.
+- **Auth:** 15-minute JWT access token kept in memory, opaque refresh token in an `httpOnly`
+  cookie, stored hashed, rotated on every use, with reuse detection. argon2id, constant-time login,
+  rate limiting.
+- **Outbound requests to third-party URLs** go through a single hardened client: public IPs only
+  (cloud metadata and CGNAT included in the deny list), the connection pinned to the IP that was
+  checked (no DNS rebinding), redirects revalidated on every hop, time and size budgets enforced
+  after decompression.
+- **A spend cap that doesn't lie.** Money is stored as integer micro-dollars. The "day" is the
+  user's day, recorded at call time instead of computed later. Calls without a reported cost are
+  counted and shown instead of silently counting as zero.
+- **AI provenance written only by the server.** No request body can claim to be the assistant, and
+  the mark never disappears, not even after editing: it turns into "revised".
+- **Background runs that survive overlapping deploys.** Two API instances coexist during a Railway
+  deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
+  unique index), never through process memory. A run that started is never retried, because a
+  retry costs money again.
+- **Tests against real infrastructure:** 383 integration tests boot the whole Fastify app against a
+  real Postgres; 57 more cover the MCP server.
+
+---
+
+## How it was built
+
+Yu-book was built by one developer in about six weeks (August–September 2026), working with
+[Claude Code](https://claude.com/claude-code). The repository carries the setup that made that
+work:
+
+- **9 specialist agents** in [`.claude/agents/`](.claude/agents/): backend, frontend, MCP, tests,
+  reviewer, janitor, versioning, memory curator and publisher. They are split by risk as well as
+  by subject: the agent that writes the changelog is not the one that deploys, and the one that
+  deploys never pushes without an explicit request.
+- **7 skills** in [`.claude/skills/`](.claude/skills/): conventions, the shared contract, database
+  migrations, the design system, changelog and versioning, the MCP server's design decisions, and a
+  catalog of **62 invariants**, the behaviors that look like bugs to anyone who doesn't know them
+  and that break silently if "fixed".
+- **Curated agent memory** in `.claude/agent-memory/`, with hard size limits and a rule to purge,
+  not patch, whatever the code already contradicts.
+- [`CLAUDE.md`](CLAUDE.md), the always-loaded context.
+
+Each stage went through a plan approved before implementation, a review against those
+invariants, and a changelog entry: see [`CHANGELOG.md`](CHANGELOG.md).
+
+---
+
+## Tech stack
+
+| Layer | Choices |
+|---|---|
+| Language | TypeScript everywhere, `strict` with `noUncheckedIndexedAccess`, ESM |
+| API | Fastify 5, Prisma 6, PostgreSQL 16 (full-text search with `unaccent`, GIN and trigram indexes) |
+| Web | React 19, Vite 6, Tailwind CSS v4, TanStack Query v5, dnd-kit, CodeMirror 6 |
+| AI | OpenRouter (any model in its catalog), server-sent events for streaming |
+| MCP | Official TypeScript SDK, stdio and Streamable HTTP, OAuth 2.1 with PKCE |
+| Tests | Vitest, integration tests against real Postgres |
+| Hosting | Railway: Postgres, API, web and MCP as four services from one repository |
+
+---
+
+## Getting started
+
+Requirements: Node ≥ 20.19, pnpm 9 and a Postgres 16.
 
 ```bash
 pnpm install
 pnpm --filter @yu-book/shared build
 
-# Postgres via docker, se você ainda não tiver um:
+# Postgres via Docker, if you don't have one:
 docker run -d --name yubook-db -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
-createdb -h localhost -U postgres yubook   # ou: docker exec yubook-db createdb -U postgres yubook
+docker exec yubook-db createdb -U postgres yubook
 
-cp apps/api/.env.example apps/api/.env      # ajuste DATABASE_URL e gere o JWT_SECRET
+cp apps/api/.env.example apps/api/.env      # set DATABASE_URL and generate JWT_SECRET
 cp apps/web/.env.example apps/web/.env.local
 
-pnpm --filter @yu-book/api db:migrate       # cria as tabelas + busca full-text
-pnpm dev                                    # API na 3333, front na 5173
+pnpm --filter @yu-book/api db:migrate       # tables + full-text search setup
+pnpm dev                                    # API on :3333, web on :5173
 ```
 
-Gere o segredo com `openssl rand -base64 48`. A API recusa subir com `JWT_SECRET` curto —
-falhar no boot é melhor que rodar inseguro.
+Generate the secret with `openssl rand -base64 48`. The API refuses to boot with a short
+`JWT_SECRET`. Open `http://localhost:5173` and create your account (`ALLOW_SIGNUP=true` in
+development).
 
-### O segundo ambiente, para as tools de escrita do MCP
+AI features are optional: set `OPENROUTER_API_KEY` in `apps/api/.env` and pick a model per task
+in `/ajustes/modelos`. Without it, the app runs normally and the AI features explain why they are
+unavailable.
 
-O servidor MCP escreve — cria card e nota, move card, manda nota para a lixeira. Escrever no banco de
-desenvolvimento misturaria dado de teste com o que você usa, e escrever em produção não tem
-desfazer. Por isso existe um **terceiro par banco+API**, paralelo e descartável:
-
-```
-yubook       :5432/yubook      ← API :3333 ← apps/web :5173     desenvolvimento
-yubook_mcp   :5432/yubook_mcp  ← API :3334 ← apps/mcp (stdio)   escrita do MCP
-```
-
-```bash
-docker exec yubook-db createdb -U postgres yubook_mcp   # o nome do seu contêiner
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/yubook_mcp?schema=public" \
-  pnpm --filter @yu-book/api db:deploy
-
-pnpm --filter @yu-book/api db:seed          # acervo de teste + usuário mcp@yu-book.test
-pnpm --filter @yu-book/api dev:mcp          # API na 3334, contra yubook_mcp
-```
-
-Os dois sobem ao mesmo tempo, e `pnpm dev` continua sendo o de sempre. As variáveis prefixadas na
-linha de comando vencem o `.env` — nem `--env-file` nem `process.loadEnvFile()` sobrescrevem o que
-já veio do shell —, então não existe arquivo de ambiente novo para manter.
-
-**Em stdio, as tools de escrita do MCP só se registram contra uma API local.** Contra a Railway
-elas somem do `tools/list`. **No transporte HTTP a regra é outra** — quem decide é o escopo do token
-mais `MCP_ESCRITA_HABILITADA`, e a trava por host local não participa. Ver `apps/mcp/README.md`.
-
-Abra `http://localhost:5173`, crie sua conta (`ALLOW_SIGNUP=true` em dev) e pronto.
-
-### Comandos úteis
-
-| Comando | O que faz |
+| Command | What it does |
 |---|---|
-| `pnpm dev` | sobe API e front juntos |
-| `pnpm build` | compila shared → api → web |
-| `pnpm typecheck` | checagem de tipos em tudo |
-| `pnpm db:migrate` | cria/aplica migration nova |
-| `pnpm db:studio` | Prisma Studio para olhar os dados |
-| `pnpm --filter @yu-book/api test` | testes de integração (usam o `DATABASE_URL` do `.env`) |
+| `pnpm dev` | API and web together |
+| `pnpm build` | shared → api → web → mcp |
+| `pnpm typecheck` | type check every package |
+| `pnpm --filter @yu-book/api test` | API integration tests (uses the `DATABASE_URL` from `.env`) |
+| `pnpm --filter @yu-book/mcp test` | MCP server tests (no database needed) |
+| `pnpm db:studio` | Prisma Studio |
 
-Os testes de integração sobem o Fastify inteiro e falam com o Postgres de verdade — é onde a
-renumeração de posições, a verificação de posse e a busca por índice são checadas. Eles criam e
-apagam os próprios dados; o resto do banco fica intacto.
+To run the MCP server locally over stdio, see [apps/mcp/README.md](apps/mcp/README.md).
 
 ---
 
-## Autenticação
+## Deploying to Railway
 
-O modelo é o padrão de dois tokens:
+One project, all services built from this repository, each with its own config file:
 
-- **Access token** (JWT HS256, 15 min) vai no header `Authorization`. No front ele vive **em
-  memória** — nunca em `localStorage`, para que um XSS não consiga persistir a sessão roubada.
-- **Refresh token** (opaco, 48 bytes aleatórios, 7 dias) vive num cookie `httpOnly`, restrito ao
-  path `/auth`. No banco guardamos só o **hash** — vazar o banco não dá sessão a ninguém.
-
-O que isso protege, concretamente:
-
-| Comportamento | Por quê |
-|---|---|
-| **Rotação a cada refresh** | um refresh token nunca serve duas vezes |
-| **Detecção de reuso** | token já revogado reaparecendo = ele vazou → todas as sessões do usuário caem |
-| **Consumo atômico** | dois refreshes simultâneos: só um vence (`updateMany` com filtro `revokedAt: null`) |
-| **Header `X-Yu-Book-Client`** | força preflight CORS no `/auth/refresh` — é a defesa contra CSRF quando o cookie é `SameSite=none` |
-| **Rate limit no login** | 10 tentativas / 5 min por IP |
-| **argon2id** (19 MiB, t=2) | parâmetros OWASP para o hash da senha |
-| **Tempo constante no login** | usuário inexistente também paga o custo de um hash — não dá para descobrir quais emails existem |
-| **`userId` só do token** | nenhuma query aceita id vindo do body ou da query string |
-
-Feche o cadastro (`ALLOW_SIGNUP=false`) assim que criar sua conta.
-
----
-
-## Banco
-
-Uma entidade `Note` com um campo `kind` (`aula`/`projeto`/`trilha`/`trabalho`/`livre`) cobre todos
-os tipos de anotação — é o que permite **uma** busca atravessar todos os contextos. Campos
-específicos de um tipo (módulo, instrutor, link da gravação) ficam em `note.meta` (JSONB), sem
-migration a cada campo novo.
-
-A busca full-text já está montada na migration inicial:
-
-- configuração `pt_unaccent` = stemming em português + `unaccent`, então **`programacao` encontra
-  `programação`**;
-- `search_vector` mantido por trigger, com o título pesando mais que o corpo (peso A vs B);
-- índice GIN para o full-text e GIN/trigram no título, para tolerar erro de digitação.
-
-Verificado em: busca sem acento, busca com dois termos e similaridade por trigrama.
-
----
-
-## Desempenho
-
-O caminho mais percorrido da aplicação é o autosave: ele dispara a cada 800 ms de pausa na
-digitação, então tudo que ele arrasta junto é multiplicado por hora de escrita.
-
-| Onde | O que era | O que é |
+| Service | Config | Watch paths |
 |---|---|---|
-| Cache do front após salvar | invalidava lista, contadores, tags, títulos e o detalhe: **6 requisições por pausa** | costura a resposta no cache e só invalida o que mudou de fato: **1 requisição** |
-| `note_link` no autosave | recalculava os links a cada salvamento do corpo | só quando o conjunto de `[[…]]` muda |
-| `GET /notes` | trazia o corpo inteiro de 50 notas para montar trechos de 160 caracteres | o banco trunca em 600 — **4,2 MB → 24 KB** por página, medido com notas de 100 KB |
-| `GET /notes/counts` | quatro `count` por chamada | uma varredura com `FILTER` |
-| Respostas da API | sem compressão | gzip acima de 1 KB |
-| Bundle inicial | 600 KB (185 KB gzip), kanban incluído | 525 KB (164 KB gzip); o kanban vira um chunk de 24 KB carregado sob demanda |
+| Postgres | Railway plugin | — |
+| API | `apps/api/railway.json` | `apps/api/**`, `packages/shared/**`, `pnpm-lock.yaml` |
+| Web | `apps/web/railway.json` | `apps/web/**`, `packages/shared/**`, `pnpm-lock.yaml` |
+| MCP (optional) | `apps/mcp/railway.json` | see [apps/mcp/README.md](apps/mcp/README.md) |
 
-Duas decisões que **não** foram tomadas, de propósito:
+Leave **Root Directory empty** on every service: the build runs `pnpm install` at the root so the
+`@yu-book/shared` workspace resolves. Create the services and generate their domains first, then
+fill in the variables, because the API needs the web domain and the web needs the API domain.
 
-- **O debounce continua em 800 ms.** É requisito da Fase 1 (RF-14) e tem critério de aceitação
-  próprio. O problema nunca foi a frequência do salvamento, e sim o que cada salvamento arrastava.
-- **O `PATCH` continua devolvendo o corpo da nota.** Em nota muito grande isso dobra o tráfego do
-  autosave, mas manter a resposta completa é o que garante que o cache do front nunca divirja do
-  banco. Se um dia você escrever notas de centenas de KB, dá para devolver uma resposta enxuta e
-  fundir no cliente.
-
-O que sustenta isso são os testes de integração de `tests/notas.test.ts`: eles provam que pular o
-recálculo de link não perde backlink, inclusive no caso em que a nota-alvo é criada **depois** do
-`[[…]]` que aponta para ela.
-
----
-
-## Deploy na Railway
-
-Três serviços no mesmo projeto, todos apontando para **este mesmo repositório**: **Postgres**,
-**API** e **web**.
-
-O **servidor MCP é um quarto serviço, opcional**, com `railway.json` próprio e regras de variável
-que não se parecem com as destes três — duas delas o boot **recusa**. O passo a passo dele mora em
-[apps/mcp/README.md](apps/mcp/README.md), na seção "Hospedado na Railway", e não é repetido aqui.
-
-> **A ordem importa.** A API precisa saber o domínio do front (`CORS_ORIGIN`) e o front precisa
-> saber o domínio da API (`VITE_API_URL`). Como os domínios só existem depois que os serviços são
-> criados, crie os dois primeiro, gere os domínios, e só então preencha as variáveis. Os passos
-> abaixo já estão nessa ordem.
-
-### 1. Postgres
-
-`+ New → Database → PostgreSQL`. Ele expõe `DATABASE_URL`, que os outros serviços leem por
-referência — nunca copie a string à mão.
-
-### 2. Crie os dois serviços a partir do repositório
-
-`+ New → GitHub Repo → Yu-book`, duas vezes. Em **cada** serviço, na aba *Settings*:
-
-| Campo | API | web |
-|---|---|---|
-| **Root Directory** | *(vazio — a raiz do repositório)* | *(vazio)* |
-| **Config-as-code path** | `apps/api/railway.json` | `apps/web/railway.json` |
-| **Watch Paths** | `apps/api/**`, `packages/shared/**`, `pnpm-lock.yaml` | `apps/web/**`, `packages/shared/**`, `pnpm-lock.yaml` |
-
-**Root Directory precisa ficar vazio.** O build roda `pnpm install` na raiz para que o workspace
-`@yu-book/shared` seja encontrado; apontando para `apps/api` o pnpm não enxerga o monorepo e o
-build quebra na resolução da dependência.
-
-**Watch Paths** evita que cada push reconstrua os dois serviços. Sem elas, mexer numa cor do front
-faz a API reiniciar junto.
-
-Em *Settings → Networking*, clique em **Generate Domain** nos dois. Anote os dois endereços.
-
-### 3. Variáveis da API
+**API variables**
 
 ```
 NODE_ENV=production
 DATABASE_URL=${{Postgres.DATABASE_URL}}
-JWT_SECRET=<gere com: openssl rand -base64 48>
-CORS_ORIGIN=https://<dominio-do-web>.up.railway.app
+JWT_SECRET=<openssl rand -base64 48>
+CORS_ORIGIN=https://<web-domain>
 COOKIE_SAMESITE=none
-ALLOW_SIGNUP=true
+NIXPACKS_NODE_VERSION=22
+# optional
+OPENROUTER_API_KEY=...
+OPENROUTER_MANAGEMENT_KEY=...   # read-only usage dashboard; never reaches the browser
+YOUTUBE_API_KEY=...             # video durations in the link drawer
+```
+
+**Web variables**
+
+```
+VITE_API_URL=https://<api-domain>
 NIXPACKS_NODE_VERSION=22
 ```
 
-- `PORT` a Railway injeta sozinha.
-- **`JWT_SECRET` com menos de 32 caracteres derruba o processo no boot**, de propósito: falhar na
-  subida é melhor que rodar inseguro.
-- `NODE_ENV=production` é o que liga a flag `Secure` no cookie de refresh — sem ela, o navegador
-  recusa um cookie `SameSite=none` e você fica num laço de login.
-- `ALLOW_SIGNUP=true` só até você criar sua conta (passo 5).
-- **`OPENROUTER_API_KEY` é opcional.** Sem ela a API sobe igual e só as funções de IA ficam
-  indisponíveis, com o motivo na tela de ajustes. Com ela, o conteúdo da nota que você mandar
-  formatar **sai da máquina**.
-- **`OPENROUTER_MANAGEMENT_KEY` é opcional.** É a *management key* do OpenRouter, e só alimenta o
-  saldo, o histórico e as métricas de `/ajustes/openrouter`. No provedor ela cria e apaga chaves; a
-  API só a usa para ler, em caminhos fixos, e ela nunca chega ao navegador. Sem ela, a seção mostra
-  só o que a chave comum sabe.
+`VITE_API_URL` is read at **build time**: changing it does nothing until the next deploy.
 
-### 4. Variáveis do web
-
-```
-VITE_API_URL=https://<dominio-da-api>.up.railway.app
-NIXPACKS_NODE_VERSION=22
-```
-
-> `VITE_API_URL` é lida **em tempo de build**, não em runtime. Trocar o valor não muda nada até
-> um novo deploy acontecer — é o erro mais fácil de cometer aqui.
-
-### 5. Primeiro acesso
-
-1. Abra o log da API. O `startCommand` roda `prisma migrate deploy` antes de subir, então você deve
-   ver as **cinco migrations** sendo aplicadas na primeira vez.
-2. Confirme `GET /health` respondendo `{"status":"ok"}` e `GET /health/db` respondendo
-   `{"database":"up"}`.
-3. Abra o front, crie sua conta.
-4. **Volte e troque `ALLOW_SIGNUP` para `false`.** A Railway redeploya sozinha ao salvar.
-
-### O que costuma dar errado
-
-| Sintoma | Causa |
-|---|---|
-| Build falha em `@yu-book/shared not found` | Root Directory apontando para `apps/api` em vez da raiz |
-| Front carrega mas toda chamada dá erro de CORS | `CORS_ORIGIN` sem o `https://`, com barra no fim, ou apontando para o domínio errado |
-| Login funciona e a sessão cai a cada 15 min | `COOKIE_SAMESITE` diferente de `none`, ou `NODE_ENV` que não é `production` |
-| Front chama `localhost:3333` em produção | `VITE_API_URL` definida **depois** do build — force um redeploy |
-| Web sobe e morre com `vite: not found` | o build podou as devDependencies. `vite preview` é quem serve os arquivos; se acontecer, troque o `start` do web por um servidor estático em `dependencies` |
-| Migration falha em `CREATE EXTENSION` | o usuário do Postgres não tem permissão — no plugin da Railway ele tem, mas em banco externo pode não ter |
-
-### Sobre o cookie entre domínios
-
-API e front ficam em domínios diferentes (`api.up.railway.app` × `web.up.railway.app`), que o
-navegador trata como **cross-site**. Daí `COOKIE_SAMESITE=none` — sem isso o cookie de refresh
-simplesmente não é enviado e a sessão cai a cada 15 minutos.
-
-Se você apontar um domínio próprio (`api.seudominio.com` e `app.seudominio.com`), os dois passam a
-ser same-site: aí use `COOKIE_SAMESITE=lax` e `COOKIE_DOMAIN=.seudominio.com`, que é mais seguro.
+**First access.** Migrations run on boot (`prisma migrate deploy`). Set `ALLOW_SIGNUP=true`
+temporarily, create your account, then **remove it or set it to `false`**. With signup open,
+anyone who finds the API can create an account and spend your AI budget.
 
 ---
 
-## Usando
+## Project status and known limitations
 
-A aplicação é **desktop-only** por decisão de projeto: abaixo de 1024px ela avisa em vez de
-degradar o layout. A coluna de navegação é a mesma em tudo; ao lado dela ficam o dashboard (`/`),
-lista + editor (`/n`) ou o quadro + painel do card (`/b`). As larguras são ajustáveis por arrasto e
-persistidas.
+The product phases (notes, kanban, links, dashboard, refinements), the MCP server and the AI
+features (chat, AI provenance, agents, routines, scheduling, web research, usage dashboards) are
+all delivered and running in production. Next on the roadmap: semantic search over the
+knowledge base, and Google Calendar integration.
 
-**A tela inicial** responde uma pergunta só: o que precisa de mim agora? Prazos vencidos no topo (o
-único conteúdo do app com urgência de verdade), depois o que vence na semana, as últimas notas
-editadas e o tamanho da fila de "ver depois". Tudo em uma requisição, e nada dali escreve: cada
-item leva ao lugar onde a alteração acontece.
+Known limitations, stated on purpose:
 
-**Tema claro e escuro** pelo seletor no rodapé da navegação. Na primeira visita ele segue a
-preferência do sistema; depois vale a sua escolha, guardada por dispositivo. A decisão é aplicada
-antes da primeira pintura, então não há piscada ao carregar.
-
-| Atalho | O que faz |
-|---|---|
-| `Ctrl+N` | nova nota, com o cursor já no título |
-| `Ctrl+K` | busca notas e cards, de qualquer tela |
-| `Ctrl+Shift+B` | vai para os boards |
-| `Ctrl+Shift+L` | abre a gaveta de links |
-| `Ctrl+Shift+Y` | abre o chat com o assistente |
-| `Ctrl+S` | salva agora, sem esperar o autosave |
-| `Ctrl+B` / `Ctrl+I` / `` Ctrl+` `` | negrito / itálico / código |
-| `[[` | autocomplete para vincular a outra nota |
-| `N` | novo card na coluna com foco |
-| `Espaço` | pega e solta o card com foco; setas movem, `Esc` cancela |
-| `Ctrl+/` | lista de atalhos |
-
-**Autosave:** salva 800 ms depois que você para de digitar. Falha de rede não apaga o que está na
-tela — o erro fica visível e há 3 novas tentativas a cada 5 s.
-
-**Busca:** `Ctrl+K` aceita filtros no próprio campo — `tipo:aula`, `tipo:card`, `tag:jwt`,
-`#coders` — combináveis com o termo. Ignora acento (`programacao` acha `programação`), aplica
-stemming (`autenticar` acha `autenticação`) e, quando não acha nada exato, cai num fallback por
-semelhança de título que tolera erro de digitação. Cards entram nos resultados junto com as notas,
-identificados pelo board e pela coluna.
-
-**Links entre notas:** `[[titulo]]` vira link clicável; se o título não existir, o link aparece
-marcado como "criar" e clicar nele cria a nota. Renomear uma nota reescreve os `[[…]]` de todas as
-que apontam para ela, então os links não quebram. Cada nota lista quem a referencia no rodapé.
-
-**Lixeira:** excluir é reversível por 30 dias. A nota some de listagem, busca, autocomplete e
-backlinks, mas dá para restaurar com tags e links intactos.
-
-### Workspace é contexto, não filtro
-
-O seletor no topo da navegação troca o contexto da **aplicação inteira**: lista de notas, paleta de
-busca e lista de boards passam a enxergar só aquele workspace, e a escolha sobrevive a recarregar a
-página. "Todos os workspaces" desliga o escopo. Digitar `#outro` na paleta sobrepõe o escopo
-naquela busca sem trocar o contexto.
-
-Excluir um workspace exclui os boards e cards dele — a confirmação diz quantos — mas **não** exclui
-notas: elas ficam sem workspace.
-
-### Kanban
-
-Board pertence a um workspace e nasce com `A fazer`, `Fazendo` e `Feito`. Card tem título,
-descrição em Markdown, prazo, prioridade, checklist e vínculo opcional a uma nota.
-
-- **Mover:** arrastar com o mouse ou pegar com `Espaço` e mover com as setas — as duas formas
-  fazem a mesma coisa, e cada etapa é anunciada para leitor de tela. O movimento aparece na hora;
-  se a API recusar, o card volta sozinho e o erro fica visível.
-- **Ordem:** as posições são renumeradas em transação a cada movimento, então não existe empate
-  nem buraco na fila.
-- **Limite de WIP:** por coluna, opcional. Estourar sinaliza o cabeçalho (`4/3`) e não bloqueia
-  nada — com um usuário só, bloquear gera contorno, não disciplina.
-- **Excluir coluna com cards** exige escolher: mover para outra coluna ou excluir junto. A API
-  recusa a exclusão que não diz o que fazer com eles.
-- **Arquivar** tira o card do board sem apagá-lo; desarquivar devolve ao fim da mesma coluna.
-  Excluir card é definitivo — não há lixeira de card.
-
-### Gaveta de links
-
-`Ctrl+Shift+L` abre a gaveta sobre qualquer tela, com duas listas: **favoritos** (os sites de
-sempre, em grade reordenável) e **ver depois** (a fila do que você guardou para consumir e apagar).
-
-Para guardar, **arraste o link de outra janela e solte em qualquer ponto do Yu-book** — duas faixas
-aparecem, você escolhe a lista e pronto. Não precisa abrir nada antes, e o que você estava fazendo
-continua onde estava. Com a gaveta aberta, `Ctrl+V` também salva.
-
-- **O item aparece na hora**, com o domínio como nome, e o título real entra quando a API responde.
-- **A mesma URL não entra duas vezes** na mesma lista: `www.github.com/` e `github.com` são o mesmo
-  link, mas `watch?v=A` e `watch?v=B` não são.
-- **Excluir não pergunta nada** — some na hora, com 8 segundos de "desfazer".
-- **Nada expira sozinho.** A fila mostra há quanto tempo cada item está parado e destaca o que
-  passou de 30 dias; quem apaga é você.
-- A gaveta é **uma só**: não segue o workspace ativo.
-
-Sem favicon, de propósito: guardar a imagem exigiria storage de objetos e buscá-la de um serviço de
-terceiros entregaria a ele a lista de tudo que você salva. A identidade é a inicial do domínio num
-bloco de cor derivada dele — mesma cor para o mesmo site, sempre.
-
-**Vídeo do YouTube é caso especial**, porque é a maior parte da fila. Ele ganha o título de
-verdade e a miniatura no lugar do bloco de letra:
-
-- O título vem do **oEmbed** do YouTube — sem chave de API e com ~1 KB de resposta. O leitor
-  genérico de título não dava conta: a página de um vídeo passa de 1,3 MB e o `<title>` fica além
-  do limite de 512 KB que ele lê, então o link era salvo como "youtube.com".
-- A **miniatura** é montada a partir do id do vídeo (`i.ytimg.com/vi/<id>/mqdefault.jpg`), sem
-  nenhuma requisição no momento de salvar. Quem baixa é o navegador, ao exibir a lista. Isso
-  revela ao Google **qual vídeo** apareceu na sua lista — bem menos do que um serviço de favicon,
-  que veria todos os domínios que você guarda.
-- A **duração** só aparece se existir `YOUTUBE_API_KEY` no ambiente da API. Sem a chave, nada é
-  requisitado e o resto continua funcionando. Não há caminho barato sem chave: o `lengthSeconds`
-  fica por volta do byte 700.000 da página do vídeo.
-
-Para ligar a duração: crie uma chave da **YouTube Data API v3** no Google Cloud e defina
-`YOUTUBE_API_KEY` no serviço da API. Cada link salvo custa 1 unidade da cota diária de 10.000.
-
-### Sobre ler o título da página
-
-Este é um dos dois pontos do Yu-book em que **o servidor abre conexão para um endereço que veio de
-fora**. O outro é a ferramenta "Abrir página" do assistente. Os dois tratam o endereço como hostil e
-saem pela mesma função, `pedirPublico`, em `apps/api/src/lib/saidaSegura.ts`. Os limites abaixo são
-os do título. "Abrir página" usa 8 segundos e 1 MB.
-
-| Defesa | O que impede |
-|---|---|
-| Recusa IP de laço, privado, link-local, CGNAT e multicast | usar o Yu-book para varrer a rede interna da Railway |
-| Conecta no IP que foi conferido, sem resolver o nome de novo | um DNS que responde público na conferência e privado na conexão (DNS rebinding) |
-| Revalida **a cada redirecionamento**, no máximo 3 saltos | um endereço público que redireciona para `localhost` |
-| Recusa `169.254.169.254` como qualquer outro link-local | ler as credenciais de metadados da nuvem |
-| Lê no máximo 512 KB, e só se for HTML | derrubar a API com uma resposta de 2 GB |
-| Orçamento de 2 segundos no total | prender a requisição num servidor que não responde |
-| Título cortado em 200 caracteres e renderizado como texto | script vindo do `<title>` de terceiro |
-
-Falhar em qualquer uma dessas etapas **nunca** impede o link de ser salvo: ele fica com o domínio
-como nome, e há um botão para tentar ler o título de novo.
-
-### Card ↔ nota
-
-O card mostra a nota vinculada; a nota lista, no rodapé, os cards que a referenciam, ao lado de
-"Referenciada por". Dá para criar uma nota já vinculada a partir do título do card. Mandar a nota
-para a lixeira desfaz o vínculo e mantém o card.
-
-### Regras que valem conhecer
-
-- **Título é único por usuário**, comparado sem acento e sem diferenciar maiúsculas. É o que faz
-  `[[titulo]]` apontar sempre para uma nota só. Título repetido é recusado com aviso.
-- **Campos de aula** (módulo, instrutor, link da gravação) ficam em `note.meta` (JSONB), num painel
-  recolhível — adicionar um campo novo não pede migration.
-- **Tag sem nenhuma nota é apagada sozinha**, para o autocomplete não acumular lixo.
-- **Tag de nota e tag de card são coisas diferentes.** A de nota tem cor, é global no seu acervo e
-  vive numa tabela; a de card é texto livre na linha do card, vale só dentro daquele board e morre
-  com ele. O nome coincide, o comportamento não.
-- **Com filtro de tag ativo no quadro, mover card fica desabilitado** — mouse e teclado. A posição
-  de destino seria contada sobre o recorte e o servidor renumeraria a coluna inteira em cima dela.
-- **Nome de board é único por workspace** e nome de coluna é único por board — duas colunas "Feito"
-  no mesmo board é erro de digitação, não intenção.
-- **Card não atravessa boards.** Mover para uma coluna de outro board é recusado.
-
-### Formatar nota por IA e o teto de gasto
-
-O editor tem um botão de **formatar** ao lado do de copiar. Ele manda o corpo da nota para um modelo
-e aplica o resultado direto, com **desfazer disponível por 8 segundos**. Só o corpo muda: título,
-tags e workspace nem são enviados. Editar a nota enquanto ela é formatada **descarta** o resultado,
-em vez de engolir o que você acabou de escrever.
-
-- **O conteúdo da nota sai da sua máquina.** O provedor é de nuvem — o Ollama saiu do escopo porque
-  a API roda na Railway, sem GPU. O aviso está na tela de ajustes, e é para ser lido.
-- **O que o provedor faz com esse conteúdo é escolha sua**, num interruptor em `/ajustes/provedor`,
-  **desligado por padrão**: desligado, o servidor pede que ele não guarde o texto para treino. O
-  preço de deixar assim é que **os modelos gratuitos ficam indisponíveis** — os endpoints deles
-  treinam com os dados, e exigir que não treinem faz o roteamento não achar endpoint nenhum, o 404
-  medido em 2026-09-23.
-- **`[[wikilinks]]` são intocáveis.** A resposta do modelo é conferida antes de ser aplicada: se o
-  conjunto de alvos mudar, ela é recusada. Não é instrução no prompt, é código.
-- **Ajustes em `/ajustes`**, em cinco seções: **modelos** (catálogo buscável e o quadro em que se
-  arrasta um favorito para cada tarefa, ou se usa o menu "Usar para…"), **provedor**, **gasto**
-  (o teto diário, US$ 0,20 por padrão), **Dashboard OpenRouter** (o que o provedor conta, com dia
-  em UTC) e **AI usage dash** (o que o Yu-book gravou, com dia no seu fuso). O gasto de hoje fica
-  no cabeçalho, visível nas cinco, no seu fuso.
-- **O catálogo não mostra tudo que o provedor mostra.** Ficam de fora as variantes `:batch`, que o
-  provedor recusa na chamada que fazemos; os modelos que devolvem imagem ou áudio, que não servem à
-  tarefa; e os apelidos `…-latest`, porque o favorito guarda uma **cópia** do preço e ela ficaria
-  errada em silêncio quando o alvo do apelido mudasse. São 348 modelos dos 455 do provedor.
-- **Os índices de qualidade ordenam, mas não filtram.** Só 142 dos 348 modelos têm medição, e quem
-  não tem não ganha etiqueta — ausência quer dizer "não medido", não "ruim".
-- **O dia do teto é o seu**, no fuso configurado nos ajustes — não o dia UTC do servidor.
-- **Chamada sem custo informado pelo provedor aparece contada na tela.** Ela grava zero e não move
-  o teto; esconder isso faria o teto mentir.
-
-### O chat que lê, e cria quando você pede
-
-`Ctrl+Shift+Y` abre um painel de conversa que **consulta o acervo por conta própria**. Você pergunta;
-o modelo chama as ferramentas de que precisa — buscar notas, abrir nota, listar quadros, abrir
-quadro, ver o dashboard e, desde a Etapa C, criar card e criar nota —, o Yu-book executa e devolve o
-resultado, e ele decide se já pode responder. São sete das **dez ações** que o servidor MCP publica,
-definidas uma vez só. Mover card, mandar nota para a lixeira e restaurar ficam fora do chat.
-
-- **O que ele cria nasce marcado como gerado por IA**, com o modelo e a conversa de origem. A
-  resposta mostra o que foi criado, com **Desfazer**: a nota vai para a lixeira, o card é excluído.
-  Editar à mão o título ou o corpo muda a marca para "revisada", e ela nunca some.
-- **"Virar nota"** transforma uma resposta em nota marcada. O conteúdo sai da conversa gravada, não
-  do navegador.
-
-- **Escolha um modelo de chat em `/ajustes/modelos` antes**, e ele precisa saber chamar ferramenta. Sem
-  isso o painel recusa, dizendo qual dos dois falta.
-- **No máximo cinco passos por pergunta.** Não é economia: é o que impede um modelo em ciclo de
-  gastar o teto do dia numa pergunta só.
-- **Cada turno cita o que consultou**, e a fonte abre o alvo. A resposta chega em streaming.
-- **O `@` anexa** nota, card ou quadro à mensagem. Anexo pende da **mensagem**, não da conversa: o
-  histórico mostra o que cada pergunta tinha em mãos na hora em que foi feita. Passando de 60 000
-  caracteres, o corte é por anexo inteiro e a tela diz quais ficaram de fora.
-- **O teto vale por passo.** Batendo no meio do laço, a resposta é interrompida e o parcial é
-  entregue — o que já foi gasto não vira nada.
-- **Conversas ficam salvas**, escopadas por você, e podem ser renomeadas e excluídas. Excluir
-  conversa não toca em nota nem em card.
-
-## Sobre as cores
-
-A rampa `ink-950 → ink-200` é **semântica**: `ink-950` é sempre "o fundo mais profundo" e `ink-200`
-sempre "o texto de maior contraste". O tema claro inverte os valores, não o significado — por isso
-a troca vive inteira no CSS e nenhum componente tem condicional de tema.
-
-O contraste dos dois temas é verificado por cálculo, não por impressão: **74 pares texto/fundo**
-(incluindo o realce de sintaxe e os blocos coloridos gerados por domínio) passam em WCAG AA. A
-auditoria encontrou e corrigiu inclusive uma falha antiga do tema escuro — branco sobre
-`accent-500` estava em 4,47:1, abaixo do mínimo de 4,5.
-
-## A Fase 5, entregue
-
-A Fase 5 refinou o que já existia, em três etapas independentes
-([PRD](docs/old/prd-fase-5-refino.md)). **As três estão entregues:**
-
-- **Etapa A — tags de card:** tags próprias do card, filtro por tag no quadro e busca na lista de
-  tags da barra lateral.
-- **Etapa B — arraste do kanban:** colisão pelo ponteiro, índice de inserção por **contagem
-  geométrica** — quantos cards da coluna têm o ponto médio acima do ponteiro —, rolagem automática
-  perto das bordas e vão tracejado no lugar do card fantasma. Não tocou contrato nem banco.
-- **Etapa C — a nota:** botão de copiar a nota inteira como Markdown e o modo **"ao vivo"**, quarto
-  do editor e agora o padrão, em que a marcação some do que já foi escrito e reaparece na linha do
-  cursor. O motor é **CodeMirror 6 com decorações** (D-01 do PRD), embrulhando `@lezer/markdown`
-  cru; o documento continua sendo a string de Markdown, e a `<textarea>` ficou nos outros três
-  modos. O editor entra por `import()` sob demanda — 115,9 KB gz, dentro do teto de RNF-05 — e o
-  bundle inicial não mudou.
-
-**Os critérios de aceitação das Etapas B e C não foram verificados à mão.** Estão implementados, o
-typecheck e o build passam e os 55 testes da API seguem verdes, mas não existe teste de front no
-projeto: nenhum portão carrega uma `EditorView`. Ver [docs/historico.md](docs/historico.md).
-
-Três desvios da Etapa C frente ao PRD estão corrigidos lá e valem aqui: o botão de copiar **não tem
-atalho** (`Ctrl+Shift+C` é do DevTools), `caret.ts` **não foi removido** porque a `<textarea>` ficou,
-e bloco de código no modo ao vivo **não tem realce por token** — o realce completo continua nos
-modos `dividido` e `leitura`.
-
-Depois: **Fase 6** — agenda no Google Calendar, um botão "agendar" no card e na nota criando o
-evento num calendário dedicado, sem tela de calendário aqui; é hoje o item de **menor prioridade**
-do roadmap. E busca semântica, opcional. Lista de empresas saiu do escopo — a Cod3rs já tem uma,
-compartilhada com o orientador.
+- **Single-user by design.** Some AI settings (the provider account dashboard) are server-wide and
+  assume one owner.
+- **Desktop-only.** Below 1024 px the app says so instead of degrading the layout.
+- **No front-end tests and no CI.** The automated gates are the type check and the API and MCP
+  test suites; the UI is verified by hand.
+- **Note content leaves the server for every AI task.** The provider is a cloud one: a local model
+  was dropped because the API runs without a GPU. The settings screen says this, and whether the
+  provider may train on your data is a toggle, off by default.
