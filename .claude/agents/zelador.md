@@ -41,7 +41,7 @@ Dívidas já conhecidas, que você deve continuar listando enquanto existirem:
   `docs/old/PROPOSTA-inicial.md` |
 | Lixeira que nunca expurga | A Fase 1 prometeu 30 dias; não há rotina de expurgo |
 | Sem script de `pg_dump` e sem export | Risco de lock-in registrado em `docs/old/PROPOSTA-inicial.md` |
-| README desatualizado | `README.md:232` fala em cinco migrations; existem sete |
+| Caminho `docs/` em arquivo versionado (`git grep -l "docs/" -- ':!docs'`) | `docs/` é local desde 2026-09-28: no GitHub, link do `CHANGELOG.md` é morto e ponteiro em comentário não resolve. Manter como registro ou tirar é decisão do operador |
 
 ## Lista de exclusão — o que parece morto e não é
 

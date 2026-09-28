@@ -10,3 +10,6 @@ build/
 coverage/
 apps/web/dist/
 apps/api/dist/
+
+# Documentação interna (PRDs, histórico de decisões, planos, dossiês): fica só na máquina
+docs/

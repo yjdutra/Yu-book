@@ -1,6 +1,6 @@
 ---
 name: changelog-e-versao
-description: Formato do CHANGELOG.md e do histórico de contexto do Yu-book, regras de versionamento semver dos quatro pacotes, a diferença entre a versão do conjunto no heading e a dos package.json, o que se faz com documento movido para docs/old e a convenção de mensagem de commit. Use ao fechar uma entrega, ao registrar o que mudou numa sessão de trabalho, ao decidir bump de versão ou ao propor mensagem de commit.
+description: Formato do CHANGELOG.md e do histórico de contexto do Yu-book, regras de versionamento semver dos quatro pacotes, a diferença entre a versão do conjunto no heading e a dos package.json, o que se faz com documento movido para docs/old, o que é público (CHANGELOG, README vitrine em inglês) e o que é local (docs/, historico.md) e a convenção de mensagem de commit. Use ao fechar uma entrega, ao registrar o que mudou numa sessão de trabalho, ao decidir bump de versão ou ao propor mensagem de commit.
 ---
 
 # Changelog, histórico e versão
@@ -8,6 +8,10 @@ description: Formato do CHANGELOG.md e do histórico de contexto do Yu-book, reg
 Dois arquivos, dois propósitos. **`CHANGELOG.md` diz o quê. `docs/historico.md` diz por quê.**
 Não misture: mudança sem decisão vai só no changelog; decisão sem mudança de código vai só no
 histórico.
+
+**Um é público, o outro é local.** O repositório é público e `docs/` saiu do git em 2026-09-28: o
+`CHANGELOG.md` é versionado e lido no GitHub; o `docs/historico.md` só existe na máquina do
+operador, não aparece no `git status` e não entra em commit.
 
 ## 1. `CHANGELOG.md`
 
@@ -38,8 +42,13 @@ Regras:
   PRDs de fase.
 - Seção `Segurança` quando a mudança tiver efeito sobre a superfície de ataque.
 - Nada de "refatoração interna" sem efeito observável — isso é histórico, não changelog.
+- **Entrada nova não linka para `docs/`** — no GitHub é link morto. Cite o `RF-xx` e, se precisar,
+  o nome do documento em texto corrido; o porquê vai para o histórico sem ponteiro no changelog.
 
 ## 2. `docs/historico.md`
+
+Arquivo **local**, fora do git: escreva normalmente, sabendo que o disco do operador é a única
+cópia. Se ele não existir (clone limpo), não crie um histórico novo — pergunte ao operador.
 
 Registro narrativo, uma entrada por sessão de trabalho, mais recente no topo:
 
@@ -126,7 +135,7 @@ o histórico** para corrigi-los — a convenção vale daqui para a frente.
 1. Atualize `CHANGELOG.md` com a versão nova e a data.
 2. Registre a decisão em `docs/historico.md`, se houve alguma.
 3. Bumpe o `package.json` dos pacotes afetados.
-4. Atualize `README.md` se o status das fases mudou. **Não** atualize os documentos de
+4. Atualize `README.md` só no que a §7 permite. **Não** atualize os documentos de
    `docs/old/` — ver §6.
 5. **Proponha** a mensagem de commit. Não crie tag nem release — quem executa é o operador.
 
@@ -144,4 +153,26 @@ procure quem o citava e atualize o caminho:
 grep -rn "PROPOSTA.md" --include="*.md" . | grep -v docs/old/
 ```
 
-A verdade corrente sobre fases mora no `README.md` e no PRD da fase em andamento.
+Tudo isso é local desde 2026-09-28. A verdade corrente sobre fases mora no `CHANGELOG.md` e no PRD
+da fase em andamento; o `README.md` só a resume.
+
+## 7. O `README.md` é vitrine pública, em inglês
+
+Desde 2026-09-28 o README da raiz é a cara do repositório público: curto, em inglês, sem relato por
+etapa e sem link para `docs/`. Ao fechar uma entrega, mexa **só** em:
+
+- a seção **"Project status and known limitations"**, quando mudou o que está entregue ou a lista
+  de limitações;
+- os **números** que ele cita, conferidos na hora e nunca de memória:
+
+```bash
+ls .claude/agents/*.md | wc -l                                              # agentes
+ls -d .claude/skills/*/ | wc -l                                             # skills
+grep -rhoE '^\*\*INV-[0-9]+' .claude/skills/invariantes-yu-book | sort -u | wc -l   # invariantes
+```
+
+Os de teste (API e MCP) saem do total da última rodada real dos portões, não de contar `it(`.
+
+No mesmo tom do resto: frase de efeito para quem visita, sem `RF-xx`, sem número de etapa, sem
+data por entrega. Os marcadores `<!-- SCREENSHOT N -->` e as imagens em `.github/assets/` são do
+operador. "Implementado e **não verificado**" vai no changelog e no histórico, não no README.

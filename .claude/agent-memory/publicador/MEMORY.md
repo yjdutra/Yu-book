@@ -15,4 +15,4 @@
 
 ## Decisões em vigor
 
-- [Commits de ponto de controle](commits-de-ponto-de-controle.md) — commit no meio da etapa não leva changelog, histórico nem bump.
+- [Commits de ponto de controle](commits-de-ponto-de-controle.md) — commit no meio da etapa não leva changelog nem bump.

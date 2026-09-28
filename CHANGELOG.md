@@ -2,14 +2,50 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versionamento
 [semver](https://semver.org/lang/pt-BR/). Os identificadores `RF-xx`, `RN-xx` e `RNF-xx` resolvem
-para os PRDs em [`docs/`](docs/).
+para os PRDs de cada fase, e as decisões e os porquês ficam num histórico de decisões. Os dois são
+documentação interna e, desde a `[0.25.1]`, ficam fora do repositório.
 
-`CHANGELOG.md` diz **o quê**. As decisões e os porquês ficam em
-[`docs/historico.md`](docs/historico.md).
+`CHANGELOG.md` diz **o quê**. Os links para `docs/` nas entradas até a `[0.25.0]` ficam como
+registro: no ramo atual não resolvem, mas abrem no commit de cada entrada.
+
+**Heading e pacotes têm números diferentes.** O heading é a versão do conjunto; cada pacote tem o
+seu no `package.json`, e o corpo de cada entrada diz para onde eles foram.
 
 ## [Não lançado]
 
 _Nada pendente._
+
+---
+
+## [0.25.1] — 2026-09-28
+
+**Repositório público.** O `README.md` virou a vitrine do projeto, em inglês, e a documentação
+interna saiu do repositório. Não há código de aplicação nesta entrega.
+
+**Nenhum pacote se move.** Nada em `apps/` nem em `packages/` mudou, nem contrato nem comportamento.
+Os quatro ficam onde a `[0.25.0]` os deixou: `packages/shared` em `0.14.0`, `apps/api` em `0.16.0`,
+`apps/web` em `0.21.0` e `apps/mcp` em `0.17.0`. O heading sobe um patch só para marcar a entrega.
+
+Sem portão a rodar: nenhum arquivo que o `pnpm typecheck` ou as suítes de teste leem mudou.
+
+### Adicionado
+- Capturas de tela da aplicação em `.github/assets/`, referenciadas pelo README: editor com o
+  assistente, kanban, gaveta de links, editor e execução de rotina, editor de agente, painel de uso
+  e o servidor MCP num cliente externo.
+
+### Alterado
+- O `README.md` foi reescrito em inglês para quem visita o repositório: funcionalidades,
+  arquitetura, destaques de engenharia, como o projeto foi construído com agentes e skills do
+  Claude Code, stack, como rodar, deploy e limitações conhecidas. O relato por etapa, em português,
+  saiu inteiro; o que mudou em cada entrega continua neste arquivo.
+- As instruções de projeto (`CLAUDE.md`), os agentes em `.claude/agents/` e a skill de changelog
+  passaram a tratar `docs/` como local e o README como vitrine.
+
+### Removido
+- `docs/` saiu do repositório e entrou no `.gitignore`: PRDs de fase e da frente de IA, o
+  histórico de decisões, planos e anotações. Os arquivos continuam existindo fora do git. Os
+  commits anteriores a esta entrega ainda os contêm, e é por lá que os links das entradas antigas
+  abrem.
 
 ---
 

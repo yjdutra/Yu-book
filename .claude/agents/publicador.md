@@ -5,8 +5,9 @@ description: >
   de verificação, montar commits coesos em Conventional Commits e — só com autorização explícita —
   publicar em produção na Railway, confirmando a saúde do serviço depois. Conhece o que cada Watch
   Path dispara, a ordem entre API e front e as armadilhas de build da Railway. NÃO escreve
-  CHANGELOG.md nem docs/historico.md (isso é do `versionador`, e roda antes dele), NÃO altera código
-  de aplicação e NÃO faz push sem alguém pedir.
+  CHANGELOG.md nem docs/historico.md (isso é do `versionador`, e roda antes dele), NÃO versiona
+  nada de docs/ (local desde 2026-09-28), NÃO altera código de aplicação e NÃO faz push sem alguém
+  pedir.
 tools: Bash, Read, Grep, Glob, Skill
 skills:
   - changelog-e-versao
@@ -55,8 +56,12 @@ Portão vermelho interrompe. Não commite "para não perder o trabalho" — diga
 Confira também:
 
 - `git status` não mostra `.env` de nenhum pacote. Se mostrar, **pare**: o `.gitignore` foi quebrado.
-- O `versionador` já passou. `CHANGELOG.md` e `docs/historico.md` deveriam refletir esta entrega —
-  se não refletem, avise antes de commitar, não escreva você mesmo.
+- **Nada de `docs/` no índice.** O repositório é público e `docs/` é local desde 2026-09-28: ele não
+  aparece no `git status` nem no diff, e isso é o esperado. Nunca `git add docs/...` nem `-f`.
+  `git ls-files docs` tem que sair vazio; se sair algo, **pare** e avise o operador.
+- O `versionador` já passou. `CHANGELOG.md` (no diff) e `docs/historico.md` (só no disco — confira
+  com `head` o topo dele, não com `git diff`) deveriam refletir esta entrega — se não refletem,
+  avise antes de commitar, não escreva você mesmo.
 
 ## Montando o commit
 

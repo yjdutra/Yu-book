@@ -15,7 +15,7 @@ arriscada pode obrigar a desfazer. Commit é local e reversível; o custo de com
 **How to apply:**
 
 - Não trate o pedido de commit como fechamento de entrega. Nesses pontos de controle **nada** de
-  `CHANGELOG.md`, `docs/historico.md`, bump de `package.json` ou `.claude/` entra — quem fecha é o
+  `CHANGELOG.md`, bump de `package.json` ou `.claude/` entra — quem fecha é o
   `versionador`, no fim da etapa, e o operador o chama explicitamente.
 - A regra do `versionador` ter passado antes do commit vale para o fechamento da etapa, não para o
   ponto de controle no meio dela.

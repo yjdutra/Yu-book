@@ -7,8 +7,8 @@ metadata:
 
 Quando a entrega é só de `apps/web`, os portões do projeto (`pnpm typecheck`, `pnpm --filter
 @yu-book/api test`, `pnpm --filter @yu-book/web build`) **não a validam**. Registrar isso
-explicitamente no CHANGELOG, no `docs/historico.md` e no README, com as palavras "implementado e
-**não verificado**" e os `CA-xx` nomeados. Nunca escrever "verificado".
+explicitamente no CHANGELOG e no `docs/historico.md`, com as palavras "implementado e **não
+verificado**" e os `CA-xx` nomeados. Nunca escrever "verificado".
 
 **Why:** não existe teste de front no projeto. Nas Etapas A, B e C da Fase 5 o operador pediu esse
 registro nas três, e na C reforçou o peso — um editor CodeMirror inteiro foi escrito e nunca

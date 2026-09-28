@@ -9,6 +9,12 @@ Segundo cérebro pessoal, single-user. Monorepo pnpm com quatro pacotes:
 | `apps/mcp` | SDK MCP + stdio/HTTP | Servidor MCP, cliente da própria API |
 | `packages/shared` | Zod 3 | Schemas e helpers que os outros três consomem |
 
+**O repositório é público, e `docs/` é local desde 2026-09-28:** está no `.gitignore` e fora do
+índice. Todo caminho `docs/...` citado aqui, em `.claude/` ou num comentário resolve só na máquina
+do operador, sem backup pelo git; num clone limpo não existe. Não recrie `docs/`, não o force de
+volta ao índice (`git add -f`) e não linke para ele em arquivo versionado — no GitHub é link morto.
+A vitrine pública é o `README.md` da raiz, **em inglês**; o registro por entrega é o `CHANGELOG.md`.
+
 Proposta inicial em `docs/old/PROPOSTA-inicial.md` (registro de época, não se atualiza).
 Requisitos por fase em `docs/old/prd-fase-*.md` e, da Fase 5 em diante, em `docs/prd-fase-*.md` —
 os comentários do código citam os identificadores `RF-xx`, `RN-xx`, `RNF-xx` e `CA-xx` de lá. A
