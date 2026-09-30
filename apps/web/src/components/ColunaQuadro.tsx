@@ -400,6 +400,7 @@ export function ColunaQuadro({
                            text-red-300 hover:bg-red-500/10"
               >
                 Excluir os {coluna.cards.length} cards
+                {coluna.cards.some((c) => c.fileCount > 0) && " e os anexos"}
               </button>
               <button
                 type="button"

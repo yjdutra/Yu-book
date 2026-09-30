@@ -7,7 +7,9 @@ import type { ApiErrorBody } from "@yu-book/shared";
 import Fastify, { type FastifyError, type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 import { env } from "./env.js";
+import { usarRegistro } from "./lib/armazem.js";
 import { AppError } from "./lib/errors.js";
+import { arquivosRoutes } from "./modules/arquivos/arquivos.routes.js";
 import { assistenteRoutes } from "./modules/assistente/assistente.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
@@ -24,6 +26,9 @@ export async function buildApp(): Promise<FastifyInstance> {
       : { level: "debug", transport: { target: "pino-pretty", options: { translateTime: "HH:MM:ss" } } },
     trustProxy: true, // a Railway fica na frente do processo
   });
+  // O bucket apaga objeto depois do commit e nunca falha a requisição por isso:
+  // a falha precisa de um lugar para ir (frente de cards, Parte 2).
+  usarRegistro(app.log);
 
   await app.register(helmet);
 
@@ -100,6 +105,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(notesRoutes);
   await app.register(organizacaoRoutes);
   await app.register(kanbanRoutes);
+  await app.register(arquivosRoutes);
   await app.register(linksRoutes);
   await app.register(dashboardRoutes);
   await app.register(assistenteRoutes);

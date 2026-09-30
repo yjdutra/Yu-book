@@ -34,3 +34,15 @@ process.env.OPENROUTER_API_KEY ??= "chave-de-teste";
 //   coisa (ver `convencoes-yu-book`, §3).
 // Nenhuma outra suíte lê esta variável.
 process.env.OPENROUTER_MANAGEMENT_KEY = "gestao-de-teste";
+
+// Frente de cards, Parte 2: o bucket dos anexos aponta para o dublê de
+// `tests/armazem.ts`, pelo mesmo motivo da porta fixa acima. `lib/armazem.ts`
+// ainda lança, em modo de teste, se o host não for 127.0.0.1 — se o `.env` de
+// desenvolvimento um dia ganhar um bucket de verdade, o `??=` o preserva e a
+// guarda derruba a suíte em vez de gravar nele. O caminho (`S3_PATH_STYLE`)
+// porque subdomínio de 127.0.0.1 não resolve.
+process.env.S3_ENDPOINT ??= "http://127.0.0.1:39334";
+process.env.S3_BUCKET ??= "yubook-teste";
+process.env.S3_ACCESS_KEY_ID ??= "chave-de-teste";
+process.env.S3_SECRET_ACCESS_KEY ??= "segredo-de-teste";
+process.env.S3_PATH_STYLE ??= "true";

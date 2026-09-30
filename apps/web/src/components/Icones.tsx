@@ -334,6 +334,21 @@ export function IconeClipe(p: IconeProps) {
   );
 }
 
+/**
+ * Moldura com montanha — os anexos do card (frente de cards, Parte 2). Não é o
+ * clipe, que já diz "nota vinculada" na face e no painel; a moldura puxa para a
+ * imagem, que é o anexo mais comum e o que a geração por IA vai produzir.
+ */
+export function IconeAnexo(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="2" y="3" width="12" height="10" rx="1.5" />
+      <circle cx="5.8" cy="6.4" r="1.1" />
+      <path d="m2.5 11.6 3.6-3.4 2.6 2.4 1.9-1.7 2.9 2.6" />
+    </Icone>
+  );
+}
+
 /** Seta curta, para qualquer lado — lista suspensa, subir e descer item. */
 export function IconeChevron({
   direcao = "baixo",

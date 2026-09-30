@@ -38,7 +38,11 @@ async function toApiError(response: Response): Promise<ApiError> {
 async function rawRequest(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set("X-Yu-Book-Client", "web");
-  if (init.body) headers.set("Content-Type", "application/json");
+  // `FormData` leva o próprio `multipart/form-data; boundary=…`, que só o
+  // navegador sabe escrever — fixar o tipo aqui quebraria o upload de anexo.
+  if (init.body && !(init.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
   return fetch(`${BASE_URL}${path}`, {
@@ -120,4 +124,7 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     apiRequest<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => apiRequest<T>(path, { method: "DELETE" }),
+  /// Frente de cards, Parte 2. A mesma `FormData` serve à repetição depois do
+  /// 401: `File` se relê, ao contrário de um stream.
+  upload: <T>(path: string, form: FormData) => apiRequest<T>(path, { method: "POST", body: form }),
 };

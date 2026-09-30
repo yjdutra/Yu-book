@@ -1,7 +1,9 @@
 import { Prisma } from "@prisma/client";
 import type { Tag, Workspace, WorkspaceInput } from "@yu-book/shared";
 import { prisma } from "../../db.js";
+import { apagarObjetos } from "../../lib/armazem.js";
 import { AppError, notFound } from "../../lib/errors.js";
+import { chavesDosCards } from "../arquivos/arquivos.service.js";
 
 const nomeDuplicado = (o: string) => new AppError(409, "NOME_DUPLICADO", `Já existe ${o}`);
 
@@ -109,8 +111,12 @@ export async function atualizarWorkspace(
 
 /** RF-43: excluir workspace NÃO exclui as notas — elas ficam sem workspace. */
 export async function excluirWorkspace(userId: string, id: string): Promise<void> {
+  // Frente de cards, Parte 2: os boards caem por cascata, e os anexos dos cards
+  // deles só somem do bucket porque as chaves saem antes do delete.
+  const chaves = await chavesDosCards({ column: { board: { workspaceId: id, userId } } });
   const { count } = await prisma.workspace.deleteMany({ where: { id, userId } });
   if (count === 0) throw notFound("Workspace não encontrado");
+  await apagarObjetos(chaves);
 }
 
 export async function listarTags(userId: string): Promise<Tag[]> {

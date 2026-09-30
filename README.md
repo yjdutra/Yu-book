@@ -50,6 +50,10 @@ of project-specific agents and skills that live in this repository.
 - **Drag with the mouse or with the keyboard** (`Space` to pick up, arrows to move), announced to
   screen readers. Moves are optimistic and roll back if the API refuses.
 - Optional WIP limit per column, which flags the column instead of blocking.
+- **Mark a card as done without moving it**: it stays in its column, dimmed, and leaves the
+  dashboard's deadlines.
+- **Attach images and files** (PDF, text, Office, zip; up to 25 MB) by picking or dropping them on
+  the card. They live in an optional S3 bucket and are read through short-lived signed URLs.
 
 ![Kanban board, with the assistant answering a question about it](.github/assets/kanban.png)
 
@@ -182,7 +186,7 @@ on purpose.
   deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
   unique index), never through process memory. A run that started is never retried, because a
   retry costs money again.
-- **Tests against real infrastructure:** 408 integration tests boot the whole Fastify app against a
+- **Tests against real infrastructure:** 449 integration tests boot the whole Fastify app against a
   real Postgres; 60 more cover the MCP server.
 
 ---
@@ -199,7 +203,7 @@ work:
   deploys never pushes without an explicit request.
 - **7 skills** in [`.claude/skills/`](.claude/skills/): conventions, the shared contract, database
   migrations, the design system, changelog and versioning, the MCP server's design decisions, and a
-  catalog of **63 invariants**, the behaviors that look like bugs to anyone who doesn't know them
+  catalog of **65 invariants**, the behaviors that look like bugs to anyone who doesn't know them
   and that break silently if "fixed".
 - **Curated agent memory** in `.claude/agent-memory/`, with hard size limits and a rule to purge,
   not patch, whatever the code already contradicts.
@@ -292,6 +296,11 @@ NIXPACKS_NODE_VERSION=22
 OPENROUTER_API_KEY=...
 OPENROUTER_MANAGEMENT_KEY=...   # read-only usage dashboard; never reaches the browser
 YOUTUBE_API_KEY=...             # video durations in the link drawer
+S3_ENDPOINT=${{Bucket.ENDPOINT}}                    # card attachments: a Railway Storage Bucket
+S3_BUCKET=${{Bucket.BUCKET}}                        # or any S3-compatible bucket
+S3_ACCESS_KEY_ID=${{Bucket.ACCESS_KEY_ID}}
+S3_SECRET_ACCESS_KEY=${{Bucket.SECRET_ACCESS_KEY}}
+S3_REGION=auto
 ```
 
 **Web variables**
@@ -313,8 +322,10 @@ anyone who finds the API can create an account and spend your AI budget.
 
 The product phases (notes, kanban, links, dashboard, refinements), the MCP server and the AI
 features (chat, AI provenance, agents, routines, scheduling, web research, usage dashboards) are
-all delivered and running in production. Next on the roadmap: file attachments on kanban cards,
-semantic search over the knowledge base, and Google Calendar integration.
+all delivered and running in production. Kanban cards have since gained a done state and file
+attachments, stored in an S3-compatible bucket that is optional: without one, the rest of the app
+runs unchanged. Next on the roadmap: semantic search over the knowledge base and Google Calendar
+integration.
 
 Known limitations, stated on purpose:
 

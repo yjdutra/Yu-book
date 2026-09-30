@@ -1,6 +1,8 @@
 import { instanteLocal } from "./agenda.js";
 import { parseSearchQuery, splitHighlight } from "./busca.js";
 import type { SearchResponse, SearchResult } from "./busca.js";
+import { formatarBytes } from "./arquivos.js";
+import type { CardFile } from "./arquivos.js";
 import type { CardComPrazo, Dashboard } from "./dashboard.js";
 import { diaLocal } from "./ia.js";
 import type { BoardDetail, BoardSummary, CardDetail, CardSummary } from "./kanban.js";
@@ -269,6 +271,8 @@ export function formatarCard(card: CardSummary, fuso: string): string {
   // enxerga estágio e não consegue responder "o que aqui é do assunto X".
   if (card.tags.length) partes.push(`tags: ${card.tags.join(", ")}`);
   if (card.note) partes.push(`nota: ${card.note.title}`);
+  // Frente de cards, Parte 2: só a contagem na face — os nomes vêm no detalhe.
+  if (card.fileCount > 0) partes.push(`${card.fileCount} anexo(s)`);
   return `${partes.join(" · ")}${sufixoIa(card.ai)}\n  id: ${card.id}`;
 }
 
@@ -337,10 +341,30 @@ export function formatarCardDetalhe(card: CardDetail, fuso: string): string {
   linhas.push(face.join(" · "));
 
   if (card.note) linhas.push(`nota: ${card.note.title} (${card.note.id})`);
+  // `?.` apesar do tipo: o MCP formata **depois** de a escrita dar certo, e
+  // contra uma API mais velha que este pacote `files` chega ausente — lançar
+  // aqui devolveria erro ao modelo sobre um card já criado, e ele criaria outro.
+  if (card.files?.length) linhas.push(linhaDosAnexos(card.files));
   if (card.descriptionMd) linhas.push(`descrição: ${card.descriptionMd.length} caracteres`);
   if (card.archived) linhas.push("arquivado — fora do quadro");
 
   return linhas.join("\n");
+}
+
+/// Dez nomes bastam para o modelo saber o que há; o resto vira contagem.
+const ANEXOS_NO_DETALHE = 10;
+
+/**
+ * Os anexos na leitura de um card (frente de cards, Parte 2): nome, tipo e
+ * tamanho. **Nunca a URL** — ela é assinada, expira em uma hora e custa
+ * contexto sem dar ao modelo nada que ele consiga abrir.
+ */
+function linhaDosAnexos(files: CardFile[]): string {
+  const nomes = files
+    .slice(0, ANEXOS_NO_DETALHE)
+    .map((f) => `${f.name} (${f.mimeType}, ${formatarBytes(f.sizeBytes)})`);
+  const resto = files.length - ANEXOS_NO_DETALHE;
+  return `anexos: ${nomes.join("; ")}${resto > 0 ? ` e mais ${resto}` : ""}`;
 }
 
 /**

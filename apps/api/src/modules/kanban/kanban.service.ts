@@ -19,6 +19,7 @@ import {
   progressoChecklist,
 } from "@yu-book/shared";
 import { prisma } from "../../db.js";
+import { apagarObjetos } from "../../lib/armazem.js";
 import { AppError, notFound } from "../../lib/errors.js";
 import {
   CAMPOS_DA_CONCLUSAO,
@@ -29,6 +30,7 @@ import {
   paraMarca,
 } from "../../lib/marca.js";
 import type { OrigemIA } from "../../lib/marca.js";
+import { chavesDosCards, paraArquivo } from "../arquivos/arquivos.service.js";
 
 /** Colunas de um board novo (RF-14, S-03): board sem coluna é estado morto. */
 const COLUNAS_PADRAO = ["A fazer", "Fazendo", "Feito"];
@@ -168,6 +170,8 @@ const CARD_FACE = {
   note: { select: { id: true, title: true, kind: true } },
   ...CAMPOS_DA_MARCA,
   ...CAMPOS_DA_CONCLUSAO,
+  // Frente de cards, Parte 2: só a contagem na face — a lista mora no detalhe.
+  _count: { select: { files: true } },
 } satisfies Prisma.CardSelect;
 
 type CardFace = Prisma.CardGetPayload<{ select: typeof CARD_FACE }>;
@@ -189,6 +193,7 @@ function toCardSummary(card: CardFace): CardSummary {
     ai: paraMarca(card),
     completedAt: card.completedAt?.toISOString() ?? null,
     aiCompletion: paraConclusao(card),
+    fileCount: card._count.files,
   };
 }
 
@@ -307,8 +312,12 @@ export async function atualizarBoard(
 }
 
 export async function excluirBoard(userId: string, id: string): Promise<void> {
+  // A posse vai no recorte das chaves também: board de outra conta não empresta
+  // nenhuma, e o `deleteMany` abaixo responde 404 por ele.
+  const chaves = await chavesDosCards({ column: { board: { id, userId } } });
   const { count } = await prisma.board.deleteMany({ where: { id, userId } });
   if (count === 0) throw notFound("Board não encontrado");
+  await apagarObjetos(chaves);
 }
 
 /** RF-33: o que saiu do board, sem sair do banco. */
@@ -450,6 +459,8 @@ export async function excluirColuna(
   opcoes: { moveCardsTo?: string; deleteCards?: boolean },
 ): Promise<BoardDetail> {
   const coluna = await colunaDoUsuario(prisma, userId, id);
+  // Só quando os cards vão junto; movidos, os anexos vão com eles.
+  const chaves = opcoes.deleteCards ? await chavesDosCards({ columnId: id }) : [];
 
   await prisma.$transaction(async (tx) => {
     const total = await tx.card.count({ where: { columnId: id } });
@@ -492,6 +503,7 @@ export async function excluirColuna(
       restantes.map((c) => c.id),
     );
   });
+  await apagarObjetos(chaves);
 
   return buscarBoard(userId, coluna.boardId);
 }
@@ -544,6 +556,10 @@ export async function buscarCard(userId: string, id: string): Promise<CardDetail
     include: {
       note: { select: { id: true, title: true, kind: true } },
       column: { select: { name: true, board: { select: { id: true, name: true } } } },
+      files: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, name: true, mimeType: true, sizeBytes: true, createdAt: true },
+      },
     },
   });
   if (!card) throw notFound("Card não encontrado");
@@ -571,6 +587,8 @@ export async function buscarCard(userId: string, id: string): Promise<CardDetail
     ai: paraMarca(card),
     completedAt: card.completedAt?.toISOString() ?? null,
     aiCompletion: paraConclusao(card),
+    fileCount: card.files.length,
+    files: card.files.map(paraArquivo),
   };
 }
 
@@ -717,6 +735,9 @@ async function gravarConclusao(
 
 export async function excluirCard(userId: string, id: string): Promise<void> {
   const card = await cardDoUsuario(prisma, userId, id);
+  // Frente de cards, Parte 2: a cascata apaga as linhas dos anexos, não os
+  // objetos no bucket. As chaves saem antes; os objetos, depois do commit.
+  const chaves = await chavesDosCards({ id });
 
   await prisma.$transaction(async (tx) => {
     await tx.card.delete({ where: { id } });
@@ -726,6 +747,7 @@ export async function excluirCard(userId: string, id: string): Promise<void> {
       restantes.map((c) => c.id),
     );
   });
+  await apagarObjetos(chaves);
 }
 
 /**

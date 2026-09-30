@@ -11,7 +11,7 @@ import { IconeCheck, IconeChevron, IconeFechar, IconeLapis } from "./Icones";
 function textoDeExclusao(w: Workspace): string {
   const kanban =
     w.boardCount > 0
-      ? ` Isso exclui ${w.boardCount} board(s) e ${w.cardCount} card(s).`
+      ? ` Isso exclui ${w.boardCount} board(s) e ${w.cardCount} card(s), com os anexos deles.`
       : "";
   const notas = w.noteCount > 0 ? ` As ${w.noteCount} nota(s) são mantidas, sem workspace.` : "";
   return `Excluir o workspace "${w.name}"?${kanban}${notas}`;

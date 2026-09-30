@@ -117,9 +117,9 @@ export const FERRAMENTAS_DO_ACERVO = {
     titulo: "Ver um quadro inteiro",
     descricao:
       "Devolve as colunas de um quadro na ordem, com os cards de cada uma — título, prazo, " +
-      "prioridade, progresso do checklist, tags, nota vinculada e se está concluído. As tags " +
-      "agrupam cards por assunto, num eixo independente da coluna. Card concluído continua na " +
-      "coluna em que estava. Cards arquivados não aparecem. " +
+      "prioridade, progresso do checklist, tags, nota vinculada, quantos anexos tem e se está " +
+      "concluído. As tags agrupam cards por assunto, num eixo independente da coluna. Card " +
+      "concluído continua na coluna em que estava. Cards arquivados não aparecem. " +
       "A descrição do card não vem aqui: o quadro é uma visão de superfície.",
     escrita: false,
     entrada: {

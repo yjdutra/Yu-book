@@ -125,6 +125,8 @@ function card(
     updatedAt: AGORA,
     ai: MARCA_MCP,
     ...conclusao,
+    fileCount: 0,
+    files: [],
     boardId: "11111111-1111-4111-8111-111111111111",
     boardName: "Quadro",
     columnName: "Fazer",

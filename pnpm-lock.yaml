@@ -26,6 +26,9 @@ importers:
       '@fastify/helmet':
         specifier: ^13.0.1
         version: 13.1.0
+      '@fastify/multipart':
+        specifier: ^10.1.2
+        version: 10.1.2
       '@fastify/rate-limit':
         specifier: ^10.2.2
         version: 10.3.0
@@ -38,6 +41,9 @@ importers:
       '@yu-book/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      aws4fetch:
+        specifier: ^1.0.20
+        version: 1.0.20
       fastify:
         specifier: ^5.2.1
         version: 5.12.0
@@ -633,6 +639,9 @@ packages:
   '@fastify/ajv-compiler@4.0.6':
     resolution: {integrity: sha512-NtuzM0SfaMJbGlnjr9LWQUN5LzgSrbB8tf/wRZNas+4E1O/Nmzl53e7ruT61HDZyRCJGC6FxIogmNZO1c5ETBA==}
 
+  '@fastify/busboy@3.2.2':
+    resolution: {integrity: sha512-yXSS27qPExaXeuLvMRMXOLtpipzfQYNjG3FkunDWKGfMYjKuhFXko9CVzqxm8jcF+lmtS9Fd89QNdh9XDjnbNg==}
+
   '@fastify/compress@9.2.0':
     resolution: {integrity: sha512-35VL33PIEt/UbD/ZMlRNaICd2BQz0IaG7en74Dv7tI+MHIQkedibS1+9JfekWH4I1g+Y8RbbZD4Zsk9h4XTItg==}
 
@@ -641,6 +650,9 @@ packages:
 
   '@fastify/cors@10.1.0':
     resolution: {integrity: sha512-MZyBCBJtII60CU9Xme/iE4aEy8G7QpzGR8zkdXZkDFt7ElEMachbE61tfhAG/bvSaULlqlf0huMT12T7iqEmdQ==}
+
+  '@fastify/deepmerge@3.2.1':
+    resolution: {integrity: sha512-N5Oqvltoa2r9z1tbx4xjky0oRR60v+T47Ic4J1ukoVQcptLOrIdRnCSdTGmOmajZuHVKlTnfcmrjyqsGEW1ztA==}
 
   '@fastify/error@4.2.0':
     resolution: {integrity: sha512-RSo3sVDXfHskiBZKBPRgnQTtIqpi/7zhJOEmAxCiBcM7d0uwdGdxLlsCaLzGs8v8NnxIRlfG0N51p5yFaOentQ==}
@@ -656,6 +668,9 @@ packages:
 
   '@fastify/merge-json-schemas@0.2.1':
     resolution: {integrity: sha512-OA3KGBCy6KtIvLf8DINC5880o5iBlDX4SxzLQS8HorJAbqluzLRn80UXU0bxZn7UOFhFgpRJDasfwn9nG4FG4A==}
+
+  '@fastify/multipart@10.1.2':
+    resolution: {integrity: sha512-WHsqW5ffDXCbXXtdBQDryxu58fQvFPVGh4E4MlCO6hwCLNm0lYTCS6GKXUw2P64REDoECUNpMVvtMMstdIyBjQ==}
 
   '@fastify/proxy-addr@5.1.0':
     resolution: {integrity: sha512-INS+6gh91cLUjB+PVHfu1UqcB76Sqtpyp7bnL+FYojhjygvOPA9ctiD/JDKsyD9Xgu4hUhCSJBPig/w7duNajw==}
@@ -1193,6 +1208,9 @@ packages:
 
   avvio@9.3.0:
     resolution: {integrity: sha512-g2tQ7LE7oOSqDfwEm3M+ZCMTJc7KiZCdJ4UwyZJb5ckTKyYu50OYmvv0mCFXPuYXoM4zkSt8zM9XQ9KCvxA74A==}
+
+  aws4fetch@1.0.20:
+    resolution: {integrity: sha512-/djoAN709iY65ETD6LKCtyyEI04XIBP5xVvfmNxsEP0uJB5tyaGBztSryRr4HqMStr9R06PisQE7m9zDTXKu6g==}
 
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
@@ -2581,6 +2599,8 @@ snapshots:
       ajv-formats: 3.0.1(ajv@8.20.0)
       fast-uri: 4.1.2
 
+  '@fastify/busboy@3.2.2': {}
+
   '@fastify/compress@9.2.0':
     dependencies:
       '@fastify/accept-negotiator': 2.1.0
@@ -2599,6 +2619,8 @@ snapshots:
       fastify-plugin: 5.1.0
       mnemonist: 0.40.0
 
+  '@fastify/deepmerge@3.2.1': {}
+
   '@fastify/error@4.2.0': {}
 
   '@fastify/fast-json-stringify-compiler@5.1.0':
@@ -2615,6 +2637,14 @@ snapshots:
   '@fastify/merge-json-schemas@0.2.1':
     dependencies:
       dequal: 2.0.3
+
+  '@fastify/multipart@10.1.2':
+    dependencies:
+      '@fastify/busboy': 3.2.2
+      '@fastify/deepmerge': 3.2.1
+      '@fastify/error': 4.2.0
+      fastify-plugin: 6.0.0
+      secure-json-parse: 4.1.0
 
   '@fastify/proxy-addr@5.1.0':
     dependencies:
@@ -3105,6 +3135,8 @@ snapshots:
     dependencies:
       '@fastify/error': 4.2.0
       fastq: 1.20.1
+
+  aws4fetch@1.0.20: {}
 
   base64-js@1.5.1: {}
 

@@ -358,6 +358,7 @@ model Card {
   aiRun          AiRoutineRun?   @relation("CardsDaRotina", fields: [aiRunId], references: [id], onDelete: SetNull)
   runsComoIdeia  AiRoutineRun[]  @relation("IdeiaDaExecucao")
   runsComoSaida  AiRoutineRun[]  @relation("SaidaDaExecucao")
+  files          CardFile[]
 
   @@index([columnId, position])
   @@index([dueDate])
@@ -365,6 +366,28 @@ model Card {
   // O índice trigram sem acento de `card.title` (busca da paleta, RF-42) é
   // expressão — vive só no SQL da migration, como o de `note`.
   @@map("card")
+}
+
+/// Anexo de card (frente de cards, Parte 2). O binário mora no bucket S3, sob
+/// `key`; aqui fica só o que se lista. **A cascata daqui não alcança o
+/// bucket**: quem apaga card, coluna, board ou workspace colhe as chaves antes
+/// e apaga os objetos depois (`arquivos.service.ts`).
+model CardFile {
+  id        String   @id @default(uuid()) @db.Uuid
+  cardId    String   @map("card_id") @db.Uuid
+  /// `cards/<cardId>/<uuid>` — nada escolhido pelo usuário entra na chave.
+  key       String   @unique
+  /// O nome original, higienizado. Só exibição e `Content-Disposition`.
+  name      String
+  /// Decidido pelos bytes na API, nunca pelo que o navegador declarou.
+  mimeType  String   @map("mime_type")
+  sizeBytes Int      @map("size_bytes")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId])
+  @@map("card_file")
 }
 
 /// Gaveta de links (Fase 3). Não pertence a workspace: a gaveta é uma só (RN-01).

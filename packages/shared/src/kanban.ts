@@ -2,6 +2,7 @@ import { z } from "zod";
 import { CARD_PRIORITIES } from "./enums.js";
 import type { CardPriority } from "./enums.js";
 import { origemMcpSchema } from "./marca.js";
+import type { CardFile } from "./arquivos.js";
 import type { AiCompletion, AiMark } from "./marca.js";
 import type { NoteRef } from "./notes.js";
 
@@ -194,6 +195,8 @@ export interface CardSummary {
   completedAt: string | null;
   /// Quem concluiu, quando foi o assistente. Ver `AiCompletion`.
   aiCompletion: AiCompletion | null;
+  /// Frente de cards, Parte 2: só a contagem — a lista mora no detalhe.
+  fileCount: number;
 }
 
 export interface ColumnDetail {
@@ -220,6 +223,9 @@ export interface CardDetail extends CardSummary {
   descriptionMd: string;
   checklist: ChecklistItem[];
   archived: boolean;
+  /// Sem URL: a assinatura expira, e quem mostra o arquivo pede
+  /// `GET /cards/:id/files`.
+  files: CardFile[];
 }
 
 /** Um card visto do lado da nota (RF-38). */

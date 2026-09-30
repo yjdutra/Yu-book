@@ -5,6 +5,7 @@ export * from "./errors.js";
 export * from "./notes.js";
 export * from "./organizacao.js";
 export * from "./kanban.js";
+export * from "./arquivos.js";
 export * from "./links.js";
 export * from "./dashboard.js";
 export * from "./busca.js";

@@ -185,6 +185,7 @@ function paraFace(card: CardDetail): CardSummary {
     ai: card.ai,
     completedAt: card.completedAt,
     aiCompletion: card.aiCompletion,
+    fileCount: card.fileCount,
   };
 }
 

@@ -1,6 +1,6 @@
 import type { CardPriority, CardSummary } from "@yu-book/shared";
 import { memo } from "react";
-import { IconeCheck, IconeClipe } from "./Icones";
+import { IconeAnexo, IconeCheck, IconeClipe } from "./Icones";
 import { MarcaIA } from "./MarcaIA";
 
 /** RF-32: vencido e "vence logo" são estados diferentes, com destaques diferentes. */
@@ -107,6 +107,18 @@ export const CartaoCard = memo(function CartaoCard({
             >
               <IconeCheck className="size-3" />
               {card.checklistDone}/{card.checklistTotal}
+            </span>
+          )}
+
+          {/* Frente de cards, Parte 2: rótulo, não botão — como o checklist. */}
+          {card.fileCount > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 tabular-nums text-ink-400"
+              title={`${card.fileCount} ${card.fileCount === 1 ? "anexo" : "anexos"}`}
+            >
+              <IconeAnexo className="size-3" />
+              {card.fileCount}
+              <span className="sr-only"> {card.fileCount === 1 ? "anexo" : "anexos"}</span>
             </span>
           )}
 

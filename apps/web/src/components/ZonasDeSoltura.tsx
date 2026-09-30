@@ -38,7 +38,15 @@ export function ZonasDeSoltura({ onSoltar }: ZonasDeSolturaProps) {
   useEffect(() => {
     // RF-02: só link. Arrastar texto de uma nota (só `text/plain`) ou um card
     // do kanban (que usa eventos de ponteiro, não de arrasto) não invoca nada.
-    const ehLink = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes(TIPO_URL);
+    // Nem arquivo (frente de cards, Parte 2): imagem arrastada de outra página
+    // traz o endereço **e** o arquivo, e é anexo, não link — a sobreposição
+    // cobriria a zona de anexos do card. Vale em toda tela, e pega também o
+    // link que é uma imagem (a miniatura de um vídeo, no Chrome): esse passa a
+    // não abrir as zonas. O custo foi aceito — o link se salva pela gaveta.
+    const ehLink = (e: DragEvent) => {
+      const tipos = Array.from(e.dataTransfer?.types ?? []);
+      return tipos.includes(TIPO_URL) && !tipos.includes("Files");
+    };
 
     function entrou(e: DragEvent) {
       if (!ehLink(e)) return;

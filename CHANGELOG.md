@@ -17,6 +17,110 @@ _Nada pendente._
 
 ---
 
+## [0.27.0] — 2026-09-30
+
+**Frente de cards, Parte 2: anexos de arquivo no card.** Um card passa a guardar imagens, PDFs,
+textos, documentos do Office e zips. O banco guarda só o que se lista: nome, tipo e tamanho. O
+arquivo mora num bucket compatível com S3, que em produção é um Railway Storage Bucket. Com isto
+a frente de cards, de duas partes, fica fechada.
+
+**Os anexos são opcionais no servidor.** Sem as variáveis do bucket, a API sobe igual e o resto do
+card funciona. O painel do card diz que os anexos estão indisponíveis e por quê. É a mesma
+degradação que a frente de IA garante sem a chave do provedor (RNF-03 do PRD de IA).
+
+**A IA e o MCP só leem os anexos.** O quadro diz quantos anexos cada card tem, e o detalhe traz o
+nome, o tipo e o tamanho de cada um, sem nunca trazer um endereço. Nenhuma ferramenta nova entrou:
+o servidor MCP continua publicando onze tools, e nem o chat nem um cliente MCP anexa ou apaga
+arquivo.
+
+**Os quatro pacotes se movem**, porque `packages/shared` mudou de contrato. Entrou o módulo de
+anexos: os limites `MAX_BYTES_ARQUIVO` (25 MB), `MAX_ARQUIVOS_CARD` (20) e `MAX_NOME_ARQUIVO`, a
+lista `TIPOS_DE_ARQUIVO`, `ACEITA_ARQUIVO`, `ehImagem`, `formatarBytes` e os tipos `CardFile`,
+`CardFileWithUrl` e `CardFilesResponse`. `CardSummary` ganhou `fileCount` e `CardDetail` ganhou
+`files`, os dois obrigatórios no tipo. `ERROR_CODES` ganhou `ARMAZENAMENTO_INDISPONIVEL`,
+`ARQUIVO_GRANDE` e `TIPO_NAO_PERMITIDO`. A descrição de `get_board` em `FERRAMENTAS_DO_ACERVO` e os
+formatadores de card mudaram, e com eles o texto que o MCP e o chat leem. Versões: `packages/shared`
+de `0.15.0` para `0.16.0`, `apps/api` de `0.17.0` para `0.18.0`, `apps/web` de `0.22.0` para
+`0.23.0` e `apps/mcp` de `0.18.0` para `0.19.0`, no `package.json` **e** no construtor do
+`McpServer`.
+
+**Duas dependências novas em `apps/api`.** `aws4fetch` assina os pedidos ao bucket (SigV4) sobre o
+`fetch`, no lugar do SDK da AWS. `@fastify/multipart` recebe o arquivo e está registrado só nas
+rotas de anexo. O resto da API continua aceitando só JSON.
+
+**Uma migration aditiva**, `20260930180000_frente_cards_anexos`: tabela `card_file`, com chave
+estrangeira para `card` em cascata e chave de objeto única. Nenhum dado existente muda.
+
+**Ordem de deploy:** criar o bucket no projeto da Railway, referenciar as variáveis `S3_*` no
+serviço da API e subir a API antes do MCP. O MCP formata o detalhe de card sem quebrar contra uma
+API mais velha, mas só mostra anexos depois que ela sobe.
+
+Portões, rodados no fechamento: `pnpm typecheck` limpo, `pnpm --filter @yu-book/api test` com
+**449 testes** (eram 408) e `pnpm --filter @yu-book/mcp test` com **60 testes** (sem testes novos,
+só o fixture de card acompanhou o tipo). Os 41 novos da API estão em `arquivos.test.ts` e rodam
+contra um dublê local de S3, em `node:http`, na porta 39334.
+
+**Nenhum teste chega a um bucket real.** Em produção o bucket usa o estilo virtual-hosted (bucket no
+subdomínio), e a suíte usa o estilo de caminho, porque subdomínio de `127.0.0.1` não resolve. O
+endereço virtual-hosted tem só teste de unidade da URL montada. A assinatura, o `Content-Disposition`
+e a URL pré-assinada contra o Railway Storage Bucket de verdade ficam para o primeiro deploy.
+
+**A interface foi implementada e não verificada.** Nenhum portão cobre `apps/web`, e ninguém abriu a
+tela. Faltam conferir a seção de anexos no painel (Anexar, soltar arquivo, miniaturas, erro de tipo
+e de tamanho), a imagem ampliada e o Esc que fecha só ela, baixar e excluir, o contador na face do
+card nos dois temas, as confirmações de exclusão e a gaveta de links que não abre mais ao arrastar
+um arquivo.
+
+### Adicionado
+- **Anexos no painel do card.** Uma seção "Anexos" com o botão "Anexar" e uma área onde se solta o
+  arquivo. Imagens aparecem em miniatura e abrem ampliadas num diálogo, e os outros tipos aparecem
+  pelo nome e pelo tamanho. Cada anexo se baixa e se exclui dali, e a imagem, pelo diálogo. O Esc
+  fecha a imagem ampliada sem fechar o card.
+- **Contador de anexos na face do card**, com um ícone próprio, ao lado do progresso do checklist.
+  O leitor de tela ouve "N anexos".
+- **Tipos aceitos:** imagens PNG, JPEG, WebP e GIF, PDF, texto (`.txt`, `.md`, `.csv`), Word,
+  Excel e PowerPoint (`.docx`, `.xlsx`, `.pptx`) e zip. Até 25 MB por arquivo e 20 por card.
+- Rotas `GET /cards/:id/files`, que lista os anexos com endereços de leitura válidos por uma hora,
+  `POST /cards/:id/files`, que recebe um arquivo por vez em multipart, e
+  `DELETE /cards/:id/files/:fileId`.
+- **O texto que o MCP e o chat leem cita os anexos.** No quadro (`get_board`), "N anexo(s)" na face
+  do card. No detalhe, uma linha com nome, tipo e tamanho de até dez anexos, e a contagem do resto.
+  A descrição de `get_board` passou a dizer que o quadro traz quantos anexos cada card tem.
+- Variáveis opcionais da API para o bucket: `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`,
+  `S3_SECRET_ACCESS_KEY` e `S3_REGION` (padrão `auto`), documentadas em `apps/api/.env.example`.
+  `S3_PATH_STYLE` existe só para o dublê da suíte.
+
+### Alterado
+- **Excluir um card, uma coluna com os cards, um quadro ou um workspace apaga também os arquivos dos
+  anexos no bucket**, depois que a exclusão se confirma no banco. Se o bucket falhar, a exclusão
+  vale do mesmo jeito, e o arquivo que ficou para trás vai para o log do servidor (INV-64).
+  Arquivar um card não apaga nada.
+- As confirmações de exclusão de card, de coluna com cards, de quadro e de workspace dizem que os
+  anexos vão junto.
+- Arrastar um arquivo, ou uma imagem de outra página, não abre mais as zonas de soltura da gaveta de
+  links: arquivo é anexo. Um link que é uma imagem, como a miniatura de um vídeo no Chrome, também
+  deixa de abri-las, e se salva pela gaveta.
+
+### Segurança
+- **O tipo do anexo é decidido pelos bytes, e não pelo nome nem pelo que o navegador declarou.** A
+  extensão só desempata onde os bytes não bastam: os formatos do Office, que são zip por dentro, e
+  texto, que precisa ser UTF-8 válido e sem byte nulo. Executável, HTML e SVG são recusados, porque
+  os dois últimos rodam script quando abertos no navegador.
+- **O nome do arquivo não escolhe nada no bucket.** A chave do objeto é montada pelo servidor, e o
+  nome original, higienizado e com a extensão ajustada ao tipo detectado, serve só para exibir e
+  para o nome do download.
+- O arquivo é gravado com o tipo detectado e com `Content-Disposition`: imagens abrem no navegador,
+  e o resto sempre baixa.
+- **Posse e teto são conferidos antes de ler o corpo.** Card de outra conta responde como o
+  inexistente (INV-02, INV-03), e card cheio recusa sem receber os 25 MB. Upload limitado a 20 por
+  minuto.
+- Excluir anexo leva a posse no próprio `DELETE` (INV-04). Dois pedidos simultâneos não apagam duas
+  vezes, e o segundo recebe 404.
+- A leitura não passa pela API nem pelo token: o navegador lê do bucket por um endereço assinado
+  que expira em uma hora. O MCP e o chat nunca recebem esse endereço.
+
+---
+
 ## [0.26.0] — 2026-09-30
 
 **Frente de cards, Parte 1: o estado de concluído.** Card ganha um estado de concluído que não

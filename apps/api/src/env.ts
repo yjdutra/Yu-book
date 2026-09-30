@@ -42,6 +42,24 @@ const envSchema = z.object({
   /// (`openrouter-painel.service.ts`). Sem ela, a tela mostra só a chave comum.
   OPENROUTER_MANAGEMENT_KEY: z.string().optional(),
 
+  /// Frente de cards, Parte 2: o bucket dos anexos (Railway Storage Bucket, ou
+  /// qualquer S3). Opcionais, como a chave de IA: sem as quatro primeiras a API
+  /// sobe normal e só os anexos ficam indisponíveis, com o motivo na tela. Na
+  /// Railway, cada uma recebe por referência a variável que o bucket injeta
+  /// (`ENDPOINT`, `BUCKET`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`).
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_BUCKET: z.string().min(1).optional(),
+  S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+  S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  S3_REGION: z.string().default("auto"),
+  /// O bucket da Railway fala só o estilo virtual-hosted (bucket no subdomínio).
+  /// O caminho existe para o dublê da suíte, em `127.0.0.1`, onde subdomínio
+  /// não resolve.
+  S3_PATH_STYLE: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
+
   /// Feche depois de criar sua conta. Signup aberto na internet = lixo no banco.
   ALLOW_SIGNUP: z
     .enum(["true", "false"])

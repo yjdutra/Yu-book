@@ -44,6 +44,12 @@ export const ERROR_CODES = [
   "TETO_DA_EXECUCAO",
   /** RN-06: o modelo alterou um [[wikilink]] — a resposta foi descartada. */
   "RESPOSTA_INVALIDA",
+  /** Frente de cards, Parte 2: o servidor não tem bucket configurado. */
+  "ARMAZENAMENTO_INDISPONIVEL",
+  /** Frente de cards, Parte 2: anexo acima de `MAX_BYTES_ARQUIVO`. */
+  "ARQUIVO_GRANDE",
+  /** Frente de cards, Parte 2: os bytes do anexo não são de um tipo aceito. */
+  "TIPO_NAO_PERMITIDO",
   "INTERNAL_ERROR",
 ] as const;
 

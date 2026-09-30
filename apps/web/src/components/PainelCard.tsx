@@ -10,6 +10,7 @@ import { useAutosave } from "../lib/useAutosave";
 import { Aviso } from "./base/Aviso";
 import { Esqueleto } from "./base/Bloco";
 import { Botao, BotaoIcone } from "./base/Botao";
+import { AnexosDoCard } from "./AnexosDoCard";
 import { CampoMarkdown } from "./CampoMarkdown";
 import { IndicadorSalvamento } from "./base/IndicadorSalvamento";
 import { IconeAssistente, IconeCheck, IconeChevron, IconeClipe, IconeFechar } from "./Icones";
@@ -153,7 +154,9 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
     <div
       className="flex h-full flex-col overflow-y-auto"
       onKeyDown={(e) => {
-        if (e.key === "Escape") {
+        // `defaultPrevented`: o Esc já fechou um diálogo aberto daqui de dentro
+        // (a imagem ampliada de um anexo) e não pode fechar o card junto.
+        if (e.key === "Escape" && !e.defaultPrevented) {
           e.stopPropagation();
           onFechar();
         }
@@ -374,6 +377,9 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
           )}
         </section>
 
+        {/* Frente de cards, Parte 2. */}
+        <AnexosDoCard cardId={cardId} boardId={card.boardId} onErro={setErro} />
+
         {/* RF-35 / RF-36 / RF-37 */}
         <section>
           <p className="mb-1 rotulo">
@@ -462,7 +468,12 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
           variante="perigo"
           className="ml-auto"
           onClick={() => {
-            if (!confirm(`Excluir o card "${card.title}"? Não há lixeira de card.`)) return;
+            // INV-21: a confirmação diz o que se perde — e anexo sai do bucket.
+            const anexos =
+              card.fileCount > 0 ? ` Os ${card.fileCount} anexo(s) também são apagados.` : "";
+            if (!confirm(`Excluir o card "${card.title}"? Não há lixeira de card.${anexos}`)) {
+              return;
+            }
             excluir.mutate({ id: cardId, boardId: card.boardId }, { onSuccess: onFechar });
           }}
         >

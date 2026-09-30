@@ -184,7 +184,7 @@ export function BoardsPage() {
                       onClick={() => {
                         const aviso =
                           b.cardCount > 0
-                            ? ` Isso exclui ${b.cardCount} card(s).`
+                            ? ` Isso exclui ${b.cardCount} card(s), com os anexos deles.`
                             : "";
                         if (confirm(`Excluir o board "${b.name}"?${aviso}`)) excluir.mutate(b.id);
                       }}
