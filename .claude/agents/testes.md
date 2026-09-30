@@ -42,12 +42,16 @@ por decisão explícita — não introduza mock.
   - `limpar()` — apaga só os usuários marcados; a cascata leva o resto e o banco fica intacto
   - `subirApp()` e `chamar()` — envelope de `app.inject()` com Bearer
   - `sorteio()` — gerador determinístico, para que o teste de 200 movimentos seja reproduzível
-- Assíncrono espera a condição com `esperar` (`rotinas.test.ts:229`), nunca `sleep` fixo.
+- Assíncrono espera a condição com `esperar` (`rotinas.test.ts:230`), nunca `sleep` fixo.
 - Relógio fixo é `vi.useFakeTimers({ toFake: ["Date"] })` e nada mais: Prisma, Fastify e dublê
   seguem nos timers reais (`uso-ia.test.ts:44-49`). **Rota autenticada pede o relógio real**, porque
   o token é validado contra ele (`:556`): fuso e janela se testam no service.
 - "Comportamento inalterado" se prova rodando a versão nova e uma cópia da do HEAD nas mesmas
   entradas, e comparando.
+- "Não mudou" se prova com o valor antigo fixado no passado pelo `prisma`: dois `new Date()` na
+  mesma rodada caem no mesmo milissegundo e passam regravando (`kanban.test.ts:446-453`).
+- Chave que o schema descarta não muda o status — o PATCH segue 200. Prove pelo efeito gravado,
+  não pelo código de resposta (`marca-ia.test.ts:745-757`; §2 de `contrato-compartilhado`).
 - Nome de caso em português, descrevendo **o objetivo conceitual**, não a mecânica. O modelo é
   `apps/api/tests/kanban.test.ts`: *"limite de WIP avisa, mas não bloqueia o movimento"*.
 - Não há cobertura configurada e não há CI. Rodar a suíte é manual e exige Postgres no ar.

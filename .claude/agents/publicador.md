@@ -116,6 +116,10 @@ Consequências que você precisa antecipar e avisar **antes** do push:
   `apps/mcp` quebra a resolução de `@yu-book/shared`.
 - **`apps/mcp` também é deployado**, e mexer nele agora sobe alguma coisa. O serviço roda em
   **HTTP**; o stdio continua existindo só na máquina do operador.
+- **Tool do MCP que chama rota nova da API exige a API no ar antes** (`complete_card` →
+  `PATCH /cards/:id/complete`). No mesmo push os dois reconstroem juntos, e a API ainda roda a
+  migration no boot: na janela, a tool diz ao modelo que o id não existe (§13 de
+  `servidor-mcp-yu-book`). Avise antes do push.
 
 ### O serviço do MCP, que é o mais novo e o que menos avisa quando erra
 

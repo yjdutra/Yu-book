@@ -28,7 +28,7 @@ está registrada em `docs/historico.md`, e no caso do editor nenhum portão cheg
 provedor OpenRouter, teto de gasto diário, a tela `/ajustes` e o botão de formatar nota, e a **Etapa
 B** (2026-09-23) o chat ancorado, que lê o acervo por um laço de até cinco chamadas ao provedor por
 mensagem. A **Etapa C** (2026-09-24) trouxe a marca de conteúdo gerado por IA, gravada só pelo
-servidor, e com ela o chat passou a **criar** card e nota a pedido — não move, não apaga, não edita.
+servidor, e com ela o chat passou a **criar** card e nota a pedido.
 A **Etapa D** (2026-09-24) trouxe os **agentes especialistas**: instruções, notas-base, fontes vivas,
 modelo e ferramentas próprios, fixos por conversa, numa área dentro de Assistente
 (`/assistente/agentes`), sem item no trilho. A **Etapa E** (2026-09-24) trouxe as **rotinas**
@@ -47,16 +47,20 @@ OpenRouter e "Abrir página" (`open_page`). Endereço escolhido de fora — pelo
 OpenRouter** (`/ajustes/openrouter`) mostra o que o provedor diz da chave e da conta — saldo,
 histórico e métricas pedem a env opcional `OPENROUTER_MANAGEMENT_KEY`, que no provedor cria e apaga
 chaves (INV-61) —, e o **AI usage dash** (`/ajustes/uso`), o que o Yu-book gravou em `ai_usage`, por
-dia local (INV-50). A Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
+dia local (INV-50). A Parte 1 da **frente de cards** (2026-09-30) deu ao card o estado de
+**concluído**, que não o move de coluna, e o chat passou também a **concluir** card a pedido, por
+`complete_card`, que o MCP publica — não move, não apaga, não edita texto (INV-63). A Fase 6 de
+produto (Google Calendar) segue sendo o item de menor prioridade.
 
-**Seis numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
+**Sete numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
 identidade) foi entregue em 2026-09-01; o **roteiro de IA aplicada** tem fases próprias, e a 5 dele é
 a frente de IA; dentro dessa frente, o **PRD de IA** tem as suas, de 1 a 4, entregues em etapas com
 letra — a Etapa A cobriu as fases 1 e 2 dele, a Etapa B a fase 3, e as Etapas C a G não são fase
 dele (§5.5–§5.9); e o **redesenho de UI/UX** de `apps/web` tem cinco etapas próprias, entregues em 2026-09-24 sem conferência na tela a cada etapa e
 conferidas à mão pelo usuário no fechamento — relato, não checklist item por item (registro em
-`docs/historico.md`); essa numeração está fechada; e o **painel de uso** tem duas fases próprias, as duas entregues (acima). "Etapa 4" não é
+`docs/historico.md`); essa numeração está fechada; o **painel de uso** tem duas fases próprias, as duas entregues (acima); e a **frente de cards** tem
+Partes — a 1 (concluído) entregue em 2026-09-30, a 2 (anexos num Railway Storage Bucket) a planejar. "Etapa 4" não é
 "Fase 4", e o mesmo número significa coisas diferentes em cada eixo. Não unifique nem renumere — a
 entrada de 2026-08-26 em `docs/historico.md` diz de onde vêm as quatro primeiras.
 

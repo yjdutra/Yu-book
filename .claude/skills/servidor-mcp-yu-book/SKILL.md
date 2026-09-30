@@ -1,6 +1,6 @@
 ---
 name: servidor-mcp-yu-book
-description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os dois transportes (stdio e StreamableHTTP) com uma montagem só, de onde vem a identidade em cada um e por que a escrita é liberada por eixos diferentes (URL local no stdio, escopo do token em HTTP), o servidor de autorização OAuth 2.1 próprio sem estado durável, cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, a formatação que saiu deste pacote para packages/shared e hoje serve também o chat da API, de onde vem o fuso horário do usuário e por que na leitura ele recua e na escrita falha alto, a description como contrato de conversa com o modelo, o origin que toda tool que cria manda para a marca de conteúdo gerado, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, antes de tocar em transporte, sessão, autenticação, formatação de texto ou qualquer conversão de data, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
+description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os dois transportes (stdio e StreamableHTTP) com uma montagem só, de onde vem a identidade em cada um e por que a escrita é liberada por eixos diferentes (URL local no stdio, escopo do token em HTTP), o servidor de autorização OAuth 2.1 próprio sem estado durável, cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, a formatação que saiu deste pacote para packages/shared e hoje serve também o chat da API, de onde vem o fuso horário do usuário e por que na leitura ele recua e na escrita falha alto, a description como contrato de conversa com o modelo, o origin que toda tool cuja escrita grava marca de IA (de geração ou de conclusão) manda, a rota nova que exige a API no ar antes do MCP, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, antes de tocar em transporte, sessão, autenticação, formatação de texto ou qualquer conversão de data, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
 ---
 
 # O servidor MCP do Yu-book
@@ -51,8 +51,7 @@ mensagem e o cliente desconecta com um erro que não parece ter relação com lo
 só stdout — mas **o mesmo código roda nos dois**, então a regra mais restritiva vence: todo
 diagnóstico vai para **stderr**, sempre. Assim não há um caminho seguro e outro traiçoeiro.
 
-`src/verificar.ts` é a única exceção legítima — é utilitário de linha de comando, não faz parte do
-servidor.
+`src/verificar.ts` é a única exceção legítima: utilitário de linha de comando, fora do servidor.
 
 ## 2. Cliente da API, nunca do banco
 
@@ -91,8 +90,7 @@ mais cara que a rede.
 o equivalente à mão** — o SDK exige uma assinatura de índice que um tipo caseiro não tem, e o
 typecheck recusa com um erro longo e pouco óbvio.
 
-Já cometido duas vezes, com semanas de intervalo: antes de declarar interface para o retorno de um
-handler, procure o tipo no SDK.
+Já cometido duas vezes: antes de declarar interface para o retorno de um handler, procure no SDK.
 
 ## 5. As três primitivas — a diferença é quem aciona
 
@@ -108,8 +106,7 @@ devolvem o mesmo texto de propósito: a superfície é que se duplica, nunca a i
 **Tool é a única primitiva que escreve**, e a escrita tem regras próprias — §9 a §11. Resource e
 prompt não mudam dado, e não passam a mudar.
 
-Há uma quarta via, que não é primitiva: a **via de volta** (log e progresso), em
-`src/notificacoes.ts` (§11).
+Quarta via, que não é primitiva: a **via de volta** (log e progresso), em `src/notificacoes.ts` (§11).
 
 ## 6. Resource: direto ou template
 
@@ -167,7 +164,8 @@ responde pelo nome à proposta de um mapa por credencial. **Não acrescente `TZ`
 ## 9. Escrita: nasce desligada, e o nome carrega o domínio
 
 Tools que mudam dado vivem em `src/tools/*-escrita.ts`, longe das de leitura: risco diferente.
-**Tool que cria manda `origin`** (`src/autor.ts`): sem ele, texto de modelo vira humano (INV-58).
+**Tool cuja escrita grava marca de IA manda `origin`** (`src/autor.ts`) — as que criam e
+`complete_card`, esta pela rota própria, a única que o aceita: sem ele, o ato vira humano (INV-58, INV-63).
 
 **O que libera a escrita é outro em cada transporte, e são eixos diferentes de propósito.** Quem
 recebe a decisão pronta é `criarServidor({ escrita })` — elas ou são registradas na montagem
@@ -226,7 +224,7 @@ descrição fraca custa uma chamada inútil; numa de escrita, custa dado errado 
 **O contrapeso: não descreva o que o modelo não pode agir.** A `description` é cobrada em **todo
 turno**, não por chamada. Transformação silenciosa que o modelo não tem como evitar sai do texto —
 a normalização de tags do servidor (minúsculas, corte em 24, fusão de repetidas) saiu por isso
-(`packages/shared/src/ferramentas.ts:189`). O critério é a pergunta: *sabendo disto, o modelo faria
+(`packages/shared/src/ferramentas.ts:190`). O critério é a pergunta: *sabendo disto, o modelo faria
 algo diferente?* Se não, é custo puro. Vale o §3: **meça o `tools/list`**, não estime.
 
 ## 11. A via de volta: log e progresso
@@ -262,6 +260,8 @@ Resource **lança** em vez de devolver `isError` — o cliente precisa distingui
 O servidor MCP e a API têm **ciclos de deploy independentes** — dois serviços, dois Watch Paths —,
 então o MCP fala com uma API que pode ser semanas mais velha que o contrato que ele compilou. Campo
 novo ausente na resposta é **omitido**, não emitido como `undefined` (`src/resources/catalogos.ts`).
+**Rota nova não se tolera:** rota inexistente volta `NOT_FOUND` (`apps/api/src/app.ts:93-94`) e o
+modelo ouve "não existe esse id". Tool em rota nova (`complete_card`) exige a API no ar antes.
 
 ## 14. Propagação — o que fazer quando o domínio muda
 

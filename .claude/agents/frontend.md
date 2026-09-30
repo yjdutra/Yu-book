@@ -101,7 +101,7 @@ repetindo a requisição, com renovação de voo único — requisições parale
 porque rotações concorrentes se invalidariam.
 
 **Mutação otimista** é `onMutate` (cancela, guarda o anterior, escreve) e `onError` (devolve o
-anterior) — `useMoverCard` em `lib/kanban.ts:286`, criar link em `lib/links.ts:34`. Se duas da
+anterior) — `useMoverCard` em `lib/kanban.ts:335`, criar link em `lib/links.ts:34`. Se duas da
 mesma chave podem estar em voo, o rollback de uma restaura a mudança otimista da outra: dê
 `mutationKey` e invalide no `onSettled` só quando `isMutating(...) <= 1`, isto é, quando a última
 termina (`useDefinirModeloDaTarefa`, `lib/ia.ts:169-202`, razão em `:193-195`). Ação que chama o

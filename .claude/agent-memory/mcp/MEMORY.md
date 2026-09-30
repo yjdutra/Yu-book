@@ -20,12 +20,12 @@
 
 ## Decisões em vigor
 
-- Baseline sobre `dist/`: `tools/list` 3480 B com 5 tools, 9601 B com 10; `resources/list` 929,
-  `resources/templates/list` 553, `prompts/list` 757 — os quatro reconfirmados em 2026-09-25, após
-  a Etapa G (`open_page` fora do MCP; 9601 é o sinal). Tudo cobrado em todo turno. Meça contra estes números, não estime.
+- Baseline sobre `dist/`: `resources/list` 929, `resources/templates/list` 553, `prompts/list` 757
+  (2026-09-25). Cobrados em todo turno; meça contra eles, não estime.
+- `tools/list` sem baseline desde 2026-09-30: `complete_card` e o `get_board` mais longo derrubaram
+  a de 5/10 tools. A primeira medição com 5/11 vira a nova.
 - O texto que produz esses bytes mora em `packages/shared/src/ferramentas.ts`: a baseline se move
   por edição **fora** de `apps/mcp`, e nenhum portão acusa (§4.6 de `contrato-compartilhado`).
-- Sob HTTP a sessão vê cinco ou dez tools conforme o escopo do token.
 - Como medir: `initialize`/`initialized`/`*/list` por `printf` no stdin de
   `node --env-file=.env dist/index.js`, e `Buffer.byteLength(JSON.stringify(linha))` na resposta
   inteira (envelope JSON-RPC incluído) — não só no `result`.

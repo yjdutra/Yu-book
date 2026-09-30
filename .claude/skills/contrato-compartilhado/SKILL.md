@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto, e a ferramenta da web, que só o assistente consome). Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
+description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto, e a ferramenta da web, que só o assistente consome, e os sítios do front que uma ação de escrita nova no chat exige sem o compilador cobrar), e os schemas não estritos, que descartam chave omitida em vez de recusá-la. Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
 ---
 
 # O contrato compartilhado
@@ -29,8 +29,12 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    que foi compilado. **Typecheck dos apps sem esse build falha ou usa código velho.**
 4. Só então `pnpm typecheck`.
 5. **Schema de atualização deriva do de criação** (`updateNoteSchema`, `notes.ts:41-42`;
-   `cardUpdateSchema`, `kanban.ts:127-128`). Campo que só vale ao criar — `origin`, a marca de IA —
-   entra no `.omit`, ou vira editável por PATCH sem ninguém ter decidido.
+   `cardUpdateSchema`, `kanban.ts:128-129`). Campo que só vale ao criar — `origin`, a marca de IA —
+   entra no `.omit`, ou vira editável por PATCH sem ninguém ter decidido. **Os schemas não são
+   estritos:** chave omitida é descartada, não recusada — `origin` junto de `completed` no PATCH do
+   card passa com 200 e conclusão humana (INV-63). Ação que precisa do campo ganha schema e rota
+   próprios (`cardCompleteSchema`, `kanban.ts:141`), e a marca dela, tipo próprio (`AiCompletion`,
+   `marca.ts:50`, que **não** é `AiMark`: segue o estado e some ao reabrir).
 6. Se o módulo novo **constrói valor em escopo de módulo** — objeto, array, `z.object(...)`,
    qualquer coisa que não seja só `type`/`interface` —, confira o bundle do front antes de fechar.
    A flag abaixo só poda o que ninguém importa: **valor importado entra**, com o que o módulo
@@ -41,7 +45,7 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    valor dele (`Agenda.tsx`, `rascunho.ts`) entra por rota ou bloco `lazy`
    (`apps/web/src/pages/DashboardPage.tsx:26`). Um import de valor num módulo do painel desfaz isso.
    `chat.ts` (Etapa G) é o terceiro: `lib/sessaoChat.tsx`, sempre montado, **não** deduplica as
-   fontes por `chaveDaFonteDoChat` (`:363-373`, medido) — quem tira a repetição é
+   fontes por `chaveDaFonteDoChat` (`:368-378`, medido) — quem tira a repetição é
    `components/assistente/Fontes.tsx:89-96`. Não "conserte" a sessão com o import, nem com uma
    segunda definição de "a mesma fonte" escrita à mão. **`ia.ts` é o quarto, e o caso aberto:**
    `casca/contexto/ContextoAjustes.tsx:2` lê `SECOES_DE_AJUSTES` de `components/ajustes/comum.ts`,
@@ -116,7 +120,7 @@ Se divergirem: o front deixa de detectar duplicata que o banco recusa, ou vice-v
 `normalizarTag` (`packages/shared/src/kanban.ts:50`) é chamada **nos dois lados**: o front normaliza
 para montar o catálogo e comparar (`apps/web/src/components/SeletorDeTags.tsx:52,64`) e
 `normalizarTags` normaliza de novo antes de gravar
-(`apps/api/src/modules/kanban/kanban.service.ts:138`). Corta espaço, remove `#` inicial, colapsa
+(`apps/api/src/modules/kanban/kanban.service.ts:145`). Corta espaço, remove `#` inicial, colapsa
 espaço interno, baixa a caixa e trunca em `MAX_TAG_TEXTO` — **não remove acento**: `revisão` é
 gravada `revisão`.
 
@@ -145,7 +149,7 @@ formata por `Intl` com `timeZone`. **O parâmetro `fuso` não tem valor padrão,
 principal** — um padrão traria de volta exatamente o defeito que a Etapa B consertou, o fuso do
 *processo* passando por fuso do usuário. Quem chama declara de qual fuso está falando: o MCP
 pergunta à API (`apps/mcp/src/fuso.ts:43`) e o chat recebe o `fuso` no contexto da ferramenta
-(`apps/api/src/modules/assistente/ferramentas.service.ts:85-88`). As quatro funções escritas à mão
+(`apps/api/src/modules/assistente/ferramentas.service.ts:87-90`). As quatro funções escritas à mão
 viraram duas, num lugar só. **Desde a Etapa F a volta passa por `instanteLocal`**
 (`packages/shared/src/agenda.ts:165`), a mesma conversão de relógio de parede em instante que a
 agenda de rotina usa: mexer nela move o prazo e o horário da rotina juntos, e o portão das duas é
@@ -182,11 +186,11 @@ título, `descricao` e schema de entrada — mora só em `packages/shared/src/fe
 exatamente o que a doutrina manda. O risco mudou de forma, não de tamanho.
 
 **Desde a Etapa G o arquivo tem dois objetos, e só um vai ao MCP.** `FERRAMENTAS_DO_ACERVO` tem os
-dois consumidores abaixo; `FERRAMENTAS_DA_WEB` (`:333`, `open_page`) só o assistente da API (RF-74).
+dois consumidores abaixo; `FERRAMENTAS_DA_WEB` (`:359`, `open_page`) só o assistente da API (RF-74).
 O MCP fica fora dela **só porque registra tool à mão**, módulo por módulo: um laço sobre
 `DEFINICOES_DO_ASSISTENTE` ou `FERRAMENTAS_DO_CHAT` no MCP publicaria `open_page` sem handler, e
 nada falharia — o sinal é o `tools/list` sair da baseline da memória do agente `mcp`. Do outro lado,
-definição de um nome do assistente se lê por `DEFINICOES_DO_ASSISTENTE` (`:374`), total sobre as
+definição de um nome do assistente se lê por `DEFINICOES_DO_ASSISTENTE` (`:400`), total sobre as
 duas origens; nome que chega como `string` passa por uma guarda sobre ele
 (`ehDoAssistente`, `apps/web/src/components/rotinas/ExecucaoRotina.tsx:64-66`). O cast
 `nome as NomeDeFerramenta` compila: sem guarda, `FERRAMENTAS_DO_ACERVO[nome].titulo` lança com
@@ -198,7 +202,7 @@ duas origens; nome que chega como `string` passa por uma guarda sobre ele
   `kanban-escrita.ts`, `notas-escrita.ts`) — a `descricao` é o contrato de conversa do servidor MCP
   com qualquer modelo que se conecte;
 - `apps/api` o oferece ao provedor no campo `tools` de **todo turno** do chat
-  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:288`, só as de
+  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:303`, só as de
   `FERRAMENTAS_DO_CHAT`, estreitadas pela lista do agente — e, num passo de rotina, só a leitura dele) — ali a `descricao` é
   contrato **e** custo por turno.
 
@@ -211,16 +215,26 @@ sobre o `tools/list` em bytes.
 definição e dois consumidores — tools e resources do MCP, executores do chat (§7 da skill
 `servidor-mcp-yu-book`) — e ali o texto não é só contrato: é o **resultado** sobre o qual o modelo
 decide continuar ou desistir. `formatarBusca` diz, no caso vazio, que a busca é por palavra sobre
-título e corpo e manda tentar o substantivo sozinho (`:184-185`); o argumento e o episódio que o
-motivou estão no comentário ao lado (`:175-183`). Mudar uma dessas frases muda as duas superfícies,
+título e corpo e manda tentar o substantivo sozinho (`:199-200`); o argumento e o episódio que o
+motivou estão no comentário ao lado (`:190-198`). Mudar uma dessas frases muda as duas superfícies,
 e nenhum teste fica vermelho.
 
-**Terceiro caso: o tipo `Dashboard`.** O Início e `formatarDashboard` (`formato.ts:338`, servido
+**Terceiro caso: o tipo `Dashboard`.** O Início e `formatarDashboard` (`formato.ts:357`, servido
 pelo `get_dashboard` do MCP e do chat) leem a mesma resposta. Desde a Etapa F ela traz `rotinas`,
 e o formatador **as ignora de propósito** — rotina não entra no MCP (RF-62). O mesmo par explica
 por que `GET /dashboard` **só lê** `runsSeenAt` (`apps/api/src/modules/dashboard/dashboard.service.ts:57`)
 e quem avança o marco é `POST /ai/runs/seen`: um GET que marcasse visto faria o modelo, ao consultar
 o painel, apagar as "novas" que o operador ainda não viu.
+
+**Quarto caso: ação de escrita nova no chat.** Além da API (INV-52), o front tem quatro sítios, e
+o compilador cobra um: `EXPLICACAO` (`apps/web/src/components/agentes/ferramentas.ts:16`) é
+`Record<NomeDoAssistente, string>`. `ROTULO_DA_ACAO` (`components/assistente/Conversa.tsx:51`) é
+`Record<string, string>` e cai no nome cru; o texto do editor de agente trata toda escrita como
+criação salvo exceção por nome (`EditorAgente.tsx:531-538`); e **escrita que não cria não passa
+pelo evento `criado`** — que alimenta o Desfazer —, então precisa de invalidação própria:
+`complete_card` marca pelo evento `ferramenta` (`lib/sessaoChat.tsx:398`) e chama
+`invalidarConclusao` (`lib/chat.ts:148`) no `finally` (`sessaoChat.tsx:427`). Sem ela, o quadro
+aberto ao lado segue mostrando o card aberto.
 
 Então, ao tocar em `ferramentas.ts`: diga no relato que as duas superfícies mudaram, e **meça** o
 `tools/list` se o texto cresceu (a receita e a baseline estão na memória do agente `mcp`). O

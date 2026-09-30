@@ -87,7 +87,7 @@ existe — `RF-14`, `RN-03`, `RNF-08`, `CA-16`, `S-04`.
 
 **O identificador é local ao PRD da fase, não global, e os números se repetem entre fases.** `RF-19`
 é o tema em `apps/web/src/lib/tema.ts:22` (Fase 4) e é "o ponteiro decide o destino do arraste" em
-`apps/web/src/components/Quadro.tsx:166` (Fase 5). Quem lê resolve pelo arquivo em que o comentário
+`apps/web/src/components/Quadro.tsx:167` (Fase 5). Quem lê resolve pelo arquivo em que o comentário
 está: fases 1 a 5 em `docs/old/prd-fase-*.md`, fase nova em `docs/prd-fase-*.md`. Quem
 escreve **não** renumera nem inventa prefixo de fase para desambiguar — o código inteiro já cita
 assim, e mudar metade dele é pior que a ambiguidade.

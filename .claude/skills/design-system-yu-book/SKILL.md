@@ -1,6 +1,6 @@
 ---
 name: design-system-yu-book
-description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), os primitivos de components/base/ (Botao, Bloco, Aviso, Dialogo com foco preso e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, o gráfico de dados à mão (BarrasPorDia e Indicador, com o número fora do desenho), a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina), ícones SVG desenhados à mão em Icones.tsx e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web.
+description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), os primitivos de components/base/ (Botao, Bloco, Aviso, Dialogo com foco preso e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, o gráfico de dados à mão (BarrasPorDia e Indicador, com o número fora do desenho), a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina, e LinhaConclusao, a de quem concluiu o card), ícones SVG desenhados à mão em Icones.tsx e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web.
 ---
 
 # Design system do Yu-book
@@ -45,8 +45,7 @@ nenhum componente tem condicional de tema. O mecanismo é:
 
 Consequências obrigatórias:
 
-- **Cor nova exige duas entradas**: uma no bloco `@theme` e outra em `:root[data-tema="claro"]`.
-  Definir só uma quebra um dos temas.
+- **Cor nova exige duas entradas**, no `@theme` e em `:root[data-tema="claro"]`: só uma quebra um tema.
 - **Sombra não segue essa regra do jeito ingênuo.** O Tailwind v4 **copia** o valor de `--shadow-*`
   para dentro da utilidade no build; redefinir `--shadow-e2` no bloco claro não muda nada. Sombra
   que troca com o tema mora em `--sombra-*` em `:root` **e** no bloco claro, e o `@theme` só aponta
@@ -73,7 +72,7 @@ cópia — `IconeChevron({ direcao })` (`Icones.tsx:338-348`).
 
 **Glifo unicode que é sigla fica glifo.** As siglas de prazo e prioridade (`!`, `◷`, `▤`, `⬆`, `⬇`)
 de `CartaoCard.tsx:19-30` e `pages/DashboardPage.tsx:37-41` são texto `aria-hidden` com o estado por
-extenso ao lado (`CartaoCard.tsx:82-84`, `:90-91`): o sinal sem cor (§4). Não as troque por SVG.
+extenso ao lado (`CartaoCard.tsx:90-92`, `:98-99`): o sinal sem cor (§4). Não as troque por SVG.
 
 ## 4. Acessibilidade é requisito, não polimento
 
@@ -94,8 +93,7 @@ extenso ao lado (`CartaoCard.tsx:82-84`, `:90-91`): o sinal sem cor (§4). Não 
   erguido como cartão — `SeletorModo` (`ModoNota.tsx:59`), copiado em `ajustes/SecaoUsoIa.tsx:164`.
 - **Status derivado sai da função que o deriva:** passo de rotina cancelado é gravado `falhou` +
   `CANCELADA`; só `rotuloDoPasso`/`SeloPasso` (`rotinas/comum.tsx:157-172`) dizem "cancelado".
-- Erro fica na tela, não vira toast que some. O usuário precisa poder ler e tentar de novo — é o
-  `Aviso` de `components/base/` (§10).
+- Erro fica na tela, não vira toast que some: o usuário precisa ler e tentar de novo (`Aviso`, §10).
 
 ## 5. Layout
 
@@ -141,8 +139,8 @@ A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 d
   `:60-64`), e quem tem `Esc` próprio lá dentro — menu do `@` no `Compositor`, `Menu`, renomear
   conversa — para a propagação. **`Dialogo` lá dentro é o avesso**: o `Esc` dele mora no
   `document`, e `stopPropagation` o calaria; ele vai num wrapper `contents` com `preventDefault`,
-  e o `<aside>` ignora o `Esc` já tratado (`Conversa.tsx:504-512`; `PainelAssistente.tsx:61`).
-  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:281-290`); `Ctrl+Shift+Y`
+  e o `<aside>` ignora o `Esc` já tratado (`Conversa.tsx:506-514`; `PainelAssistente.tsx:61`).
+  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:282-291`); `Ctrl+Shift+Y`
   e a paleta alternam, e na tela do chat focam o campo (INV-56). **Conversa abre por id, sem rota**:
   `selecionar(id)` + `abrirPainel()`, e com fluxo em curso o desvio de `ajustes/TabelasUsoIa.tsx:201-210`.
 - **A área Assistente é chat, agentes e rotinas; o painel só não existe no chat** (Etapas D e E):
@@ -271,9 +269,9 @@ e o fluxo de rotina (`components/rotinas/FluxoEditavel.tsx`). Arraste novo copia
   (`:78-86`); lista única usa `closestCenter` (`FluxoEditavel.tsx:51-54`). Setas pulam de destino em
   destino, não de 25 px em 25 px (`:88-124`).
 - A origem some com `opacity-0` (INV-30); cópia que continua à vista esmaece (`opacity-50`, `:413-414`).
-  Com controle interativo dentro do arrastável, **a alça é o único ativador** (INV-57).
+  Controle interativo nunca fica sob os `listeners`: alça única, ou controle irmão do ativador (INV-57).
 - `onKeyDown` próprio no ativador **compõe** com o do sensor, e seta com outro uso num ancestral é
-  ignorada durante o gesto (INV-30). O card do kanban ainda viola a primeira.
+  ignorada durante o gesto (INV-30).
 - Alvo que recusa mostra a recusa com forma, ícone e texto — borda tracejada, não só vermelha
   (`:185-208`) — e a regra aparece **antes** do arraste, numa `Etiqueta` na coluna (`:471-475`).
 - `data-arrastando` no `<html>` mantém o cursor de "segurando" o gesto inteiro (`:237-242`).
@@ -287,7 +285,9 @@ Nota e card com `ai` não nulo (Etapa C da IA) se mostram só por `components/Ma
 `MarcaIA` nas listas (`curta` onde não cabe "· revisada") e a `FaixaIA` sob o cabeçalho, com o
 agente que escreveu e "Abrir conversa" — ou, vinda de rotina, «Rotina» · «Agente» e "Ver execução".
 A tela só **mostra** (INV-58); faísca **e** palavra, nunca só cor (RNF-09 da IA). Superfície nova
-que liste nota ou card usa uma das duas.
+que liste nota ou card usa uma das duas. **A conclusão do card é outra marca**: `LinhaConclusao`
+(`MarcaIA.tsx:177`), linha solta e não faixa, porque some ao reabrir (INV-63). Na face, o conteúdo
+esmaece a 70%, o check fica aceso e o prazo perde a cobrança (`CartaoCard.tsx:57-60`, `:75-79`).
 
 ## 13. Gráfico de dados
 

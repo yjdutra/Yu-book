@@ -34,17 +34,17 @@ martela a API.
 ## Kanban
 
 **INV-29 — Durante o arraste, o estado local vence; fora dele, o servidor vence.**
-`apps/web/src/components/Quadro.tsx:203-206`. Remover essa guarda faz o card saltar de volta no meio do
+`apps/web/src/components/Quadro.tsx:204-207`. Remover essa guarda faz o card saltar de volta no meio do
 arraste.
 
 **INV-30 — O teclado do arraste é remapeado.** `Espaço` pega e solta, `Esc` cancela
-(`Quadro.tsx:215`), porque `Enter` está reservado para abrir o card. O `PointerSensor` exige 4 px de
-deslocamento (`:210`) para que clique continue sendo clique. O quadro de modelos copia o mapa e a
+(`Quadro.tsx:216`), porque `Enter` está reservado para abrir o card. O `PointerSensor` exige 4 px de
+deslocamento (`:211`) para que clique continue sendo clique. O quadro de modelos copia o mapa e a
 folga (`apps/web/src/components/ajustes/QuadroDeModelos.tsx:230,233`), e o fluxo do editor de
 rotinas também (`apps/web/src/components/rotinas/FluxoEditavel.tsx:402-405`).
 
 **A origem do arraste some com `opacity-0`, nunca com `visibility`**, em todo arraste:
-`ColunaQuadro.tsx:83` (razão em `:59-61`), o cartão numa coluna de tarefa do quadro de modelos
+`ColunaQuadro.tsx:85` (razão em `:61-63`), o cartão numa coluna de tarefa do quadro de modelos
 (`QuadroDeModelos.tsx:497`, razão em `:495-496`) e o passo no fluxo de rotina
 (`FluxoEditavel.tsx:248`). O elemento que some guarda o foco e é nele que o
 `KeyboardSensor` escuta; `visibility: hidden` o tira da árvore de foco e mata o arraste por teclado.
@@ -55,16 +55,15 @@ em silêncio. Arraste novo entra nesta lista.
 `useSortable` são `{ onPointerDown, onKeyDown }`, e é pelo `onKeyDown` que o `KeyboardSensor`
 recebe o `Espaço`. Um `onKeyDown` escrito **depois** de `{...listeners}` o sobrescreve: o mouse
 segue arrastando e o teclado nunca pega. A forma certa chama o do sensor no fim do próprio handler
-(`GavetaLinks.tsx:51-61`, favoritos — defeito anterior ao redesenho, corrigido na Etapa 5).
-**O card do kanban ainda tem a forma errada**: `onKeyDown` do `Enter` em `ColunaQuadro.tsx:75-80`,
-depois dos `listeners` de `:70` — tarefa aberta em 2026-09-24. E as setas do gesto **borbulham** para os
+(`GavetaLinks.tsx:51-61`, favoritos — defeito anterior ao redesenho, corrigido na Etapa 5), e o
+card do kanban (`ColunaQuadro.tsx:77-88`, razão em `:83-86`). E as setas do gesto **borbulham** para os
 `onKeyDown` React dos ancestrais: quem usa seta para outra coisa ignora durante o arraste, como a
 gaveta faz com a ref `arrastando` (`GavetaLinks.tsx:145-150`, lida em `:224`).
 
 **INV-33 — Com filtro de tag ativo no board, o arraste é desligado** (RN-05). `arrasteDesativado`
-nasce como `filtrando` em `apps/web/src/components/Quadro.tsx:153`, é entregue à coluna em
-`:379` e propagado para os `useSortable` de `apps/web/src/components/ColunaQuadro.tsx:47` (card) e
-`:130` (coluna), mais a alça de arrasto (`:205`). O índice de destino é contado sobre a lista
+nasce como `filtrando` em `apps/web/src/components/Quadro.tsx:154`, é entregue à coluna em
+`:394` e propagado para os `useSortable` de `apps/web/src/components/ColunaQuadro.tsx:48` (card) e
+`:164` (coluna), mais a alça de arrasto (`:239`). O índice de destino é contado sobre a lista
 renderizada: se ela estiver filtrada, "soltar na segunda posição" vira a segunda posição **do
 recorte**, e o servidor renumera a coluna inteira em cima disso (RN-01 / INV-11) — a ordem real
 embaralha em silêncio. É o perigo que INV-11 existe para impedir, chegando por um caminho novo.
@@ -73,7 +72,7 @@ Quem "consertar" isso permitindo arraste filtrado reintroduz corrupção de orde
 O que sustenta a invariante:
 
 - `Quadro` mantém `colunas` com **todos** os cards e passa `cardsVisiveis` só para renderizar
-  (`Quadro.tsx:376-378`). `coluna.cards` continua sendo a verdade para contagem, limite de WIP e
+  (`Quadro.tsx:391-393`). `coluna.cards` continua sendo a verdade para contagem, limite de WIP e
   cálculo de posição. Não troque uma pela outra.
 - **É "nenhum sensor inicia o gesto", não "nenhum droppable aceita".** `useSortable({ disabled:
   true })` com **booleano** normaliza para `{ draggable: true, droppable: false }`
@@ -96,7 +95,7 @@ seguinte, com a mão parada. Esta é idempotente por construção: inserir em k 
 e funciona no `gap` entre dois cards e no vazio da coluna, onde não existe "card sob o cursor".
 Card ainda não medido **não** entra na conta (`:113-115`) — contá-lo deslocaria a fila inteira.
 
-O **ramo do teclado é outro código de propósito** (`:274-286`), o da Fase 2, com um off-by-one que
+O **ramo do teclado é outro código de propósito** (`:275-287`), o da Fase 2, com um off-by-one que
 só parece erro: `moverLocal` remove o card **antes** do `splice` (`:72-76`), então "inserir no índice
 do alvo" já significa *depois* dele quando o movimento é para baixo na mesma coluna — que é a
 semântica que as setas querem. Unificar os dois ramos quebra um dos lados.
@@ -106,16 +105,16 @@ os dois quebra um dos lados.
 
 | | Cards | Colunas |
 |---|---|---|
-| `strategy` | `SEM_DESLOCAMENTO = () => null` (`ColunaQuadro.tsx:33`, aplicada em `:393`) | `horizontalListSortingStrategy` (`Quadro.tsx:363`) |
+| `strategy` | `SEM_DESLOCAMENTO = () => null` (`ColunaQuadro.tsx:33`, aplicada em `:421`) | `horizontalListSortingStrategy` (`Quadro.tsx:378`) |
 | Quem abre o vão | o DOM: `moverLocal` reordena o estado a cada `dragOver` e o React repinta na ordem nova | o transform, único mecanismo que existe ali |
-| `items` durante o gesto | mudam a cada `dragOver` | não mudam — `aoPassar` retorna cedo para `tipo !== "card"` (`Quadro.tsx:257`) |
+| `items` durante o gesto | mudam a cada `dragOver` | não mudam — `aoPassar` retorna cedo para `tipo !== "card"` (`Quadro.tsx:258`) |
 
 Uma estratégia por cima do DOM desloca **de novo** o que já foi deslocado:
 `verticalListSortingStrategy` empurraria o vizinho pela altura do card ativo, em cima da lista que o
 DOM já reordenou. E não é sempre — é pior: o `SortableContext` desliga os transforms enquanto os
 `items` mudam e os **religa no primeiro frame em que a lista se repete**
 (`disableTransforms = … || itemsHaveChanged`, `@dnd-kit/sortable/dist/sortable.esm.js:314`, com
-`previousItemsRef` atualizado num efeito **passivo**, `:322`) — exatamente quando a mão para para
+`previousItemsRef` atualizado num efeito **passivo**, `:323`) — exatamente quando a mão para para
 mirar. Argumento completo em RF-27 de `docs/old/prd-fase-5-refino.md`.
 
 ---
@@ -241,49 +240,49 @@ uma ação chamada antes do desmonte, não efeito do painel — e o que ela gara
 
 **INV-56 — O laço do servidor não roda sem superfície visível.** Uma mensagem do chat são até cinco
 chamadas ao provedor, cada uma gravando contra o teto do dia (INV-47). Desde a Etapa 3 do redesenho
-de UI o fluxo mora em `ProvedorSessaoChat` (`apps/web/src/lib/sessaoChat.tsx:168`), montado acima da
+de UI o fluxo mora em `ProvedorSessaoChat` (`apps/web/src/lib/sessaoChat.tsx:169`), montado acima da
 casca (`apps/web/src/App.tsx:38-40`) — **desmontar a superfície não solta a conexão.** A garantia
 deixou de ser uma limpeza de efeito e virou cinco pontos, cada um fechando um caminho:
 
 1. **Fechar o painel para o fluxo:** `fecharPainel` chama `parar()` antes de desmontar
-   (`sessaoChat.tsx:281-282`).
-2. **O logout aborta:** sair da sessão desmonta o provedor, e a limpeza aborta (`sessaoChat.tsx:208`).
+   (`sessaoChat.tsx:282-283`).
+2. **O logout aborta:** sair da sessão desmonta o provedor, e a limpeza aborta (`sessaoChat.tsx:209`).
 3. **Sair da tela do chat com fluxo em curso reabre o painel** (`Aplicacao.tsx:185-190`, lendo
-   `temFluxo()`, `sessaoChat.tsx:223`). Sem isso a resposta seguiria em tela nenhuma.
-4. **O `AbortController` nasce antes de criar a conversa** (`sessaoChat.tsx:307-308`, razão em
-   `:187-193`), e enquanto ele existe outro envio não começa (`:305`). Nascido depois do
-   `criar.mutateAsync` (`:331`), fechar nessa janela chamava um `parar()` sem nada para parar; a
-   conferência de `:340` é o que segura o fluxo ali.
+   `temFluxo()`, `sessaoChat.tsx:224`). Sem isso a resposta seguiria em tela nenhuma.
+4. **O `AbortController` nasce antes de criar a conversa** (`sessaoChat.tsx:308-309`, razão em
+   `:188-194`), e enquanto ele existe outro envio não começa (`:306`). Nascido depois do
+   `criar.mutateAsync` (`:336`), fechar nessa janela chamava um `parar()` sem nada para parar; a
+   conferência de `:345` é o que segura o fluxo ali.
 5. **Conversa nova pedida com fluxo em curso não troca a conversa** (Etapa D): mostra a resposta —
-   no painel, ou no campo da tela do chat — e diz por quê (`avisoDeEspera`, `sessaoChat.tsx:110`).
+   no painel, ou no campo da tela do chat — e diz por quê (`avisoDeEspera`, `sessaoChat.tsx:111`).
    Vale para "Conversar" com um agente (`components/agentes/acoesDoAgente.tsx:125-137`), para o
    pedido que chega à tela do chat (`pages/AssistentePage.tsx:40-64`) e para a conversa aberta das
    últimas chamadas do AI usage dash (`components/ajustes/TabelasUsoIa.tsx:201-210`).
 
-**"Tela do chat" é `naTelaDoChat` (`sessaoChat.tsx:94`), não a área `/assistente`.** Desde a Etapa D
+**"Tela do chat" é `naTelaDoChat` (`sessaoChat.tsx:95`), não a área `/assistente`.** Desde a Etapa D
 a área tem a galeria e o editor de agentes (`/assistente/agentes…`), e desde a E as rotinas
 (`/assistente/rotinas…`, `/assistente/execucoes/:runId`); em todas elas o painel existe.
 `pathname.startsWith("/assistente")` faria a resposta sumir ao ir do chat para a galeria —
 nenhuma superfície à vista, o laço pagando. Quem decide "o painel existe aqui?" chama a função:
-a casca (`Aplicacao.tsx:177`), o trilho (`casca/Trilho.tsx:254`) e a conversa (`Conversa.tsx:165`).
+a casca (`Aplicacao.tsx:177`), o trilho (`casca/Trilho.tsx:254`) e a conversa (`Conversa.tsx:167`).
 Os três perguntavam pela área até a Etapa D. `areaDe` (`casca/PainelContexto.tsx:18`) continua por
 prefixo, e está certo: ali a pergunta é qual painel contextual mostrar, não se o chat está à vista.
 
 **A conversa nova pedida de fora troca ao chegar, nunca antes do `navigate`.** Ela viaja no `state`
-da navegação (`EstadoRotaChat`, `sessaoChat.tsx:105-107`) e é aplicada por `AssistentePage`. Trocar
+da navegação (`EstadoRotaChat`, `sessaoChat.tsx:106-108`) e é aplicada por `AssistentePage`. Trocar
 antes quebra duas coisas: a guarda de saída do editor de agentes segura o `navigate` e a conversa
 já teria mudado com a pessoa ainda no editor; e um envio feito pelo painel enquanto o diálogo da
 guarda estava aberto sumiria da tela — este invariante.
 
 **Expandir para a tela do chat não toca no fluxo**: trocar de superfície não é fechar
-(`sessaoChat.tsx:273-275`), e a rota não passa por `fecharPainel`. Caminho novo que esconda a
+(`sessaoChat.tsx:274-276`), e a rota não passa por `fecharPainel`. Caminho novo que esconda a
 última superfície visível — outra rota, outro atalho, outro "fechar" — chama `fecharPainel` ou
 entra nesta lista. Nenhum portão executa o front: a quebra aparece como gasto no teto sem resposta
 na tela.
 
 **Defeito aberto, anterior à Etapa D — o ponto 5 ainda não vale em todo sítio.** "Nova conversa" e
 escolher outra conversa chamam `novaConversa`/`selecionar` sem olhar `temFluxo()`: a fala em curso
-só aparece na conversa dela (`components/assistente/Conversa.tsx:637`), e some com o laço pagando.
+só aparece na conversa dela (`components/assistente/Conversa.tsx:639`), e some com o laço pagando.
 Os `selecionar` sem desvio em 2026-09-25: `MarcaIA.tsx:146`, `casca/contexto/ContextoInicio.tsx:83`,
 `assistente/PainelAssistente.tsx:121` e `assistente/ListaConversas.tsx:176`. Quem for fechar, grepe
 os dois nomes em `apps/web/src` e passe todo chamador pelo desvio de `TabelasUsoIa.tsx:201-210`.
@@ -295,9 +294,9 @@ o atalho (`Aplicacao.tsx:299`) e o comando da paleta (`:399`); o botão do trilh
 existir ali (`casca/Trilho.tsx:254`). Caminho novo que alterne o painel entra nesta lista.
 
 A armadilha vizinha: **os dois contextos da sessão não se fundem.** `useAcoesChat`
-(`sessaoChat.tsx:476`) dá as ações e `painelAberto` a quem só abre o chat — casca, editor, card —;
-`useSessaoChat` (`:483`) dá o estado, que muda a cada delta do streaming, e é só das superfícies
-(razão em `:32-36`). Fundir os dois, ou assinar `useSessaoChat` fora de `components/assistente/`,
+(`sessaoChat.tsx:483`) dá as ações e `painelAberto` a quem só abre o chat — casca, editor, card —;
+`useSessaoChat` (`:490`) dá o estado, que muda a cada delta do streaming, e é só das superfícies
+(razão em `:33-37`). Fundir os dois, ou assinar `useSessaoChat` fora de `components/assistente/`,
 faz quadro e editor re-renderizarem dezenas de vezes por segundo durante a resposta. Compila,
 funciona, só fica lento.
 
@@ -363,16 +362,22 @@ lista — **nenhum portão executa navegação**, e o sintoma só aparece com um
 
 ## Quadro de modelos
 
-**INV-57 — A alça é o único ativador do arraste no quadro de modelos.** `setActivatorNodeRef`,
-`attributes` e `listeners` vão só no botão da alça (`QuadroDeModelos.tsx:146-148`); o nó que se move
-(`setNodeRef`, `:158`) envolve o cartão inteiro, com o menu "Usar para…" e o botão de tirar. É por
-isso que `CartaoModelo` recebe `alca` e `acoes` como encaixes (razão em
-`apps/web/src/components/ajustes/CartaoModelo.tsx:20-22`). Espalhar os `listeners` no nó — a forma
-do card do kanban (`ColunaQuadro.tsx:69-70`), que não tem controle dentro — faz o `Espaço` no botão do
-menu virar "pegar": o menu deixa de abrir pelo teclado, e o mouse continua funcionando. Nenhum portão
-executa arraste. Arrastável novo com controle dentro segue a alça, como já fazem a coluna do kanban
-(`ColunaQuadro.tsx:201-205`) e o passo do fluxo de rotina, que tem botão e menu dentro
-(`components/rotinas/FluxoEditavel.tsx:262-264`, razão em `:43-46`).
+**INV-57 — Nenhum controle dentro do elemento que recebe os `listeners` do arraste.** Controle ali
+dentro faz o `Espaço` nele virar "pegar": o menu deixa de abrir pelo teclado, e o mouse continua
+funcionando. Nenhum portão executa arraste. Há duas formas certas, e arrastável novo escolhe uma:
+
+- **Alça única.** No quadro de modelos, `setActivatorNodeRef`, `attributes` e `listeners` vão só no
+  botão da alça (`QuadroDeModelos.tsx:146-148`); o nó que se move (`setNodeRef`, `:158`) envolve o
+  cartão inteiro, com o menu "Usar para…" e o botão de tirar — por isso `CartaoModelo` recebe `alca`
+  e `acoes` como encaixes (razão em `apps/web/src/components/ajustes/CartaoModelo.tsx:20-22`). A
+  coluna do kanban (`ColunaQuadro.tsx:233-239`) e o passo do fluxo de rotina
+  (`components/rotinas/FluxoEditavel.tsx:262-264`, razão em `:43-46`) fazem o mesmo.
+- **Controle irmão do ativador**, dentro do nó mas fora do elemento com os `listeners`: os botões
+  dos favoritos (`GavetaLinks.tsx:76-98`) e, desde a Parte 1 da frente de cards (2026-09-30), o
+  check de concluir do card do kanban (`ColunaQuadro.tsx:101-118`, razão em `:96-100`), cujos
+  `listeners` estão no `div` de `role="button"` (`:70-72`). Mover o check para dentro de
+  `CartaoCard` — onde ele parece morar, e onde o `pr-5` lhe abre lugar — o põe sob os `listeners`
+  e dentro de um `role="button"`. Ele some por opacidade, não por `hidden`, para o Tab o alcançar.
 
 ## O gasto na tela
 
@@ -382,7 +387,7 @@ de 30 s: `CHAVE_AJUSTES`, o gasto do dia, e `CHAVE_USO`, o AI usage dash
 (`apps/web/src/lib/chat.ts:34-37`). Os pontos, cada um no **fim** da ação e não no sucesso:
 
 - o formatar, no `onSettled` (`apps/web/src/lib/ia.ts:222-225`, razão em `:214-221`);
-- o chat, no `finally` (`apps/web/src/lib/sessaoChat.tsx:411-421`);
+- o chat, no `finally` (`apps/web/src/lib/sessaoChat.tsx:417-428`);
 - a execução de rotina, por `invalidarDepoisDaExecucao` (`apps/web/src/lib/rotinas.ts:202-209`).
 
 `useAtualizarAjustes` invalida `CHAVE_USO` por outro motivo — o fuso muda o `to` do relatório

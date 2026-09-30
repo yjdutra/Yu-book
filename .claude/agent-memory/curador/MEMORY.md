@@ -5,7 +5,7 @@
 ## O que já nos mordeu
 
 - Ref erra **de origem**, não só de linha: grepe o caminho.
-- Refs em lote: difflib HEAD→árvore e releia a faixa; basename repetido e regex `ts|tsx` enganam.
+- Refs em lote: difflib só vê deslocamento — ref já podre em HEAD passa; releia a linha. Regex erra basename.
 - `:NNN` resolve pelo último caminho citado; parágrafo tocado: confira **todo** ref dele.
 - **Agente apodrece calado, e a paráfrase junto:** grepe o fato, não a frase.
 - **O código alcança o registro:** comentário tardio no sítio desbanca o item.
