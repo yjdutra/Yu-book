@@ -1,8 +1,8 @@
-import type { AiMark } from "@yu-book/shared";
+import type { AiCompletion, AiMark } from "@yu-book/shared";
 import { useNavigate } from "react-router-dom";
 import { useAcoesChat } from "../lib/sessaoChat";
 import { Etiqueta } from "./base/Etiqueta";
-import { IconeAssistente } from "./Icones";
+import { IconeAssistente, IconeCheck } from "./Icones";
 
 /**
  * A marca de conteúdo gerado por IA (Etapa C da frente de IA).
@@ -165,6 +165,48 @@ export function FaixaIA({ marca }: { marca: AiMark }) {
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * A conclusão do card no painel (frente de cards, Parte 1). Mora aqui por
+ * dividir com a faixa o dia curto e o "via": quando quem concluiu foi um
+ * modelo — pelo chat ou por um cliente MCP —, é uma marca da mesma família — mas **não** é a de geração. Esta
+ * acompanha o estado e some ao reabrir, por isso é linha solta e não faixa.
+ */
+export function LinhaConclusao({
+  completedAt,
+  marca,
+}: {
+  completedAt: string;
+  marca: AiCompletion | null;
+}) {
+  return (
+    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-ink-400">
+      <IconeCheck className="size-3.5 text-emerald-300" />
+      <span className="text-ink-200">
+        Concluído em <time dateTime={completedAt}>{diaCurto(completedAt)}</time>
+      </span>
+      {marca && (
+        <>
+          <Separador />
+          <span className="inline-flex items-center gap-1">
+            <IconeAssistente className="size-3 text-accent-400" />
+            por IA
+          </span>
+          {marca.agentName && (
+            <>
+              <Separador />
+              <span className="max-w-[24ch] truncate text-ink-200" title={marca.agentName}>
+                «{marca.agentName}»
+              </span>
+            </>
+          )}
+          <Separador />
+          <span>{VIA[marca.via]}</span>
+        </>
+      )}
+    </p>
   );
 }
 

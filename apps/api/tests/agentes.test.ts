@@ -12,6 +12,7 @@ import type {
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { prisma } from "../src/db.js";
+import { instrucoesPara } from "../src/modules/assistente/agentes.service.js";
 import { esquecerCatalogo } from "../src/modules/assistente/modelos.service.js";
 import { chamar, criarUsuario, limpar, subirApp } from "./apoio.js";
 import type { Usuario } from "./apoio.js";
@@ -862,6 +863,52 @@ describe("CA-23 / RN-13: o que o agente manda ao provedor", () => {
 
     await chamar(app, { method: "DELETE", url: `/ai/agents/${agente.id}`, token: usuario.token });
     expect((await lerCard()).ai?.agentName).toBe("Redator");
+  });
+});
+
+/**
+ * Frente de cards, Parte 1: a conclusão tem bloco próprio nas instruções, e só
+ * quando a ferramenta está na lista. A frase que importa é a de não mover —
+ * sem ela, o modelo conclui arrastando para "Feito".
+ */
+describe("RN-13: as instruções de conclusão entram só com complete_card", () => {
+  const BLOCO = "Conclusão (`complete_card`):";
+  const NAO_MOVE = 'Não o mova para "Feito" para concluir.';
+  const SO_CONCLUI = "só conclui ou reabre card, e só a pedido";
+  const NAO_EDITA_NADA =
+    "- Você não move, não apaga nem edita nada. Se pedirem, diga que isso se faz no aplicativo.";
+
+  test("com complete_card: bloco próprio, a regra de não mover e a exceção na regra de não editar", () => {
+    for (const lista of [
+      ["complete_card"],
+      ["search_notes", "get_board", "complete_card"],
+      ["create_card", "complete_card"],
+    ] as const) {
+      const texto = instrucoesPara(lista, false);
+      expect(texto, JSON.stringify(lista)).toContain(BLOCO);
+      expect(texto).toContain(NAO_MOVE);
+      expect(texto).toContain(SO_CONCLUI);
+      expect(texto).not.toContain(NAO_EDITA_NADA);
+    }
+  });
+
+  test("sem complete_card: nem bloco nem exceção, e a regra de não editar fica inteira", () => {
+    for (const lista of [[], ["search_notes"], ["create_card", "create_note"]] as const) {
+      const texto = instrucoesPara(lista, false);
+      expect(texto, JSON.stringify(lista)).not.toContain("complete_card");
+      expect(texto).not.toContain(SO_CONCLUI);
+      expect(texto).toContain(NAO_EDITA_NADA);
+    }
+  });
+
+  test("concluir não é criar: a conclusão fica fora do bloco de criação", () => {
+    const soConclui = instrucoesPara(["search_notes", "complete_card"], false);
+    expect(soConclui).not.toContain("Criação (");
+    // Sem criação, o modelo continua sabendo que não cria nada.
+    expect(soConclui).toContain("Nesta conversa você não cria nada no acervo.");
+
+    const criaEConclui = instrucoesPara(["create_card", "complete_card"], false);
+    expect(criaEConclui).toContain("Criação (`create_card`):");
   });
 });
 

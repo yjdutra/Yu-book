@@ -107,4 +107,34 @@ export function registrarEscritaDeKanban(server: McpServer): void {
       return { content: [{ type: "text", text: `Card movido.\n\n${formatarCardDetalhe(card, fuso)}` }] };
     }),
   );
+
+  // Frente de cards, Parte 1. Rota própria, e não `PATCH /cards/:id`: é a única
+  // que aceita `origin`, e a origem é o que deixa no card a marca de quem
+  // concluiu — sem ela, a conclusão pelo MCP passaria por humana.
+  const concluir = FERRAMENTAS_DO_ACERVO.complete_card;
+  server.registerTool(
+    "complete_card",
+    {
+      title: concluir.titulo,
+      description: concluir.descricao,
+      annotations: concluir.anotacoes,
+      inputSchema: concluir.entrada,
+    },
+    comErroDeEscrita(async ({ cardId, completed = true }, extra) => {
+      const relato = relatar(server, extra, "complete_card", 1);
+
+      const origin = await origemDoCliente(server, extra);
+      const [card, fuso] = await Promise.all([
+        api.patch<CardDetail>(`/cards/${cardId}/complete`, { completed, origin }),
+        fusoDoUsuario(),
+      ]);
+
+      const acao = completed ? "card concluído" : "card reaberto";
+      await relato.passo(acao);
+      await relato.registrar("info", { acao, cardId: card.id });
+
+      const cabeca = completed ? "Card concluído." : "Card reaberto.";
+      return { content: [{ type: "text", text: `${cabeca}\n\n${formatarCardDetalhe(card, fuso)}` }] };
+    }),
+  );
 }

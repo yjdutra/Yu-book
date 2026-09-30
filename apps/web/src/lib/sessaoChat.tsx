@@ -17,6 +17,7 @@ import {
   CHAVE_CONVERSAS,
   chaveDaConversa,
   enviarMensagem,
+  invalidarConclusao,
   invalidarCriados,
   useCriarConversa,
 } from "./chat";
@@ -323,6 +324,10 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
     });
 
     let alvo = escolhida;
+    /// Frente de cards, Parte 1: concluir não cria nada, então não passa pelo
+    /// evento `criado` — que alimenta o Desfazer e não serve para isto. O
+    /// pedido da ferramenta marca, e o fim do fluxo refaz o que mostra card.
+    let concluiuCard = false;
     try {
       if (!alvo) {
         // A conversa nasce com o começo da primeira pergunta como título — o
@@ -390,6 +395,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
           /// O acervo mudou agora, não no fim: o quadro aberto ao lado mostra o
           /// card assim que ele existe.
           if (evento.tipo === "criado") invalidarCriados(qc, evento.criados);
+          if (evento.tipo === "ferramenta" && evento.nome === "complete_card") concluiuCard = true;
         },
       });
     } catch (e) {
@@ -418,6 +424,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       await qc.invalidateQueries({ queryKey: CHAVE_CONVERSAS });
       await qc.invalidateQueries({ queryKey: CHAVE_AJUSTES });
       await qc.invalidateQueries({ queryKey: CHAVE_USO });
+      if (concluiuCard) invalidarConclusao(qc);
     }
   }, [criar, qc]);
 

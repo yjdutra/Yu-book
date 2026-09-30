@@ -58,6 +58,8 @@ const ROTULO_DA_ACAO: Record<string, string> = {
   // gravado — é a hora em que o usuário mais precisa saber o que acontece.
   create_card: "criando card",
   create_note: "criando nota",
+  // Frente de cards, Parte 1: grava, mas não cria — o rótulo não diz "criando".
+  complete_card: "concluindo card",
   // Etapa G: a única que sai do Yu-book. A espera é a rede de um terceiro, e
   // pode chegar a segundos.
   open_page: "abrindo página",

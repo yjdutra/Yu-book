@@ -23,6 +23,7 @@ import {
   reconciliarExecucoes,
 } from "../src/modules/assistente/execucao.service.js";
 import { esquecerCatalogo } from "../src/modules/assistente/modelos.service.js";
+import { ferramentasDaRotina } from "../src/modules/assistente/rotinas.service.js";
 import { chamar, criarUsuario, limpar, subirApp } from "./apoio.js";
 import type { Usuario } from "./apoio.js";
 import { chamadasAoChat, subirProvedor } from "./provedor.js";
@@ -722,6 +723,39 @@ describe("CA-30 / RN-18: uma ideia, um post", () => {
     expect(terceira.status).toBe(404);
     expect(codigo(terceira.body)).toBe("SEM_IDEIA");
     expect(await cardsNaColuna(c.saida)).toBe(2);
+  });
+
+  test("ideia concluída não é elegível: fica na coluna, mas a rotina a pula", async () => {
+    // Frente de cards, Parte 1: concluir não move o card, então a ideia
+    // resolvida continua na entrada — e não pode virar post de novo.
+    const c = await cenario("rotina-concluida");
+    const resolvida = await criarCard(c.usuario, c.entrada, "Já resolvida");
+    const pendente = await criarCard(c.usuario, c.entrada, "Pendente");
+    const concluida = await chamar(app, {
+      method: "PATCH",
+      url: `/cards/${resolvida}`,
+      token: c.usuario.token,
+      body: { completed: true },
+    });
+    expect(concluida.status).toBe(200);
+    const escritor = await agentePronto(c.usuario, { name: "Escritor" });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      corpoDaRotina(c, [{ agentId: escritor.id, mode: "reescreve" }], {
+        consumeAction: "manter",
+        consumeColumnId: null,
+      }),
+    );
+    dublê.roteiro = [{ tipo: "texto", texto: "post" }];
+
+    expect(rotina).toMatchObject({ eligibleCount: 1, nextIdea: { id: pendente, title: "Pendente" } });
+    const um = await esperarFim(c.usuario, await rodarAceito(c.usuario, rotina.id));
+    expect([um.status, um.inputCardId]).toEqual(["concluida", pendente]);
+
+    const segunda = await rodar(c.usuario, rotina.id);
+    expect(segunda.status).toBe(404);
+    expect(codigo(segunda.body)).toBe("SEM_IDEIA");
+    expect(await cardNoBanco(resolvida)).toEqual({ columnId: c.entrada, archived: false });
   });
 
   test("coluna de entrada vazia é 404 SEM_IDEIA, e nenhuma execução é criada", async () => {
@@ -1437,6 +1471,47 @@ describe("CA-34 / RN-16: a rotina escreve pelo código, não pelo modelo", () =>
     expect(resposta).toContain("create_card");
     expect(await prisma.card.count({ where: { title: "Card pelo modelo" } })).toBe(0);
     expect(await cardsNaColuna(c.saida)).toBe(1);
+  });
+
+  test("complete_card é escrita: sai da lista do passo, e o pedido do modelo não conclui a ideia", async () => {
+    // A conclusão não cria nada, mas muda dado — e o passo só lê (RN-16).
+    expect(ferramentasDaRotina(["search_notes", "complete_card", "get_board"])).toEqual([
+      "search_notes",
+      "get_board",
+    ]);
+    expect(DE_ESCRITA).toContain("complete_card");
+
+    const c = await cenario("rotina-sem-conclusao");
+    const ideia = await criarCard(c.usuario, c.entrada, "Ideia que o modelo quer concluir");
+    const agente = await agentePronto(c.usuario, {
+      name: "Escritor que conclui",
+      tools: ["search_notes", "complete_card"],
+    });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      corpoDaRotina(c, [{ agentId: agente.id, mode: "reescreve" }], {
+        consumeAction: "manter",
+        consumeColumnId: null,
+      }),
+    );
+    dublê.roteiro = [
+      { tipo: "ferramenta", nome: "complete_card", argumentos: JSON.stringify({ cardId: ideia }) },
+      { tipo: "texto", texto: "rascunho sem concluir" },
+    ];
+
+    const run = await esperarFim(c.usuario, await rodarAceito(c.usuario, rotina.id));
+
+    expect(run.status).toBe("concluida");
+    for (const corpo of pedidos()) {
+      expect((corpo.tools ?? []).map((t) => t.function.name)).toEqual(["search_notes"]);
+    }
+    const resposta = pedidos()[1]?.messages.find((m) => m.role === "tool")?.content ?? "";
+    expect(resposta).toContain("complete_card");
+    const noBanco = await prisma.card.findUniqueOrThrow({
+      where: { id: ideia },
+      select: { completedAt: true, aiCompletedVia: true },
+    });
+    expect(noBanco).toEqual({ completedAt: null, aiCompletedVia: null });
   });
 
   test("agente só com ferramenta de escrita: o pedido sai sem o campo tools", async () => {

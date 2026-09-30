@@ -27,7 +27,7 @@ import { criarServidor } from "./servidor.js";
  *
  * **Com estado, por decisão.** `sessionIdGenerator` definido é o que mantém o
  * caminho de volta aberto: sem ele o SDK desliga o SSE, e junto vão o progresso,
- * o log e a amostragem. As cinco tools de escrita emitem log, que é a única
+ * o log e a amostragem. As seis tools de escrita emitem log, que é a única
  * trilha de auditoria que chega ao usuário — desligá-la para ganhar escala
  * horizontal que ninguém pediu seria trocar o certo pelo genérico.
  *

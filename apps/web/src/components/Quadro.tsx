@@ -24,7 +24,7 @@ import type {
 import { SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "../lib/api";
-import { useMoverCard, useMoverColuna } from "../lib/kanban";
+import { useConcluirCard, useMoverCard, useMoverColuna } from "../lib/kanban";
 import { cardCasaFiltro } from "../lib/tags";
 import { Aviso } from "./base/Aviso";
 import { CartaoCard } from "./CartaoCard";
@@ -136,6 +136,7 @@ interface QuadroProps {
 export function Quadro({ board, cardAtivoId, tagsFiltro, onAbrirCard }: QuadroProps) {
   const mover = useMoverCard(board.id);
   const moverColuna = useMoverColuna();
+  const concluir = useConcluirCard(board.id);
 
   const [colunas, setColunas] = useState<ColumnDetail[]>(board.columns);
   const [arrastando, setArrastando] = useState<{ tipo: string; id: string } | null>(null);
@@ -329,6 +330,20 @@ export function Quadro({ board, cardAtivoId, tagsFiltro, onAbrirCard }: QuadroPr
     );
   }
 
+  // Estável: vai até cada card, e as colunas que o arraste não tocou não
+  // podem repintar por causa de uma função nova (RF-25).
+  const { mutate: mutarConclusao } = concluir;
+  const concluirCard = useCallback(
+    (id: string, completed: boolean) => {
+      setErro(null);
+      mutarConclusao(
+        { id, completed },
+        { onError: (e) => setErro(mensagem(e, "Não foi possível concluir o card.")) },
+      );
+    },
+    [mutarConclusao],
+  );
+
   const idsDasColunas = useMemo(
     () => colunas.map((c) => idColunaArrastavel(c.id)),
     [colunas],
@@ -379,6 +394,7 @@ export function Quadro({ board, cardAtivoId, tagsFiltro, onAbrirCard }: QuadroPr
                 arrasteDesativado={filtrando}
                 cardAtivoId={cardAtivoId}
                 onAbrirCard={onAbrirCard}
+                onConcluirCard={concluirCard}
               />
             ))}
           </SortableContext>

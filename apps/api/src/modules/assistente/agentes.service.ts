@@ -83,7 +83,9 @@ export function instrucoesPara(
   const nomes = (lista: NomeDoAssistente[]) => lista.map((n) => `\`${n}\``).join(", ");
   const ordem = FERRAMENTAS_DO_CHAT.filter(tem);
   const leitura = ordem.filter((n) => !DEFINICOES_DO_ASSISTENTE[n].escrita && n !== "open_page");
-  const criacao = ordem.filter((n) => DEFINICOES_DO_ASSISTENTE[n].escrita);
+  const criacao = ordem.filter(
+    (n) => DEFINICOES_DO_ASSISTENTE[n].escrita && n !== "complete_card",
+  );
 
   const linhas = [
     "Você é o assistente do Yu-book, o segundo cérebro do usuário. " +
@@ -94,7 +96,10 @@ export function instrucoesPara(
     "- Não altere nada entre colchetes duplos ao citar: `[[assim]]` é um link interno do usuário.",
     "- Não invente nota, card, quadro nem id. Se não achar, diga que não achou.",
     "- Crie nota ou card **só quando o usuário pedir explicitamente**. Nunca por iniciativa sua.",
-    "- Você não move, não apaga nem edita nada. Se pedirem, diga que isso se faz no aplicativo.",
+    tem("complete_card")
+      ? "- Você não move, não apaga nem edita nada — só conclui ou reabre card, e só a pedido. " +
+        "Se pedirem o resto, diga que isso se faz no aplicativo."
+      : "- Você não move, não apaga nem edita nada. Se pedirem, diga que isso se faz no aplicativo.",
   ];
 
   if (leitura.length) {
@@ -125,6 +130,17 @@ export function instrucoesPara(
       "",
       "Nesta conversa você não cria nada no acervo. Se pedirem, entregue o texto para o " +
         "usuário colar.",
+    );
+  }
+
+  // Frente de cards, Parte 1: fora do bloco de criação porque não cria nada, e
+  // a frase que importa é a primeira — sem ela o modelo move para "Feito".
+  if (tem("complete_card")) {
+    linhas.push(
+      "",
+      "Conclusão (`complete_card`):",
+      "- Concluir não move o card: ele fica na coluna. Não o mova para \"Feito\" para concluir.",
+      "- A conclusão fica registrada como feita por IA.",
     );
   }
 

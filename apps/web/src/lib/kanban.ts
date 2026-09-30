@@ -183,6 +183,8 @@ function paraFace(card: CardDetail): CardSummary {
     updatedAt: card.updatedAt,
     // A face mostra "IA"; sem copiar, salvar o card a apagaria do quadro.
     ai: card.ai,
+    completedAt: card.completedAt,
+    aiCompletion: card.aiCompletion,
   };
 }
 
@@ -231,6 +233,10 @@ export function useAtualizarCard() {
 
       costurarNoBoard(qc, card);
 
+      // Card concluído sai dos prazos da home (frente de cards, Parte 1).
+      if (anterior.completedAt !== card.completedAt) {
+        void qc.invalidateQueries({ queryKey: ["dashboard"], refetchType: "none" });
+      }
       // O vínculo aparece do lado da nota também (RF-38).
       if (anterior.note?.id !== card.note?.id) {
         void qc.invalidateQueries({ queryKey: ["note"] });
@@ -238,6 +244,49 @@ export function useAtualizarCard() {
       if (anterior.title !== card.title) {
         void qc.invalidateQueries({ queryKey: ["search"], refetchType: "none" });
       }
+    },
+  });
+}
+
+/**
+ * O check da face do card (frente de cards, Parte 1). Otimista como o arraste:
+ * o clique é o gesto inteiro, e esperar a volta do servidor para esmaecer o
+ * card faria o botão parecer quebrado. A data provisória some quando a
+ * resposta costura a de verdade.
+ */
+export function useConcluirCard(boardId: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, completed }: { id: string; completed: boolean }) =>
+      api.patch<CardDetail>(`/cards/${id}`, { completed }),
+
+    onMutate: async ({ id, completed }) => {
+      await qc.cancelQueries({ queryKey: chaveBoard(boardId) });
+      const anterior = qc.getQueryData<BoardDetail>(chaveBoard(boardId));
+      if (anterior) {
+        const completedAt = completed ? new Date().toISOString() : null;
+        qc.setQueryData<BoardDetail>(chaveBoard(boardId), {
+          ...anterior,
+          columns: anterior.columns.map((coluna) => ({
+            ...coluna,
+            cards: coluna.cards.map((c) =>
+              c.id === id ? { ...c, completedAt, aiCompletion: null } : c,
+            ),
+          })),
+        });
+      }
+      return { anterior };
+    },
+
+    onError: (_erro, _variaveis, contexto) => {
+      if (contexto?.anterior) qc.setQueryData(chaveBoard(boardId), contexto.anterior);
+    },
+
+    onSuccess: (card) => {
+      qc.setQueryData(["card", card.id], card);
+      costurarNoBoard(qc, card);
+      void qc.invalidateQueries({ queryKey: ["dashboard"], refetchType: "none" });
     },
   });
 }

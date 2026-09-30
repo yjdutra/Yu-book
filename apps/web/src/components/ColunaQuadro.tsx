@@ -8,7 +8,7 @@ import { ApiError } from "../lib/api";
 import { useAtualizarColuna, useCriarCard, useExcluirColuna } from "../lib/kanban";
 import { BotaoIcone } from "./base/Botao";
 import { CartaoCard } from "./CartaoCard";
-import { IconeAlca, IconeAlerta, IconeOpcoes } from "./Icones";
+import { IconeAlca, IconeAlerta, IconeCheck, IconeOpcoes } from "./Icones";
 
 export const idColunaArrastavel = (id: string) => `coluna:${id}`;
 export const idZonaDeSoltura = (id: string) => `zona:${id}`;
@@ -38,14 +38,16 @@ interface CardArrastavelProps {
   /** RN-05: filtro de tag ativo desliga o arraste, mas não o resto do card. */
   desativado: boolean;
   onAbrir: () => void;
+  onConcluir: (id: string, completed: boolean) => void;
 }
 
-function CardArrastavel({ card, ativo, desativado, onAbrir }: CardArrastavelProps) {
+function CardArrastavel({ card, ativo, desativado, onAbrir, onConcluir }: CardArrastavelProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({
     id: card.id,
     data: { tipo: "card", columnId: card.columnId },
     disabled: desativado,
   });
+  const concluido = card.completedAt !== null;
 
   return (
     // Sem `transform` nem `transition`: ver SEM_DESLOCAMENTO acima.
@@ -59,9 +61,9 @@ function CardArrastavel({ card, ativo, desativado, onAbrir }: CardArrastavelProp
       // E o card de dentro some com `opacity-0`, nunca com `visibility`: ele é
       // o elemento focado, e é nele que o KeyboardSensor escuta. Escondê-lo de
       // verdade tiraria o foco e mataria o arraste por teclado (INV-30).
-      className={
-        isDragging ? "rounded-controle outline-2 outline-dashed outline-accent-400" : undefined
-      }
+      className={`group relative ${
+        isDragging ? "rounded-controle outline-2 outline-dashed outline-accent-400" : ""
+      }`}
     >
       {/* O próprio card é o alvo de arrasto e o botão que abre o painel:
           Espaço pega (RF-25), Enter abre (RNF-01). */}
@@ -70,7 +72,7 @@ function CardArrastavel({ card, ativo, desativado, onAbrir }: CardArrastavelProp
         {...listeners}
         role="button"
         tabIndex={0}
-        aria-label={`Card ${card.title}`}
+        aria-label={`Card ${card.title}${concluido ? ", concluído" : ""}`}
         onClick={onAbrir}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -90,6 +92,30 @@ function CardArrastavel({ card, ativo, desativado, onAbrir }: CardArrastavelProp
       >
         <CartaoCard card={card} />
       </div>
+
+      {/* Frente de cards, Parte 1: irmão do card, e não filho — os `listeners`
+          ficam no `div` acima, então o clique aqui não vira arraste nem abre o
+          painel, e não há controle dentro de `role="button"`. Mesmo desenho dos
+          botões dos favoritos (`GavetaLinks`). Escondido só por opacidade: o
+          Tab continua chegando nele, e o foco o revela. */}
+      {!isDragging && (
+        <button
+          type="button"
+          aria-label={`${concluido ? "Reabrir" : "Concluir"} card ${card.title}`}
+          title={concluido ? "Reabrir" : "Concluir"}
+          onClick={() => onConcluir(card.id, !concluido)}
+          className={`absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full border
+                      transition duration-[120ms] ease-(--ease-padrao) focus-visible:opacity-100
+                      focus-visible:outline-2 focus-visible:outline-accent-400 ${
+            concluido
+              ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-300"
+              : `border-ink-700 bg-superficie text-ink-400 opacity-0 hover:border-emerald-500/60
+                 hover:text-emerald-300 group-focus-within:opacity-100 group-hover:opacity-100`
+          }`}
+        >
+          <IconeCheck className="size-3" />
+        </button>
+      )}
     </li>
   );
 }
@@ -107,6 +133,7 @@ interface ColunaQuadroProps {
   arrasteDesativado: boolean;
   cardAtivoId: string | null;
   onAbrirCard: (id: string) => void;
+  onConcluirCard: (id: string, completed: boolean) => void;
 }
 
 export function ColunaQuadro({
@@ -116,6 +143,7 @@ export function ColunaQuadro({
   arrasteDesativado,
   cardAtivoId,
   onAbrirCard,
+  onConcluirCard,
 }: ColunaQuadroProps) {
   const criarCard = useCriarCard();
   const atualizar = useAtualizarColuna();
@@ -405,6 +433,7 @@ export function ColunaQuadro({
                 ativo={card.id === cardAtivoId}
                 desativado={arrasteDesativado}
                 onAbrir={() => onAbrirCard(card.id)}
+                onConcluir={onConcluirCard}
               />
             ))}
           </ul>

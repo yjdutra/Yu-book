@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import type { AiMark, AiVia } from "@yu-book/shared";
+import type { AiCompletion, AiMark, AiVia } from "@yu-book/shared";
 
 /**
  * A marca de conteúdo gerado por IA (Etapa C da frente de IA), do lado do
@@ -97,5 +97,47 @@ export function paraMarca(linha: LinhaDaMarca): AiMark | null {
     routineName: linha.aiRoutineName,
     runId: linha.aiRunId,
     revisedAt: linha.aiRevisedAt?.toISOString() ?? null,
+  };
+}
+
+/**
+ * A conclusão do card e a marca de quem concluiu (frente de cards, Parte 1).
+ *
+ * Só se chama quando o estado **muda** — concluir um card já concluído não
+ * passa por aqui, e a data e a marca originais ficam. Sem `origem`, a
+ * conclusão é humana e a marca vai a `null`: ela diz quem pôs o card no estado
+ * atual, e não é histórico. Reabrir zera tudo.
+ *
+ * Nada aqui toca em `aiRevisedAt`: concluir não é revisão do texto.
+ */
+export function camposDaConclusao(completed: boolean, origem?: OrigemIA) {
+  return {
+    completedAt: completed ? new Date() : null,
+    aiCompletedVia: completed && origem ? origem.via : null,
+    aiCompletedAuthor: completed && origem ? origem.author : null,
+    aiCompletedAgentName:
+      completed && origem && origem.via !== "mcp" ? (origem.agentName ?? null) : null,
+  };
+}
+
+export const CAMPOS_DA_CONCLUSAO = {
+  completedAt: true,
+  aiCompletedVia: true,
+  aiCompletedAuthor: true,
+  aiCompletedAgentName: true,
+} satisfies Prisma.CardSelect;
+
+interface LinhaDaConclusao {
+  aiCompletedVia: AiVia | null;
+  aiCompletedAuthor: string | null;
+  aiCompletedAgentName: string | null;
+}
+
+export function paraConclusao(linha: LinhaDaConclusao): AiCompletion | null {
+  if (!linha.aiCompletedVia) return null;
+  return {
+    via: linha.aiCompletedVia,
+    author: linha.aiCompletedAuthor,
+    agentName: linha.aiCompletedAgentName,
   };
 }

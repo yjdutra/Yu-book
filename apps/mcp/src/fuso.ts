@@ -26,7 +26,7 @@ import { api } from "./cliente.js";
  * herda aquelas guardas.
  *
  * O custo medido: +1 requisição em `get_board`, `get_dashboard`, `create_card`,
- * `move_card` e `yubook://board/{id}`; e, desde a marca de IA (Etapa C), também
+ * `move_card`, `complete_card` e `yubook://board/{id}`; e, desde a marca de IA (Etapa C), também
  * em `get_note` e `yubook://nota/{id}`, que datam a linha "gerada por IA".
  */
 

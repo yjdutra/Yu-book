@@ -8,9 +8,9 @@ import {
 import { MAX_CONTEUDO, noteKindSchema, tituloSchema } from "./notes.js";
 
 /**
- * O vocabulário do acervo: as dez ações que um modelo pode pedir.
+ * O vocabulário do acervo: as onze ações que um modelo pode pedir.
  *
- * **Uma definição, dois consumidores.** O servidor MCP publica estas dez em
+ * **Uma definição, dois consumidores.** O servidor MCP publica estas onze em
  * `tools/list`; o chat interno (Etapa B da frente de IA) as oferece ao provedor
  * no campo `tools` da requisição. O metadado — nome, título, descrição e
  * schema — mora aqui; os **handlers ficam separados**, porque o MCP fala HTTP
@@ -117,8 +117,9 @@ export const FERRAMENTAS_DO_ACERVO = {
     titulo: "Ver um quadro inteiro",
     descricao:
       "Devolve as colunas de um quadro na ordem, com os cards de cada uma — título, prazo, " +
-      "prioridade, progresso do checklist, tags e nota vinculada. As tags agrupam cards por " +
-      "assunto, num eixo independente da coluna. Cards arquivados não aparecem. " +
+      "prioridade, progresso do checklist, tags, nota vinculada e se está concluído. As tags " +
+      "agrupam cards por assunto, num eixo independente da coluna. Card concluído continua na " +
+      "coluna em que estava. Cards arquivados não aparecem. " +
       "A descrição do card não vem aqui: o quadro é uma visão de superfície.",
     escrita: false,
     entrada: {
@@ -257,6 +258,31 @@ export const FERRAMENTAS_DO_ACERVO = {
     },
   },
 
+  complete_card: {
+    titulo: "Concluir ou reabrir um card",
+    // Curta de propósito: o chat paga esta descrição em todo turno. A frase que
+    // muda o que o modelo faz é a primeira — sem ela, ele move o card para
+    // "Feito" achando que concluir é isso.
+    descricao:
+      "Marca um card como concluído, ou o reabre. **Não move o card**: ele fica na mesma " +
+      "coluna e posição, e sai dos prazos da tela inicial. Chame `get_board` antes para " +
+      "pegar o id. A conclusão fica registrada como feita por IA.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    entrada: {
+      cardId: z.string().uuid().describe("Id do card, como aparece em `get_board`."),
+      completed: z
+        .boolean()
+        .optional()
+        .describe("false reabre o card. Omita para concluir."),
+    },
+  },
+
   trash_note: {
     titulo: "Mandar uma nota para a lixeira",
     descricao:
@@ -376,11 +402,12 @@ export const DEFINICOES_DO_ASSISTENTE: Readonly<Record<NomeDoAssistente, Definic
 
 /**
  * O que o chat oferece ao provedor: as leituras, as duas criações da Etapa C
- * da frente de IA e, desde a Etapa G, abrir página.
+ * da frente de IA, desde a Etapa G abrir página e, desde a Parte 1 da frente de
+ * cards, concluir card.
  *
  * Lista explícita, e não "todas menos algumas": mover card e mandar nota para
  * a lixeira ficam fora do chat por decisão de produto (RN-03 — a escrita do
- * chat é criar, a pedido, marcado e desfazível), e uma ação nova neste arquivo
+ * chat é criar e concluir, a pedido, marcado e desfazível), e uma ação nova neste arquivo
  * não pode entrar no chat só por existir. A segunda condição continua em
  * `apps/api/src/modules/assistente/ferramentas.service.ts`: sem executor, não
  * é oferecida.
@@ -392,6 +419,7 @@ export const FERRAMENTAS_DO_CHAT: readonly NomeDoAssistente[] = [
   ...FERRAMENTAS_DE_LEITURA,
   "create_card",
   "create_note",
+  "complete_card",
   "open_page",
 ];
 
@@ -405,4 +433,5 @@ export const FERRAMENTAS_SEM_AGENTE: readonly NomeDeFerramenta[] = [
   ...FERRAMENTAS_DE_LEITURA,
   "create_card",
   "create_note",
+  "complete_card",
 ];

@@ -15,7 +15,7 @@ import { registrarToolsDeNotas } from "./tools/notas.js";
  * invisível — há um processo e uma conexão. Sob StreamableHTTP com estado, cada
  * sessão é uma conexão, então cada sessão precisa da sua própria instância.
  *
- * O que **não** muda entre os dois transportes é tudo o que importa: as dez
+ * O que **não** muda entre os dois transportes é tudo o que importa: as onze
  * tools, os resources, os prompts e as capabilities. Duplicar esse registro
  * entre dois caminhos seria a forma mais fácil de fazer o servidor hospedado
  * divergir do local em silêncio.
@@ -28,7 +28,7 @@ import { registrarToolsDeNotas } from "./tools/notas.js";
  */
 export interface OpcoesDoServidor {
   /**
-   * Se as cinco tools de escrita entram no `tools/list`.
+   * Se as seis tools de escrita entram no `tools/list`.
    *
    * Em stdio vem de `env.escritaLiberada` — a trava por URL, que continua certa
    * ali porque não existe identidade: a credencial vem do `.env`. Em HTTP vem
@@ -42,7 +42,7 @@ export function criarServidor({ escrita }: OpcoesDoServidor): McpServer {
   const server = new McpServer(
     {
       name: "yu-book",
-      version: "0.17.0",
+      version: "0.18.0",
     },
     // A capability `logging` precisa ser declarada **aqui**, na construção.
     // Sem ela `sendLoggingMessage` não lança nem avisa: apenas não faz nada, e

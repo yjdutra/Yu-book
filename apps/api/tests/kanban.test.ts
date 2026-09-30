@@ -390,6 +390,8 @@ describe("posse", () => {
       { method: "GET", url: `/cards/${card.id}` },
       { method: "PATCH", url: `/cards/${card.id}`, body: { title: "invadido" } },
       { method: "PATCH", url: `/cards/${card.id}/move`, body: { columnId: coluna?.id, position: 0 } },
+      { method: "PATCH", url: `/cards/${card.id}`, body: { completed: true } },
+      { method: "PATCH", url: `/cards/${card.id}/complete`, body: { completed: true } },
       { method: "DELETE", url: `/cards/${card.id}` },
     ] as const;
 
@@ -401,6 +403,150 @@ describe("posse", () => {
     // Nada foi tocado.
     const intacto = await prisma.card.findUniqueOrThrow({ where: { id: card.id } });
     expect(intacto.title).toBe("Só do dono");
+    expect(intacto.completedAt).toBeNull();
+  });
+});
+
+/**
+ * Frente de cards, Parte 1: concluir é um estado do card, não um lugar.
+ *
+ * O card concluído fica na coluna e na posição em que estava — mover para
+ * "Feito" continua sendo outra coisa, feita pelo arraste. Por isso a conclusão
+ * não pode renumerar nada (INV-11) e aparece na face do card, no quadro.
+ */
+describe("conclusão do card", () => {
+  const concluir = (id: string, completed: boolean, token = dono.token) =>
+    chamar(app, { method: "PATCH", url: `/cards/${id}`, token, body: { completed } });
+
+  const lerBoard = async (id: string) =>
+    (await chamar(app, { method: "GET", url: `/boards/${id}`, token: dono.token }))
+      .body as BoardDetail;
+
+  test("INV-11: concluir não move o card nem renumera a coluna, e a face no quadro diz que está concluído", async () => {
+    const board = await novoBoard("Board de conclusão");
+    const coluna = board.columns[0]?.id as string;
+    await novoCard(coluna, "Antes");
+    const meio = await novoCard(coluna, "Concluído no meio");
+    await novoCard(coluna, "Depois");
+
+    const r = await concluir(meio.id, true);
+
+    expect(r.status).toBe(200);
+    const detalhe = r.body as CardDetail;
+    expect(detalhe).toMatchObject({ columnId: coluna, position: 1, aiCompletion: null });
+    expect(detalhe.completedAt).toEqual(expect.any(String));
+
+    const cards = (await lerBoard(board.id)).columns.find((c) => c.id === coluna)?.cards ?? [];
+    expect(cards.map((c) => c.title)).toEqual(["Antes", "Concluído no meio", "Depois"]);
+    expect(cards.map((c) => c.position)).toEqual([0, 1, 2]);
+    expect(cards.map((c) => c.completedAt !== null)).toEqual([false, true, false]);
+    expect(cards[1]?.completedAt).toBe(detalhe.completedAt);
+  });
+
+  test("concluir de novo um card concluído mantém a data da primeira conclusão", async () => {
+    const board = await novoBoard("Board de reconclusão");
+    const card = await novoCard(board.columns[0]?.id as string, "Concluído duas vezes");
+    await concluir(card.id, true);
+    // Data fixa no passado: sem ela, duas conclusões no mesmo milissegundo
+    // passariam pelo teste mesmo regravando a data.
+    const primeira = new Date("2026-02-01T09:00:00.000Z");
+    await prisma.card.update({ where: { id: card.id }, data: { completedAt: primeira } });
+
+    const deNovo = await concluir(card.id, true);
+    const pelaRota = await chamar(app, {
+      method: "PATCH",
+      url: `/cards/${card.id}/complete`,
+      token: dono.token,
+      body: { completed: true },
+    });
+
+    expect(deNovo.status).toBe(200);
+    expect(pelaRota.status).toBe(200);
+    expect((pelaRota.body as CardDetail).completedAt).toBe(primeira.toISOString());
+  });
+
+  test("reabrir zera a conclusão, pelas duas rotas", async () => {
+    const board = await novoBoard("Board de reabertura");
+    const coluna = board.columns[0]?.id as string;
+    const umCard = await novoCard(coluna, "Reaberto pelo PATCH");
+    const outro = await novoCard(coluna, "Reaberto pela rota própria");
+    await concluir(umCard.id, true);
+    await concluir(outro.id, true);
+
+    const a = (await concluir(umCard.id, false)).body as CardDetail;
+    const b = (
+      await chamar(app, {
+        method: "PATCH",
+        url: `/cards/${outro.id}/complete`,
+        token: dono.token,
+        body: { completed: false },
+      })
+    ).body as CardDetail;
+
+    for (const reaberto of [a, b]) {
+      expect(reaberto.completedAt).toBeNull();
+      expect(reaberto.aiCompletion).toBeNull();
+    }
+    const cards = (await lerBoard(board.id)).columns.find((c) => c.id === coluna)?.cards ?? [];
+    expect(cards.every((c) => c.completedAt === null)).toBe(true);
+  });
+
+  test("INV-02 / INV-03: /complete em card de outra conta responde como o inexistente, e o card não muda", async () => {
+    const board = await novoBoard("Board que o intruso tenta concluir");
+    const card = await novoCard(board.columns[0]?.id as string, "Não é do intruso");
+    const tentar = (id: string) =>
+      chamar(app, {
+        method: "PATCH",
+        url: `/cards/${id}/complete`,
+        token: intruso.token,
+        body: { completed: true, origin: { via: "mcp", author: "Intruso" } },
+      });
+
+    const alheio = await tentar(card.id);
+    const inexistente = await tentar("00000000-0000-4000-8000-000000000000");
+
+    expect(alheio.status).toBe(404);
+    expect(alheio).toEqual(inexistente);
+    const intacto = await prisma.card.findUniqueOrThrow({ where: { id: card.id } });
+    expect(intacto.completedAt).toBeNull();
+    expect(intacto.aiCompletedVia).toBeNull();
+  });
+
+  test("card arquivado pode ser concluído, e volta concluído ao desarquivar", async () => {
+    const board = await novoBoard("Board de arquivado concluído");
+    const coluna = board.columns[0]?.id as string;
+    const card = await novoCard(coluna, "Arquivado e concluído");
+    await chamar(app, {
+      method: "PATCH",
+      url: `/cards/${card.id}`,
+      token: dono.token,
+      body: { archived: true },
+    });
+
+    const r = await chamar(app, {
+      method: "PATCH",
+      url: `/cards/${card.id}/complete`,
+      token: dono.token,
+      body: { completed: true },
+    });
+
+    expect(r.status).toBe(200);
+    const concluido = r.body as CardDetail;
+    expect(concluido.archived).toBe(true);
+    expect(concluido.completedAt).toEqual(expect.any(String));
+    // Sem origin, é humano, mesmo pela rota própria.
+    expect(concluido.aiCompletion).toBeNull();
+
+    await chamar(app, {
+      method: "PATCH",
+      url: `/cards/${card.id}`,
+      token: dono.token,
+      body: { archived: false },
+    });
+    const face = (await lerBoard(board.id)).columns
+      .find((c) => c.id === coluna)
+      ?.cards.find((c) => c.id === card.id);
+    expect(face?.completedAt).toBe(concluido.completedAt);
   });
 });
 

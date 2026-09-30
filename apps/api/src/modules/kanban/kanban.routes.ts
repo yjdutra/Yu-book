@@ -1,6 +1,7 @@
 import {
   boardInputSchema,
   boardUpdateSchema,
+  cardCompleteSchema,
   cardInputSchema,
   cardMoveSchema,
   cardUpdateSchema,
@@ -99,6 +100,14 @@ export async function kanbanRoutes(app: FastifyInstance): Promise<void> {
     const { id } = paramsSchema.parse(request.params);
     const input = cardUpdateSchema.parse(request.body);
     return service.atualizarCard(request.userId, id, input);
+  });
+
+  app.patch("/cards/:id/complete", async (request) => {
+    const { id } = paramsSchema.parse(request.params);
+    // Como no `POST /cards`: `origin` vira a marca de quem concluiu, e só o MCP
+    // o envia. O front conclui pelo `PATCH /cards/:id`, sem marca.
+    const { completed, origin } = cardCompleteSchema.parse(request.body);
+    return service.concluirCard(request.userId, id, completed, origin);
   });
 
   app.patch("/cards/:id/move", async (request) => {

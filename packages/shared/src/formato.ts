@@ -4,7 +4,7 @@ import type { SearchResponse, SearchResult } from "./busca.js";
 import type { CardComPrazo, Dashboard } from "./dashboard.js";
 import { diaLocal } from "./ia.js";
 import type { BoardDetail, BoardSummary, CardDetail, CardSummary } from "./kanban.js";
-import type { AiMark } from "./marca.js";
+import type { AiCompletion, AiMark } from "./marca.js";
 import type { NoteDetail } from "./notes.js";
 
 /**
@@ -143,6 +143,21 @@ function linhaDaMarca(ai: AiMark, fuso: string, genero: "a" | "o"): string {
   return partes.join(" · ");
 }
 
+/**
+ * A conclusão do card (frente de cards, Parte 1), na leitura de um item. Quem
+ * concluiu só aparece quando foi o assistente — é a marca de conclusão, que
+ * some se o card for reaberto ou concluído à mão.
+ */
+function linhaDaConclusao(completedAt: string, ia: AiCompletion | null, fuso: string): string {
+  const partes = [`concluído em ${diaLocal(new Date(completedAt), fuso)}`];
+  if (ia) {
+    partes.push(`por IA via ${ia.via}`);
+    if (ia.agentName) partes.push(`«${ia.agentName}»`);
+    if (ia.author) partes.push(ia.author);
+  }
+  return partes.join(" · ");
+}
+
 export function formatarResultado(r: SearchResult): string {
   const onde =
     (r.type === "card"
@@ -244,6 +259,9 @@ export function formatarNota(nota: NoteDetail, fuso: string): string {
 
 export function formatarCard(card: CardSummary, fuso: string): string {
   const partes = [`- ${card.title}`];
+  // Logo depois do título: um card concluído com prazo passado não está
+  // atrasado, e o modelo lê o prazo como cobrança se não souber disto antes.
+  if (card.completedAt) partes.push("concluído");
   if (card.dueDate) partes.push(`prazo ${diaDoPrazo(card.dueDate, fuso)}`);
   if (card.priority !== "media") partes.push(`prioridade ${card.priority}`);
   if (card.checklistTotal > 0) partes.push(`${card.checklistDone}/${card.checklistTotal}`);
@@ -289,8 +307,8 @@ export function formatarQuadro(board: BoardDetail, fuso: string): string {
 }
 
 /**
- * A confirmação de uma escrita de card. Serve `create_card` e `move_card`, que
- * devolvem `CardDetail`.
+ * A confirmação de uma escrita de card. Serve `create_card`, `move_card` e
+ * `complete_card`, que devolvem `CardDetail`.
  *
  * Não dá para reusar `formatarCard`: ela recebe `CardSummary` e produz a face
  * do card dentro de um quadro, sem `boardName`, `columnName` nem `archived` —
@@ -309,6 +327,7 @@ export function formatarCardDetalhe(card: CardDetail, fuso: string): string {
   ];
 
   if (card.ai) linhas.push(linhaDaMarca(card.ai, fuso, "o"));
+  if (card.completedAt) linhas.push(linhaDaConclusao(card.completedAt, card.aiCompletion, fuso));
 
   const face = [];
   if (card.dueDate) face.push(`prazo ${diaDoPrazo(card.dueDate, fuso)}`);

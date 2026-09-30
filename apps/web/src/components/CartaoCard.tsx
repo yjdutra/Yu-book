@@ -54,7 +54,10 @@ export const CartaoCard = memo(function CartaoCard({
   card,
   arrastando = false,
 }: CartaoCardProps) {
-  const prazo = estadoDoPrazo(card.dueDate);
+  const concluido = card.completedAt !== null;
+  // Frente de cards, Parte 1: concluído não cobra prazo — nem aqui, nem na home.
+  // O prazo continua visível, no tom neutro.
+  const prazo = concluido && card.dueDate ? "normal" : estadoDoPrazo(card.dueDate);
   const prioridade = ESTILO_PRIORIDADE[card.priority];
 
   return (
@@ -69,66 +72,72 @@ export const CartaoCard = memo(function CartaoCard({
           : "border-ink-700 shadow-e1 hover:border-ink-400 hover:shadow-e2"
       } ${prazo === "vencido" ? "border-l-2 border-l-red-500" : ""}`}
     >
-      <p className="text-sm leading-snug text-ink-200">{card.title}</p>
+      {/* Esmaecido no conteúdo, e não no card: a borda e a sombra ficam, e o
+          card continua lendo como item do quadro. O mesmo 70% dos arquivados.
+          O `pr-5` abre lugar para o check, que mora fora daqui (ColunaQuadro) e
+          fica aceso enquanto o card está concluído. */}
+      <div className={concluido ? "opacity-70" : undefined}>
+        <p className="pr-5 text-sm leading-snug text-ink-200">{card.title}</p>
 
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-miudo">
-        {card.dueDate && prazo && (
-          <span
-            className={`inline-flex items-center gap-1 rounded-etiqueta border px-1 ${
-              ESTILO_PRAZO[prazo].classe
-            }`}
-            title={`${ESTILO_PRAZO[prazo].rotulo}: ${new Date(card.dueDate).toLocaleDateString("pt-BR")}`}
-          >
-            <span aria-hidden="true">{ESTILO_PRAZO[prazo].sigla}</span>
-            {dataCurta(card.dueDate)}
-            <span className="sr-only"> — {ESTILO_PRAZO[prazo].rotulo}</span>
-          </span>
-        )}
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-miudo">
+          {card.dueDate && prazo && (
+            <span
+              className={`inline-flex items-center gap-1 rounded-etiqueta border px-1 ${
+                ESTILO_PRAZO[prazo].classe
+              }`}
+              title={`${ESTILO_PRAZO[prazo].rotulo}: ${new Date(card.dueDate).toLocaleDateString("pt-BR")}`}
+            >
+              <span aria-hidden="true">{ESTILO_PRAZO[prazo].sigla}</span>
+              {dataCurta(card.dueDate)}
+              <span className="sr-only"> — {ESTILO_PRAZO[prazo].rotulo}</span>
+            </span>
+          )}
 
-        {card.priority !== "media" && (
-          <span className={`inline-flex items-center gap-0.5 ${prioridade.classe}`}>
-            <span aria-hidden="true">{prioridade.sigla}</span>
-            {card.priority}
-          </span>
-        )}
+          {card.priority !== "media" && (
+            <span className={`inline-flex items-center gap-0.5 ${prioridade.classe}`}>
+              <span aria-hidden="true">{prioridade.sigla}</span>
+              {card.priority}
+            </span>
+          )}
 
-        {card.checklistTotal > 0 && (
-          <span
-            className="inline-flex items-center gap-0.5 tabular-nums text-ink-400"
-            title={`${card.checklistDone} de ${card.checklistTotal} itens feitos`}
-          >
-            <IconeCheck className="size-3" />
-            {card.checklistDone}/{card.checklistTotal}
-          </span>
-        )}
+          {card.checklistTotal > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 tabular-nums text-ink-400"
+              title={`${card.checklistDone} de ${card.checklistTotal} itens feitos`}
+            >
+              <IconeCheck className="size-3" />
+              {card.checklistDone}/{card.checklistTotal}
+            </span>
+          )}
 
-        {/* Etapa C da frente de IA: só faísca e "IA" — o detalhe e o "revisada"
-            moram na dica e no painel. Rótulo, não botão, pelo mesmo motivo das tags. */}
-        {card.ai && <MarcaIA marca={card.ai} curta />}
+          {/* Etapa C da frente de IA: só faísca e "IA" — o detalhe e o "revisada"
+              moram na dica e no painel. Rótulo, não botão, pelo mesmo motivo das tags. */}
+          {card.ai && <MarcaIA marca={card.ai} curta />}
 
-        {/* RF-07: rótulo, não botão — o card inteiro é a alça de arraste, e um
-            alvo clicável aqui dentro competiria com o gesto. */}
-        {card.tags.slice(0, TAGS_NA_FACE).map((tag) => (
-          <span key={tag} className="rounded-etiqueta bg-ink-700 px-1.5 text-ink-400">
-            {tag}
-          </span>
-        ))}
-        {card.tags.length > TAGS_NA_FACE && (
-          <span className="text-ink-400" title={card.tags.join(", ")}>
-            +{card.tags.length - TAGS_NA_FACE}
-          </span>
-        )}
+          {/* RF-07: rótulo, não botão — o card inteiro é a alça de arraste, e um
+              alvo clicável aqui dentro competiria com o gesto. */}
+          {card.tags.slice(0, TAGS_NA_FACE).map((tag) => (
+            <span key={tag} className="rounded-etiqueta bg-ink-700 px-1.5 text-ink-400">
+              {tag}
+            </span>
+          ))}
+          {card.tags.length > TAGS_NA_FACE && (
+            <span className="text-ink-400" title={card.tags.join(", ")}>
+              +{card.tags.length - TAGS_NA_FACE}
+            </span>
+          )}
 
-        {/* RF-31: o vínculo com nota é visível sem abrir o card. */}
-        {card.note && (
-          <span
-            className="inline-flex max-w-32 items-center gap-1 text-ink-400"
-            title={card.note.title}
-          >
-            <IconeClipe className="size-3" />
-            <span className="truncate">{card.note.title}</span>
-          </span>
-        )}
+          {/* RF-31: o vínculo com nota é visível sem abrir o card. */}
+          {card.note && (
+            <span
+              className="inline-flex max-w-32 items-center gap-1 text-ink-400"
+              title={card.note.title}
+            >
+              <IconeClipe className="size-3" />
+              <span className="truncate">{card.note.title}</span>
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

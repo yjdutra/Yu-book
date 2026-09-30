@@ -101,9 +101,11 @@ export async function montar(userId: string, workspaceId?: string): Promise<Dash
   const agora = new Date();
   const limite = new Date(agora.getTime() + JANELA_PRAZOS_DIAS * 24 * 60 * 60 * 1000);
 
-  // RF-11: card arquivado não cobra prazo de ninguém.
+  // RF-11: card arquivado não cobra prazo de ninguém — e, desde a Parte 1 da
+  // frente de cards, nem o concluído, que continua no quadro.
   const doUsuario: Prisma.CardWhereInput = {
     archived: false,
+    completedAt: null,
     column: { board: { userId, ...(workspaceId && { workspaceId }) } },
   };
 

@@ -38,6 +38,22 @@ export interface AiMark {
   revisedAt: string | null;
 }
 
+/**
+ * Quem concluiu o card, quando foi o assistente (frente de cards, Parte 1).
+ *
+ * **Não é a marca de geração, e não segue as regras dela.** `AiMark` diz de
+ * onde o conteúdo veio e nunca some; esta diz quem pôs o card no estado atual
+ * e acompanha o estado: concluir à mão ou reabrir a apaga. Gravada só pelo
+ * servidor, como a outra. `null` quando o card está aberto ou foi concluído à
+ * mão. Rotina não conclui, então `via` nunca é `rotina` na prática.
+ */
+export interface AiCompletion {
+  via: AiVia;
+  /// No chat, o modelo que respondeu; no MCP, o nome do cliente.
+  author: string | null;
+  agentName: string | null;
+}
+
 export const MAX_AUTOR_IA = 120;
 
 /**

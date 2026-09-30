@@ -20,7 +20,14 @@ import {
 } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
-import { CAMPOS_DA_MARCA, camposDaOrigem, paraMarca } from "../../lib/marca.js";
+import {
+  CAMPOS_DA_CONCLUSAO,
+  CAMPOS_DA_MARCA,
+  camposDaConclusao,
+  camposDaOrigem,
+  paraConclusao,
+  paraMarca,
+} from "../../lib/marca.js";
 import type { OrigemIA } from "../../lib/marca.js";
 
 /** Colunas de um board novo (RF-14, S-03): board sem coluna é estado morto. */
@@ -160,6 +167,7 @@ const CARD_FACE = {
   updatedAt: true,
   note: { select: { id: true, title: true, kind: true } },
   ...CAMPOS_DA_MARCA,
+  ...CAMPOS_DA_CONCLUSAO,
 } satisfies Prisma.CardSelect;
 
 type CardFace = Prisma.CardGetPayload<{ select: typeof CARD_FACE }>;
@@ -179,6 +187,8 @@ function toCardSummary(card: CardFace): CardSummary {
     note: card.note,
     updatedAt: card.updatedAt.toISOString(),
     ai: paraMarca(card),
+    completedAt: card.completedAt?.toISOString() ?? null,
+    aiCompletion: paraConclusao(card),
   };
 }
 
@@ -559,6 +569,8 @@ export async function buscarCard(userId: string, id: string): Promise<CardDetail
     archived: card.archived,
     updatedAt: card.updatedAt.toISOString(),
     ai: paraMarca(card),
+    completedAt: card.completedAt?.toISOString() ?? null,
+    aiCompletion: paraConclusao(card),
   };
 }
 
@@ -605,6 +617,8 @@ export async function atualizarCard(
         ...(revisou && { aiRevisedAt: new Date() }),
       },
     });
+
+    if (input.completed !== undefined) await gravarConclusao(tx, id, input.completed);
 
     // Arquivar tira o card da coluna: quem fica precisa fechar a fila.
     // Desarquivar devolve ao fim da mesma coluna (RF-33).
@@ -658,6 +672,47 @@ export async function moverCard(
   });
 
   return buscarCard(userId, id);
+}
+
+/**
+ * Concluir ou reabrir com a marca de quem pediu (frente de cards, Parte 1).
+ *
+ * É a porta do assistente e do MCP; o front conclui por `atualizarCard`, sem
+ * origem, e cai na mesma regra de `camposDaConclusao`. Não move o card, não
+ * renumera nada e não é revisão. Card arquivado também se conclui: o estado
+ * fica guardado e volta ao quadro junto com ele.
+ */
+export async function concluirCard(
+  userId: string,
+  id: string,
+  completed: boolean,
+  origem?: OrigemIA,
+): Promise<CardDetail> {
+  await cardDoUsuario(prisma, userId, id);
+  await gravarConclusao(prisma, id, completed, origem);
+  return buscarCard(userId, id);
+}
+
+/**
+ * Só grava quando o estado muda, e decide isso **na própria escrita** (INV-04):
+ * o estado atual vai no `where`, não numa leitura anterior. Concluir e
+ * concluir de novo em paralelo — o clique no quadro e o chat, o chat e o MCP —
+ * leriam os dois o card aberto, e o segundo trocaria a data e a marca de quem
+ * concluiu. Com a condição no `UPDATE`, o Postgres reavalia a linha travada e
+ * o segundo não acha nada para mudar.
+ *
+ * A posse não entra aqui: quem chama já a conferiu pela cadeia (INV-03).
+ */
+async function gravarConclusao(
+  db: Cliente,
+  id: string,
+  completed: boolean,
+  origem?: OrigemIA,
+): Promise<void> {
+  await db.card.updateMany({
+    where: { id, completedAt: completed ? null : { not: null } },
+    data: camposDaConclusao(completed, origem),
+  });
 }
 
 export async function excluirCard(userId: string, id: string): Promise<void> {

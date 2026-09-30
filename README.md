@@ -68,9 +68,9 @@ of project-specific agents and skills that live in this repository.
 - **Chat that reads your knowledge base.** The model calls tools (search notes, open a note, list
   and open boards, read the dashboard) in a loop of up to five steps per message, answers with
   streaming and cites every source it used. `@` attaches a note, card or board to a message.
-- **Creates when you ask, and only then:** it can create cards and notes, but it cannot move,
-  delete or edit. Everything it creates carries an AI-generated mark with the model and the
-  conversation it came from, plus an undo.
+- **Creates when you ask, and only then:** it can create cards and notes and mark a card as done,
+  but it cannot move, delete or edit. Everything it creates carries an AI-generated mark with the
+  model and the conversation it came from, plus an undo; a card it completes says so too.
 - **Specialist agents:** each agent has its own instructions, base notes from your knowledge base,
   live sources (a board column read fresh on every message), its own model and its own tool set.
   The editor previews exactly what the model will receive, and at what cost.
@@ -103,7 +103,7 @@ of project-specific agents and skills that live in this repository.
 
 ### MCP server
 
-`apps/mcp` exposes the knowledge base to any MCP client: 10 tools (5 read, 5 write), 6 resources
+`apps/mcp` exposes the knowledge base to any MCP client: 11 tools (5 read, 6 write), 6 resources
 and 2 prompts. It runs over **stdio** on your machine or over **Streamable HTTP** as a hosted
 service, where it is its own **OAuth 2.1** authorization server and every request acts as whoever
 presented the token. Writing is locked behind two independent layers. Details in
@@ -182,8 +182,8 @@ on purpose.
   deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
   unique index), never through process memory. A run that started is never retried, because a
   retry costs money again.
-- **Tests against real infrastructure:** 383 integration tests boot the whole Fastify app against a
-  real Postgres; 57 more cover the MCP server.
+- **Tests against real infrastructure:** 408 integration tests boot the whole Fastify app against a
+  real Postgres; 60 more cover the MCP server.
 
 ---
 
@@ -199,7 +199,7 @@ work:
   deploys never pushes without an explicit request.
 - **7 skills** in [`.claude/skills/`](.claude/skills/): conventions, the shared contract, database
   migrations, the design system, changelog and versioning, the MCP server's design decisions, and a
-  catalog of **62 invariants**, the behaviors that look like bugs to anyone who doesn't know them
+  catalog of **63 invariants**, the behaviors that look like bugs to anyone who doesn't know them
   and that break silently if "fixed".
 - **Curated agent memory** in `.claude/agent-memory/`, with hard size limits and a rule to purge,
   not patch, whatever the code already contradicts.
@@ -313,8 +313,8 @@ anyone who finds the API can create an account and spend your AI budget.
 
 The product phases (notes, kanban, links, dashboard, refinements), the MCP server and the AI
 features (chat, AI provenance, agents, routines, scheduling, web research, usage dashboards) are
-all delivered and running in production. Next on the roadmap: semantic search over the
-knowledge base, and Google Calendar integration.
+all delivered and running in production. Next on the roadmap: file attachments on kanban cards,
+semantic search over the knowledge base, and Google Calendar integration.
 
 Known limitations, stated on purpose:
 

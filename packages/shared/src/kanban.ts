@@ -2,7 +2,7 @@ import { z } from "zod";
 import { CARD_PRIORITIES } from "./enums.js";
 import type { CardPriority } from "./enums.js";
 import { origemMcpSchema } from "./marca.js";
-import type { AiMark } from "./marca.js";
+import type { AiCompletion, AiMark } from "./marca.js";
 import type { NoteRef } from "./notes.js";
 
 // RNF-18: limites explícitos, iguais na API e no front.
@@ -123,12 +123,25 @@ export const cardInputSchema = z.object({
   origin: origemMcpSchema.optional(),
 });
 
-/// Sem `origin`: a marca nasce na criação e nenhuma rota a altera.
+/// Sem `origin`: a marca nasce na criação e nenhuma rota a altera. `completed`
+/// aqui é a conclusão **à mão** — a da IA passa por `cardCompleteSchema`.
 export const cardUpdateSchema = cardInputSchema
   .omit({ columnId: true, origin: true })
-  .extend({ archived: z.boolean() })
+  .extend({ archived: z.boolean(), completed: z.boolean() })
   .partial()
   .refine((v) => Object.keys(v).length > 0, "Nada para atualizar");
+
+/**
+ * Concluir ou reabrir pela rota própria (frente de cards, Parte 1).
+ *
+ * Existe à parte de `cardUpdateSchema` só para aceitar `origin`: é por aqui que
+ * o servidor MCP conclui e deixa a marca de quem concluiu. A atualização comum
+ * continua recusando `origin`, e o front conclui por ela.
+ */
+export const cardCompleteSchema = z.object({
+  completed: z.boolean(),
+  origin: origemMcpSchema.optional(),
+});
 
 /**
  * RN-02: `position` é o índice desejado na coluna de destino, já sem o card
@@ -141,6 +154,7 @@ export const cardMoveSchema = z.object({
 
 export type CardInput = z.input<typeof cardInputSchema>;
 export type CardUpdateInput = z.input<typeof cardUpdateSchema>;
+export type CardCompleteInput = z.infer<typeof cardCompleteSchema>;
 export type CardMoveInput = z.infer<typeof cardMoveSchema>;
 
 /* --------------------------------------------------------------- retorno */
@@ -176,6 +190,10 @@ export interface CardSummary {
   updatedAt: string;
   /// Etapa C da frente de IA: `null` quando o card é humano.
   ai: AiMark | null;
+  /// Frente de cards, Parte 1: concluir não move o card nem o tira do quadro.
+  completedAt: string | null;
+  /// Quem concluiu, quando foi o assistente. Ver `AiCompletion`.
+  aiCompletion: AiCompletion | null;
 }
 
 export interface ColumnDetail {

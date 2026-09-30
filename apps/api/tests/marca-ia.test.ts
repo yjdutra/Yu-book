@@ -472,19 +472,20 @@ describe("apagar a conversa não apaga a marca", () => {
   });
 });
 
-describe("CA-21 / RN-12: o chat escreve só criando", () => {
-  test("o catálogo oferecido ao provedor tem oito ações, e nenhuma de mover ou apagar", () => {
-    // Sete do acervo mais `open_page`, da web (Etapa G).
+describe("CA-21 / RN-12: o chat escreve criando e concluindo, nunca movendo nem apagando", () => {
+  test("o catálogo oferecido ao provedor tem nove ações, e nenhuma de mover ou apagar", () => {
+    // Oito do acervo — as leituras, as duas criações e, desde a Parte 1 da
+    // frente de cards, `complete_card` — mais `open_page`, da web (Etapa G).
     const nomes = catalogoParaProvedor(FERRAMENTAS_DO_CHAT).map((f) => f.function.name);
 
-    expect(nomes).toHaveLength(8);
-    expect(new Set(nomes).size).toBe(8);
+    expect(nomes).toHaveLength(9);
+    expect(new Set(nomes).size).toBe(9);
     expect(nomes).not.toContain("move_card");
     expect(nomes).not.toContain("trash_note");
     expect(nomes).not.toContain("restore_note");
   });
 
-  test("toda ação de escrita que o catálogo compartilhado tem, fora as duas criações, fica fora", () => {
+  test("toda ação de escrita do catálogo compartilhado, fora as duas criações e a conclusão, fica fora", () => {
     // Derivado do catálogo, e não enumerado: uma ação de escrita nova em
     // `ferramentas.ts` não pode entrar no chat só por existir lá (RN-12).
     const oferecidas = new Set(catalogoParaProvedor(FERRAMENTAS_DO_CHAT).map((f) => f.function.name));
@@ -493,8 +494,8 @@ describe("CA-21 / RN-12: o chat escreve só criando", () => {
     );
 
     const escritasOferecidas = escritas.filter((n) => oferecidas.has(n)).sort();
-    expect(escritasOferecidas).toEqual(["create_card", "create_note"]);
-    // E o inverso: toda leitura está lá — senão o "sete" fecharia por troca.
+    expect(escritasOferecidas).toEqual(["complete_card", "create_card", "create_note"]);
+    // E o inverso: toda leitura está lá — senão o "nove" fecharia por troca.
     const leituras = (Object.keys(FERRAMENTAS_DO_ACERVO) as NomeDeFerramenta[]).filter(
       (n) => !FERRAMENTAS_DO_ACERVO[n].escrita,
     );
@@ -678,5 +679,324 @@ describe("RF-40: o texto que o MCP e o chat leem traz a marca", () => {
     // O detalhe custa token numa lista: autor e data não entram na linha.
     expect(linhaGerada).not.toContain("Cursor");
     expect(linhaHumana).not.toContain("IA");
+  });
+});
+
+/**
+ * Frente de cards, Parte 1: a marca de **quem concluiu**.
+ *
+ * Não é a marca de geração e não segue as regras dela. A de geração nunca
+ * some; esta acompanha o estado — diz quem pôs o card concluído, e vai a
+ * `null` quando alguém o reabre ou o conclui à mão. O que as duas têm em comum
+ * é a porta: só o servidor grava, pelo contexto do chat ou pelo `origin` do MCP
+ * numa rota que o aceita, e o `PATCH` comum não é essa rota.
+ */
+describe("INV-63: a marca de quem concluiu acompanha o estado, e só o servidor a grava", () => {
+  async function novoCard(titulo: string, origin?: Record<string, unknown>): Promise<CardDetail> {
+    const r = await chamar(app, {
+      method: "POST",
+      url: "/cards",
+      token: dono.token,
+      body: { columnId: colunaId, title: titulo, ...(origin && { origin }) },
+    });
+    expect(r.status).toBe(201);
+    return r.body as CardDetail;
+  }
+
+  const concluirPelaRota = (usuario: Usuario, id: string, corpo: Record<string, unknown>) =>
+    chamar(app, { method: "PATCH", url: `/cards/${id}/complete`, token: usuario.token, body: corpo });
+
+  const salvarCard = (id: string, corpo: Record<string, unknown>) =>
+    chamar(app, { method: "PATCH", url: `/cards/${id}`, token: dono.token, body: corpo });
+
+  const MCP = { via: "mcp", author: "Claude Desktop" };
+
+  test("/complete com origin mcp conclui e grava via mcp e o nome do cliente, sem agente", async () => {
+    const card = await novoCard("Concluído pelo MCP");
+
+    const r = await concluirPelaRota(dono, card.id, { completed: true, origin: MCP });
+
+    expect(r.status).toBe(200);
+    const concluido = r.body as CardDetail;
+    expect(concluido.completedAt).toEqual(expect.any(String));
+    expect(concluido.aiCompletion).toEqual({ via: "mcp", author: "Claude Desktop", agentName: null });
+    // O que a rota devolveu é o que ficou gravado.
+    expect(await lerCard(card.id)).toMatchObject({
+      completedAt: concluido.completedAt,
+      aiCompletion: concluido.aiCompletion,
+    });
+  });
+
+  test("ninguém conclui em nome do chat pelo corpo: origin chat em /complete é 422, e o card fica aberto", async () => {
+    const card = await novoCard("Falsa conclusão do chat");
+    const conversa = await novaConversa(intruso);
+
+    const r = await concluirPelaRota(dono, card.id, {
+      completed: true,
+      origin: { via: "chat", author: "x", conversationId: conversa },
+    });
+
+    expect(r.status).toBe(422);
+    const depois = await lerCard(card.id);
+    expect(depois.completedAt).toBeNull();
+    expect(depois.aiCompletion).toBeNull();
+  });
+
+  test("PATCH /cards/:id não grava quem concluiu: origin sozinho é 422, e junto de completed é ignorado", async () => {
+    const card = await novoCard("Conclusão à mão com origin");
+
+    const soOrigem = await salvarCard(card.id, { origin: MCP });
+    expect(soOrigem.status).toBe(422);
+    expect((await lerCard(card.id)).completedAt).toBeNull();
+
+    await salvarCard(card.id, { completed: true, origin: MCP });
+
+    const depois = await lerCard(card.id);
+    expect(depois.completedAt).toEqual(expect.any(String));
+    expect(depois.aiCompletion).toBeNull();
+  });
+
+  test("reabrir apaga a marca, e concluir à mão depois deixa a conclusão sem marca", async () => {
+    const card = await novoCard("Concluído, reaberto e concluído à mão");
+    await concluirPelaRota(dono, card.id, { completed: true, origin: MCP });
+
+    const reaberto = (await salvarCard(card.id, { completed: false })).body as CardDetail;
+    expect(reaberto.completedAt).toBeNull();
+    expect(reaberto.aiCompletion).toBeNull();
+
+    const aMao = (await salvarCard(card.id, { completed: true })).body as CardDetail;
+    expect(aMao.completedAt).toEqual(expect.any(String));
+    expect(aMao.aiCompletion).toBeNull();
+  });
+
+  test("concluir de novo um card concluído não troca a data nem quem concluiu, por nenhuma das portas", async () => {
+    const card = await novoCard("Reconcluído");
+    await concluirPelaRota(dono, card.id, { completed: true, origin: MCP });
+    // Data fixa no passado: a mesma requisição no mesmo milissegundo não
+    // pode fazer o teste passar por coincidência.
+    const antiga = new Date("2026-01-15T12:00:00.000Z");
+    await prisma.card.update({ where: { id: card.id }, data: { completedAt: antiga } });
+
+    // O painel do front reenvia `completed` igual a cada salvar.
+    await salvarCard(card.id, { completed: true });
+    await concluirPelaRota(dono, card.id, {
+      completed: true,
+      origin: { via: "mcp", author: "Outro cliente" },
+    });
+    await executar(
+      "complete_card",
+      { cardId: card.id },
+      contextoDoChat(dono, await novaConversa(dono), "estudio/outro"),
+    );
+
+    const depois = await lerCard(card.id);
+    expect(depois.completedAt).toBe(antiga.toISOString());
+    expect(depois.aiCompletion).toEqual({ via: "mcp", author: "Claude Desktop", agentName: null });
+  });
+
+  test("RN-11: concluir e reabrir não mexe na marca de geração e não é revisão", async () => {
+    const card = await novoCard("Gerado e concluído", { via: "mcp", author: "Cursor" });
+    expect(card.ai).not.toBeNull();
+
+    await concluirPelaRota(dono, card.id, { completed: true, origin: MCP });
+    expect((await lerCard(card.id)).ai).toEqual(card.ai);
+
+    await salvarCard(card.id, { completed: false });
+    await salvarCard(card.id, { completed: true });
+
+    const depois = await lerCard(card.id);
+    expect(depois.ai).toEqual(card.ai);
+    expect(depois.ai?.revisedAt).toBeNull();
+  });
+
+  test("card humano concluído pelo MCP continua humano: concluir não gera a marca de geração", async () => {
+    const card = await novoCard("Humano concluído pela IA");
+
+    await concluirPelaRota(dono, card.id, { completed: true, origin: MCP });
+
+    const depois = await lerCard(card.id);
+    expect(depois.ai).toBeNull();
+    expect(depois.aiCompletion).toMatchObject({ via: "mcp" });
+  });
+});
+
+describe("o executor de complete_card no chat", () => {
+  async function cardHumano(titulo: string): Promise<CardDetail> {
+    return (
+      await chamar(app, {
+        method: "POST",
+        url: "/cards",
+        token: dono.token,
+        body: { columnId: colunaId, title: titulo },
+      })
+    ).body as CardDetail;
+  }
+
+  test("conclui com a origem do contexto — via chat e o modelo que respondeu — e não conta como criado", async () => {
+    const card = await cardHumano("Concluído pelo chat");
+    const conversa = await novaConversa(dono);
+
+    const saida = await executar(
+      "complete_card",
+      { cardId: card.id },
+      contextoDoChat(dono, conversa, "estudio/conversa-v3"),
+    );
+
+    expect(saida.criados).toEqual([]);
+    const depois = await lerCard(card.id);
+    expect(depois.completedAt).toEqual(expect.any(String));
+    expect(depois.aiCompletion).toEqual({
+      via: "chat",
+      author: "estudio/conversa-v3",
+      agentName: null,
+    });
+    // O card não virou conteúdo gerado nem saiu do lugar.
+    expect(depois.ai).toBeNull();
+    expect(depois.columnId).toBe(card.columnId);
+    expect(depois.position).toBe(card.position);
+    // O que volta ao modelo diz que concluiu, e quem.
+    expect(saida.texto).toContain("concluído em");
+    expect(saida.texto).toContain("por IA via chat");
+  });
+
+  test("numa conversa de agente, a marca leva o nome do agente", async () => {
+    const card = await cardHumano("Concluído por agente");
+    const conversa = await novaConversa(dono);
+    const contexto = contextoDoChat(dono, conversa, "estudio/agente");
+
+    await executar(
+      "complete_card",
+      { cardId: card.id },
+      { ...contexto, origem: { ...contexto.origem, agentName: "Organizador" } },
+    );
+
+    expect((await lerCard(card.id)).aiCompletion).toEqual({
+      via: "chat",
+      author: "estudio/agente",
+      agentName: "Organizador",
+    });
+  });
+
+  test("completed false reabre, e a marca de quem concluiu some junto", async () => {
+    const card = await cardHumano("Reaberto pelo chat");
+    const contexto = contextoDoChat(dono, await novaConversa(dono));
+    await executar("complete_card", { cardId: card.id }, contexto);
+
+    const saida = await executar("complete_card", { cardId: card.id, completed: false }, contexto);
+
+    expect(saida.criados).toEqual([]);
+    const depois = await lerCard(card.id);
+    expect(depois.completedAt).toBeNull();
+    expect(depois.aiCompletion).toBeNull();
+    expect(saida.texto).not.toContain("concluído em");
+  });
+
+  test("INV-02: card de outra conta é 404 para o modelo, e o card não muda", async () => {
+    const card = await cardHumano("Card que o intruso não conclui");
+    const conversa = await novaConversa(intruso);
+
+    await expect(
+      executar("complete_card", { cardId: card.id }, contextoDoChat(intruso, conversa)),
+    ).rejects.toMatchObject({ statusCode: 404, code: "NOT_FOUND" });
+
+    expect((await lerCard(card.id)).completedAt).toBeNull();
+  });
+
+  test("RN-14: sem complete_card na lista do agente, o pedido é ferramenta desconhecida", async () => {
+    const card = await cardHumano("Card fora do alcance do agente");
+    const contexto = contextoDoChat(dono, await novaConversa(dono));
+
+    await expect(
+      executar(
+        "complete_card",
+        { cardId: card.id },
+        { ...contexto, permitidas: ["search_notes", "get_board", "create_card"] },
+      ),
+    ).rejects.toMatchObject({ statusCode: 422, code: "VALIDATION_ERROR" });
+
+    expect((await lerCard(card.id)).completedAt).toBeNull();
+  });
+});
+
+describe("RF-40: o texto que o MCP e o chat leem diz que o card está concluído", () => {
+  test("no detalhe, a linha da conclusão diz o dia e, se foi o assistente, por onde, qual agente e quem", async () => {
+    const humano = (
+      await chamar(app, {
+        method: "POST",
+        url: "/cards",
+        token: dono.token,
+        body: { columnId: colunaId, title: "Detalhe concluído à mão" },
+      })
+    ).body as CardDetail;
+    const aMao = (
+      await chamar(app, {
+        method: "PATCH",
+        url: `/cards/${humano.id}`,
+        token: dono.token,
+        body: { completed: true },
+      })
+    ).body as CardDetail;
+    const dia = diaLocal(new Date(aMao.completedAt ?? ""), FUSO_PADRAO);
+
+    const textoAMao = formatarCardDetalhe(aMao, FUSO_PADRAO);
+    expect(textoAMao).toContain(`concluído em ${dia}`);
+    expect(textoAMao).not.toContain("por IA");
+
+    const contexto = contextoDoChat(dono, await novaConversa(dono), "estudio/modelo");
+    const outro = (
+      await chamar(app, {
+        method: "POST",
+        url: "/cards",
+        token: dono.token,
+        body: { columnId: colunaId, title: "Detalhe concluído por agente" },
+      })
+    ).body as CardDetail;
+    await executar(
+      "complete_card",
+      { cardId: outro.id },
+      { ...contexto, origem: { ...contexto.origem, agentName: "Organizador" } },
+    );
+    const pelaIa = await lerCard(outro.id);
+    const diaIa = diaLocal(new Date(pelaIa.completedAt ?? ""), FUSO_PADRAO);
+
+    expect(formatarCardDetalhe(pelaIa, FUSO_PADRAO)).toContain(
+      `concluído em ${diaIa} · por IA via chat · «Organizador» · estudio/modelo`,
+    );
+  });
+
+  test("na linha do quadro, o concluído vem logo depois do título, antes do prazo", async () => {
+    const card = (
+      await chamar(app, {
+        method: "POST",
+        url: "/cards",
+        token: dono.token,
+        body: { columnId: colunaId, title: "Linha concluída", dueDate: "2026-01-10T12:00:00.000Z" },
+      })
+    ).body as CardDetail;
+    const aberto = (
+      await chamar(app, {
+        method: "POST",
+        url: "/cards",
+        token: dono.token,
+        body: { columnId: colunaId, title: "Linha aberta" },
+      })
+    ).body as CardDetail;
+    await chamar(app, {
+      method: "PATCH",
+      url: `/cards/${card.id}`,
+      token: dono.token,
+      body: { completed: true },
+    });
+
+    const board = (await chamar(app, { method: "GET", url: `/boards/${boardId}`, token: dono.token }))
+      .body as BoardDetail;
+    const faces = board.columns.flatMap((c) => c.cards);
+    const face = faces.find((c) => c.id === card.id);
+    const faceAberta = faces.find((c) => c.id === aberto.id);
+
+    const linha = formatarCard(face!, FUSO_PADRAO).split("\n")[0] ?? "";
+    // Um prazo passado lido antes de "concluído" parece atraso.
+    expect(linha.startsWith("- Linha concluída · concluído · prazo ")).toBe(true);
+    expect(formatarCard(faceAberta!, FUSO_PADRAO)).not.toContain("concluído");
   });
 });

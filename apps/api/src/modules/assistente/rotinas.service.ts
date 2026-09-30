@@ -559,9 +559,9 @@ export function entradaPorColuna(rotina: {
 /**
  * Os cards que o próximo "Rodar agora" pode pegar, na ordem da coluna.
  *
- * **Idempotência pelo registro, não pela posição.** Elegível é o card ativo da
- * entrada que não tem execução `concluida` nem `em_andamento` **desta**
- * rotina. Com a ação "manter", a ideia usada continua na coluna e é pulada; a
+ * **Idempotência pelo registro, não pela posição.** Elegível é o card ativo e
+ * não concluído da entrada que não tem execução `concluida` nem `em_andamento`
+ * **desta** rotina. Com a ação "manter", a ideia usada continua na coluna e é pulada; a
  * que falhou ou foi cancelada volta a ser a primeira. A posse vai na mesma
  * consulta, pela cadeia até o quadro declarado (INV-03).
  */
@@ -569,6 +569,9 @@ export function ondeElegivel(userId: string, rotina: EntradaPorColuna): Prisma.C
   return {
     columnId: rotina.inputColumnId,
     archived: false,
+    // Frente de cards, Parte 1: ideia concluída já foi resolvida, e fica na
+    // coluna só porque concluir não move o card.
+    completedAt: null,
     column: { boardId: rotina.inputBoardId, board: { userId } },
     runsComoIdeia: {
       none: { routineId: rotina.id, status: { in: ["concluida", "em_andamento"] } },

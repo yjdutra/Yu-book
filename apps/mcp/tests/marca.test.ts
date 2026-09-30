@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_AUTOR_IA } from "@yu-book/shared";
-import type { AiMark } from "@yu-book/shared";
+import type { AiCompletion, AiMark, CardDetail } from "@yu-book/shared";
 import { registroDeClientes } from "../src/auth/provedor.js";
 import { abrirCliente, identidade } from "./arnes.js";
 
@@ -97,11 +97,24 @@ function nota(corpo: Record<string, unknown>, id = NOTA_ID, ai: AiMark = MARCA_M
   };
 }
 
-function card(corpo: Record<string, unknown>) {
+const CARD_ID = "33333333-3333-4333-8333-333333333333";
+
+/**
+ * Tipado pelo contrato, como as marcas: `completedAt` e `aiCompletion` entraram
+ * em `CardSummary` na frente de cards, e um dublê literal teria ficado sem eles
+ * calado.
+ */
+function card(
+  corpo: Record<string, unknown>,
+  conclusao: { completedAt: string | null; aiCompletion: AiCompletion | null } = {
+    completedAt: null,
+    aiCompletion: null,
+  },
+): CardDetail {
   return {
-    id: "33333333-3333-4333-8333-333333333333",
+    id: CARD_ID,
     columnId: COLUNA_ID,
-    title: corpo["title"],
+    title: String(corpo["title"]),
     position: 0,
     dueDate: null,
     priority: "media",
@@ -111,6 +124,7 @@ function card(corpo: Record<string, unknown>) {
     note: null,
     updatedAt: AGORA,
     ai: MARCA_MCP,
+    ...conclusao,
     boardId: "11111111-1111-4111-8111-111111111111",
     boardName: "Quadro",
     columnName: "Fazer",
@@ -142,6 +156,21 @@ beforeEach(() => {
       return json(nota(corpo ?? {}), 201);
     }
     if (metodo === "POST" && String(url).endsWith("/cards")) return json(card(corpo ?? {}), 201);
+    if (metodo === "PATCH" && String(url).endsWith(`/cards/${CARD_ID}/complete`)) {
+      // O que a API faria com o corpo: `origin` vira a marca de quem concluiu.
+      const concluir = corpo?.["completed"] === true;
+      const origem = corpo?.["origin"] as { via: "mcp"; author: string } | undefined;
+      return json(
+        card(
+          { title: "Ler" },
+          {
+            completedAt: concluir ? AGORA : null,
+            aiCompletion:
+              concluir && origem ? { via: origem.via, author: origem.author, agentName: null } : null,
+          },
+        ),
+      );
+    }
     if (metodo === "GET" && String(url).endsWith(`/notes/${NOTA_DE_AGENTE_ID}`)) {
       return json(
         nota({ title: "Pauta", contentMd: "corpo" }, NOTA_DE_AGENTE_ID, MARCA_DE_AGENTE),
@@ -245,6 +274,62 @@ describe("o autor da marca de IA", () => {
       expect(autor).toHaveLength(MAX_AUTOR_IA);
     } finally {
       await longo.encerrar();
+    }
+  });
+});
+
+describe("complete_card", () => {
+  const patch = () => chamadas.find((c) => c.metodo === "PATCH");
+
+  it("chama a rota própria de conclusão, com origin — e não o PATCH comum, que a ignora", async () => {
+    const id = await clienteOAuth("Claude Desktop");
+    const cliente = await abrirCliente({ escrita: true }, comCliente(id));
+    try {
+      const r = await cliente.chamarTool("complete_card", { cardId: CARD_ID });
+
+      expect(r.isError).toBeFalsy();
+      expect(chamadas.filter((c) => c.metodo === "PATCH")).toHaveLength(1);
+      expect(patch()?.url.endsWith(`/cards/${CARD_ID}/complete`)).toBe(true);
+      // Omitir `completed` é concluir.
+      expect(patch()?.corpo).toEqual({
+        completed: true,
+        origin: { via: "mcp", author: "Claude Desktop" },
+      });
+      expect(texto(r)).toContain("Card concluído.");
+      expect(texto(r)).toContain("por IA via mcp · Claude Desktop");
+    } finally {
+      await cliente.encerrar();
+    }
+  });
+
+  it("completed false reabre pela mesma rota, com origin", async () => {
+    const cliente = await abrirCliente(
+      { escrita: true, nomeDoCliente: "Cursor" },
+      identidade(["yubook:read", "yubook:write"]),
+    );
+    try {
+      const r = await cliente.chamarTool("complete_card", { cardId: CARD_ID, completed: false });
+
+      expect(r.isError).toBeFalsy();
+      expect(patch()?.url.endsWith(`/cards/${CARD_ID}/complete`)).toBe(true);
+      expect(patch()?.corpo).toEqual({ completed: false, origin: { via: "mcp", author: "Cursor" } });
+      expect(texto(r)).toContain("Card reaberto.");
+      expect(texto(r)).not.toContain("concluído em");
+    } finally {
+      await cliente.encerrar();
+    }
+  });
+
+  it("só existe com a escrita liberada", async () => {
+    const token = identidade(["yubook:read", "yubook:write"]);
+    const sem = await abrirCliente({ escrita: false }, token);
+    const com = await abrirCliente({ escrita: true }, token);
+    try {
+      expect((await sem.listarTools()).map((t) => t.name)).not.toContain("complete_card");
+      expect((await com.listarTools()).map((t) => t.name)).toContain("complete_card");
+    } finally {
+      await sem.encerrar();
+      await com.encerrar();
     }
   });
 });

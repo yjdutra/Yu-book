@@ -141,6 +141,17 @@ export function invalidarCriados(qc: QueryClient, criados: ChatCreated[]): void 
 }
 
 /**
+ * O chat concluiu ou reabriu card (frente de cards, Parte 1). O pedido da
+ * ferramenta não diz qual card nem se deu certo — o quadro, o painel e a home
+ * vão inteiros, pelo mesmo motivo de `invalidarCriados`.
+ */
+export function invalidarConclusao(qc: QueryClient): void {
+  void qc.invalidateQueries({ queryKey: ["board"] });
+  void qc.invalidateQueries({ queryKey: ["card"] });
+  void qc.invalidateQueries({ queryKey: ["dashboard"] });
+}
+
+/**
  * Lê o `text/event-stream` da resposta, entregando cada evento a quem chamou.
  *
  * É a única leitura incremental de corpo HTTP do front. Três cuidados que não

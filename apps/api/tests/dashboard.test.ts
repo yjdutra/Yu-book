@@ -220,3 +220,57 @@ test("o dashboard de um usuário nunca mostra dado de outro", async () => {
   expect(chutando.prazos.vencidos).toHaveLength(0);
   expect(chutando.notas).toHaveLength(0);
 });
+
+// Frente de cards, Parte 1 / RF-11: o card concluído continua no quadro, mas
+// não cobra prazo — nem na lista, nem no número que o painel mostra ao lado.
+test("card concluído sai de vencidos e próximos, e dos totais; reaberto, volta", async () => {
+  // Conta própria: os outros testes deste arquivo acumulam cards no dono, e o
+  // total só prova alguma coisa num quadro que se conhece inteiro.
+  const usuario = await criarUsuario("dash-concluido");
+  const ws = await prisma.workspace.create({ data: { userId: usuario.id, name: "Concluídos" } });
+  const board = (
+    await chamar(app, {
+      method: "POST",
+      url: "/boards",
+      token: usuario.token,
+      body: { name: "Prazos concluídos", workspaceId: ws.id },
+    })
+  ).body as BoardDetail;
+  const coluna = board.columns[0]?.id as string;
+  const criar = async (title: string, dueDate: Date) =>
+    (
+      await chamar(app, {
+        method: "POST",
+        url: "/cards",
+        token: usuario.token,
+        body: { columnId: coluna, title, dueDate: dueDate.toISOString() },
+      })
+    ).body as CardDetail;
+  const concluir = (id: string, completed: boolean) =>
+    chamar(app, { method: "PATCH", url: `/cards/${id}`, token: usuario.token, body: { completed } });
+
+  const vencidoConcluido = await criar("Vencido e concluído", emDias(-2));
+  await criar("Vencido aberto", emDias(-1));
+  const proximoConcluido = await criar("Próximo e concluído", emDias(2));
+  await criar("Próximo aberto", emDias(3));
+  await concluir(vencidoConcluido.id, true);
+  await chamar(app, {
+    method: "PATCH",
+    url: `/cards/${proximoConcluido.id}/complete`,
+    token: usuario.token,
+    body: { completed: true, origin: { via: "mcp", author: "Claude Desktop" } },
+  });
+
+  const { prazos } = await dashboard(undefined, usuario.token);
+
+  expect(prazos.vencidos.map((c) => c.title)).toEqual(["Vencido aberto"]);
+  expect(prazos.proximos.map((c) => c.title)).toEqual(["Próximo aberto"]);
+  expect(prazos.totalVencidos).toBe(1);
+  expect(prazos.totalProximos).toBe(1);
+
+  await concluir(vencidoConcluido.id, false);
+
+  const depois = await dashboard(undefined, usuario.token);
+  expect(depois.prazos.vencidos.map((c) => c.title)).toEqual(["Vencido e concluído", "Vencido aberto"]);
+  expect(depois.prazos.totalVencidos).toBe(2);
+});

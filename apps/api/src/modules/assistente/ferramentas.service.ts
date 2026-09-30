@@ -32,12 +32,14 @@ import { abrirPagina, paginaComoTexto } from "../web/pagina.service.js";
  * CA-11 (o texto de uma nota pelo chat é idêntico ao de `yubook://nota/{id}`)
  * valer por construção, e não por alguém lembrar de conferir.
  *
- * **O chat lê e cria; não move, não apaga, não edita.** Desde a Etapa C da
- * frente de IA, `create_card` e `create_note` têm executor, e o que eles criam
- * nasce com a marca de conteúdo gerado — a origem vem do contexto, montado pelo
- * servidor a partir da conversa, nunca dos argumentos do modelo. As outras três
- * ações de escrita seguem **sem executor**: um executor a mais neste mapa é a
- * diferença entre um chat que cria a pedido e um que apaga nota.
+ * **O chat lê, cria e conclui card; não move, não apaga, não edita texto.**
+ * Desde a Etapa C da frente de IA, `create_card` e `create_note` têm executor,
+ * e o que eles criam nasce com a marca de conteúdo gerado — a origem vem do
+ * contexto, montado pelo servidor a partir da conversa, nunca dos argumentos do
+ * modelo. Desde a Parte 1 da frente de cards, `complete_card` também, e deixa a
+ * marca de quem concluiu pelo mesmo caminho. As outras três ações de escrita
+ * seguem **sem executor**: um executor a mais neste mapa é a diferença entre
+ * um chat que cria a pedido e um que apaga nota.
  *
  * **Desde a Etapa G uma ação sai do acervo**: `open_page`, de
  * `FERRAMENTAS_DA_WEB`, que o MCP não publica. O mapa abaixo cobre as duas
@@ -231,6 +233,19 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
     );
     const criado = { tipo: "note" as const, id: nota.id, titulo: nota.title };
     return { texto: formatarNotaBreve(nota), fontes: [], criados: [criado] };
+  },
+
+  /// Não entra em `criados`: não há nada novo a mostrar nem a desfazer pelo
+  /// chat — reabrir é a mesma ação com `completed: false`.
+  complete_card: async (argumentos, { userId, fuso, origem }) => {
+    const entrada = conferir(FERRAMENTAS_DO_ACERVO.complete_card.entrada, argumentos);
+    const card = await kanban.concluirCard(
+      userId,
+      entrada.cardId,
+      entrada.completed ?? true,
+      origem,
+    );
+    return { texto: formatarCardDetalhe(card, fuso), fontes: [], criados: [] };
   },
 
   move_card: undefined,

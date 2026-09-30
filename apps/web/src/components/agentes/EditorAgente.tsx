@@ -529,10 +529,12 @@ export function EditorAgente({ id }: { id: string | null }) {
         }
         rotulo={f.titulo}
         descricao={
-          f.escrita
-            ? `${f.explicacao} O que criar fica marcado como gerado por IA, ` +
-              "com o nome do agente."
-            : f.explicacao
+          f.nome === "complete_card"
+            ? `${f.explicacao} A conclusão fica marcada como feita por IA, com o nome do agente.`
+            : f.escrita
+              ? `${f.explicacao} O que criar fica marcado como gerado por IA, ` +
+                "com o nome do agente."
+              : f.explicacao
         }
         extra={
           f.escrita ? (

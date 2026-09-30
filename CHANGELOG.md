@@ -17,6 +17,96 @@ _Nada pendente._
 
 ---
 
+## [0.26.0] — 2026-09-30
+
+**Frente de cards, Parte 1: o estado de concluído.** Card ganha um estado de concluído que não
+depende da coluna. **Concluir não move o card:** ele fica onde estava, esmaecido, sai dos prazos da
+tela inicial e deixa de ser ideia elegível de rotina. Concluem o usuário, o chat e um cliente MCP.
+Quando é a IA, o card guarda quem concluiu, numa marca separada da marca de geração.
+
+**É uma numeração nova, e não se converte nas outras.** A frente de cards tem duas partes; a Parte
+2, anexos de arquivo no card, vem depois. Não é fase de produto, nem etapa da frente de IA (A a G),
+nem etapa do MCP, que segue na 4 de 5. Não tem PRD nem identificadores próprios: os `RN-xx` e
+`RF-xx` citados abaixo são os do PRD de IA, de onde vêm as regras da marca.
+
+**É a primeira escrita do chat que não é criação.** Até aqui o chat criava card e nota e mais nada.
+Agora também conclui e reabre card, sempre a pedido. Continua sem mover, apagar e editar texto.
+
+**Os quatro pacotes se movem**, porque `packages/shared` mudou de contrato. Entraram
+`cardCompleteSchema`, `CardCompleteInput` e `AiCompletion`. `CardSummary`, e com ele `CardDetail`,
+ganhou `completedAt` e `aiCompletion`, os dois obrigatórios no tipo. `cardUpdateSchema` aceita
+`completed`. `FERRAMENTAS_DO_ACERVO` ganhou `complete_card`, que entrou em `FERRAMENTAS_DO_CHAT` e
+`FERRAMENTAS_SEM_AGENTE`. Versões: `packages/shared` de `0.14.0` para `0.15.0`, `apps/api` de
+`0.16.0` para `0.17.0`, `apps/web` de `0.21.0` para `0.22.0` e `apps/mcp` de `0.17.0` para
+`0.18.0`, no `package.json` **e** no construtor do `McpServer`.
+
+**Uma migration aditiva**, `20260930120000_frente_cards_concluido`: quatro colunas anuláveis em
+`card` (`completed_at`, `ai_completed_via`, `ai_completed_author` e `ai_completed_agent_name`).
+Nenhum card existente fica concluído.
+
+Portões, rodados no fechamento: `pnpm typecheck` limpo, `pnpm --filter @yu-book/api test` com
+**408 testes** (eram 383) e `pnpm --filter @yu-book/mcp test` com **60 testes** (eram 57). Dos 25
+novos da API, 14 estão em `marca-ia.test.ts`, 5 em `kanban.test.ts`, 3 em `agentes.test.ts`, 2 em
+`rotinas.test.ts` e 1 em `dashboard.test.ts`. Os 3 do MCP estão em `marca.test.ts`.
+
+**A interface foi implementada e não verificada.** Nenhum portão cobre `apps/web`, e ninguém abriu a
+tela, nem à mão nem em navegador headless. Faltam conferir o check na face do card (mouse, Tab e
+leitor de tela), o esmaecido nos dois temas, o botão Concluir/Reabrir e a linha de conclusão no
+painel, o desfazer da face quando o servidor recusa, e o quadro e a home se atualizando depois que o
+chat conclui. Fica para a conferência à mão do operador.
+
+### Adicionado
+- **Concluir e reabrir card, à mão.** Um check no canto da face do card aparece ao passar o mouse ou
+  ao chegar pelo Tab, e fica aceso enquanto o card está concluído. O painel do card ganhou o botão
+  "Concluir"/"Reabrir" no rodapé. O check não abre o painel nem começa arraste, e a face muda na
+  hora, sem esperar o servidor. Se o servidor recusar, ela volta e um aviso explica.
+- **Card concluído fica no quadro, esmaecido**, na mesma coluna e posição. O prazo continua
+  visível, no tom neutro, e não aparece como vencido. O leitor de tela ouve "concluído" no nome do
+  card.
+- **O painel diz quando e por quem**: "Concluído em …" e, quando foi a IA, "por IA", o agente, se
+  houver, e se veio do chat ou do MCP.
+- **Marca de quem concluiu.** Quando o chat ou um cliente MCP conclui, o card guarda a via, o autor
+  (o modelo que respondeu, ou o nome do cliente MCP) e o agente da conversa. Ao contrário da marca
+  de geração, ela acompanha o estado: reabrir o card, ou concluí-lo à mão depois, a apaga.
+- **Ferramenta `complete_card`**, que conclui um card, ou o reabre com `completed: false`, sem
+  movê-lo. O servidor MCP passa a publicar onze tools, seis delas de escrita, e esta fica atrás da
+  mesma trava das outras cinco. O chat sem agente a recebe. Um agente só a recebe se ela for
+  marcada no editor, e os agentes existentes continuam sem ela. **Rotina não conclui:** a
+  ferramenta sai da lista dos passos, que só leem.
+- Rota `PATCH /cards/:id/complete`, com `{ completed, origin }`, que é a porta do servidor MCP.
+  `PATCH /cards/:id` passou a aceitar `completed`, que é a porta do front e não grava marca.
+
+### Alterado
+- **Card concluído sai dos prazos da tela inicial**, de vencidos, de próximos e dos totais, como o
+  arquivado (RF-11). Reaberto, volta.
+- **Ideia concluída não é elegível para rotina por coluna.** Fica na coluna de entrada, porque
+  concluir não move, e o "Rodar agora" e o agendamento a pulam.
+- **O texto que o MCP e o chat leem diz que o card está concluído.** No quadro (`get_board`),
+  "concluído" vem logo depois do título e antes do prazo, para que um prazo passado não seja lido
+  como atraso. No detalhe do card, uma linha nova diz o dia da conclusão e, se foi a IA, por onde,
+  o agente e quem. A descrição de `get_board` passou a dizer que o card concluído continua na
+  coluna.
+- As instruções do assistente trocaram "não move, não apaga nem edita nada" por "só conclui ou
+  reabre card, e só a pedido", com um bloco próprio que diz que concluir não é mover para "Feito".
+  Sem `complete_card` na lista do agente, o texto de antes fica inteiro.
+- O prompt de revisão do MCP inclui concluir cards entre as ações que o modelo só propõe.
+- Concluir e reabrir não são revisão do texto. A marca de geração de um card gerado por IA não vira
+  "revisada" (RN-11), e card humano concluído pela IA continua humano.
+- Card arquivado também se conclui, e volta ao quadro concluído ao ser desarquivado.
+- **Concluir de novo não troca a data nem quem concluiu**, por nenhuma das portas. A condição sobre
+  o estado vai no próprio `UPDATE` (INV-04). Dois pedidos simultâneos, como o clique no quadro e o
+  chat, não sobrescrevem a primeira conclusão.
+
+### Segurança
+- **A marca de quem concluiu é gravada só pelo servidor.** `PATCH /cards/:id` recusa `origin`
+  sozinho com 422 e o ignora junto de `completed`. `PATCH /cards/:id/complete` aceita só a origem
+  `mcp`, e a origem de chat vinda no corpo dá 422. O chat grava a sua pela origem que o servidor
+  monta a partir da conversa, nunca pelos argumentos do modelo.
+- `PATCH /cards/:id/complete` confere a posse pela cadeia até o quadro (INV-03). Card de outra
+  conta responde como o inexistente (INV-02), pela rota e pelo chat, e não muda.
+
+---
+
 ## [0.25.1] — 2026-09-28
 
 **Repositório público.** O `README.md` virou a vitrine do projeto, em inglês, e a documentação

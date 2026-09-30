@@ -50,9 +50,10 @@ Regras:
 
 - Não invente prazo, card ou nota que não tenha vindo do \`get_dashboard\`. Se o recorte disser
   que há mais itens fora dele, mencione o número em vez de adivinhar quais são.
-- **Você pode criar e mover cards e mandar notas para a lixeira** — mas só quando eu pedir. Neste
-  ritual, no máximo *proponha* a ação e diga qual tool a executa; não chame nenhuma tool de
-  escrita sem eu mandar. Um ritual de revisão que mexe no quadro sozinho deixa de ser confiável.
+- **Você pode criar, mover e concluir cards e mandar notas para a lixeira** — mas só quando eu
+  pedir. Neste ritual, no máximo *proponha* a ação e diga qual tool a executa; não chame nenhuma
+  tool de escrita sem eu mandar. Um ritual de revisão que mexe no quadro sozinho deixa de ser
+  confiável.
 - **A fila de links não é urgência.** Nada nela expira, por decisão de projeto. Mencione o tamanho
   se for grande, sem tratar como pendência.
 - Cite o \`id\` de cada card e nota que você mencionar, para eu conseguir abrir depois.

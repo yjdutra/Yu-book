@@ -341,6 +341,15 @@ model Card {
   aiRunId          String?   @map("ai_run_id") @db.Uuid
   aiRoutineName    String?   @map("ai_routine_name")
 
+  /// Frente de cards, Parte 1: concluir não move o card nem o tira do quadro.
+  completedAt          DateTime? @map("completed_at")
+  /// Quem concluiu, quando foi o assistente. **Não é a marca de geração**: esta
+  /// acompanha o estado — concluir à mão ou reabrir zera as três. Gravada só
+  /// pelo servidor. `aiCompletedVia` não nulo **é** a marca.
+  aiCompletedVia       AiVia?    @map("ai_completed_via")
+  aiCompletedAuthor    String?   @map("ai_completed_author")
+  aiCompletedAgentName String?   @map("ai_completed_agent_name")
+
   column        BoardColumn    @relation(fields: [columnId], references: [id], onDelete: Cascade)
   note          Note?          @relation(fields: [noteId], references: [id], onDelete: SetNull)
   events        Event[]

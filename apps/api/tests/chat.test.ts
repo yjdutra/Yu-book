@@ -408,10 +408,10 @@ describe("o teto por passo", () => {
 });
 
 describe("o que o modelo pode pedir", () => {
-  test("o catálogo oferecido ao provedor escreve só criando", async () => {
-    // Desde a Etapa C o chat cria nota e card, e só isso. Uma ferramenta de
-    // escrita a mais neste corpo é a diferença entre um chat que cria a pedido
-    // e um que apaga nota.
+  test("o catálogo oferecido ao provedor escreve criando e concluindo, nunca movendo nem apagando", async () => {
+    // Desde a Etapa C o chat cria nota e card; desde a Parte 1 da frente de
+    // cards, também conclui card. Uma ferramenta de escrita a mais neste corpo
+    // é a diferença entre um chat que cria a pedido e um que apaga nota.
     const usuario = await comChat("catalogo");
     const conversa = await novaConversa(usuario);
     dublê.roteiro = [{ tipo: "texto", texto: "oi" }];

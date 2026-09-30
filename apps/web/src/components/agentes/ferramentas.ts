@@ -22,6 +22,7 @@ const EXPLICACAO: Record<NomeDoAssistente, string> = {
   create_card: "Cria um card numa coluna, quando você pedir.",
   create_note: "Cria uma nota nova, quando você pedir.",
   move_card: "Move um card de coluna.",
+  complete_card: "Marca um card como concluído, ou o reabre, quando você pedir — sem movê-lo.",
   trash_note: "Manda uma nota para a lixeira.",
   restore_note: "Tira uma nota da lixeira.",
   open_page:

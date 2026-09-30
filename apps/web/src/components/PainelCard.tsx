@@ -12,10 +12,10 @@ import { Esqueleto } from "./base/Bloco";
 import { Botao, BotaoIcone } from "./base/Botao";
 import { CampoMarkdown } from "./CampoMarkdown";
 import { IndicadorSalvamento } from "./base/IndicadorSalvamento";
-import { IconeAssistente, IconeChevron, IconeClipe, IconeFechar } from "./Icones";
+import { IconeAssistente, IconeCheck, IconeChevron, IconeClipe, IconeFechar } from "./Icones";
 import { RotuloTipo } from "./RotuloTipo";
 import { SeletorDeTags } from "./SeletorDeTags";
-import { FaixaIA } from "./MarcaIA";
+import { FaixaIA, LinhaConclusao } from "./MarcaIA";
 
 /** O `input type="date"` fala yyyy-mm-dd local; o banco fala ISO. */
 function paraCampoData(iso: string | null): string {
@@ -201,6 +201,12 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
         {card.ai && (
           <div className="mt-2">
             <FaixaIA marca={card.ai} />
+          </div>
+        )}
+
+        {card.completedAt && (
+          <div className="mt-2">
+            <LinhaConclusao completedAt={card.completedAt} marca={card.aiCompletion} />
           </div>
         )}
 
@@ -441,6 +447,14 @@ export function PainelCard({ cardId, onFechar, onAbrirNota }: PainelCardProps) {
 
       {/* RF-33 / RF-34 */}
       <footer className="mt-auto flex shrink-0 gap-2 border-t border-ink-800 px-4 py-3">
+        {/* Frente de cards, Parte 1: concluir não move o card nem fecha o painel. */}
+        <Botao
+          variante="secundario"
+          icone={<IconeCheck className="size-3.5" />}
+          onClick={() => aplicar({ completed: card.completedAt === null })}
+        >
+          {card.completedAt ? "Reabrir" : "Concluir"}
+        </Botao>
         <Botao variante="secundario" onClick={() => aplicar({ archived: !card.archived })}>
           {card.archived ? "Desarquivar" : "Arquivar"}
         </Botao>
