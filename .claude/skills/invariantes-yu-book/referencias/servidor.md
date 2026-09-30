@@ -10,7 +10,7 @@ string ou de parâmetro de rota. `request.userId` é preenchido exclusivamente p
 `apps/api/src/lib/authenticate.ts`. Toda query filtra por ele.
 
 **INV-02 — Id de outro usuário devolve 404, não 403.** Existência de recurso alheio não é revelada.
-Documentado em `apps/api/src/modules/kanban/kanban.service.ts:51` (RNF-15).
+Documentado em `apps/api/src/modules/kanban/kanban.service.ts:53` (RNF-15).
 
 **INV-03 — Posse do kanban resolve por cadeia, na mesma query.** `card` e `board_column` **não têm
 coluna `user_id`**. A posse vem de `card → column → board.userId`, dentro do próprio `where` — nunca
@@ -24,7 +24,7 @@ adotou a forma atômica de propósito: a forma checar-depois-agir deixa a posse 
 quem escreve a próxima função**; a atômica a deixa no tipo da consulta.
 
 **Duas exceções antigas, nomeadas — não são precedente.** `atualizarWorkspace`
-(`apps/api/src/modules/organizacao/organizacao.service.ts:83`) faz `findFirst` antes do `update`
+(`apps/api/src/modules/organizacao/organizacao.service.ts:85`) faz `findFirst` antes do `update`
 por id, e `excluir` (`apps/api/src/modules/links/links.service.ts:148`) faz `doUsuario` antes do
 `delete`. As duas **escopam** certo e pagam a corrida; são dívida declarada aqui, não licença.
 Numa revisão: código novo nessa forma é violação, e estas duas não se citam como apoio. Quem for
@@ -44,6 +44,14 @@ parcial. O `Set` `iniciando` (`:145-151`) é só otimização do clique duplo lo
 lugar do índice reabre a corrida. Coberto em `apps/api/tests/rotinas.test.ts:819`. RN-19 vale para
 os dois tipos de entrada; a idempotência pela ideia (RN-18) só existe na entrada por coluna —
 no pedido cada execução é independente (`execucao.service.ts:532-557`, `rotinas.test.ts:2110`).
+
+**Apagar anexo de card é a forma atômica com uma leitura antes, e a leitura não é a guarda.**
+`excluir` (`apps/api/src/modules/arquivos/arquivos.service.ts:234-250`) lê a linha só para ter a
+`key`, e o `deleteMany` repete a cadeia inteira no `where` e testa `count` (`:245-248`): dois
+pedidos simultâneos leem o mesmo anexo, e o segundo é 404, não 500
+(`apps/api/tests/arquivos.test.ts:615`). A linha sai antes do objeto (`:241-244`) — o inverso deixa
+na tela um anexo que não abre. O teto de 20 por card é contar-depois-criar **de propósito**, com o
+custo declarado no sítio (`:177-189`): não o cite como precedente de checar-depois-agir.
 
 **INV-05 — `TOKEN_EXPIRED` e `UNAUTHORIZED` são códigos distintos de propósito.** O primeiro dispara
 o refresh no front; o segundo derruba a sessão. Fundir os dois cria laço de login.
@@ -96,12 +104,17 @@ entregava a página comprimida maior que 1 MB como se estivesse inteira (`web.te
 
 *Alvo vindo do ambiente* — `links/youtube.service.ts:14-15` (oEmbed e Data API) e
 `assistente/openrouter.service.ts:139` (base em `OPENROUTER_BASE_URL`, caminho literal do nosso
-código). Nenhuma parte da URL é escolhida por quem chama: **não há superfície de SSRF**, e por isso
-nada passa por `pedirPublico`. A busca na web da Etapa G é desta classe: é um campo `plugins` no
-pedido ao OpenRouter (`passo.service.ts:202-204`), e quem abre as páginas é o provedor. O texto que
-o usuário digita para filtrar o catálogo de modelos é aplicado **depois, em memória**
-(`assistente/modelos.service.ts:221-235`), nunca concatenado na URL — é essa linha que mantém o
-ponto nesta classe. Aqui falhar **sobe** com código estável, em vez de virar `null`: o usuário
+código) e o bucket dos anexos (`apps/api/src/lib/armazem.ts:6-11`: host de `S3_ENDPOINT`, chave
+`cards/<cardId>/<uuid>` montada em `arquivos.service.ts:211` — o nome do arquivo nunca entra nela,
+e é essa linha que mantém o ponto nesta classe, `arquivos.test.ts:292`). Nenhuma parte da URL é
+escolhida por quem chama: **não há superfície de SSRF**, e por isso nada passa por `pedirPublico`.
+OpenRouter e bucket têm guarda de destino em modo de teste, de formas opostas: um recusa o host
+real (`openrouter.service.ts:28-34`), o outro todo host que não seja 127.0.0.1
+(`armazem.ts:111-117`), porque o host real dele não é fixo. A busca na web da Etapa G é desta
+classe: é um campo `plugins` no pedido ao OpenRouter (`passo.service.ts:202-204`), e quem abre as
+páginas é o provedor. O texto que o usuário digita para filtrar o catálogo de modelos é aplicado
+**depois, em memória** (`assistente/modelos.service.ts:221-235`), nunca concatenado na URL — é essa
+linha que mantém o ponto nesta classe. Aqui falhar **sobe** com código estável, em vez de virar `null`: o usuário
 clicou num botão e precisa saber que não aconteceu.
 
 **As guardas protegem a rede interna, não o conteúdo** (RN-24). Um agente com `open_page` e o
@@ -131,7 +144,7 @@ Porta nova de texto da web usa uma das duas (`apps/api/tests/web.test.ts:745`, `
 **INV-59 — Id de entidade relacionada vindo do cliente é conferido contra o usuário; a FK só
 garante que existe.** `conferirWorkspace` (`apps/api/src/modules/notes/notes.service.ts:115`) roda
 na criação e na edição de nota (`:232`, `:311`), como `criarBoard` já fazia
-(`kanban.service.ts:219-224`). Antes dela, o `workspaceId` de outra conta era aceito e a resposta
+(`kanban.service.ts:224-229`). Antes dela, o `workspaceId` de outra conta era aceito e a resposta
 devolvia o nome do workspace alheio; o inexistente caía em violação de FK, distinguível do alheio.
 Os dois dão o mesmo 404 (INV-02). Com o chat criando nota, o id chega também dos argumentos que o
 **modelo** escreveu. Porta nova que grave nota — ou qualquer FK vinda de fora — confere a posse.
@@ -148,7 +161,7 @@ cadeia inteira no `where` (`:461`, INV-03); o `agentId` da conversa nova, por
 - **a prévia confere só as notas-base** (`agentes.service.ts:760`): coluna alheia, inexistente ou fora do quadro
   declarado vira bloco `indisponivel` **sem nada dela** (`fonteComoTexto`, `:219-252`), porque o
   editor precisa abrir para tirar a fonte quebrada;
-- **`kanban.cardsDaColuna` (`kanban.service.ts:333`) resolve a posse pela cadeia, mas não confere o
+- **`kanban.cardsDaColuna` (`kanban.service.ts:342`) resolve a posse pela cadeia, mas não confere o
   `boardId` declarado** — quem precisa compara `coluna.boardId` (`agentes.service.ts:229`).
   Chamador novo que esqueça lê coluna do próprio usuário sob outro quadro, sem erro.
 
@@ -164,13 +177,13 @@ regra é "do mesmo quadro" (INV-12). Coberto em `apps/api/tests/rotinas.test.ts:
 workspace da nota de saída entra do mesmo jeito, só quando novo (`rotinas.service.ts:720-732`,
 `rotinas.test.ts:2010`), e `output_workspace_id` **não é FK de propósito**, como as colunas:
 `SetNull` esconderia o workspace excluído, que precisa virar `problems`
-(`apps/api/prisma/schema.prisma:804-806`).
+(`apps/api/prisma/schema.prisma:827-829`).
 
 ## Integridade de dados
 
 **INV-11 — Posições são contíguas, sempre.** `position` é reescrito como `0,1,2…` num único
 `UPDATE … FROM (VALUES …)` dentro de transação: `renumerarCards`
-(`apps/api/src/modules/kanban/kanban.service.ts:97`), `renumerarColunas` (`:107`) e
+(`apps/api/src/modules/kanban/kanban.service.ts:99`), `renumerarColunas` (`:109`) e
 `renumerarFavoritos` (`apps/api/src/modules/links/links.service.ts`). Não existe empate nem buraco.
 Posição fora do intervalo é **clampada**, não recusada.
 
@@ -180,7 +193,7 @@ Posição fora do intervalo é **clampada**, não recusada.
 **fim** da mesma coluna. Arquivado não move, não aparece em busca, não conta em contador nem em prazo.
 
 **INV-14 — Excluir coluna com cards exige destino.** Sem `moveCardsTo` nem `deleteCards`, a API
-recusa com 409 `COLUNA_COM_CARDS` (`kanban.service.ts:460`). Cards movidos vão para o fim do destino
+recusa com 409 `COLUNA_COM_CARDS` (`kanban.service.ts:471`). Cards movidos vão para o fim do destino
 preservando a ordem relativa.
 
 **INV-15 — Limite de WIP avisa e não bloqueia.** A API armazena `wipLimit` e **nunca o valida**. É
@@ -216,11 +229,28 @@ são sempre `trim().toLowerCase()`. Renomear tag para nome existente **funde** a
 
 **INV-21 — Excluir workspace apaga boards e cards, mas não notas.** FK de nota é `SET NULL`; a de
 board é `CASCADE`. É por isso que `Workspace` carrega `boardCount` e `cardCount` — a confirmação
-precisa dizer quanto se perde.
+precisa dizer quanto se perde, e desde a Parte 2 da frente de cards ela cita também os anexos. A
+cascata leva as linhas de `card_file`, não os objetos no bucket: ver INV-64.
 
 **INV-22 — Link duplicado devolve o existente, não erro.** Proteção contra clique duplo. A unicidade
 é sobre a URL já normalizada. Só favoritos têm ordem manual; "ver depois" ordena por `createdAt desc`
 e tentar mover dá 422.
+
+**INV-64 — A cascata do banco não alcança o bucket: quem derruba card colhe as chaves antes.** O
+binário do anexo mora no bucket e a linha em `card_file`, com FK `CASCADE` para o card
+(`apps/api/prisma/schema.prisma:371-392`). Toda exclusão que leva card chama `chavesDosCards(onde)`
+(`apps/api/src/modules/arquivos/arquivos.service.ts:259-262`) **antes** do delete, com o mesmo
+recorte de posse, e `apagarObjetos` **depois** do commit. Hoje são quatro, em
+`apps/api/src/modules/kanban/kanban.service.ts` — `excluirCard` (`:740`, `:750`), `excluirColuna`
+só com `deleteCards` (`:463`, `:506`), `excluirBoard` (`:317`, `:320`) — e `excluirWorkspace`
+(`apps/api/src/modules/organizacao/organizacao.service.ts:116`, `:119`). Depois do delete as linhas
+já sumiram, e a chave com elas. **Exclusão nova que derrube card — de coluna, board, workspace ou
+conta — entra nesta lista, e nada acusa a que faltar**: o sintoma é objeto órfão no bucket, que
+ninguém vê. `apagarObjetos` (`apps/api/src/lib/armazem.ts:186-215`) vai em levas de 8 e nunca
+lança — a linha já saiu, e a falha vira `warn` pelo logger que `app.ts` entrega a `usarRegistro`
+(`armazem.ts:101-105`). A colheita fora da transação deixa janela para um anexo subido no meio; a
+varredura de órfãos é dívida declarada (`armazem.ts:177-181`). Coberto em
+`apps/api/tests/arquivos.test.ts:631-780` e `:943`.
 
 ---
 
@@ -315,23 +345,23 @@ chamada **já foi paga** quando esta função roda. Prompt é pedido; esta funç
 
 **INV-50 — `ai_usage.local_day` é gravado, não calculado na consulta.** A janela do teto é o dia do
 **usuário**: `diaLocal(instante, fuso)` (`packages/shared/src/ia.ts:39`) com o fuso de
-`ai_preference.timezone` (`apps/api/prisma/schema.prisma:454`), nunca `getDate()` do processo nem
+`ai_preference.timezone` (`apps/api/prisma/schema.prisma:477`), nunca `getDate()` do processo nem
 `.slice(0, 10)` do ISO — a API roda em UTC na Railway e o operador não. `garantirTeto` devolve o
 `localDay` que a linha de uso vai gravar (`custo.service.ts:129`), para que o dia do corte e o do
 registro sejam o mesmo, ainda que a chamada atravesse a meia-noite. A coluna é `local_day`
-(`schema.prisma:543`), com índice `(userId, localDay)` (`:561`). Trocar a gravação por um `WHERE`
+(`schema.prisma:566`), com índice `(userId, localDay)` (`:584`). Trocar a gravação por um `WHERE`
 sobre `createdAt` zera o teto três horas cedo, todo dia, sem erro nenhum. **A janela tem dois
 leitores**, e os dois recortam por `localDay`: o teto (`resumoDoDia`, `custo.service.ts:105-106`) e
 o AI usage dash (`uso.service.ts:93`, e o período anterior em `:140`), com portão em
 `apps/api/tests/uso-ia.test.ts:107`. A tela mostra o dia gravado, não o recalculado
 (`AiUsageCall.localDay`, `packages/shared/src/ia.ts:475-478`). Leitor novo entra nesta lista.
 
-**INV-51 — `AiUsage.noteId` é `SetNull`.** `apps/api/prisma/schema.prisma:557`, como em
+**INV-51 — `AiUsage.noteId` é `SetNull`.** `apps/api/prisma/schema.prisma:580`, como em
 `Event.noteId`. Apagar a nota **não** apaga o registro de gasto: com `Cascade`, o teto diário viraria
 contornável por exclusão de nota, e a trilha de auditoria sumiria junto com o que a explica. Coberto
 em `apps/api/tests/assistente.test.ts:488`. O registro é escrito **inclusive quando a chamada falha**
 (`custo.service.ts:246`), porque falhar também pode ter custado. `AiUsage.runId` segue a mesma regra
-(`schema.prisma:559`): excluir a rotina não devolve o gasto do dia (`rotinas.test.ts:1374`).
+(`schema.prisma:582`): excluir a rotina não devolve o gasto do dia (`rotinas.test.ts:1374`).
 
 **INV-52 — A fronteira do chat com o modelo é fechada pelo compilador, nos dois sentidos.** No
 sentido de ida, `EXECUTORES` é `Record<NomeDoAssistente, Executor | undefined>`
@@ -412,7 +442,7 @@ uma marca de chat sem `conversationId` compilava. O que o assistente monta é `O
   (`origemDoCliente`, `apps/mcp/src/autor.ts:49`); mover e lixeira não têm marca. Tool nova de marca
   que escreva sem ele grava o ato do modelo como humano, e nada acusa;
 - `updateNoteSchema` e `cardUpdateSchema` **omitem** `origin` (`packages/shared/src/notes.ts:42`,
-  `kanban.ts:128`), e as rotas de criação o desestruturam antes do service
+  `kanban.ts:129`), e as rotas de criação o desestruturam antes do service
   (`notes.routes.ts:39`, `kanban.routes.ts:89`), porque `origin` não é coluna;
 - o chat monta a origem a partir da conversa (`ContextoDeFerramenta.origem`,
   `ferramentas.service.ts:96`, montado em `chat.service.ts:539-544`, com o `agentName` da sessão
@@ -424,7 +454,7 @@ uma marca de chat sem `conversationId` compilava. O que o assistente monta é `O
 
 **Nunca some:** nenhuma rota a remove, e editar só preenche `aiRevisedAt` — "gerada · revisada",
 não "deixou de ser gerada". Revisão é **mudança de fato** de título ou corpo na nota
-(`notes.service.ts:305-307`) e de título ou descrição no card (`kanban.service.ts:588-598`): o
+(`notes.service.ts:305-307`) e de título ou descrição no card (`kanban.service.ts:606-616`): o
 autosave e o painel reenviam campo inalterado, e mover, favoritar, mudar tag ou concluir não conta.
 Formatar com IA grava pelo autosave e **conta** como revisão — aceito, é edição que o usuário
 iniciou. A marca de **quem concluiu** o card é outra, com a regra oposta: INV-63.
@@ -444,16 +474,16 @@ duas faria o card reaberto seguir "concluído por IA". O que elas dividem é a o
 a grava, por parâmetro.
 
 - **Reconcluir não muda nada, e quem decide é a escrita.** `gravarConclusao`
-  (`apps/api/src/modules/kanban/kanban.service.ts:706-717`) é `updateMany` com o estado esperado no
+  (`apps/api/src/modules/kanban/kanban.service.ts:724-734`) é `updateMany` com o estado esperado no
   `where` — INV-04 aplicada ao estado, não à posse. Ler o card antes e decidir em JS deixa o clique
   no quadro e o chat (ou o chat e o MCP) lerem os dois o card aberto, e o segundo troca a data e
   quem concluiu. Coberto em sequência (`apps/api/tests/kanban.test.ts:446`,
   `marca-ia.test.ts:772`); nenhum portão executa a corrida.
 - **Três portas, um gravador.** O front conclui por `PATCH /cards/:id` (`completed` em
-  `cardUpdateSchema`, `packages/shared/src/kanban.ts:130`), sem origem, via `atualizarCard`
-  (`kanban.service.ts:621`); o MCP por `PATCH /cards/:id/complete`
+  `cardUpdateSchema`, `packages/shared/src/kanban.ts:131`), sem origem, via `atualizarCard`
+  (`kanban.service.ts:639`); o MCP por `PATCH /cards/:id/complete`
   (`apps/api/src/modules/kanban/kanban.routes.ts:105-111`), o **único PATCH que aceita `origin`**
-  (`cardCompleteSchema`, `kanban.ts:141`); o chat chama `concluirCard` com a origem do contexto
+  (`cardCompleteSchema`, `kanban.ts:142`); o chat chama `concluirCard` com a origem do contexto
   (`ferramentas.service.ts:240`). O schema não é estrito: no PATCH comum, `origin` sozinho dá 422 e
   junto de `completed` é descartado com **200** e conclusão humana (`marca-ia.test.ts:745`) — tool
   que concluísse por ali gravaria o modelo como humano, sem erro.
@@ -505,7 +535,7 @@ horário.** O relógio de 1 minuto (`apps/api/src/modules/assistente/agendador.s
 não tem dono; a exclusão é toda de escrita:
 
 - **Cada horário tem uma linha só**, pelo `@@unique([routineId, scheduledFor])`
-  (`apps/api/prisma/schema.prisma:915`) — é ele que garante RN-20
+  (`apps/api/prisma/schema.prisma:938`) — é ele que garante RN-20
   (`apps/api/tests/agenda.test.ts:356`). A execução manual tem `scheduledFor` nulo e a rotina
   excluída põe `routineId` nulo (`SetNull`), e nulo não colide.
 - **A linha `pulada` é o estado do horário enquanto ele não roda.** A recusa grava ou soma
@@ -551,7 +581,7 @@ operador; `/keys`, nunca. A saída das duas chaves para o navegador:
 ## Servidor MCP
 
 **INV-40 — `formatarQuadro` imprime o id de cada coluna, e é o único lugar que imprime.**
-`packages/shared/src/formato.ts:293` — o arquivo **mudou de pacote** na Etapa B (era
+`packages/shared/src/formato.ts:297` — o arquivo **mudou de pacote** na Etapa B (era
 `apps/mcp/src/formato.ts`), e a mesma função agora serve duas superfícies: as tools e resources do
 MCP e o executor `get_board` do chat (`apps/api/src/modules/assistente/ferramentas.service.ts:180`).
 `create_card` e `move_card` endereçam por `columnId`, e nenhuma outra saída expõe esse id — as

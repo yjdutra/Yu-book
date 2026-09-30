@@ -1,6 +1,6 @@
 ---
 name: design-system-yu-book
-description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), os primitivos de components/base/ (Botao, Bloco, Aviso, Dialogo com foco preso e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, o gráfico de dados à mão (BarrasPorDia e Indicador, com o número fora do desenho), a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina, e LinhaConclusao, a de quem concluiu o card), ícones SVG desenhados à mão em Icones.tsx e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web.
+description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), os primitivos de components/base/ (Botao, Bloco, Aviso, Dialogo com foco preso e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, o gráfico de dados à mão (BarrasPorDia e Indicador, com o número fora do desenho), a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele e do painel do card), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina, e LinhaConclusao, a de quem concluiu o card), a zona de soltar arquivo dos anexos do card, ícones SVG desenhados à mão em Icones.tsx (um desenho, um sentido) e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web.
 ---
 
 # Design system do Yu-book
@@ -68,7 +68,8 @@ nele (`SeletorTema.tsx`, `ModoNota.tsx`), mas **importa o `TRACO`, não o redecl
 
 `ICONE_TIPO` mapeia `NoteKind` para ícone e continua total: `kind` novo no enum exige entrada ali.
 Grepe `export function Icone` antes de desenhar. Ícone que só muda de orientação ganha prop, não
-cópia — `IconeChevron({ direcao })` (`Icones.tsx:338-348`).
+cópia — `IconeChevron({ direcao })` (`Icones.tsx:353-363`). **Um desenho, um sentido:** o clipe é
+nota vinculada, e anexo é a moldura `IconeAnexo` (`:337-350`), não um segundo clipe.
 
 **Glifo unicode que é sigla fica glifo.** As siglas de prazo e prioridade (`!`, `◷`, `▤`, `⬆`, `⬇`)
 de `CartaoCard.tsx:19-30` e `pages/DashboardPage.tsx:37-41` são texto `aria-hidden` com o estado por
@@ -137,9 +138,7 @@ A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 d
   **Não é modal** (RNF-05 da Fase 1): sem véu, sem foco preso, e por isso não é `Dialogo`. O `Esc`
   global (`fecharTudo`) não o fecha; o `Esc` só vale com o foco dentro (`onKeyDown` do `<aside>`,
   `:60-64`), e quem tem `Esc` próprio lá dentro — menu do `@` no `Compositor`, `Menu`, renomear
-  conversa — para a propagação. **`Dialogo` lá dentro é o avesso**: o `Esc` dele mora no
-  `document`, e `stopPropagation` o calaria; ele vai num wrapper `contents` com `preventDefault`,
-  e o `<aside>` ignora o `Esc` já tratado (`Conversa.tsx:506-514`; `PainelAssistente.tsx:61`).
+  conversa — para a propagação. **`Dialogo` lá dentro é o avesso**, como no painel do card: INV-65.
   Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:282-291`); `Ctrl+Shift+Y`
   e a paleta alternam, e na tela do chat focam o campo (INV-56). **Conversa abre por id, sem rota**:
   `selecionar(id)` + `abrirPainel()`, e com fluxo em curso o desvio de `ajustes/TabelasUsoIa.tsx:201-210`.
@@ -278,6 +277,8 @@ e o fluxo de rotina (`components/rotinas/FluxoEditavel.tsx`). Arraste novo copia
 - A mesma escolha existe sem arrastar, num `Menu`: "Usar para…" no quadro de modelos (`:431-438`,
   recusa igual nos dois por `podeServir`, `ajustes/comum.ts:42`) e "Mover para a esquerda/direita"
   no fluxo (`FluxoEditavel.tsx:295-302`).
+- **Arquivo de fora é da zona de anexos** (`AnexosDoCard.tsx:136-160`): `preventDefault` com `Files`
+  mesmo cheia, ou o navegador o abre sobre o autosave pendente. `ZonasDeSoltura.tsx:41-49` o ignora.
 
 ## 12. A marca de conteúdo gerado por IA
 

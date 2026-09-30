@@ -49,19 +49,22 @@ histórico e métricas pedem a env opcional `OPENROUTER_MANAGEMENT_KEY`, que no 
 chaves (INV-61) —, e o **AI usage dash** (`/ajustes/uso`), o que o Yu-book gravou em `ai_usage`, por
 dia local (INV-50). A Parte 1 da **frente de cards** (2026-09-30) deu ao card o estado de
 **concluído**, que não o move de coluna, e o chat passou também a **concluir** card a pedido, por
-`complete_card`, que o MCP publica — não move, não apaga, não edita texto (INV-63). A Fase 6 de
-produto (Google Calendar) segue sendo o item de menor prioridade.
+`complete_card`, que o MCP publica — não move, não apaga, não edita texto (INV-63). A Parte 2,
+no mesmo dia, trouxe **anexos**: o binário vai a um bucket S3 (Railway Storage Bucket) por
+`apps/api/src/lib/armazem.ts`, saída de host fixo nas envs opcionais `S3_*` (sem elas só os anexos
+param; INV-08), e a cascata do banco não o alcança (INV-64). A Fase 6 de produto (Google Calendar)
+segue sendo o item de menor prioridade.
 
 **Sete numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
 identidade) foi entregue em 2026-09-01; o **roteiro de IA aplicada** tem fases próprias, e a 5 dele é
 a frente de IA; dentro dessa frente, o **PRD de IA** tem as suas, de 1 a 4, entregues em etapas com
 letra — a Etapa A cobriu as fases 1 e 2 dele, a Etapa B a fase 3, e as Etapas C a G não são fase
-dele (§5.5–§5.9); e o **redesenho de UI/UX** de `apps/web` tem cinco etapas próprias, entregues em 2026-09-24 sem conferência na tela a cada etapa e
-conferidas à mão pelo usuário no fechamento — relato, não checklist item por item (registro em
-`docs/historico.md`); essa numeração está fechada; o **painel de uso** tem duas fases próprias, as duas entregues (acima); e a **frente de cards** tem
-Partes — a 1 (concluído) entregue em 2026-09-30, a 2 (anexos num Railway Storage Bucket) a planejar. "Etapa 4" não é
-"Fase 4", e o mesmo número significa coisas diferentes em cada eixo. Não unifique nem renumere — a
+dele (§5.5–§5.9); e o **redesenho de UI/UX** de `apps/web` tem cinco etapas próprias, entregues
+em 2026-09-24 e conferidas à mão só no fechamento, por relato (`docs/historico.md`); essa numeração
+está fechada; o **painel de uso** tem duas fases, entregues (acima); e a **frente de cards** tem
+Partes — a 1 (concluído) e a 2 (anexos), entregues em 2026-09-30. "Etapa 4" não é "Fase 4", e o
+mesmo número significa coisas diferentes em cada eixo. Não unifique nem renumere — a
 entrada de 2026-08-26 em `docs/historico.md` diz de onde vêm as quatro primeiras.
 
 **O `RF-xx` do comentário resolve para o PRD da fase daquele código — os números colidem entre

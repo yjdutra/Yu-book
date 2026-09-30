@@ -35,7 +35,8 @@ por decisão explícita — não introduza mock.
 
 - `fileParallelism: false`, porque as suítes compartilham o banco. Tempo limite de 30 s.
 - `tests/setup.ts` carrega o `.env` **antes** de qualquer import da app, porque `env.ts` derruba o
-  processo se faltar variável, e força `NODE_ENV=test`.
+  processo se faltar variável. `NODE_ENV=test` vem do Vitest e vence o do `.env`, que
+  `loadEnvFile` não sobrescreve (`setup.ts:8-10`); é ele que arma as guardas de destino.
 - `tests/apoio.ts` é o único caminho de setup. Use exclusivamente ele — não crie caminho paralelo:
   - `criarUsuario()` — emails marcados, para que a limpeza saiba o que é seu; como todo dado é por
     usuário, uma conta nova por caso isola sem `beforeEach` de limpeza (`uso-ia.test.ts:18-20`)

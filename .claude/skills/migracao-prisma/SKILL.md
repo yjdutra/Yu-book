@@ -1,6 +1,6 @@
 ---
 name: migracao-prisma
-description: Como criar e aplicar migrations do Yu-book com Prisma e Postgres, incluindo os objetos SQL que vivem fora do schema.prisma (configuração de busca pt_unaccent, immutable_unaccent, trigger de search_vector, índices GIN e trigram, índice único parcial) e as regras de SQL cru. Use ao alterar o modelo de dados, criar migration, mexer em índice ou escrever qualquer $queryRaw.
+description: Como criar e aplicar migrations do Yu-book com Prisma e Postgres, incluindo os objetos SQL que vivem fora do schema.prisma (configuração de busca pt_unaccent, immutable_unaccent, trigger de search_vector, índices GIN e trigram, índice único parcial), a cascata que não alcança o bucket dos anexos e as regras de SQL cru. Use ao alterar o modelo de dados, criar migration, mexer em índice ou escrever qualquer $queryRaw.
 ---
 
 # Migrations e SQL do Yu-book
@@ -52,7 +52,12 @@ escolhido assim.
 - Coluna em `snake_case` via `@map`; tabela no singular via `@@map` (`user`, `note`, `board_column`).
 - Timestamps `TIMESTAMP(3)` **sem timezone**. Tudo trafega em UTC, serializado com `.toISOString()`.
 - `user_id` em toda tabela raiz. **`card` e `board_column` são exceção deliberada** — a posse vem da
-  cadeia até `board.userId`. Não adicione `user_id` a elas.
+  cadeia até `board.userId`. Não adicione `user_id` a elas, nem ao que pende de card: `card_file`
+  (`20260930180000_frente_cards_anexos`) resolve a posse pela mesma cadeia (INV-03).
+- **Linha que aponta para dado fora do Postgres não confia na cascata.** `card_file.key` é um objeto
+  no bucket, e `ON DELETE CASCADE` leva só a linha: quem apaga card, coluna, board ou workspace
+  colhe as chaves antes (INV-64, com os sítios). Caminho de exclusão novo que chegue a `card` por
+  cascata entra nessa conta.
 
 ## 3. O SQL que o Prisma não conhece
 

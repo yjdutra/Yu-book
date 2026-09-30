@@ -56,7 +56,8 @@ painel, rota ou troca de conversa.
 limpeza (INV-53). Os comandos da paleta são a lista `comandos` de `Aplicacao.tsx`; o `atalho` ali é
 só exibido. O que flutua mora na `PilhaFlutuante` de `components/base/Toast.tsx`, na casca; com um
 diálogo aberto ela fica fora de alcance, e ação que precisa existir ali mora dentro dele. As regras
-estão na §10 da skill `design-system-yu-book`.
+estão na §10 da skill `design-system-yu-book`. `Dialogo` aberto de dentro do painel do card ou do
+assistente precisa das duas metades do INV-65, ou o `Esc` fecha diálogo e painel juntos.
 
 ## O que é deliberado e não se "corrige"
 
@@ -101,7 +102,7 @@ repetindo a requisição, com renovação de voo único — requisições parale
 porque rotações concorrentes se invalidariam.
 
 **Mutação otimista** é `onMutate` (cancela, guarda o anterior, escreve) e `onError` (devolve o
-anterior) — `useMoverCard` em `lib/kanban.ts:335`, criar link em `lib/links.ts:34`. Se duas da
+anterior) — `useMoverCard` em `lib/kanban.ts:336`, criar link em `lib/links.ts:34`. Se duas da
 mesma chave podem estar em voo, o rollback de uma restaura a mudança otimista da outra: dê
 `mutationKey` e invalide no `onSettled` só quando `isMutating(...) <= 1`, isto é, quando a última
 termina (`useDefinirModeloDaTarefa`, `lib/ia.ts:169-202`, razão em `:193-195`). Ação que chama o

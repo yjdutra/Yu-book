@@ -105,7 +105,7 @@ os dois quebra um dos lados.
 
 | | Cards | Colunas |
 |---|---|---|
-| `strategy` | `SEM_DESLOCAMENTO = () => null` (`ColunaQuadro.tsx:33`, aplicada em `:421`) | `horizontalListSortingStrategy` (`Quadro.tsx:378`) |
+| `strategy` | `SEM_DESLOCAMENTO = () => null` (`ColunaQuadro.tsx:33`, aplicada em `:428`) | `horizontalListSortingStrategy` (`Quadro.tsx:378`) |
 | Quem abre o vão | o DOM: `moverLocal` reordena o estado a cada `dragOver` e o React repinta na ordem nova | o transform, único mecanismo que existe ali |
 | `items` durante o gesto | mudam a cada `dragOver` | não mudam — `aoPassar` retorna cedo para `tipo !== "card"` (`Quadro.tsx:258`) |
 
@@ -326,9 +326,9 @@ verdes. Por isso a mensagem de erro **nomeia a tarefa** (`:301-311`) — sem o n
 vendo um modelo marcado conclui que o erro é falso.
 
 **Não vale para todo enum: vale para o enum cujo membro pede configuração.** `LINK_KINDS` é citado à
-mão de propósito em `apps/web/src/components/ZonasDeSoltura.tsx:123-134` — cada zona tem texto e
+mão de propósito em `apps/web/src/components/ZonasDeSoltura.tsx:131-142` — cada zona tem texto e
 ícone próprios, e ali o enum só discrimina. Enum que rotula ou discrimina pode ser citado (é também
-o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:478` já
+o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:493` já
 mantém total); enum cujo membro exige um valor que **só a interface** coleta, não.
 
 O resto da tela também percorre, e cada um é um `.map` que o typecheck não cobra: os itens "Usar
@@ -394,3 +394,19 @@ de 30 s: `CHAVE_AJUSTES`, o gasto do dia, e `CHAVE_USO`, o AI usage dash
 (`lib/ia.ts:136-142`). Trocar `onSettled` por `onSuccess` deixa a falha paga fora da tela, e ação
 nova que chame o provedor entra nesta lista: **nada cobra um quarto ponto**, e o sintoma é um número
 velho por 30 s, logo depois da ação que o mudou.
+
+## `Esc` em camadas: diálogo dentro de painel
+
+**INV-65 — `Dialogo` aberto dentro de um contêiner que fecha no `Esc` vai num wrapper `contents`
+por fora, com `preventDefault`; o contêiner ignora o `Esc` com `defaultPrevented`.** O `Esc` do
+`Dialogo` é ouvido no `document` (`apps/web/src/components/base/Dialogo.tsx:43-50`), mas o
+`keydown` nascido no portal também sobe pela árvore do React até o `onKeyDown` do contêiner, que
+fecharia junto. `stopPropagation` no caminho calaria o ouvinte do próprio diálogo. O wrapper fica
+**fora** do `Dialogo` porque a caixa tem `tabIndex={-1}` (`:70`) e ganha o foco num clique em área
+vazia — um wrapper dentro dela não vê a tecla. Dois pares hoje:
+`assistente/Conversa.tsx:505-515` com `assistente/PainelAssistente.tsx:61`, e
+`AnexosDoCard.tsx:263-275` com `PainelCard.tsx:157-159`. Diálogo novo num desses contêineres, ou
+contêiner novo que feche no `Esc` e hospede diálogo, repete as duas metades — **faltar qualquer uma
+compila**, e o sintoma é o `Esc` fechar o diálogo e o painel de uma vez. O `Esc` só chega ao
+contêiner com o foco dentro dele: ação que desmonta o controle focado devolve o foco ali
+(`AnexosDoCard.tsx:118-123`), ou o `Esc` seguinte não fecha nada.

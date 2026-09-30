@@ -1,6 +1,6 @@
 ---
 name: servidor-mcp-yu-book
-description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os dois transportes (stdio e StreamableHTTP) com uma montagem só, de onde vem a identidade em cada um e por que a escrita é liberada por eixos diferentes (URL local no stdio, escopo do token em HTTP), o servidor de autorização OAuth 2.1 próprio sem estado durável, cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, a formatação que saiu deste pacote para packages/shared e hoje serve também o chat da API, de onde vem o fuso horário do usuário e por que na leitura ele recua e na escrita falha alto, a description como contrato de conversa com o modelo, o origin que toda tool cuja escrita grava marca de IA (de geração ou de conclusão) manda, a rota nova que exige a API no ar antes do MCP, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, antes de tocar em transporte, sessão, autenticação, formatação de texto ou qualquer conversão de data, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
+description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os dois transportes (stdio e StreamableHTTP) com uma montagem só, de onde vem a identidade em cada um e por que a escrita é liberada por eixos diferentes (URL local no stdio, escopo do token em HTTP), o servidor de autorização OAuth 2.1 próprio sem estado durável, cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, a formatação que saiu deste pacote para packages/shared e hoje serve também o chat da API, de onde vem o fuso horário do usuário e por que na leitura ele recua e na escrita falha alto, a description como contrato de conversa com o modelo, o origin que toda tool cuja escrita grava marca de IA (de geração ou de conclusão) manda, a rota nova que exige a API no ar antes do MCP e o campo novo que o formatador lê com ?., os anexos de card que aparecem no texto sem URL e não viram tool, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, antes de tocar em transporte, sessão, autenticação, formatação de texto ou qualquer conversão de data, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
 ---
 
 # O servidor MCP do Yu-book
@@ -80,17 +80,15 @@ mais cara que a rede.
 - **Nada de cap silencioso.** Se a resposta corta uma lista, ela **declara** o total real. Cap
   silencioso faz o modelo concluir que aquilo é tudo o que existe. Ver `TETO_DO_CATALOGO`
   em `src/resources/catalogos.ts`.
-- **Medir antes de afirmar.** Um número de orçamento escrito sem medição é chute com aparência de
-  rigor. Já aconteceu: "~40 bytes por nota" circulou num comentário e chegou a virar requisito antes
-  de alguém conferir — a medição real deu ~100, porque o uuid sozinho tem 36 caracteres.
+- **Medir antes de afirmar.** Número sem medição é chute com aparência de rigor: "~40 bytes por
+  nota" virou requisito antes de alguém medir ~100 — o uuid sozinho tem 36 caracteres.
 
 ## 4. Tipos: sempre os do SDK
 
 `CallToolResult` e `ReadResourceResult` vêm de `@modelcontextprotocol/sdk/types.js`. **Nunca escreva
 o equivalente à mão** — o SDK exige uma assinatura de índice que um tipo caseiro não tem, e o
-typecheck recusa com um erro longo e pouco óbvio.
-
-Já cometido duas vezes: antes de declarar interface para o retorno de um handler, procure no SDK.
+typecheck recusa com um erro longo e pouco óbvio. Já cometido duas vezes: antes de declarar
+interface para o retorno de um handler, procure no SDK.
 
 ## 5. As três primitivas — a diferença é quem aciona
 
@@ -104,9 +102,8 @@ Já cometido duas vezes: antes de declarar interface para o retorno de um handle
 devolvem o mesmo texto de propósito: a superfície é que se duplica, nunca a implementação.
 
 **Tool é a única primitiva que escreve**, e a escrita tem regras próprias — §9 a §11. Resource e
-prompt não mudam dado, e não passam a mudar.
-
-Quarta via, que não é primitiva: a **via de volta** (log e progresso), em `src/notificacoes.ts` (§11).
+prompt não mudam dado, e não passam a mudar. Quarta via, que não é primitiva: a **via de volta**
+(log e progresso), em `src/notificacoes.ts` (§11).
 
 ## 6. Resource: direto ou template
 
@@ -126,8 +123,7 @@ tool fica em **inglês**, como caminho de rota (`search_notes`, `get_board`).
 ## 7. Uma formatação, e ela não mora mais aqui
 
 Tudo que monta texto de nota, card, quadro ou dashboard vive em
-**`packages/shared/src/formato.ts`** — saiu de `apps/mcp/src/formato.ts` na Etapa B da frente de IA,
-porque o chat interno passou a precisar do mesmo texto. Tool, resource e chat chamam a **mesma**
+**`packages/shared/src/formato.ts`** desde a Etapa B da IA. Tool, resource e chat chamam a **mesma**
 função, e a consequência é que **editar um formatador não é mais uma mudança contida em
 `apps/mcp`**: muda também o que o chat da API imprime (§4.6 de `contrato-compartilhado`).
 Verificação: ler `yubook://nota/{id}` e chamar `get_note` com o mesmo id devem produzir texto
@@ -199,9 +195,8 @@ Editar nota ou card é outro problema, não o mesmo maior: concorre com o autosa
 inventário e as consequências assumidas estão em `apps/mcp/README.md` (§"O que deliberadamente não
 vira tool").
 
-**Nem amostragem (*sampling*) nem raízes (*roots*)** — a primeira porque quem chega pelo MCP já tem
-um modelo do outro lado e a direção do projeto é modelo local; a segunda porque este servidor não
-abre arquivo nenhum. Não as implemente sem reler o argumento em `apps/mcp/README.md`.
+**Nem amostragem (*sampling*) nem raízes (*roots*)**: quem chega pelo MCP já traz modelo, e este
+servidor não abre arquivo. Não as implemente sem reler o argumento em `apps/mcp/README.md`.
 
 ## 10. A `description` de uma tool de escrita é contrato de conversa
 
@@ -260,7 +255,10 @@ Resource **lança** em vez de devolver `isError` — o cliente precisa distingui
 O servidor MCP e a API têm **ciclos de deploy independentes** — dois serviços, dois Watch Paths —,
 então o MCP fala com uma API que pode ser semanas mais velha que o contrato que ele compilou. Campo
 novo ausente na resposta é **omitido**, não emitido como `undefined` (`src/resources/catalogos.ts`).
-**Rota nova não se tolera:** rota inexistente volta `NOT_FOUND` (`apps/api/src/app.ts:93-94`) e o
+**O formatador de `shared` também tolera, e ali pesa mais:** roda **depois** da escrita, e lançar
+diria ao modelo que falhou um card já criado — ele criaria outro. Campo array novo se lê com `?.`
+apesar do tipo (`files`, `packages/shared/src/formato.ts:344-347`).
+**Rota nova não se tolera:** rota inexistente volta `NOT_FOUND` (`apps/api/src/app.ts:98-99`) e o
 modelo ouve "não existe esse id". Tool em rota nova (`complete_card`) exige a API no ar antes.
 
 ## 14. Propagação — o que fazer quando o domínio muda
@@ -290,7 +288,9 @@ Diante de um campo, entidade ou filtro novo no domínio, percorra:
 Se a resposta for "nada muda", **diga isso explicitamente**. Silêncio é indistinguível de
 esquecimento. **As funções da frente de IA — chat, agentes, rotinas, `open_page` — não viram tool**
 (NO3, RF-53, RF-62 e RF-74 do PRD de IA): quem usa o MCP já traz o próprio modelo. O que propaga é o **dado** que gravam —
-a marca, com agente e rotina, chega às tools por `formato.ts`; o `runId` não é impresso.
+a marca, com agente e rotina, chega às tools por `formato.ts`; o `runId` não é impresso. **Anexo
+também não vira tool:** a face conta, o detalhe dá nome, tipo e tamanho, **nunca a URL** — assinada,
+vence em 1 h (`formato.ts:354-368`) —, e a `descricao` de `get_board` cresceu com isso (§4.6 do contrato).
 
 ## 15. Como verificar
 

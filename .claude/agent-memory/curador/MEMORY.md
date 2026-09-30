@@ -5,7 +5,7 @@
 ## O que já nos mordeu
 
 - Ref erra **de origem**, não só de linha: grepe o caminho.
-- Refs em lote: difflib só vê deslocamento — ref já podre em HEAD passa; releia a linha. Regex erra basename.
+- Refs em lote por difflib: ref podre em HEAD passa, e regex erra basename; releia a linha.
 - `:NNN` resolve pelo último caminho citado; parágrafo tocado: confira **todo** ref dele.
 - **Agente apodrece calado, e a paráfrase junto:** grepe o fato, não a frase.
 - **O código alcança o registro:** comentário tardio no sítio desbanca o item.
@@ -13,7 +13,7 @@
 - **Registre o eixo, não o censo** — e eixo com um exemplo só é lido como o exemplo.
 - Eixo novo raramente contradiz: **estreita a cláusula**. Cace o estreito, não só o falso.
 - Categórica erra no briefing e no comentário, e defeito tem irmão: grepe antes de promover.
-- Plano com "Fase N" é numeração nova: some-a no `CLAUDE.md`; cace o "Fase N" solto no código.
+- Plano com "Fase N" é numeração nova: some-a no `CLAUDE.md` e cace o "Fase N" solto.
 
 ## Decisões em vigor
 
@@ -27,5 +27,5 @@
 - **Não renumere seção nem INV.** Doutrina nova vira subseção; item novo entra no fim da série.
 - Não vira registro: fato sem `arquivo:linha`, com prazo, ou medida que varia por rodada. Fato do
   `historico.md`/`CLAUDE.md` não se copia; ponteiro datado cabe.
-- Técnica de um agente sai da memória para `.claude/agents/<agente>.md`. Memória do operador
-  (`~/.claude/projects/`) não é minha: relate.
+- Técnica de agente, ou fato que desmente `.claude/agents/<agente>.md`, vai ao agente, não à
+  memória. Memória do operador (`~/.claude/projects/`) não é minha: relate.

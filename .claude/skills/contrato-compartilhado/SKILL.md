@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto, e a ferramenta da web, que só o assistente consome, e os sítios do front que uma ação de escrita nova no chat exige sem o compilador cobrar), e os schemas não estritos, que descartam chave omitida em vez de recusá-la. Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
+description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto, e a ferramenta da web, que só o assistente consome, e os sítios do front que uma ação de escrita nova no chat exige sem o compilador cobrar, e os tipos de anexo aceitos, listados em shared e detectados pelos bytes à mão na API), o campo novo que o formatador compartilhado lê tolerando ausência, e os schemas não estritos, que descartam chave omitida em vez de recusá-la. Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
 ---
 
 # O contrato compartilhado
@@ -17,7 +17,8 @@ Vai:
 - Todo enum de domínio (`NOTE_KINDS`, `CARD_PRIORITIES`, `LinkKind`).
 - Toda função que os dois lados precisam calcular igual (`normalizarTitulo`, `normalizarUrl`,
   `normalizarTag`, `parseSearchQuery`, `splitHighlight`, `progressoChecklist`, `idDoYoutube`,
-  `formatarDuracao`).
+  `formatarDuracao`, `formatarBytes`), e os limites que a tela confere antes de a API recusar
+  (`MAX_BYTES_ARQUIVO`, `MAX_ARQUIVOS_CARD`, em `arquivos.ts`).
 
 Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/client`, React ou Fastify.
 
@@ -29,11 +30,11 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    que foi compilado. **Typecheck dos apps sem esse build falha ou usa código velho.**
 4. Só então `pnpm typecheck`.
 5. **Schema de atualização deriva do de criação** (`updateNoteSchema`, `notes.ts:41-42`;
-   `cardUpdateSchema`, `kanban.ts:128-129`). Campo que só vale ao criar — `origin`, a marca de IA —
+   `cardUpdateSchema`, `kanban.ts:129-130`). Campo que só vale ao criar — `origin`, a marca de IA —
    entra no `.omit`, ou vira editável por PATCH sem ninguém ter decidido. **Os schemas não são
    estritos:** chave omitida é descartada, não recusada — `origin` junto de `completed` no PATCH do
    card passa com 200 e conclusão humana (INV-63). Ação que precisa do campo ganha schema e rota
-   próprios (`cardCompleteSchema`, `kanban.ts:141`), e a marca dela, tipo próprio (`AiCompletion`,
+   próprios (`cardCompleteSchema`, `kanban.ts:142`), e a marca dela, tipo próprio (`AiCompletion`,
    `marca.ts:50`, que **não** é `AiMark`: segue o estado e some ao reabrir).
 6. Se o módulo novo **constrói valor em escopo de módulo** — objeto, array, `z.object(...)`,
    qualquer coisa que não seja só `type`/`interface` —, confira o bundle do front antes de fechar.
@@ -85,7 +86,8 @@ comportamento errado em silêncio. São o motivo principal desta skill existir.
 segunda implementação desta regra, escrita à mão, e há um portão que acusa se as duas divergirem?*
 Quando a resposta é "não" para a segunda pergunta, o item entra aqui. Quando a regra passa a morar
 só em `packages/shared`, o item sai. §4.1 a §4.4 já passam por `shared`; §4.5 é o que **ainda não**
-passou inteiro; §4.6 é o caso invertido — uma definição só, dois consumidores, e nenhum portão.
+passou inteiro; §4.6 é o caso invertido — uma definição só, dois consumidores, e nenhum portão;
+§4.7 mora metade em `shared` e metade escrita à mão na API.
 
 ### 4.1 `normalizarTitulo` ↔ o índice único do Postgres
 
@@ -117,10 +119,10 @@ Se divergirem: o front deixa de detectar duplicata que o banco recusa, ou vice-v
 
 ### 4.4 `normalizarTag` ↔ a normalização do card no servidor
 
-`normalizarTag` (`packages/shared/src/kanban.ts:50`) é chamada **nos dois lados**: o front normaliza
+`normalizarTag` (`packages/shared/src/kanban.ts:51`) é chamada **nos dois lados**: o front normaliza
 para montar o catálogo e comparar (`apps/web/src/components/SeletorDeTags.tsx:52,64`) e
 `normalizarTags` normaliza de novo antes de gravar
-(`apps/api/src/modules/kanban/kanban.service.ts:145`). Corta espaço, remove `#` inicial, colapsa
+(`apps/api/src/modules/kanban/kanban.service.ts:147`). Corta espaço, remove `#` inicial, colapsa
 espaço interno, baixa a caixa e trunca em `MAX_TAG_TEXTO` — **não remove acento**: `revisão` é
 gravada `revisão`.
 
@@ -144,7 +146,7 @@ string relata **o dia errado, um dia à frente, em todo card com prazo**. Nada f
 string continua seguro para `createdAt`/`updatedAt`, que são instantes; para prazo, não.
 
 **O lado do servidor fechou.** A conversão mora em `packages/shared/src/formato.ts`: `diaDoPrazo`
-(`:67`) e `diaParaPrazo` (`:85`), as duas sobre `diaLocal` (`packages/shared/src/ia.ts:39`), que
+(`:69`) e `diaParaPrazo` (`:87`), as duas sobre `diaLocal` (`packages/shared/src/ia.ts:39`), que
 formata por `Intl` com `timeZone`. **O parâmetro `fuso` não tem valor padrão, e é a peça
 principal** — um padrão traria de volta exatamente o defeito que a Etapa B consertou, o fuso do
 *processo* passando por fuso do usuário. Quem chama declara de qual fuso está falando: o MCP
@@ -158,8 +160,8 @@ agenda de rotina usa: mexer nela move o prazo e o horário da rotina juntos, e o
 Mora em `agenda.ts` e não em `ia.ts` porque `agenda.ts:2` importa `ia.ts`: o inverso fecharia
 um ciclo. Não escreva uma segunda.
 
-**O lado do front não fechou.** `paraCampoData` (`apps/web/src/components/PainelCard.tsx:21`) e
-`paraData` (`:30`) continuam usando `getMonth()`/`getDate()` e um `new Date("…T23:59:59")` cru —
+**O lado do front não fechou.** `paraCampoData` (`apps/web/src/components/PainelCard.tsx:22`) e
+`paraData` (`:31`) continuam usando `getMonth()`/`getDate()` e um `new Date("…T23:59:59")` cru —
 isto é, o fuso do **navegador**, não `ai_preference.timezone`. Enquanto os dois coincidem, ninguém
 vê nada. Quando divergem — operador viajando, navegador com outro fuso, ou o usuário mudando o fuso
 em `/ajustes` sem mudar o do sistema —, a interface e tudo o que passa por `shared` (MCP, chat)
@@ -215,11 +217,14 @@ sobre o `tools/list` em bytes.
 definição e dois consumidores — tools e resources do MCP, executores do chat (§7 da skill
 `servidor-mcp-yu-book`) — e ali o texto não é só contrato: é o **resultado** sobre o qual o modelo
 decide continuar ou desistir. `formatarBusca` diz, no caso vazio, que a busca é por palavra sobre
-título e corpo e manda tentar o substantivo sozinho (`:199-200`); o argumento e o episódio que o
-motivou estão no comentário ao lado (`:190-198`). Mudar uma dessas frases muda as duas superfícies,
-e nenhum teste fica vermelho.
+título e corpo e manda tentar o substantivo sozinho (`:201-202`); o argumento e o episódio que o
+motivou estão no comentário ao lado (`:192-200`). Mudar uma dessas frases muda as duas superfícies,
+e nenhum teste fica vermelho. **Campo novo lido ali tolera ausência** (`card.files?.length`,
+`formato.ts:344-347`), apesar do tipo: o MCP formata depois da escrita, contra uma API que pode ser
+mais velha (§13 de `servidor-mcp-yu-book`). O detalhe do card leva `files` **sem URL** — ela vence
+em 1 h —, e quem mostra o arquivo pede `GET /cards/:id/files` (`packages/shared/src/kanban.ts:226-228`).
 
-**Terceiro caso: o tipo `Dashboard`.** O Início e `formatarDashboard` (`formato.ts:357`, servido
+**Terceiro caso: o tipo `Dashboard`.** O Início e `formatarDashboard` (`formato.ts:381`, servido
 pelo `get_dashboard` do MCP e do chat) leem a mesma resposta. Desde a Etapa F ela traz `rotinas`,
 e o formatador **as ignora de propósito** — rotina não entra no MCP (RF-62). O mesmo par explica
 por que `GET /dashboard` **só lê** `runsSeenAt` (`apps/api/src/modules/dashboard/dashboard.service.ts:57`)
@@ -240,6 +245,19 @@ Então, ao tocar em `ferramentas.ts`: diga no relato que as duas superfícies mu
 `tools/list` se o texto cresceu (a receita e a baseline estão na memória do agente `mcp`). O
 critério de conteúdo é o da §10 da skill `servidor-mcp-yu-book`: *sabendo disto, o modelo faria algo
 diferente?* Se não, é custo puro — cobrado agora em dois lugares.
+
+### 4.7 `TIPOS_DE_ARQUIVO` ↔ `detectarTipo`
+
+O que se anexa a card é decidido **pelos bytes**, na API: `detectarTipo`
+(`apps/api/src/modules/arquivos/arquivos.service.ts:87-110`) reconhece cada tipo por assinatura
+escrita à mão. `TIPOS_DE_ARQUIVO` (`packages/shared/src/arquivos.ts:93-118`) é a lista que o resto
+lê: o `accept` do seletor (`ACEITA_ARQUIVO`, `:121`), `ehImagem`, e na própria API `nomeCoerente` e
+o tipo do texto por extensão (`mimeDaExtensao`, `arquivos.service.ts:75-78`).
+
+Se divergirem: tipo só em `shared` aparece no seletor e toma 415 (`TIPO_NAO_PERMITIDO`) em todo
+envio; tipo que só `detectarTipo` conhece é gravado sem extensão corrigida e baixa como anexo
+mesmo sendo imagem. **Não há portão**: `apps/api/tests/arquivos.test.ts:888` lista os casos à mão,
+e não percorre `TIPOS_DE_ARQUIVO`. Tipo novo entra nos dois, com a assinatura e um caso no teste.
 
 ## 5. Verificação
 
