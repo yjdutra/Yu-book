@@ -17,6 +17,100 @@ _Nada pendente._
 
 ---
 
+## [0.29.0] — 2026-10-09
+
+**Frente de agenda, tarefas e o Yu-book no celular, Fase 2: a IA e o MCP usam a agenda.** O chat e
+os clientes MCP passam a ler a agenda, marcar compromissos, anotar tarefas e concluí-las, sobre a
+API da `[0.28.0]`. Ainda não há tela de agenda. O único ponto da interface que a mostra é o bloco
+"Criado nesta resposta" do chat.
+
+**O modelo agora sabe que dia é.** Até aqui o prompt do assistente não dizia a data, e "amanhã às
+15h" era resolvido pela data do treino do modelo. O prompt de sistema passou a terminar com
+"Hoje: <dia da semana>, <data> (<fuso>)." no fuso do usuário. A hora vai como "(Agora são HH:MM.)"
+no fim da última mensagem do usuário, só na requisição ao provedor: não é gravada nem aparece na
+conversa. A divisão existe para não invalidar, a cada minuto, o cache de prefixo do provedor sobre
+as instruções e o histórico. Vale para o chat, com ou sem agente, para a prévia do agente e para os
+passos de rotina.
+
+**Os quatro pacotes se movem**, porque `packages/shared` alterou contrato. `ChatCreated.kind`
+ganhou `event` e `task`, e com eles os campos opcionais `date` e `time`. `AgendaRange` ganhou
+`undatedTasks`, obrigatório no tipo. Entraram as quatro ferramentas em `FERRAMENTAS_DO_ACERVO`, o
+modelo de agente "Agenda", os formatadores `formatarAgenda`, `formatarEvento` e `formatarTarefa`,
+`periodoDeListAgenda`, `MAX_DIAS_DE_LIST_AGENDA` (31), `LIMITE_TAREFAS_SEM_DATA` (50) e
+`novoDiaCivilSchema`. Versões: `packages/shared` de `0.17.0` para `0.18.0`, `apps/api` de `0.19.0`
+para `0.20.0`, `apps/web` de `0.23.0` para `0.24.0` e `apps/mcp` de `0.19.0` para `0.20.0`, no
+`package.json` **e** no construtor do `McpServer`. Nenhuma migration.
+
+**O chat sem agente ficou mais caro por turno.** As quatro ferramentas entram no catálogo que o
+chat sem agente envia ao provedor em toda mensagem: ele foi de 8 para 12 ferramentas, de 6.003
+para 9.358 bytes. É um custo aceito, porque marcar compromisso e anotar tarefa são pedidos de
+conversa comum. Agente criado do zero não ganha nenhuma delas, nem a de leitura. No MCP, o
+`tools/list` com escrita ligada foi de 11 para 15 tools e de 10.482 para 14.544 bytes. O
+`prompts/list` foi de 757 para 766 bytes.
+
+**Ordem de deploy:** API antes do MCP. As rotas que o MCP chama já existem desde a `[0.28.0]`, e o
+formatador tolera a API mais velha, que não manda `undatedTasks`: nesse caso só a lista de tarefas
+sem data falta.
+
+Portões, rodados no fechamento: `pnpm typecheck` limpo, `pnpm --filter @yu-book/api test` com
+**543 testes** (eram 518) e `pnpm --filter @yu-book/mcp test` com **72 testes** (eram 60). Os
+novos da API estão em `agenda-chat.test.ts` e em acréscimos a `agentes.test.ts`, `marca-ia.test.ts`
+e `rotinas.test.ts`. Eles rodam com o provedor falso e cobrem a marca de IA de evento e tarefa
+criados pelo chat, concluir e reabrir tarefa, `list_agenda`, a recusa de data inválida sem gravar
+nada, a lista do agente como única concessão, a rotina que só lê, a linha "Hoje" e a hora no fim do
+turno, e uma guarda contra `$ref` no JSON Schema das ferramentas. Os do MCP estão em
+`agenda.test.ts` e `prompts.test.ts`.
+
+**A interface foi conferida em parte.** Uma captura em navegador headless mostrou o bloco "Criado
+nesta resposta" com um evento e uma tarefa, e o Desfazer apagando o evento. Ninguém conferiu o
+Desfazer da tarefa, os rótulos de ação durante a resposta, o texto de `complete_task` no editor de
+agente, o modelo "Agenda" no quadro de modelos nem os dois temas. Nenhum teste conversa com um
+modelo de verdade: que um modelo real resolve "quinta que vem" pela linha "Hoje" e pergunta a hora
+ambígua ainda não foi observado.
+
+### Adicionado
+- **`list_agenda`**, no chat e no MCP: a agenda de um período de até 31 dias, dia a dia, com
+  eventos, tarefas, cards com prazo e tarefas atrasadas. No fim vêm as tarefas abertas sem data.
+  Dias e horas saem no fuso do usuário. Período invertido ou longo demais é recusado com uma frase
+  que o modelo consegue corrigir, e no MCP isso acontece antes de chamar a API.
+- **`create_event`** e **`create_task`**, no chat e no MCP: criam compromisso e tarefa com dia e
+  hora locais do usuário, convertidos pela API. O quadro faz as vezes de projeto. Os dois nascem com
+  a marca de conteúdo gerado por IA, como card e nota.
+- **`complete_task`**, no chat e no MCP: conclui ou reabre uma tarefa, sem criar nem apagar nada.
+  A conclusão fica marcada como feita por IA, como a do card.
+- **As quatro estão no chat sem agente** e disponíveis para qualquer agente. Rotinas recebem só
+  `list_agenda`, porque os passos de rotina só leem.
+- **Modelo de agente "Agenda"**, uma secretária que marca compromissos, anota tarefas e diz o que
+  vem pela frente. Ele confere a agenda antes de marcar, avisa conflito e pergunta o projeto quando
+  nenhum quadro bate.
+- **Regras de agenda nas instruções do assistente:** datas relativas se resolvem pela linha
+  "Hoje". Dia e hora são os do usuário, sem conversão de fuso. Hora ausente, vaga ou ambígua num
+  compromisso leva a uma pergunta, nunca a uma hora inventada. O que é do dia todo vai sem hora, e
+  na tarefa a hora é opcional. Um horário só é dado como livre depois de consultar `list_agenda`.
+- **`GET /agenda` traz `undatedTasks`:** as 50 tarefas abertas sem data mais recentes, em toda
+  consulta, independentemente do período.
+- **Evento e tarefa no bloco "Criado nesta resposta" do chat**, com ícones próprios (calendário e
+  caixa de marcar), o dia e a hora locais ao lado do título e o Desfazer, que exclui o item. Não há
+  "abrir": evento e tarefa ainda não têm tela no desktop.
+- **Rótulos de ação no chat** para as quatro ferramentas: "consultando a agenda", "agendando",
+  "criando tarefa" e "concluindo tarefa".
+
+### Alterado
+- **O prompt de sistema termina com o dia de hoje** no fuso do usuário, e a última mensagem do
+  usuário enviada ao provedor termina com a hora. Isso vale para o chat, a prévia do agente e os
+  passos de rotina.
+- **A regra "crie só a pedido" cita só o que a lista de ferramentas cria.** Um agente que só anota
+  tarefa não lê mais "crie nota ou card". A frase "só conclui ou reabre" passou a citar card e
+  tarefa conforme a lista.
+- **O prompt `revisao_semanal` do MCP lê também `list_agenda`** da semana. Tarefa atrasada passou a
+  abrir a resposta junto do prazo vencido. A regra de escrita depende da sessão: com a escrita
+  liberada, o prompt diz que pode propor criar evento, criar tarefa e concluir tarefa; numa sessão
+  só de leitura, ele diz que a sessão só lê e não oferece tool de escrita nenhuma.
+- **Agente novo não vem com `list_agenda` ligada**, embora ela seja de leitura. Quem quer agenda
+  liga a ferramenta ou parte do modelo "Agenda".
+
+---
+
 ## [0.28.0] — 2026-10-09
 
 **Frente de agenda, tarefas e o Yu-book no celular, Fase 1: o domínio.** O Yu-book passa a ter

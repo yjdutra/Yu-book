@@ -62,9 +62,16 @@ export function ehDiaCivil(dia: string): boolean {
   );
 }
 
-export const diaCivilSchema = z
-  .string()
-  .refine(ehDiaCivil, "Use uma data que exista, no formato AAAA-MM-DD");
+/**
+ * Uma instância nova a cada chamada. Os schemas de ferramenta (Fase 2) não
+ * podem repetir a mesma: dois campos sobre um só `refine` viram `$ref` no JSON
+ * Schema que o chat e o MCP publicam — `.describe()` copia o embrulho, não o
+ * `z.string()` de dentro.
+ */
+export const novoDiaCivilSchema = () =>
+  z.string().refine(ehDiaCivil, "Use uma data que exista, no formato AAAA-MM-DD");
+
+export const diaCivilSchema = novoDiaCivilSchema();
 
 /// A mesma `HH:MM` da agenda de rotina: uma regra de hora no projeto.
 export const horaCivilSchema = z.string().regex(HORA_DA_AGENDA, "Hora no formato HH:MM");
@@ -438,6 +445,10 @@ export interface AgendaRange {
   /// ao período**, que ele não mostraria. As atrasadas dentro do período já
   /// vêm em `tasks`, com `overdue: true` — nenhuma tarefa sai nas duas listas.
   overdueTasks: TaskItem[];
+  /// Abertas e sem data, as mais recentes primeiro, até `LIMITE_TAREFAS_SEM_DATA`.
+  /// Não dependem do período: vêm em toda consulta, para que o chat ache o id
+  /// delas (`complete_task`) e o celular as liste junto da agenda.
+  undatedTasks: TaskItem[];
   /// Abertos, não arquivados, com o dia do prazo no período.
   cards: AgendaCard[];
 }

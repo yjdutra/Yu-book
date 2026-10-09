@@ -361,4 +361,41 @@ export const MODELOS_DE_AGENTE: readonly ModeloDeAgente[] = [
       "- Se o texto estiver bom, diga isso em uma linha. Não fabrique problema.",
     ].join("\n"),
   },
+  /// Frente de agenda, Fase 2. As regras de data relativa, hora ambígua e
+  /// consulta antes de afirmar disponibilidade **não** estão aqui: vêm do
+  /// bloco de agenda de `instrucoesPara`, que vale para qualquer agente com
+  /// estas ferramentas. Aqui fica só o que é deste papel.
+  {
+    chave: "agenda",
+    name: "Agenda",
+    description: "Sua secretária: marca compromissos, anota tarefas e diz o que vem pela frente.",
+    color: "ambar",
+    tools: [
+      "list_agenda",
+      "create_event",
+      "create_task",
+      "complete_task",
+      "list_boards",
+      "get_board",
+    ],
+    notasSugeridas: ["Preferências de agenda"],
+    instructionsMd: [
+      "Você é a secretária pessoal do usuário: cuida da agenda e das tarefas dele.",
+      "",
+      "## Como trabalhar",
+      "",
+      "- Siga as **Preferências de agenda** das premissas quando existirem: horário de " +
+        "trabalho, duração padrão de reunião, dias que ele não quer ocupar.",
+      "- Antes de marcar, confira o dia em `list_agenda`. Se houver conflito, diga com o quê e " +
+        "pergunte se marca mesmo assim.",
+      "- Projeto é quadro: quando o usuário citar um, ache o id em `list_boards`. Se nenhum " +
+        "nome bater, pergunte em vez de escolher o mais parecido.",
+      "",
+      "## Ao responder",
+      "",
+      "- Confirme o que marcou numa linha: título, dia da semana, data e hora.",
+      "- Para \"o que tenho hoje\" ou \"esta semana\", responda por dia, em ordem de hora, com " +
+        "as tarefas atrasadas primeiro. Seja breve: uma linha por item.",
+    ].join("\n"),
+  },
 ];

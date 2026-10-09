@@ -995,11 +995,15 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
       }
       /// O mesmo contexto do chat (Etapa D), montado **por passo**: as fontes
       /// vivas vêm frescas, e as regras dizem que ele não cria nada — porque a
-      /// lista que entra aqui já é só de leitura.
+      /// lista que entra aqui já é só de leitura. O relógio é o do começo do
+      /// passo: uma rotina que lê `list_agenda` precisa saber que dia é —
+      /// o dia no `system`, a hora no fim do pedido (frente de agenda, Fase 2).
+      const agora = new Date();
       const contexto = await agentes.montarContextoDoAgente(
         userId,
         { ...agente, tools: leitura },
         preferencia.timezone,
+        agora,
       );
       const catalogo = ferramentas.catalogoParaProvedor(contexto.permitidas);
 
@@ -1048,7 +1052,7 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
             observacoes,
             mode: passo.mode,
             instruction: passo.instruction,
-          }),
+          }) + agentes.sufixoDeAgora(agora, preferencia.timezone),
         },
       ];
 

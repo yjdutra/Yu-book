@@ -54,6 +54,14 @@ type PatchDoAgente = z.output<typeof agentUpdateSchema>;
 
 /* ------------------------------------------------------------- instruções */
 
+/// As ferramentas da agenda (frente de agenda, Fase 2), que ganham bloco próprio.
+const DA_AGENDA: readonly NomeDoAssistente[] = [
+  "list_agenda",
+  "create_event",
+  "create_task",
+  "complete_task",
+];
+
 /**
  * As regras do Yu-book para uma lista de ferramentas.
  *
@@ -74,6 +82,12 @@ type PatchDoAgente = z.output<typeof agentUpdateSchema>;
  * continua sendo a lista de ferramentas (RN-14). `buscaNaWeb` sem valor
  * padrão: esquecê-la é erro de compilação, não um agente que busca sem as
  * regras.
+ *
+ * **A agenda (frente de agenda, Fase 2) também tem bloco próprio**, com uma
+ * linha por ferramenta que ele cita. A que importa é a primeira: a data
+ * relativa se resolve pela linha "Hoje" (`linhaDeHoje`), no fim da mensagem
+ * `system`, e pela hora no fim da mensagem do usuário (`sufixoDeAgora`) — as
+ * duas montadas fora daqui.
  */
 export function instrucoesPara(
   ferramentas: readonly NomeDoAssistente[],
@@ -83,9 +97,29 @@ export function instrucoesPara(
   const nomes = (lista: NomeDoAssistente[]) => lista.map((n) => `\`${n}\``).join(", ");
   const ordem = FERRAMENTAS_DO_CHAT.filter(tem);
   const leitura = ordem.filter((n) => !DEFINICOES_DO_ASSISTENTE[n].escrita && n !== "open_page");
+  /// Concluir é escrita que não cria: card e, desde a Fase 2 da frente de
+  /// agenda, tarefa. As duas ficam fora do bloco de criação.
   const criacao = ordem.filter(
-    (n) => DEFINICOES_DO_ASSISTENTE[n].escrita && n !== "complete_card",
+    (n) => DEFINICOES_DO_ASSISTENTE[n].escrita && n !== "complete_card" && n !== "complete_task",
   );
+  const conclui = [tem("complete_card") && "card", tem("complete_task") && "tarefa"]
+    .filter(Boolean)
+    .join(" e ");
+  const agenda = ordem.filter((n) => DA_AGENDA.includes(n));
+  /// RN-13: a regra de criar só a pedido cita só o que **esta** lista cria —
+  /// "nota" para um agente que só anota tarefa é convite a tentar.
+  const criaveis = (
+    [
+      ["create_note", "nota"],
+      ["create_card", "card"],
+      ["create_event", "evento"],
+      ["create_task", "tarefa"],
+    ] as const
+  ).flatMap(([nome, rotulo]) => (tem(nome) ? [rotulo] : []));
+  const oQueCria =
+    criaveis.length > 1
+      ? `${criaveis.slice(0, -1).join(", ")} ou ${criaveis.at(-1)}`
+      : (criaveis[0] ?? "");
 
   const linhas = [
     "Você é o assistente do Yu-book, o segundo cérebro do usuário. " +
@@ -95,10 +129,16 @@ export function instrucoesPara(
     "- **Cite a origem**: toda afirmação sobre uma nota ou um card nomeia a nota ou o card.",
     "- Não altere nada entre colchetes duplos ao citar: `[[assim]]` é um link interno do usuário.",
     "- Não invente nota, card, quadro nem id. Se não achar, diga que não achou.",
-    "- Crie nota ou card **só quando o usuário pedir explicitamente**. Nunca por iniciativa sua.",
-    tem("complete_card")
-      ? "- Você não move, não apaga nem edita nada — só conclui ou reabre card, e só a pedido. " +
-        "Se pedirem o resto, diga que isso se faz no aplicativo."
+    /// Sem criação nenhuma, a frase de sempre: o bloco "não cria nada" vem
+    /// adiante, e esta segue valendo como regra geral.
+    oQueCria
+      ? `- Crie ${oQueCria} **só quando o usuário pedir explicitamente**. ` +
+        "Nunca por iniciativa sua."
+      : "- Crie nota ou card **só quando o usuário pedir explicitamente**. " +
+        "Nunca por iniciativa sua.",
+    conclui
+      ? `- Você não move, não apaga nem edita nada — só conclui ou reabre ${conclui}, e só a ` +
+        "pedido. Se pedirem o resto, diga que isso se faz no aplicativo."
       : "- Você não move, não apaga nem edita nada. Se pedirem, diga que isso se faz no aplicativo.",
   ];
 
@@ -144,6 +184,51 @@ export function instrucoesPara(
     );
   }
 
+  // Frente de agenda, Fase 2. A primeira linha é a que dá sentido às outras:
+  // sem a linha "Hoje" o modelo resolve "amanhã" pela data do treino. Entra
+  // também no passo de rotina, que só tem `list_agenda`.
+  if (agenda.length) {
+    linhas.push("", `Agenda (${nomes(agenda)}):`);
+    if (agenda.some((n) => n !== "complete_task")) {
+      linhas.push(
+        "- Datas relativas (\"amanhã\", \"quinta que vem\") se resolvem pela linha \"Hoje\", a " +
+          "última desta mensagem, e pela hora no fim da mensagem do usuário.",
+      );
+    }
+    if (tem("create_event") || tem("create_task")) {
+      linhas.push(
+        "- Dia e hora são os do usuário, como ele os diz: não converta fuso. Ao confirmar, diga " +
+          "o dia da semana e a data.",
+      );
+    }
+    if (tem("create_event")) {
+      linhas.push(
+        "- Compromisso que tem hora (consulta, reunião) sem hora dita, ou com hora vaga (\"à " +
+          "tarde\") ou ambígua (\"às 3\": manhã ou tarde?): pergunte, salvo se o contexto " +
+          "resolver. Nunca invente a hora.",
+        "- O que é do dia todo (aniversário, feriado, viagem) vai com `allDay`, sem perguntar hora.",
+      );
+    }
+    if (tem("create_task")) {
+      linhas.push("- Em `create_task` a hora é opcional: não pergunte; use só a que foi dita.");
+    }
+    if (tem("list_agenda")) {
+      linhas.push("- Consulte `list_agenda` antes de dizer que um horário está livre.");
+    }
+    if (tem("create_event") && tem("create_task")) {
+      linhas.push(
+        "- `create_event` é compromisso com hora marcada; `create_task` é algo a fazer, com ou " +
+          "sem dia.",
+      );
+    }
+    if (tem("complete_task")) {
+      linhas.push(
+        "- `complete_task` não cria nada: marca a tarefa como feita, ou a reabre, e fica " +
+          "registrado como feito por IA.",
+      );
+    }
+  }
+
   if (buscaNaWeb || tem("open_page")) {
     linhas.push("", "Web:");
     if (buscaNaWeb) {
@@ -176,6 +261,61 @@ export function instrucoesPara(
   }
 
   return linhas.join("\n");
+}
+
+/**
+ * O relógio do modelo — frente de agenda, Fase 2. Sem ele, "amanhã às 15h" é
+ * chute: o modelo não tem relógio, e o que ele acha que é hoje é a data do
+ * treino.
+ *
+ * **Dividido em dois, pelo cache de prefixo do provedor** (OpenAI, Gemini e
+ * DeepSeek cacheiam a requisição pelo começo). O **dia** vai no fim da
+ * mensagem `system` (`linhaDeHoje`, em `montarContextoDoAgente`): estável o
+ * dia inteiro, não derruba o cache das regras, das instruções e das
+ * notas-base, nem o do histórico que vem depois. A **hora** muda a cada
+ * minuto, e por isso vai só no fim da **última** mensagem do usuário
+ * (`sufixoDeAgora`), que já é o trecho novo da requisição. O sufixo existe só
+ * na requisição ao provedor: não é gravado nem aparece na tela, e no turno
+ * seguinte essa mensagem volta do banco sem ele — o prefixo cacheado vai até
+ * ali.
+ *
+ * No fuso **do usuário**, nunca no do processo (a API roda em UTC): às 22h em
+ * São Paulo o servidor já está no dia seguinte. O dia da semana vai por
+ * extenso porque é com ele que o usuário fala ("quinta que vem").
+ *
+ * `agora` sem valor padrão (convenção §3): quem chama passa o relógio, e o
+ * teste passa um fixo.
+ */
+function partesDoRelogio(agora: Date, fuso: string): Map<string, string> {
+  return new Map(
+    new Intl.DateTimeFormat("pt-BR", {
+      timeZone: fuso,
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(agora)
+      .map((p) => [p.type, p.value]),
+  );
+}
+
+/** `Hoje: sexta-feira, 9 de outubro de 2026 (America/Sao_Paulo).` */
+export function linhaDeHoje(agora: Date, fuso: string): string {
+  const p = partesDoRelogio(agora, fuso);
+  return (
+    `Hoje: ${p.get("weekday")}, ${p.get("day")} de ${p.get("month")} de ${p.get("year")} ` +
+    `(${fuso}).`
+  );
+}
+
+/** `\n\n(Agora são 14:32.)` — o fim da última mensagem do usuário ao provedor. */
+export function sufixoDeAgora(agora: Date, fuso: string): string {
+  const p = partesDoRelogio(agora, fuso);
+  return `\n\n(Agora são ${p.get("hour")}:${p.get("minute")}.)`;
 }
 
 /* --------------------------------------------------------------- contexto */
@@ -267,16 +407,25 @@ async function fonteComoTexto(
  * cascata já a teria tirado do agente. As colunas **não** são conferidas
  * antes: a leitura delas é pela cadeia (INV-03), e a que não resolve vira
  * bloco `indisponivel`.
+ *
+ * **A última linha é `linhaDeHoje`** (frente de agenda, Fase 2), com o relógio
+ * que quem chama passa — o chat e o passo de rotina, o de agora; a prévia
+ * também, para seguir mostrando byte a byte o `system` que o modelo recebe. A
+ * hora não entra aqui: vai na mensagem do usuário (`sufixoDeAgora`). A linha
+ * não vira bloco: não é premissa, não corta e não é do agente.
  */
 export async function montarContextoDoAgente(
   userId: string,
   agente: AgenteParaContexto | null,
   fuso: string,
+  agora: Date,
 ): Promise<ContextoDoAgente> {
+  const relogio = linhaDeHoje(agora, fuso);
   if (!agente) {
     /// Sem agente, o acervo sem a web: a lista é explícita (INV-52), e a web é
     /// coisa que se liga num agente, de propósito (Etapa G).
-    const sistema = instrucoesPara(FERRAMENTAS_SEM_AGENTE, false);
+    const regras = instrucoesPara(FERRAMENTAS_SEM_AGENTE, false);
+    const sistema = `${regras}\n\n${relogio}`;
     return {
       sistema,
       chars: sistema.length,
@@ -285,7 +434,7 @@ export async function montarContextoDoAgente(
       cortados: [],
       avisos: [],
       blocos: [
-        { kind: "regras", title: "Regras do Yu-book", chars: sistema.length, status: "incluido" },
+        { kind: "regras", title: "Regras do Yu-book", chars: regras.length, status: "incluido" },
       ],
       permitidas: [...FERRAMENTAS_SEM_AGENTE],
       buscaNaWeb: false,
@@ -403,6 +552,7 @@ export async function montarContextoDoAgente(
         `fora: ${corte.cortados.join(", ")}]`,
     );
   }
+  partes.push(relogio);
 
   const sistema = partes.join("\n\n");
   return {
@@ -750,6 +900,7 @@ export async function previa(
   userId: string,
   rascunho: RascunhoDoAgente,
   fuso: string,
+  agora: Date,
 ): Promise<AgentPreview> {
   /// Só as notas-base: nota alheia ou inexistente segue 404 (RN-15, INV-59).
   /// As fontes vivas não passam por aqui — a prévia é o editor reabrindo o
@@ -758,7 +909,7 @@ export async function previa(
   /// declarado cai no mesmo bloco, sem ler nada alheio: `cardsDaColuna`
   /// resolve pela cadeia até `board.userId` (INV-03), e o 404 dela vira aviso.
   await conferirReferencias(userId, { baseNoteIds: rascunho.baseNoteIds });
-  const contexto = await montarContextoDoAgente(userId, rascunho, fuso);
+  const contexto = await montarContextoDoAgente(userId, rascunho, fuso, agora);
   const avisos = [...contexto.avisos];
 
   let modelo = null;
@@ -812,7 +963,7 @@ export async function previaDoUsuario(
   rascunho: RascunhoDoAgente,
 ): Promise<AgentPreview> {
   const { timezone } = await preferenciaDe(userId);
-  return previa(userId, rascunho, timezone);
+  return previa(userId, rascunho, timezone, new Date());
 }
 
 /* ------------------------------------------------------------- exportação */

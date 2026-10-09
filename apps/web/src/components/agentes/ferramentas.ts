@@ -25,6 +25,13 @@ const EXPLICACAO: Record<NomeDoAssistente, string> = {
   complete_card: "Marca um card como concluído, ou o reabre, quando você pedir — sem movê-lo.",
   trash_note: "Manda uma nota para a lixeira.",
   restore_note: "Tira uma nota da lixeira.",
+  // Frente de agenda, Fase 2.
+  list_agenda:
+    "Vê a agenda de um período, dia a dia: eventos, tarefas e cards com prazo — o que " +
+    "ele confere antes de dizer se você está livre.",
+  create_event: "Marca um compromisso na agenda, no dia e na hora que você pedir.",
+  create_task: "Cria uma tarefa, com ou sem dia e hora, quando você pedir.",
+  complete_task: "Marca uma tarefa como feita, ou a reabre, quando você pedir.",
   open_page:
     "Lê o texto de uma página pública, pelo endereço — o seu ou um que a busca achou. " +
     "LinkedIn nunca, nem endereço da rede interna.",
@@ -91,7 +98,14 @@ export const FERRAMENTAS_DO_AGENTE: readonly FerramentaOferecida[] = FERRAMENTAS
  * Agente novo nasce lendo o acervo, sem escrever e sem sair para a web:
  * escrever é uma decisão, e abrir página é saída de rede — o agente liga de
  * propósito (Etapa G). Tirar `!f.web` daqui daria rede a todo agente novo.
+ *
+ * A agenda também fica desligada: `list_agenda` é leitura, mas de outro
+ * domínio que não o acervo, e cada ferramenta ligada é paga em todo turno —
+ * o agente de posts não precisa saber do dentista. Quem quer agenda liga, ou
+ * parte do modelo "Agenda" (frente de agenda, Fase 2).
  */
+const FORA_DO_PADRAO: readonly NomeDoAssistente[] = ["list_agenda"];
+
 export const FERRAMENTAS_PADRAO: NomeDoAssistente[] = FERRAMENTAS_DO_AGENTE.filter(
-  (f) => !f.escrita && !f.web,
+  (f) => !f.escrita && !f.web && !FORA_DO_PADRAO.includes(f.nome),
 ).map((f) => f.nome);

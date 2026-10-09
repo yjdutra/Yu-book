@@ -10,6 +10,7 @@ import type {
   MessageToNoteInput,
   NoteDetail,
 } from "@yu-book/shared";
+import { invalidarAgenda } from "./agenda";
 import { api, apiStream } from "./api";
 import { useInvalidar } from "./notas";
 
@@ -120,7 +121,8 @@ export function useVirarNota() {
 /**
  * O chat acabou de gravar no acervo (evento `criado`): as listas que mostram
  * nota e card ficaram velhas. O quadro vai inteiro — o evento não diz em qual
- * o card caiu, e é raro o bastante para não pesar.
+ * o card caiu, e é raro o bastante para não pesar. Evento e tarefa (frente de
+ * agenda) levam os prefixos da agenda, que ainda não têm query no web.
  */
 export function invalidarCriados(qc: QueryClient, criados: ChatCreated[]): void {
   if (criados.some((c) => c.kind === "note")) {
@@ -133,6 +135,7 @@ export function invalidarCriados(qc: QueryClient, criados: ChatCreated[]): void 
     void qc.invalidateQueries({ queryKey: ["board"] });
     void qc.invalidateQueries({ queryKey: ["boards"] });
   }
+  if (criados.some((c) => c.kind === "event" || c.kind === "task")) invalidarAgenda(qc);
   void qc.invalidateQueries({ queryKey: ["search"], refetchType: "none" });
   // Sem o `refetchType: "none"` do autosave de propósito: aqui o Início pode
   // estar na tela ao lado do painel, e o card com prazo precisa aparecer nele.

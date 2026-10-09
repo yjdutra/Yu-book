@@ -529,7 +529,10 @@ export function EditorAgente({ id }: { id: string | null }) {
         }
         rotulo={f.titulo}
         descricao={
-          f.nome === "complete_card"
+          // Escrita que não cria: concluir card e tarefa grava a marca na
+          // conclusão, não num item novo (INV-63). Escrita nova que também não
+          // crie entra nesta lista, ou o texto diria "o que criar".
+          f.nome === "complete_card" || f.nome === "complete_task"
             ? `${f.explicacao} A conclusão fica marcada como feita por IA, com o nome do agente.`
             : f.escrita
               ? `${f.explicacao} O que criar fica marcado como gerado por IA, ` +

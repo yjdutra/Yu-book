@@ -2,6 +2,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import type {
   CallToolResult,
+  GetPromptResult,
   JSONRPCMessage,
   ReadResourceResult,
 } from "@modelcontextprotocol/sdk/types.js";
@@ -29,7 +30,10 @@ import { criarServidor } from "../src/servidor.js";
 export interface ToolAnunciada {
   name: string;
   inputSchema: {
-    properties?: Record<string, { type?: string; format?: string; enum?: unknown[] }>;
+    properties?: Record<
+      string,
+      { type?: string; format?: string; enum?: unknown[]; description?: string }
+    >;
     required?: string[];
   };
 }
@@ -38,6 +42,7 @@ export interface ClienteDeTeste {
   listarTools(): Promise<ToolAnunciada[]>;
   chamarTool(nome: string, argumentos?: Record<string, unknown>): Promise<CallToolResult>;
   lerResource(uri: string): Promise<ReadResourceResult>;
+  pegarPrompt(nome: string, argumentos?: Record<string, string>): Promise<GetPromptResult>;
   encerrar(): Promise<void>;
 }
 
@@ -117,6 +122,15 @@ export async function abrirCliente(
         throw new Error(`erro de protocolo em ${uri}: ${erro.message}`);
       }
       return r["result"] as ReadResourceResult;
+    },
+
+    async pegarPrompt(nome, argumentos = {}) {
+      const r = await pedir("prompts/get", { name: nome, arguments: argumentos });
+      if (r["error"]) {
+        const erro = r["error"] as { message: string };
+        throw new Error(`erro de protocolo em ${nome}: ${erro.message}`);
+      }
+      return r["result"] as GetPromptResult;
     },
 
     async encerrar() {

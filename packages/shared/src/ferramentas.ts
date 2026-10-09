@@ -1,16 +1,25 @@
 import { z } from "zod";
 import {
+  diasEntre,
+  horaCivilSchema,
+  MAX_EVENTO_DESCRICAO,
+  MAX_EVENTO_LOCAL,
+  MAX_EVENTO_TITULO,
+  novoDiaCivilSchema,
+} from "./eventos.js";
+import {
   cardPrioritySchema,
   MAX_CARD_DESCRICAO,
   MAX_CARD_TITULO,
   MAX_TAGS_CARD,
 } from "./kanban.js";
 import { MAX_CONTEUDO, noteKindSchema, tituloSchema } from "./notes.js";
+import { MAX_TAREFA_DESCRICAO, MAX_TAREFA_TITULO } from "./tarefas.js";
 
 /**
- * O vocabulário do acervo: as onze ações que um modelo pode pedir.
+ * O vocabulário do acervo: as ações que um modelo pode pedir.
  *
- * **Uma definição, dois consumidores.** O servidor MCP publica estas onze em
+ * **Uma definição, dois consumidores.** O servidor MCP publica estas em
  * `tools/list`; o chat interno (Etapa B da frente de IA) as oferece ao provedor
  * no campo `tools` da requisição. O metadado — nome, título, descrição e
  * schema — mora aqui; os **handlers ficam separados**, porque o MCP fala HTTP
@@ -58,6 +67,36 @@ export interface DefinicaoDeFerramenta {
    */
   escrita: boolean;
   anotacoes?: AnotacoesDeFerramenta;
+}
+
+/**
+ * A maior janela de `list_agenda`, menor que a de `GET /agenda`
+ * (`MAX_DIAS_DA_AGENDA`): aquela é o mês que o calendário desenha; esta é o
+ * que cabe no contexto do modelo a cada chamada. Um mês, para "o que tenho em
+ * outubro".
+ */
+export const MAX_DIAS_DE_LIST_AGENDA = 31;
+
+/**
+ * O período que `list_agenda` pede, com `to` padrão igual a `from`, e o que
+ * está errado nele numa frase que o modelo leia e corrija. Uma função só para
+ * os dois executores — o do chat, na API, e o do MCP —, porque a regra cruza
+ * os dois campos e o `ZodRawShape` da ferramenta não a enxerga.
+ */
+export function periodoDeListAgenda(entrada: { from: string; to?: string | undefined }): {
+  from: string;
+  to: string;
+  problema: string | null;
+} {
+  const to = entrada.to ?? entrada.from;
+  const dias = diasEntre(entrada.from, to);
+  const problema =
+    dias < 0
+      ? "`to` vem antes de `from`: o último dia não pode ser anterior ao primeiro."
+      : dias + 1 > MAX_DIAS_DE_LIST_AGENDA
+        ? `No máximo ${MAX_DIAS_DE_LIST_AGENDA} dias por consulta: divida o período.`
+        : null;
+  return { from: entrada.from, to, problema };
 }
 
 export const FERRAMENTAS_DO_ACERVO = {
@@ -329,6 +368,135 @@ export const FERRAMENTAS_DO_ACERVO = {
       noteId: z.string().uuid().describe("Id da nota na lixeira."),
     },
   },
+
+  /// Frente de agenda, Fase 2. As quatro descrições são curtas de propósito: o
+  /// chat as paga em todo turno, e o MCP as publica. Cada frase muda o que o
+  /// modelo faz — o dia e a hora são do usuário (sem ela, o modelo converte
+  /// para UTC), o quadro é o projeto, e a disponibilidade se consulta antes de
+  /// se afirmar.
+  ///
+  /// **Cada campo com a sua instância.** Dois campos sobre o mesmo schema
+  /// viram `$ref` no JSON Schema (`endTime` apontando para
+  /// `#/properties/startTime`), que provedor e cliente MCP leem mal. Na hora,
+  /// basta `.describe()` antes de `.optional()` — ele copia o `z.string()`; no
+  /// dia, que é um `refine`, a cópia não alcança o de dentro, e cada campo
+  /// pede `novoDiaCivilSchema()`.
+  list_agenda: {
+    titulo: "Ver a agenda de um período",
+    descricao:
+      "Lista a agenda dia a dia: eventos com hora, tarefas, cards com prazo e as tarefas " +
+      "atrasadas; no fim, as tarefas abertas sem data. Dias e horas são locais do usuário. " +
+      "Consulte antes de dizer que um horário está livre, e para achar o id de uma tarefa.",
+    escrita: false,
+    entrada: {
+      from: novoDiaCivilSchema().describe("Primeiro dia, AAAA-MM-DD."),
+      to: novoDiaCivilSchema()
+        .describe(
+          `Último dia, inclusive, AAAA-MM-DD. Omita para só \`from\`. No máximo ` +
+            `${MAX_DIAS_DE_LIST_AGENDA} dias.`,
+        )
+        .optional(),
+    },
+  },
+
+  create_event: {
+    titulo: "Criar um evento na agenda",
+    descricao:
+      "Cria um compromisso na agenda (reunião, consulta, viagem). Dia e hora são locais do " +
+      "usuário: não converta fuso. Sem `endTime`, dura uma hora. Para algo a fazer sem hora " +
+      "marcada, use `create_task`. O evento nasce marcado como gerado por IA.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    entrada: {
+      title: z
+        .string()
+        .trim()
+        .min(1)
+        .max(MAX_EVENTO_TITULO)
+        .describe(`Título do evento, até ${MAX_EVENTO_TITULO} caracteres.`),
+      date: novoDiaCivilSchema().describe("Dia do início, AAAA-MM-DD."),
+      startTime: horaCivilSchema
+        .describe("Hora de início, HH:MM (24 h). Obrigatória, salvo em dia inteiro.")
+        .optional(),
+      endTime: horaCivilSchema.describe("Hora de término, HH:MM.").optional(),
+      endDate: novoDiaCivilSchema()
+        .describe("Último dia, AAAA-MM-DD, só se passar de um dia.")
+        .optional(),
+      allDay: z.boolean().optional().describe("true para dia inteiro, sem hora."),
+      location: z.string().trim().max(MAX_EVENTO_LOCAL).optional().describe("Local."),
+      description: z.string().max(MAX_EVENTO_DESCRICAO).optional().describe("Detalhes."),
+      boardId: z
+        .string()
+        .uuid()
+        .optional()
+        .describe("O projeto: id de um quadro, de `list_boards`. Omita se não houver."),
+    },
+  },
+
+  create_task: {
+    titulo: "Criar uma tarefa",
+    descricao:
+      "Cria uma tarefa (um a fazer), com ou sem dia. Não é card: não tem coluna, e o quadro, " +
+      "se houver, é só o projeto. Dia e hora são locais do usuário. Compromisso com hora " +
+      "marcada é `create_event`. A tarefa nasce marcada como gerada por IA.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    entrada: {
+      title: z
+        .string()
+        .trim()
+        .min(1)
+        .max(MAX_TAREFA_TITULO)
+        .describe(`Título da tarefa, até ${MAX_TAREFA_TITULO} caracteres.`),
+      date: novoDiaCivilSchema()
+        .describe("Dia, AAAA-MM-DD. Omita para tarefa sem data.")
+        .optional(),
+      time: horaCivilSchema.describe("Hora, HH:MM. Só com `date`.").optional(),
+      descriptionMd: z
+        .string()
+        .max(MAX_TAREFA_DESCRICAO)
+        .optional()
+        .describe("Detalhes em Markdown."),
+      boardId: z
+        .string()
+        .uuid()
+        .optional()
+        .describe("O projeto: id de um quadro, de `list_boards`. Omita se não houver."),
+    },
+  },
+
+  complete_task: {
+    titulo: "Concluir ou reabrir uma tarefa",
+    // Escrita que não cria — o par de `complete_card`. O id vem de
+    // `list_agenda` ou da confirmação de `create_task`.
+    descricao:
+      "Marca uma tarefa como concluída, ou a reabre. Não cria nem apaga nada. O id vem de " +
+      "`list_agenda`. A conclusão fica registrada como feita por IA.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    entrada: {
+      taskId: z.string().uuid().describe("Id da tarefa, como aparece em `list_agenda`."),
+      completed: z
+        .boolean()
+        .optional()
+        .describe("false reabre a tarefa. Omita para concluir."),
+    },
+  },
   /// `satisfies`, e não uma anotação de tipo: a anotação apagaria a forma
   /// exata de cada `entrada`, e o `registerTool` do SDK do MCP infere os
   /// argumentos do handler justamente dela — com `ZodRawShape` genérico, todo
@@ -402,8 +570,9 @@ export const DEFINICOES_DO_ASSISTENTE: Readonly<Record<NomeDoAssistente, Definic
 
 /**
  * O que o chat oferece ao provedor: as leituras, as duas criações da Etapa C
- * da frente de IA, desde a Etapa G abrir página e, desde a Parte 1 da frente de
- * cards, concluir card.
+ * da frente de IA, desde a Etapa G abrir página, desde a Parte 1 da frente de
+ * cards concluir card e, desde a Fase 2 da frente de agenda, criar evento e
+ * tarefa e concluir tarefa.
  *
  * Lista explícita, e não "todas menos algumas": mover card e mandar nota para
  * a lixeira ficam fora do chat por decisão de produto (RN-03 — a escrita do
@@ -420,11 +589,16 @@ export const FERRAMENTAS_DO_CHAT: readonly NomeDoAssistente[] = [
   "create_card",
   "create_note",
   "complete_card",
+  "create_event",
+  "create_task",
+  "complete_task",
   "open_page",
 ];
 
 /**
- * O Assistente sem agente: o acervo, sem a web.
+ * O Assistente sem agente: o acervo, sem a web. A agenda entra (Fase 2 da
+ * frente de agenda): marcar compromisso e anotar tarefa é pedido de conversa
+ * comum, não especialidade de agente.
  *
  * Lista explícita pelo mesmo motivo da de cima. A web é saída de rede e custa
  * por uso; quem a quer liga num agente, de propósito (Etapa G).
@@ -434,4 +608,7 @@ export const FERRAMENTAS_SEM_AGENTE: readonly NomeDeFerramenta[] = [
   "create_card",
   "create_note",
   "complete_card",
+  "create_event",
+  "create_task",
+  "complete_task",
 ];

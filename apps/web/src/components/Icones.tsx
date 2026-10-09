@@ -325,6 +325,35 @@ export function IconeCheck(p: IconeProps) {
   );
 }
 
+/**
+ * Folha de calendário com argolas — o evento da agenda, coisa marcada num dia.
+ * Não é o relógio, que é o prazo do card; os pontos são os dias, para o
+ * desenho não ler como o quadro.
+ */
+export function IconeCalendario(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="2.3" y="3.2" width="11.4" height="10.5" rx="1.4" />
+      <path d="M2.3 6.4h11.4M5.4 2v2.4M10.6 2v2.4" />
+      <path d="M5.2 9.2h.01M8 9.2h.01M10.8 9.2h.01M5.2 11.6h.01M8 11.6h.01" />
+    </Icone>
+  );
+}
+
+/**
+ * Caixa de marcar — a tarefa da agenda, a coisa a fazer. O check solto
+ * (`IconeCheck`) continua dizendo "feito" — concluído, copiado —, e por isso
+ * não serve aqui: na lista do chat a tarefa acabou de nascer, não de acabar.
+ */
+export function IconeTarefa(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2.2" />
+      <path d="M5.4 8.2 7.2 10l3.4-3.8" />
+    </Icone>
+  );
+}
+
 /** Clipe — a nota vinculada a um card. */
 export function IconeClipe(p: IconeProps) {
   return (

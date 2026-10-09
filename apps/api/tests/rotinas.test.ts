@@ -1,4 +1,4 @@
-import { FERRAMENTAS_DO_ACERVO } from "@yu-book/shared";
+import { FERRAMENTAS_DO_ACERVO, FUSO_PADRAO } from "@yu-book/shared";
 import type {
   AgentDetail,
   AiSettings,
@@ -22,6 +22,7 @@ import {
   assinar,
   reconciliarExecucoes,
 } from "../src/modules/assistente/execucao.service.js";
+import { linhaDeHoje } from "../src/modules/assistente/agentes.service.js";
 import { esquecerCatalogo } from "../src/modules/assistente/modelos.service.js";
 import { ferramentasDaRotina } from "../src/modules/assistente/rotinas.service.js";
 import { chamar, criarUsuario, limpar, subirApp } from "./apoio.js";
@@ -83,6 +84,11 @@ const proximoIp = () => {
   return `10.9.${Math.floor(ipSeguinte / 250)}.${(ipSeguinte % 250) + 1}`;
 };
 
+/// Os ajudantes de montagem também vão por `proximoIp`: cada cenário são
+/// cinco ou seis escritas, e no endereço padrão do `app.inject` elas somam ao
+/// limite global de 300/min que o resto da suíte divide — o sintoma é um 429
+/// no último teste do arquivo, longe de quem gastou.
+
 /** Um usuário pronto para rodar rotina: o modelo do chat escolhido. */
 async function comChat(
   apelido: string,
@@ -116,6 +122,7 @@ async function criarQuadro(usuario: Usuario, nome: string): Promise<BoardDetail>
     url: "/boards",
     token: usuario.token,
     body: { name: nome, workspaceId: workspace.id },
+    ip: proximoIp(),
   });
   expect(status).toBe(201);
   return body as BoardDetail;
@@ -134,6 +141,7 @@ async function criarCard(
     url: "/cards",
     token: usuario.token,
     body: { columnId, title, descriptionMd },
+    ip: proximoIp(),
   });
   expect(status).toBe(201);
   return (body as CardDetail).id;
@@ -145,6 +153,7 @@ async function agentePronto(usuario: Usuario, corpo: Record<string, unknown>): P
     url: "/ai/agents",
     token: usuario.token,
     body: corpo,
+    ip: proximoIp(),
   });
   expect(status).toBe(201);
   return body as AgentDetail;
@@ -190,7 +199,13 @@ function corpoDaRotina(
 }
 
 const criarRotina = (usuario: Usuario, corpo: unknown) =>
-  chamar(app, { method: "POST", url: "/ai/routines", token: usuario.token, body: corpo });
+  chamar(app, {
+    method: "POST",
+    url: "/ai/routines",
+    token: usuario.token,
+    body: corpo,
+    ip: proximoIp(),
+  });
 
 async function rotinaPronta(usuario: Usuario, corpo: RoutineInput): Promise<RoutineDetail> {
   const { status, body } = await criarRotina(usuario, corpo);
@@ -1512,6 +1527,52 @@ describe("CA-34 / RN-16: a rotina escreve pelo código, não pelo modelo", () =>
       select: { completedAt: true, aiCompletedVia: true },
     });
     expect(noBanco).toEqual({ completedAt: null, aiCompletedVia: null });
+  });
+
+  test("a agenda no passo: list_agenda é oferecida, as três de escrita da agenda nunca, e o pedido de create_event não grava", async () => {
+    // Frente de agenda, Fase 2: a rotina pode consultar a agenda, mas agendar,
+    // anotar e concluir são escrita, e o passo só lê (RN-16).
+    const DA_AGENDA = ["list_agenda", "create_event", "create_task", "complete_task"];
+    expect(ferramentasDaRotina(DA_AGENDA)).toEqual(["list_agenda"]);
+    for (const nome of ["create_event", "create_task", "complete_task"]) {
+      expect(DE_ESCRITA).toContain(nome);
+    }
+
+    const c = await cenario("rotina-agenda");
+    await criarCard(c.usuario, c.entrada, "Ideia");
+    const agente = await agentePronto(c.usuario, { name: "Secretária", tools: DA_AGENDA });
+    const rotina = await rotinaPronta(
+      c.usuario,
+      corpoDaRotina(c, [{ agentId: agente.id, mode: "reescreve" }]),
+    );
+    dublê.roteiro = [
+      {
+        tipo: "ferramenta",
+        nome: "create_event",
+        argumentos: JSON.stringify({ title: "Evento pelo modelo", date: "2030-11-12", startTime: "10:00" }),
+      },
+      { tipo: "texto", texto: "rascunho sem agendar" },
+    ];
+
+    const antes = new Date();
+    const run = await esperarFim(c.usuario, await rodarAceito(c.usuario, rotina.id));
+    const depois = new Date();
+
+    expect(run.status).toBe("concluida");
+    for (const corpo of pedidos()) {
+      expect((corpo.tools ?? []).map((t) => t.function.name)).toEqual(["list_agenda"]);
+    }
+    const resposta = pedidos()[1]?.messages.find((m) => m.role === "tool")?.content ?? "";
+    expect(resposta).toContain("create_event");
+    expect(await prisma.event.count({ where: { userId: c.usuario.id } })).toBe(0);
+
+    // E o passo sabe que dia é: a linha de hoje fecha o system, a hora fecha o
+    // pedido — no fuso padrão, que é o desta conta sem preferência gravada.
+    const sistema = mensagem(pedidos()[0], "system");
+    expect([linhaDeHoje(antes, FUSO_PADRAO), linhaDeHoje(depois, FUSO_PADRAO)]).toContain(
+      sistema.split("\n").at(-1),
+    );
+    expect(mensagem(pedidos()[0], "user")).toMatch(/\n\n\(Agora são \d{2}:\d{2}\.\)$/);
   });
 
   test("agente só com ferramenta de escrita: o pedido sai sem o campo tools", async () => {

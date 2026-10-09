@@ -6,21 +6,27 @@ import {
   FERRAMENTAS_DA_WEB,
   FERRAMENTAS_DO_ACERVO,
   FERRAMENTAS_DO_CHAT,
+  formatarAgenda,
   formatarBusca,
   formatarCardDetalhe,
   formatarDashboard,
+  formatarEvento,
   formatarListaDeQuadros,
   formatarNota,
   formatarNotaBreve,
   formatarQuadro,
+  formatarTarefa,
+  periodoDeListAgenda,
 } from "@yu-book/shared";
 import type { ChatSource, NomeDoAssistente } from "@yu-book/shared";
 import { AppError } from "../../lib/errors.js";
 import type { OrigemDoAssistente } from "../../lib/marca.js";
 import * as dashboard from "../dashboard/dashboard.service.js";
+import * as eventos from "../eventos/eventos.service.js";
 import * as kanban from "../kanban/kanban.service.js";
 import * as notes from "../notes/notes.service.js";
 import * as search from "../notes/search.service.js";
+import * as tarefas from "../tarefas/tarefas.service.js";
 import { abrirPagina, paginaComoTexto } from "../web/pagina.service.js";
 
 /**
@@ -32,12 +38,14 @@ import { abrirPagina, paginaComoTexto } from "../web/pagina.service.js";
  * CA-11 (o texto de uma nota pelo chat é idêntico ao de `yubook://nota/{id}`)
  * valer por construção, e não por alguém lembrar de conferir.
  *
- * **O chat lê, cria e conclui card; não move, não apaga, não edita texto.**
+ * **O chat lê, cria e conclui; não move, não apaga, não edita texto.**
  * Desde a Etapa C da frente de IA, `create_card` e `create_note` têm executor,
  * e o que eles criam nasce com a marca de conteúdo gerado — a origem vem do
  * contexto, montado pelo servidor a partir da conversa, nunca dos argumentos do
  * modelo. Desde a Parte 1 da frente de cards, `complete_card` também, e deixa a
- * marca de quem concluiu pelo mesmo caminho. As outras três ações de escrita
+ * marca de quem concluiu pelo mesmo caminho. Desde a Fase 2 da frente de
+ * agenda, o mesmo par para a agenda: `create_event` e `create_task` criam,
+ * marcados, e `complete_task` conclui. As outras três ações de escrita
  * seguem **sem executor**: um executor a mais neste mapa é a diferença entre
  * um chat que cria a pedido e um que apaga nota.
  *
@@ -46,11 +54,26 @@ import { abrirPagina, paginaComoTexto } from "../web/pagina.service.js";
  * origens, e o tipo total cobra a decisão para cada nome das duas.
  */
 
-/** Algo do acervo, que abre pelo id. É também a forma do que se cria. */
+/** Algo do acervo, que abre pelo id. */
 export interface FonteDoAcervo {
   tipo: "note" | "card" | "board";
   id: string;
   titulo: string;
+}
+
+/**
+ * O que uma ação criou. Não é `FonteDoAcervo` desde a Fase 2 da frente de
+ * agenda: evento e tarefa se criam, mas não são fonte — `ChatSource` não os
+ * abre, e citar "a agenda" não leva a lugar nenhum —, e quadro é fonte, mas
+ * não se cria. `dia` e `hora` são os de `ChatCreated.date`/`time`, só em evento
+ * e tarefa.
+ */
+export interface Criado {
+  tipo: "note" | "card" | "event" | "task";
+  id: string;
+  titulo: string;
+  dia?: string | null;
+  hora?: string | null;
 }
 
 /** Uma página da web: aberta por `open_page` ou citada pela busca (Etapa G). */
@@ -79,7 +102,7 @@ export interface ResultadoDeFerramenta {
    * evento `criado` e é gravado em `AiMessage.created`, para o chat mostrar
    * e oferecer desfazer. `board` nunca aparece aqui: o chat não cria quadro.
    */
-  criados: FonteDoAcervo[];
+  criados: Criado[];
 }
 
 export interface ContextoDeFerramenta {
@@ -248,6 +271,92 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
     return { texto: formatarCardDetalhe(card, fuso), fontes: [], criados: [] };
   },
 
+  /// Frente de agenda, Fase 2. A regra que cruza os dois campos — `to` depois
+  /// de `from`, no máximo um mês — não cabe no `ZodRawShape`, e o erro volta ao
+  /// modelo como `AppError`, que o laço repassa: é o que ele sabe corrigir.
+  /// As fontes são os cards do período, como no painel: evento e tarefa não
+  /// abrem como fonte, e "a agenda" não é recurso.
+  list_agenda: async (argumentos, { userId }) => {
+    const entrada = conferir(FERRAMENTAS_DO_ACERVO.list_agenda.entrada, argumentos);
+    const { from, to, problema } = periodoDeListAgenda(entrada);
+    if (problema) throw new AppError(422, "VALIDATION_ERROR", problema);
+    const agenda = await eventos.agendaDoPeriodo(userId, { from, to });
+    return {
+      texto: formatarAgenda(agenda),
+      fontes: agenda.cards.map((c) => ({ tipo: "card" as const, id: c.id, titulo: c.title })),
+      criados: [],
+    };
+  },
+
+  /// Dia e hora passam crus: são locais do usuário, e quem converte é o
+  /// service, pelo fuso de `ai_preference` — o mesmo caminho da rota. O
+  /// horário é conferido lá de novo (`resolverHorario`), e a recusa é
+  /// `AppError` com a frase do campo.
+  create_event: async (argumentos, { userId, origem }) => {
+    const entrada = conferir(FERRAMENTAS_DO_ACERVO.create_event.entrada, argumentos);
+    const evento = await eventos.criarEvento(
+      userId,
+      {
+        title: entrada.title,
+        date: entrada.date,
+        ...(entrada.startTime !== undefined && { startTime: entrada.startTime }),
+        ...(entrada.endTime !== undefined && { endTime: entrada.endTime }),
+        ...(entrada.endDate !== undefined && { endDate: entrada.endDate }),
+        ...(entrada.allDay !== undefined && { allDay: entrada.allDay }),
+        ...(entrada.location !== undefined && { location: entrada.location }),
+        ...(entrada.description !== undefined && { description: entrada.description }),
+        ...(entrada.boardId !== undefined && { boardId: entrada.boardId }),
+      },
+      origem,
+    );
+    const criado: Criado = {
+      tipo: "event",
+      id: evento.id,
+      titulo: evento.title,
+      dia: evento.date,
+      hora: evento.startTime,
+    };
+    return { texto: formatarEvento(evento), fontes: [], criados: [criado] };
+  },
+
+  create_task: async (argumentos, { userId, origem }) => {
+    const entrada = conferir(FERRAMENTAS_DO_ACERVO.create_task.entrada, argumentos);
+    const tarefa = await tarefas.criarTarefa(
+      userId,
+      {
+        title: entrada.title,
+        ...(entrada.date !== undefined && { date: entrada.date }),
+        ...(entrada.time !== undefined && { time: entrada.time }),
+        ...(entrada.descriptionMd !== undefined && { descriptionMd: entrada.descriptionMd }),
+        ...(entrada.boardId !== undefined && { boardId: entrada.boardId }),
+      },
+      origem,
+    );
+    const criado: Criado = {
+      tipo: "task",
+      id: tarefa.id,
+      titulo: tarefa.title,
+      dia: tarefa.date,
+      hora: tarefa.time,
+    };
+    return { texto: formatarTarefa(tarefa), fontes: [], criados: [criado] };
+  },
+
+  /// Como `complete_card`: não entra em `criados` — nada novo a mostrar nem a
+  /// desfazer pelo chat; reabrir é a mesma ação com `completed: false`.
+  /// Idempotente pelo `where` do service (INV-63): concluir de novo não troca
+  /// a data nem quem concluiu.
+  complete_task: async (argumentos, { userId, origem }) => {
+    const entrada = conferir(FERRAMENTAS_DO_ACERVO.complete_task.entrada, argumentos);
+    const tarefa = await tarefas.concluirTarefa(
+      userId,
+      entrada.taskId,
+      entrada.completed ?? true,
+      origem,
+    );
+    return { texto: formatarTarefa(tarefa), fontes: [], criados: [] };
+  },
+
   move_card: undefined,
   trash_note: undefined,
   restore_note: undefined,
@@ -290,8 +399,8 @@ export interface FerramentaParaProvedor {
 /**
  * O catálogo oferecido ao modelo — **só o que tem executor**.
  *
- * A fonte da lista é `FERRAMENTAS_DO_CHAT` — as leituras mais `create_card` e
- * `create_note` —, e o `EXECUTORES[nome]` é conferido de novo aqui de
+ * A fonte da lista é `FERRAMENTAS_DO_CHAT` — as leituras mais as escritas que
+ * criam ou concluem —, e o `EXECUTORES[nome]` é conferido de novo aqui de
  * propósito: são duas condições para uma ação de escrita aparecer, e as duas
  * teriam que falhar juntas. Mover card e mandar nota para a lixeira falham nas
  * duas.

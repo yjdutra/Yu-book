@@ -52,13 +52,24 @@ export function chaveDaFonteDoChat(fonte: ChatSource): string {
 
 /**
  * Algo que uma resposta **criou** no acervo (Etapa C da frente de IA). Forma de
- * `ChatSource` sem quadro: o chat cria nota e card, nunca quadro. Nasce
- * marcado como gerado por IA, e o chat oferece desfazer.
+ * `ChatSource` sem quadro: o chat cria nota e card, nunca quadro — e, desde a
+ * Fase 2 da frente de agenda, evento e tarefa. Nasce marcado como gerado por
+ * IA, e o chat oferece desfazer.
+ *
+ * **Quem lê `kind` não pode supor que o que não é nota é card.** Evento e
+ * tarefa se abrem e se desfazem por outras rotas (`/events/:id`, `/tasks/:id`).
  */
 export interface ChatCreated {
-  kind: "note" | "card";
+  kind: "note" | "card" | "event" | "task";
   id: string;
   title: string;
+  /// Só em evento e tarefa: quando, no fuso do usuário, para o resumo da tela
+  /// sem uma consulta por item. `date` é `AAAA-MM-DD` — no evento, o dia do
+  /// início; na tarefa, `null` se ela não tem dia. `time` é `HH:MM` — no
+  /// evento, a hora de início, `null` no dia inteiro; na tarefa, `null` sem
+  /// hora. Ausente em nota, em card e nas mensagens gravadas antes disto.
+  date?: string | null;
+  time?: string | null;
 }
 
 export interface ChatAttachment {

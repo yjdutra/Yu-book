@@ -107,7 +107,7 @@ of project-specific agents and skills that live in this repository.
 
 ### MCP server
 
-`apps/mcp` exposes the knowledge base to any MCP client: 11 tools (5 read, 6 write), 6 resources
+`apps/mcp` exposes the knowledge base to any MCP client: 15 tools (6 read, 9 write), 6 resources
 and 2 prompts. It runs over **stdio** on your machine or over **Streamable HTTP** as a hosted
 service, where it is its own **OAuth 2.1** authorization server and every request acts as whoever
 presented the token. Writing is locked behind two independent layers. Details in
@@ -186,8 +186,8 @@ on purpose.
   deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
   unique index), never through process memory. A run that started is never retried, because a
   retry costs money again.
-- **Tests against real infrastructure:** 518 integration tests boot the whole Fastify app against a
-  real Postgres; 60 more cover the MCP server.
+- **Tests against real infrastructure:** 543 integration tests boot the whole Fastify app against a
+  real Postgres; 72 more cover the MCP server.
 
 ---
 
@@ -203,7 +203,7 @@ work:
   deploys never pushes without an explicit request.
 - **7 skills** in [`.claude/skills/`](.claude/skills/): conventions, the shared contract, database
   migrations, the design system, changelog and versioning, the MCP server's design decisions, and a
-  catalog of **65 invariants**, the behaviors that look like bugs to anyone who doesn't know them
+  catalog of **66 invariants**, the behaviors that look like bugs to anyone who doesn't know them
   and that break silently if "fixed".
 - **Curated agent memory** in `.claude/agent-memory/`, with hard size limits and a rule to purge,
   not patch, whatever the code already contradicts.
@@ -325,8 +325,9 @@ features (chat, AI provenance, agents, routines, scheduling, web research, usage
 all delivered and running in production. Kanban cards have since gained a done state and file
 attachments, stored in an S3-compatible bucket that is optional: without one, the rest of the app
 runs unchanged. In progress: an agenda and a to-do list of its own, linked to boards as projects,
-with a phone-friendly companion app; the data model and the API are in place, the screens are not
-yet. Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
+with a phone-friendly companion app. The API is in place, and the chat and the MCP server can
+already read the agenda, schedule events and add or complete tasks; the screens are not there yet.
+Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
 Known limitations, stated on purpose:
 

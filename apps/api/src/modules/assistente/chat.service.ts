@@ -191,11 +191,15 @@ export async function preparar(
     : await modeloParaTarefa(userId, "chat");
 
   /// Montado **a cada mensagem**: as fontes vivas do agente precisam vir
-  /// frescas, e uma nota-base editada entre duas mensagens também.
+  /// frescas, e uma nota-base editada entre duas mensagens também — e a linha
+  /// "Hoje" no fim, que é o que resolve "amanhã" (frente de agenda, Fase 2).
+  /// Um relógio só para ela e para a hora no fim do turno.
+  const agora = new Date();
   const contextoDoAgente = await agentes.montarContextoDoAgente(
     userId,
     agente,
     preferencia.timezone,
+    agora,
   );
 
   /// A bandeira vem da cópia do catálogo no favorito, capturada desde a Etapa A
@@ -234,10 +238,12 @@ export async function preparar(
     entrada.content,
   ].join("");
 
+  /// A hora vai só aqui, no fim do turno novo, e só para o provedor: o que se
+  /// grava é `entrada.content` (`sufixoDeAgora` diz por quê).
   const mensagens: MensagemDoProvedor[] = [
     { role: "system", content: contextoDoAgente.sistema },
     ...anteriores,
-    { role: "user", content: turno },
+    { role: "user", content: turno + agentes.sufixoDeAgora(agora, preferencia.timezone) },
   ];
 
   /// O teto conferido aqui, **e** outra vez dentro do laço. Não é redundância
@@ -547,8 +553,14 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
           });
           texto = saida.texto;
           if (saida.criados.length) {
-            const criados = saida.criados.flatMap((c): ChatCreated[] =>
-              c.tipo === "board" ? [] : [{ kind: c.tipo, id: c.id, title: c.titulo }],
+            const criados = saida.criados.map(
+              (c): ChatCreated => ({
+                kind: c.tipo,
+                id: c.id,
+                title: c.titulo,
+                /// Só evento e tarefa trazem quando (Fase 2 da frente de agenda).
+                ...(c.dia !== undefined && { date: c.dia, time: c.hora ?? null }),
+              }),
             );
             criadosDoTurno.push(...criados);
             yield { tipo: "criado", criados };

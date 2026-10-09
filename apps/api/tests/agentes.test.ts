@@ -1165,3 +1165,48 @@ describe("RF-52: o agente exporta como Markdown com frontmatter", () => {
     expect(linhas.slice(fecha + 1).join("\n").trim()).toBe(instrucoes);
   });
 });
+
+/**
+ * Frente de agenda, Fase 2: as regras citam só o que a lista do agente faz
+ * (RN-13). "Crie nota…" para um agente que só anota tarefa é convite a ele
+ * tentar uma ferramenta que não tem; e as regras de hora só fazem sentido para
+ * quem marca compromisso.
+ */
+describe("RN-13: as regras de criação e de agenda seguem a lista do agente", () => {
+  /** A linha da regra "criar só a pedido". */
+  const regraDeCriar = (texto: string) =>
+    texto.split("\n").find((l) => l.startsWith("- Crie ")) ?? "";
+
+  test("só create_task e list_agenda: a regra de criar cita tarefa, e não nota nem card", () => {
+    const linha = regraDeCriar(instrucoesPara(["list_agenda", "create_task"], false));
+    expect(linha).toContain("Crie tarefa **só quando o usuário pedir explicitamente**");
+    expect(linha).not.toContain("nota");
+    expect(linha).not.toContain("card");
+    expect(linha).not.toContain("evento");
+  });
+
+  test("a regra de criar lista o que a lista cria, na ordem nota, card, evento, tarefa", () => {
+    const linha = (lista: Parameters<typeof instrucoesPara>[0]) =>
+      regraDeCriar(instrucoesPara(lista, false));
+    expect(linha(["create_task", "create_card"])).toContain("Crie card ou tarefa **só");
+    expect(linha(["create_task", "create_event", "create_note", "create_card"])).toContain(
+      "Crie nota, card, evento ou tarefa **só",
+    );
+  });
+
+  test("hora ambígua e dia inteiro só com create_event; hora opcional da tarefa só com create_task", () => {
+    const AMBIGUA = '"às 3": manhã ou tarde?';
+    const DIA_TODO = "vai com `allDay`, sem perguntar hora";
+    const HORA_OPCIONAL = "Em `create_task` a hora é opcional: não pergunte";
+
+    const soEvento = instrucoesPara(["list_agenda", "create_event"], false);
+    expect(soEvento).toContain(AMBIGUA);
+    expect(soEvento).toContain(DIA_TODO);
+    expect(soEvento).not.toContain(HORA_OPCIONAL);
+
+    const soTarefa = instrucoesPara(["list_agenda", "create_task"], false);
+    expect(soTarefa).toContain(HORA_OPCIONAL);
+    expect(soTarefa).not.toContain(AMBIGUA);
+    expect(soTarefa).not.toContain(DIA_TODO);
+  });
+});

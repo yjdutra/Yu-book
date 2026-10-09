@@ -10,8 +10,8 @@ import { criarServidor } from "./servidor.js";
  *   stdio  desenvolvimento — um processo por pessoa, iniciado pelo cliente MCP
  *   http   serviço hospedado — StreamableHTTP com sessão, muitos clientes
  *
- * O que cada um serve está em `src/servidor.ts`, e é idêntico: as onze tools,
- * os resources e os prompts. Só o canal muda.
+ * O que cada um serve está em `src/servidor.ts`, e é idêntico: as tools, os
+ * resources e os prompts. Só o canal muda.
  *
  * REGRA QUE NÃO SE QUEBRA — **e que vale só para o stdio**: ali o stdout **é**
  * o canal JSON-RPC, e um `console.log` esquecido injeta lixo no meio de uma
@@ -57,8 +57,8 @@ function diagnosticoDeEscritaStdio(): string {
       : "  escrita: habilitada em API REMOTA por YUBOOK_ESCRITA_REMOTA=1.";
   }
   return (
-    "  escrita: desligada — a API não é local. As tools create_card, create_note, move_card,\n" +
-    "  complete_card, trash_note e restore_note não foram registradas. Aponte YUBOOK_API_URL\n" +
+    "  escrita: desligada — a API não é local. Nenhuma tool de escrita (create_*, complete_*,\n" +
+    "  move_card, trash_note, restore_note) foi registrada. Aponte YUBOOK_API_URL\n" +
     "  para um host local, ou declare YUBOOK_ESCRITA_REMOTA=1 sabendo que a escrita alcança\n" +
     "  dado de verdade."
   );
@@ -69,16 +69,16 @@ function diagnosticoDeEscritaHttp(): string {
 
   if (!env.escritaHabilitada) {
     return (
-      "  escrita: DESLIGADA por MCP_ESCRITA_HABILITADA=0. Nenhuma sessão registra create_card,\n" +
-      "  create_note, move_card, complete_card, trash_note ou restore_note, mesmo que o\n" +
+      "  escrita: DESLIGADA por MCP_ESCRITA_HABILITADA=0. Nenhuma sessão registra tool de\n" +
+      "  escrita (create_*, complete_*, move_card, trash_note, restore_note), mesmo que o\n" +
       "  token traga o escopo.\n" +
       publica
     );
   }
   return (
     "  escrita: por escopo do token. Quem marcar a caixa no consentimento recebe yubook:write e\n" +
-    "  vê as onze tools; quem não marcar vê cinco. A trava por host local não vale aqui —\n" +
-    "  MCP_ESCRITA_HABILITADA=0 é o desligamento global deste transporte.\n" +
+    "  vê também as de escrita; quem não marcar, só as de leitura. A trava por host local\n" +
+    "  não vale aqui — MCP_ESCRITA_HABILITADA=0 é o desligamento global deste transporte.\n" +
     publica
   );
 }

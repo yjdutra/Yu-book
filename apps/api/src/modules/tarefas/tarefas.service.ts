@@ -1,6 +1,12 @@
 import { Prisma } from "@prisma/client";
 import type { TaskInput, TaskItem, TasksQuery, TaskUpdateInput } from "@yu-book/shared";
-import { HORA_DA_AGENDA, LIMITE_TAREFAS_CONCLUIDAS, diaLocal, ehDiaCivil } from "@yu-book/shared";
+import {
+  HORA_DA_AGENDA,
+  LIMITE_TAREFAS_CONCLUIDAS,
+  LIMITE_TAREFAS_SEM_DATA,
+  diaLocal,
+  ehDiaCivil,
+} from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
 import {
@@ -303,6 +309,23 @@ export async function tarefasAtrasadas(
   const linhas = await prisma.task.findMany({
     where: { userId, completedAt: null, date: { lt: paraColunaDate(antesDe) } },
     orderBy: ORDEM_DAS_ABERTAS,
+    select: CAMPOS_TAREFA,
+  });
+  return linhas.map((linha) => paraTarefa(linha, hoje));
+}
+
+/**
+ * Abertas e sem data, as mais **recentes** primeiro, até
+ * `LIMITE_TAREFAS_SEM_DATA` — para `GET /agenda` (`undatedTasks`). Sem elas o
+ * chat não acha o id de uma tarefa sem dia (Fase 2 da frente de agenda), e a
+ * que ele quer concluir é quase sempre a recém-anotada: no corte, quem sai é a
+ * mais velha. O índice `(user_id, completed_at, date)` cobre o filtro.
+ */
+export async function tarefasSemData(userId: string, hoje: string): Promise<TaskItem[]> {
+  const linhas = await prisma.task.findMany({
+    where: { userId, completedAt: null, date: null },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: LIMITE_TAREFAS_SEM_DATA,
     select: CAMPOS_TAREFA,
   });
   return linhas.map((linha) => paraTarefa(linha, hoje));

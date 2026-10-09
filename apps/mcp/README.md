@@ -7,7 +7,7 @@ escrita, sobre **dois transportes**. A Etapa 5 é a mesa de trabalho multi-repos
 
 ## Dois modos de operação, e a diferença é quem é você
 
-O mesmo servidor, a mesma montagem (`src/servidor.ts`), as mesmas onze tools. O que muda é **como o
+O mesmo servidor, a mesma montagem (`src/servidor.ts`), as mesmas tools. O que muda é **como o
 servidor sabe de quem é a requisição** — e isso muda tudo o que vem depois.
 
 | | `stdio` | `http` |
@@ -70,8 +70,8 @@ esse o ponto.
 navegador em `/authorize`, e volta com um `code` que troca por tokens com PKCE.
 
 **O que você faz:** na página que abre, digita email e senha da sua conta no Yu-book e marca — ou
-não — a caixa de escrita. Marcada, o token vem com `yubook:write` e a sessão registra as onze tools;
-desmarcada, cinco.
+não — a caixa de escrita. Marcada, o token vem com `yubook:write` e a sessão registra também as tools
+de escrita; desmarcada, só as de leitura.
 
 O servidor **não guarda estado durável**. Cliente registrado, código de autorização e refresh token
 viajam cifrados dentro do próprio identificador (`src/auth/segredos.ts`), então um redeploy não
@@ -147,6 +147,7 @@ Leitura:
 | `list_boards` | Quadros com contagem de colunas e cards | Baixo |
 | `get_board` | Colunas na ordem **com o id de cada uma**, e a face dos cards | Médio |
 | `get_dashboard` | O agregado da tela inicial numa requisição só | Médio |
+| `list_agenda` | Até 31 dias, dia a dia: eventos, tarefas, cards com prazo; atrasadas e sem data à parte | Médio; o período é recusado antes da rede |
 
 Escrita — em stdio só contra API local; em HTTP, com escopo `yubook:write`:
 
@@ -158,6 +159,9 @@ Escrita — em stdio só contra API local; em HTTP, com escopo `yubook:write`:
 | `complete_card` | Conclui ou reabre um card, **sem movê-lo**; a conclusão fica marcada como feita por IA | `complete_card` com `completed: false` |
 | `trash_note` | Manda a nota para a lixeira | `restore_note` — **menos o vínculo dos cards** |
 | `restore_note` | Tira a nota da lixeira | `trash_note` |
+| `create_event` | Cria um evento; dia e hora **locais**, convertidos pela API — marcado como gerado por IA | o app móvel (`apps/movel`) |
+| `create_task` | Cria uma tarefa, com ou sem dia — marcada como gerada por IA | o app móvel (`apps/movel`) |
+| `complete_task` | Conclui ou reabre uma tarefa; a conclusão fica marcada como feita por IA | `complete_task` com `completed: false` |
 
 Sobre a ressalva de `trash_note`: os `[[…]]` de e para a nota são apagados e **voltam** ao
 restaurar (`recalcularLinks` + `reconstruirEntradas`); o `noteId` dos cards que apontavam para ela
@@ -284,7 +288,7 @@ O que é interno segue o resto do repositório e fica em português (`registrarT
 
 ## Onde a superfície mora agora
 
-Desde a Etapa B da frente de IA (2026-09-23), **o metadado das onze tools não fica neste pacote**.
+Desde a Etapa B da frente de IA (2026-09-23), **o metadado das tools não fica neste pacote**.
 Título, descrição e schema vivem em [`packages/shared/src/ferramentas.ts`](../../packages/shared/src/ferramentas.ts),
 e a formatação do acervo em [`packages/shared/src/formato.ts`](../../packages/shared/src/formato.ts)
 — o `src/formato.ts` daqui deixou de existir. O motivo é que existe um **segundo consumidor**: o

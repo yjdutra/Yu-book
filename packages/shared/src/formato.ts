@@ -4,10 +4,14 @@ import type { SearchResponse, SearchResult } from "./busca.js";
 import { formatarBytes } from "./arquivos.js";
 import type { CardFile } from "./arquivos.js";
 import type { CardComPrazo, Dashboard } from "./dashboard.js";
+import { diasDoEvento } from "./eventos.js";
+import type { AgendaCard, AgendaRange, EventItem } from "./eventos.js";
 import { diaLocal } from "./ia.js";
 import type { BoardDetail, BoardSummary, CardDetail, CardSummary } from "./kanban.js";
 import type { AiCompletion, AiMark } from "./marca.js";
 import type { NoteDetail } from "./notes.js";
+import { LIMITE_TAREFAS_SEM_DATA } from "./tarefas.js";
+import type { TaskItem } from "./tarefas.js";
 
 /**
  * O acervo como texto, para um modelo ler.
@@ -438,5 +442,227 @@ export function formatarDashboard(d: Dashboard, fuso: string): string {
       : `${d.links.total} item(ns) guardado(s) para ver depois. Nada aqui expira.`,
   );
 
+  return linhas.join("\n");
+}
+
+/* ------------------------------------------------------------------ agenda */
+
+/*
+ * Frente de agenda, Fase 2: evento, tarefa e o período, como texto.
+ *
+ * **Estes formatadores não recebem fuso, e é de propósito.** Evento e tarefa
+ * já chegam da API em dia (`AAAA-MM-DD`) e hora (`HH:MM`) **locais do
+ * usuário** — o servidor converteu pelo `ai_preference.timezone` —, então aqui
+ * não há instante a converter. Converter de novo seria a única forma de errar.
+ * Os instantes que vêm junto (`startsAt`, `completedAt`, a data da marca) não
+ * são impressos, pelo mesmo motivo.
+ *
+ * O dia da semana sai do dia **civil**, por `Date.UTC`: é aritmética de
+ * calendário, sem fuso nenhum.
+ *
+ * Campo lido com `?.` apesar do tipo: o MCP formata depois da escrita, contra
+ * uma API que pode ser mais velha que este pacote (§13 da skill do MCP).
+ */
+
+const DIAS_DA_SEMANA = [
+  "domingo",
+  "segunda-feira",
+  "terça-feira",
+  "quarta-feira",
+  "quinta-feira",
+  "sexta-feira",
+  "sábado",
+];
+
+/** `quinta-feira, 2026-10-08` — o dia da semana de um dia civil. */
+function diaComSemana(dia: string): string {
+  const [ano, mes, d] = dia.split("-").map(Number);
+  const semana = DIAS_DA_SEMANA[new Date(Date.UTC(ano ?? 0, (mes ?? 1) - 1, d ?? 1)).getUTCDay()];
+  return semana ? `${semana}, ${dia}` : dia;
+}
+
+/** A marca sem o dia: o dia dela é instante, e estes formatadores não têm fuso. */
+function linhaDaMarcaSemDia(ai: AiMark, genero: "a" | "o"): string {
+  const partes = [`gerad${genero} por IA`];
+  if (ai.agentName) partes.push(`«${ai.agentName}»`);
+  if (ai.author) partes.push(ai.author);
+  partes.push(
+    ai.via === "rotina" && ai.routineName ? `via rotina «${ai.routineName}»` : `via ${ai.via}`,
+  );
+  return partes.join(" · ");
+}
+
+/**
+ * O horário do evento visto **de um dia** em que ele aparece. Sem `dia`, o
+ * horário inteiro, para a confirmação.
+ */
+function horarioDoEvento(evento: EventItem, dia?: string): string {
+  const dias = diasDoEvento(evento);
+  if (evento.allDay) {
+    if (dias.length <= 1) return "dia inteiro";
+    return `dia inteiro (${evento.date} a ${evento.endDate})`;
+  }
+  // Com hora, num dia só — inclusive o que acaba às 00:00 do seguinte.
+  const inicio = evento.startTime ?? "?";
+  if (dias.length <= 1) return `${inicio}–${evento.endTime ?? "?"}`;
+  const ate = `${evento.endDate} ${evento.endTime ?? "?"}`;
+  // No dia do meio ou do fim, o início leva o dia: "22:00" sozinho num dia
+  // que não é o do início faria o modelo ler um evento que começa ali.
+  const de = dia === undefined || dia === evento.date ? inicio : `${evento.date} ${inicio}`;
+  return `${de} → ${ate}`;
+}
+
+/** Uma linha de evento numa lista por dia. */
+function linhaDoEvento(evento: EventItem, dia: string): string {
+  const partes = [`- ${horarioDoEvento(evento, dia)}`, `**${evento.title}**`];
+  if (evento.board?.name) partes.push(`projeto ${evento.board.name}`);
+  if (evento.location) partes.push(`local: ${evento.location}`);
+  return `${partes.join(" · ")}${sufixoIa(evento.ai ?? null)}\n  id: ${evento.id}`;
+}
+
+/** Uma linha de tarefa numa lista. `[ ]` aberta, `[x]` concluída. */
+function linhaDaTarefa(tarefa: TaskItem, comDia: boolean): string {
+  const caixa = tarefa.completedAt ? "[x]" : "[ ]";
+  const partes = [`- ${caixa} ${tarefa.title}`];
+  const quando = [comDia ? tarefa.date : null, tarefa.time, tarefa.overdue ? "(atrasada)" : null]
+    .filter(Boolean)
+    .join(" ");
+  if (quando) partes.push(quando);
+  if (tarefa.board?.name) partes.push(`projeto ${tarefa.board.name}`);
+  return `${partes.join(" · ")}${sufixoIa(tarefa.ai ?? null)}\n  id: ${tarefa.id}`;
+}
+
+/** Um card com prazo, na agenda. O id é o de `complete_card`. */
+function linhaDoCardNaAgenda(card: AgendaCard): string {
+  const prioridade =
+    card.priority && card.priority !== "media" ? ` · prioridade ${card.priority}` : "";
+  return (
+    `- prazo do card **${card.title}** · ${card.boardName} / ${card.columnName}${prioridade}` +
+    `\n  id: ${card.id}`
+  );
+}
+
+/**
+ * Um evento inteiro: é a confirmação de `create_event`. A descrição vira
+ * contagem, como em `formatarCardDetalhe` — devolver ao modelo o texto que ele
+ * acabou de escrever só gasta contexto.
+ */
+export function formatarEvento(evento: EventItem): string {
+  const linhas = [
+    `**${evento.title}**`,
+    `${diaComSemana(evento.date)} · ${horarioDoEvento(evento)}`,
+    `id: ${evento.id}`,
+  ];
+  if (evento.board?.name) linhas.push(`projeto: ${evento.board.name}`);
+  if (evento.location) linhas.push(`local: ${evento.location}`);
+  if (evento.url) linhas.push(`link: ${evento.url}`);
+  if (evento.ai) linhas.push(linhaDaMarcaSemDia(evento.ai, "o"));
+  if (evento.description) linhas.push(`descrição: ${evento.description.length} caracteres`);
+  return linhas.join("\n");
+}
+
+/**
+ * Uma tarefa inteira: é a confirmação de `create_task` e de `complete_task`.
+ * A conclusão aparece sem dia (o `completedAt` é instante); quem concluiu, só
+ * quando foi o assistente — a marca segue o estado (INV-63).
+ */
+export function formatarTarefa(tarefa: TaskItem): string {
+  const caixa = tarefa.completedAt ? "[x]" : "[ ]";
+  const quando = tarefa.date
+    ? `${diaComSemana(tarefa.date)}${tarefa.time ? ` · ${tarefa.time}` : ""}`
+    : "sem data";
+  const linhas = [
+    `${caixa} **${tarefa.title}**`,
+    `${quando}${tarefa.overdue ? " (atrasada)" : ""}`,
+    `id: ${tarefa.id}`,
+  ];
+  if (tarefa.board?.name) linhas.push(`projeto: ${tarefa.board.name}`);
+  if (tarefa.ai) linhas.push(linhaDaMarcaSemDia(tarefa.ai, "a"));
+  if (tarefa.completedAt) {
+    const ia = tarefa.completion;
+    const partes = ["concluída"];
+    if (ia) {
+      partes.push(`por IA via ${ia.via}`);
+      if (ia.agentName) partes.push(`«${ia.agentName}»`);
+      if (ia.author) partes.push(ia.author);
+    }
+    linhas.push(partes.join(" · "));
+  }
+  if (tarefa.descriptionMd) linhas.push(`descrição: ${tarefa.descriptionMd.length} caracteres`);
+  return linhas.join("\n");
+}
+
+/**
+ * O período, dia a dia: é o que `list_agenda` devolve.
+ *
+ * O evento aparece **em cada dia em que ocupa algum tempo** — por
+ * `diasDoEvento`, a mesma regra da consulta da API (§4.8 do contrato) — e só
+ * nos dias do período. Dia vazio não aparece, e o cabeçalho diz isso: para
+ * "estou livre quinta?" a ausência do dia é a resposta, e trinta linhas de
+ * "nada" custariam contexto sem dizer mais.
+ *
+ * As atrasadas **anteriores** ao período vêm à parte e primeiro; as de dentro
+ * dele aparecem no seu dia, com "(atrasada)" — nenhuma sai duas vezes. As
+ * abertas **sem data** vêm no fim, com id: sem elas, "conclua a tarefa X" de
+ * uma tarefa sem dia não teria onde achar o id.
+ */
+export function formatarAgenda(agenda: AgendaRange): string {
+  const eventos = agenda.events ?? [];
+  const tarefas = agenda.tasks ?? [];
+  const atrasadas = agenda.overdueTasks ?? [];
+  const cards = agenda.cards ?? [];
+  /// `?? []`: campo posterior ao `AgendaRange` da Fase 1, e o MCP pode falar
+  /// com uma API que ainda não o manda.
+  const semData = agenda.undatedTasks ?? [];
+
+  const periodo =
+    agenda.from === agenda.to ? diaComSemana(agenda.from) : `${agenda.from} a ${agenda.to}`;
+  const cabecalho = [`Agenda de ${periodo}`];
+  if (agenda.today) cabecalho.push(`hoje é ${diaComSemana(agenda.today)}`);
+  if (agenda.timezone) cabecalho.push(`fuso ${agenda.timezone}`);
+  const linhas = [`${cabecalho.join(" · ")}.`];
+
+  if (atrasadas.length) {
+    linhas.push("", "## Tarefas atrasadas, de antes do período");
+    linhas.push(...atrasadas.map((t) => linhaDaTarefa(t, true)));
+  }
+
+  /// Por dia, na ordem do calendário: os dias vêm das próprias datas, então
+  /// ordenar as chaves `AAAA-MM-DD` como texto é ordenar por data.
+  const porDia = new Map<string, string[]>();
+  const noDia = (dia: string) => {
+    let lista = porDia.get(dia);
+    if (!lista) porDia.set(dia, (lista = []));
+    return lista;
+  };
+  for (const evento of eventos) {
+    for (const dia of diasDoEvento(evento)) {
+      if (dia >= agenda.from && dia <= agenda.to) noDia(dia).push(linhaDoEvento(evento, dia));
+    }
+  }
+  for (const tarefa of tarefas) {
+    if (tarefa.date) noDia(tarefa.date).push(linhaDaTarefa(tarefa, false));
+  }
+  for (const card of cards) noDia(card.date).push(linhaDoCardNaAgenda(card));
+
+  if (porDia.size === 0) {
+    linhas.push("", atrasadas.length ? "Nada marcado no período." : "Nada na agenda no período.");
+  } else {
+    for (const dia of [...porDia.keys()].sort()) {
+      const hoje = dia === agenda.today ? " (hoje)" : "";
+      linhas.push("", `## ${diaComSemana(dia)}${hoje}`, ...(porDia.get(dia) ?? []));
+    }
+    linhas.push("", "_Dias sem nada não aparecem._");
+  }
+
+  if (semData.length) {
+    linhas.push("", "## Tarefas abertas sem data");
+    linhas.push(...semData.map((t) => linhaDaTarefa(t, true)));
+    // A API corta no limite e não manda o total: dizer que pode haver mais é
+    // o que impede o modelo de ler a lista como tudo o que existe.
+    if (semData.length >= LIMITE_TAREFAS_SEM_DATA) {
+      linhas.push(`_As ${semData.length} mais recentes; pode haver mais._`);
+    }
+  }
   return linhas.join("\n");
 }

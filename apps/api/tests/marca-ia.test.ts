@@ -473,29 +473,44 @@ describe("apagar a conversa não apaga a marca", () => {
 });
 
 describe("CA-21 / RN-12: o chat escreve criando e concluindo, nunca movendo nem apagando", () => {
-  test("o catálogo oferecido ao provedor tem nove ações, e nenhuma de mover ou apagar", () => {
-    // Oito do acervo — as leituras, as duas criações e, desde a Parte 1 da
-    // frente de cards, `complete_card` — mais `open_page`, da web (Etapa G).
+  test("o catálogo oferecido ao provedor é a lista do chat inteira, sem repetição, e nenhuma de mover ou apagar", () => {
+    // A contagem sai de `FERRAMENTAS_DO_CHAT`, não de um número à mão: o que
+    // se prova aqui é que todo nome da lista tem executor — o catálogo só
+    // oferece o que tem — e que nenhum entra duas vezes. **Quais** escritas
+    // estão na lista é o teste seguinte que decide, por nome.
     const nomes = catalogoParaProvedor(FERRAMENTAS_DO_CHAT).map((f) => f.function.name);
 
-    expect(nomes).toHaveLength(9);
-    expect(new Set(nomes).size).toBe(9);
+    expect(nomes).toEqual([...FERRAMENTAS_DO_CHAT]);
+    expect(new Set(nomes).size).toBe(nomes.length);
     expect(nomes).not.toContain("move_card");
     expect(nomes).not.toContain("trash_note");
     expect(nomes).not.toContain("restore_note");
   });
 
-  test("toda ação de escrita do catálogo compartilhado, fora as duas criações e a conclusão, fica fora", () => {
-    // Derivado do catálogo, e não enumerado: uma ação de escrita nova em
-    // `ferramentas.ts` não pode entrar no chat só por existir lá (RN-12).
+  test("toda ação de escrita do catálogo compartilhado, fora as criações e as conclusões decididas, fica fora", () => {
+    // As escritas do acervo são derivadas do catálogo, e as oferecidas ficam
+    // **enumeradas** de propósito: uma ação de escrita nova em `ferramentas.ts`
+    // não pode entrar no chat só por existir lá (RN-12). Derivar esta lista de
+    // `FERRAMENTAS_DO_CHAT` a tornaria tautologia — o catálogo já é filtrado
+    // por ela. Nota e card desde a Etapa C, `complete_card` desde a Parte 1 da
+    // frente de cards, e evento, tarefa e `complete_task` desde a Fase 2 da
+    // frente de agenda.
     const oferecidas = new Set(catalogoParaProvedor(FERRAMENTAS_DO_CHAT).map((f) => f.function.name));
     const escritas = (Object.keys(FERRAMENTAS_DO_ACERVO) as NomeDeFerramenta[]).filter(
       (n) => FERRAMENTAS_DO_ACERVO[n].escrita,
     );
 
     const escritasOferecidas = escritas.filter((n) => oferecidas.has(n)).sort();
-    expect(escritasOferecidas).toEqual(["complete_card", "create_card", "create_note"]);
-    // E o inverso: toda leitura está lá — senão o "nove" fecharia por troca.
+    expect(escritasOferecidas).toEqual([
+      "complete_card",
+      "complete_task",
+      "create_card",
+      "create_event",
+      "create_note",
+      "create_task",
+    ]);
+    // E o inverso: toda leitura do acervo está lá. A lista do chat é
+    // explícita, e uma leitura esquecida fora dela não acusaria noutro lugar.
     const leituras = (Object.keys(FERRAMENTAS_DO_ACERVO) as NomeDeFerramenta[]).filter(
       (n) => !FERRAMENTAS_DO_ACERVO[n].escrita,
     );
@@ -998,5 +1013,20 @@ describe("RF-40: o texto que o MCP e o chat leem diz que o card está concluído
     // Um prazo passado lido antes de "concluído" parece atraso.
     expect(linha.startsWith("- Linha concluída · concluído · prazo ")).toBe(true);
     expect(formatarCard(faceAberta!, FUSO_PADRAO)).not.toContain("concluído");
+  });
+});
+
+/**
+ * Frente de agenda, Fase 2. `diaCivilSchema` é um `refine`, e dois campos de
+ * ferramenta sobre a mesma instância saem do `zodToJsonSchema` como `$ref`
+ * (`endDate` apontando para `#/properties/date`) — que provedor e cliente MCP
+ * leem mal, e que nada acusaria. Cada campo de dia pede `novoDiaCivilSchema()`.
+ */
+describe("o JSON Schema oferecido ao provedor não tem $ref", () => {
+  test("nenhuma ferramenta do chat sai com $ref nos parâmetros", () => {
+    for (const ferramenta of catalogoParaProvedor(FERRAMENTAS_DO_CHAT)) {
+      const esquema = JSON.stringify(ferramenta.function.parameters);
+      expect(esquema, ferramenta.function.name).not.toContain("$ref");
+    }
   });
 });

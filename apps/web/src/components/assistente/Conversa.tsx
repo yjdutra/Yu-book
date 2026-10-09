@@ -10,8 +10,9 @@ import type {
 } from "@yu-book/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { ComponentType, FormEvent, ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { quandoNaAgenda, useExcluirEvento, useExcluirTarefa } from "../../lib/agenda";
 import { ApiError } from "../../lib/api";
 import { useConversa, useVirarNota } from "../../lib/chat";
 import { carregarCard, useExcluirCard } from "../../lib/kanban";
@@ -27,11 +28,14 @@ import { Etiqueta } from "../base/Etiqueta";
 import {
   IconeAssistente,
   IconeBoard,
+  IconeCalendario,
   IconeCheck,
   IconeCopiar,
   IconeNotas,
+  IconeTarefa,
   IconeVirarNota,
 } from "../Icones";
+import type { IconeProps } from "../Icones";
 import { useAgenteDaConversa } from "./agenteDaConversa";
 import { ApresentacaoAgente } from "./ApresentacaoAgente";
 import { Fontes } from "./Fontes";
@@ -60,6 +64,13 @@ const ROTULO_DA_ACAO: Record<string, string> = {
   create_note: "criando nota",
   // Frente de cards, Parte 1: grava, mas não cria — o rótulo não diz "criando".
   complete_card: "concluindo card",
+  // Frente de agenda, Fase 2. "Agendando" e não "criando evento": é a palavra
+  // de quem marca um compromisso. Concluir tarefa, como concluir card, grava
+  // sem criar.
+  list_agenda: "consultando a agenda",
+  create_event: "agendando",
+  create_task: "criando tarefa",
+  complete_task: "concluindo tarefa",
   // Etapa G: a única que sai do Yu-book. A espera é a rede de um terceiro, e
   // pode chegar a segundos.
   open_page: "abrindo página",
@@ -121,12 +132,95 @@ function BalaoUsuario({
 }
 
 /**
+ * Como cada tipo do que o chat cria se mostra e se desfaz. `Record` total
+ * sobre `ChatCreated["kind"]`: tipo novo não compila sem entrada aqui. Antes
+ * da frente de agenda o bloco supunha que o que não era nota era card — e um
+ * evento teria oferecido "abrir o card" e um Desfazer contra `/cards/:id`.
+ *
+ * `abrir` nulo: evento e tarefa não têm tela no web — moram no app móvel —, e
+ * o item fica só texto, com o dia e a hora ao lado.
+ */
+const COMO_MOSTRAR: Record<
+  ChatCreated["kind"],
+  {
+    Icone: ComponentType<IconeProps>;
+    tipo: string;
+    desfeito: string;
+    abrir: string | null;
+    desfazer: (titulo: string) => string;
+    desfez: (titulo: string) => string;
+    jaDesfeito: (titulo: string) => string;
+  }
+> = {
+  note: {
+    Icone: IconeNotas,
+    tipo: "nota",
+    desfeito: "nota desfeita",
+    abrir: "Abrir a nota",
+    desfazer: (t) => `Desfazer: mandar a nota “${t}” para a lixeira`,
+    desfez: (t) => `Desfeito: a nota “${t}” foi para a lixeira.`,
+    jaDesfeito: (t) => `A nota “${t}” já estava na lixeira.`,
+  },
+  card: {
+    Icone: IconeBoard,
+    tipo: "card",
+    desfeito: "card desfeito",
+    abrir: "Abrir o card",
+    desfazer: (t) => `Desfazer: excluir o card “${t}”`,
+    desfez: (t) => `Desfeito: o card “${t}” foi excluído.`,
+    jaDesfeito: (t) => `O card “${t}” já tinha sido excluído.`,
+  },
+  event: {
+    Icone: IconeCalendario,
+    tipo: "evento",
+    desfeito: "evento desfeito",
+    abrir: null,
+    desfazer: (t) => `Desfazer: excluir o evento “${t}”`,
+    desfez: (t) => `Desfeito: o evento “${t}” foi excluído.`,
+    jaDesfeito: (t) => `O evento “${t}” já tinha sido excluído.`,
+  },
+  task: {
+    Icone: IconeTarefa,
+    tipo: "tarefa",
+    desfeito: "tarefa desfeita",
+    abrir: null,
+    desfazer: (t) => `Desfazer: excluir a tarefa “${t}”`,
+    desfez: (t) => `Desfeito: a tarefa “${t}” foi excluída.`,
+    jaDesfeito: (t) => `A tarefa “${t}” já tinha sido excluída.`,
+  },
+};
+
+/**
+ * O dia e a hora do evento ou da tarefa, ao lado do título. `date` ausente é
+ * mensagem gravada antes do campo existir, ou nota e card: nada a mostrar —
+ * diferente de `null`, que na tarefa é "sem data".
+ */
+function Quando({ criado }: { criado: ChatCreated }) {
+  if (criado.kind !== "event" && criado.kind !== "task") return null;
+  if (criado.date === undefined) return null;
+  const hora = criado.time ?? null;
+  const texto = quandoNaAgenda(criado.kind, criado.date, hora);
+  return (
+    <span className="shrink-0 text-miudo text-ink-400">
+      ·{" "}
+      {criado.date ? (
+        <time dateTime={hora ? `${criado.date}T${hora}` : criado.date}>{texto}</time>
+      ) : (
+        texto
+      )}
+    </span>
+  );
+}
+
+/**
  * O que o chat criou nesta resposta (Etapa C da frente de IA), abaixo das
- * fontes e no mesmo desenho delas. Cada item abre o que foi criado e oferece
- * desfazer — a escrita é iniciada pelo usuário e reversível por ele (RN-03).
+ * fontes e no mesmo desenho delas. Cada item abre o que foi criado — quando há
+ * onde abrir — e oferece desfazer: a escrita é iniciada pelo usuário e
+ * reversível por ele (RN-03).
  *
  * Desfazer nota a manda para a lixeira, de onde ela volta; desfazer card o
- * exclui, pela mesma rota do painel do card. Depois, o item fica riscado com
+ * exclui, pela mesma rota do painel do card; evento e tarefa são excluídos
+ * (frente de agenda — não há lixeira deles). Depois, o item fica riscado com
  * "desfeito" por extenso (RNF-09: o estado não é só o risco), e o foco volta ao
  * bloco — o botão que o tinha desaparece.
  */
@@ -143,6 +237,8 @@ function Criados({
   const { pathname } = useLocation();
   const excluirNota = useExcluirNota();
   const excluirCard = useExcluirCard();
+  const excluirEvento = useExcluirEvento();
+  const excluirTarefa = useExcluirTarefa();
   const bloco = useRef<HTMLElement>(null);
   const idTitulo = useId();
   const [desfazendo, setDesfazendo] = useState<string | null>(null);
@@ -161,6 +257,9 @@ function Criados({
       onAbrirFonte({ kind: "note", id: c.id, title: c.title });
       return;
     }
+    // Evento e tarefa não chegam aqui (`abrir` nulo em `COMO_MOSTRAR`); a
+    // guarda impede que um tipo futuro caia no caminho do card.
+    if (c.kind !== "card") return;
     try {
       const card = await carregarCard(qc, c.id);
       navigate(`/b/${card.boardId}/c/${card.id}`);
@@ -175,32 +274,35 @@ function Criados({
     setErro(null);
     setDesfazendo(chave);
     try {
-      if (c.kind === "note") {
-        await excluirNota.mutateAsync(c.id);
-      } else {
-        // O quadro vem do detalhe: a invalidação da exclusão precisa dele.
-        const card = await carregarCard(qc, c.id);
-        await excluirCard.mutateAsync({ id: c.id, boardId: card.boardId });
+      switch (c.kind) {
+        case "note":
+          await excluirNota.mutateAsync(c.id);
+          break;
+        case "card": {
+          // O quadro vem do detalhe: a invalidação da exclusão precisa dele.
+          const card = await carregarCard(qc, c.id);
+          await excluirCard.mutateAsync({ id: c.id, boardId: card.boardId });
+          break;
+        }
+        case "event":
+          await excluirEvento.mutateAsync(c.id);
+          break;
+        case "task":
+          await excluirTarefa.mutateAsync(c.id);
+          break;
       }
       marcarDesfeito(chave);
-      setAnuncio(
-        c.kind === "note"
-          ? `Desfeito: a nota “${c.title}” foi para a lixeira.`
-          : `Desfeito: o card “${c.title}” foi excluído.`,
-      );
+      setAnuncio(COMO_MOSTRAR[c.kind].desfez(c.title));
     } catch (e) {
       // Já desfeito — por outro caminho, ou por este antes de recarregar a
       // página: `desfeitos` só vive em memória. A API responde NOT_FOUND tanto
       // para o card apagado quanto para a nota que já está na lixeira (`excluir`
-      // em notes.service.ts filtra `deletedAt: null`). O desfecho que se pediu
-      // é esse mesmo, e oferecer desfazer de novo seria mentir.
+      // em notes.service.ts filtra `deletedAt: null`), e para evento e tarefa
+      // já apagados. O desfecho que se pediu é esse mesmo, e oferecer desfazer
+      // de novo seria mentir.
       if (e instanceof ApiError && e.code === "NOT_FOUND") {
         marcarDesfeito(chave);
-        setAnuncio(
-          c.kind === "note"
-            ? `A nota “${c.title}” já estava na lixeira.`
-            : `O card “${c.title}” já tinha sido excluído.`,
-        );
+        setAnuncio(COMO_MOSTRAR[c.kind].jaDesfeito(c.title));
       } else {
         setErro(e instanceof ApiError ? e.message : "Não foi possível desfazer.");
       }
@@ -229,45 +331,48 @@ function Criados({
         {criados.map((c) => {
           const chave = chaveCriado(c);
           const desfeito = desfeitos.has(chave);
-          const Icone = c.kind === "note" ? IconeNotas : IconeBoard;
-          const tipo = c.kind === "note" ? "nota" : "card";
+          const como = COMO_MOSTRAR[c.kind];
+          const Icone = como.Icone;
           return (
             <li key={chave} className="flex min-w-0 items-center gap-2">
               {desfeito ? (
                 <span className="flex min-w-0 items-center gap-1.5 text-xs text-ink-400">
                   <Icone className="size-3.5" />
                   <span className="truncate line-through">{c.title}</span>
-                  <span className="shrink-0 text-miudo">
-                    — {c.kind === "note" ? "nota desfeita" : "card desfeito"}
-                  </span>
+                  <span className="shrink-0 text-miudo">— {como.desfeito}</span>
                 </span>
               ) : (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => void abrir(c)}
-                    title={c.kind === "note" ? "Abrir a nota" : "Abrir o card"}
-                    className="flex min-w-0 items-center gap-1.5 rounded-etiqueta text-xs
-                               text-accent-400 transition-colors hover:text-titulo"
-                  >
-                    <Icone className="size-3.5" />
-                    <span className="sr-only">{tipo}:</span>
-                    <span className="truncate underline decoration-accent-400/40
-                                     underline-offset-2">
-                      {c.title}
+                  {como.abrir ? (
+                    <button
+                      type="button"
+                      onClick={() => void abrir(c)}
+                      title={como.abrir}
+                      className="flex min-w-0 items-center gap-1.5 rounded-etiqueta text-xs
+                                 text-accent-400 transition-colors hover:text-titulo"
+                    >
+                      <Icone className="size-3.5" />
+                      <span className="sr-only">{como.tipo}:</span>
+                      <span className="truncate underline decoration-accent-400/40
+                                       underline-offset-2">
+                        {c.title}
+                      </span>
+                    </button>
+                  ) : (
+                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-ink-200">
+                      <Icone className="size-3.5 text-accent-400" />
+                      <span className="sr-only">{como.tipo}:</span>
+                      <span className="truncate">{c.title}</span>
+                      <Quando criado={c} />
                     </span>
-                  </button>
+                  )}
                   <Botao
                     variante="fantasma"
                     className="ml-auto -my-1"
                     carregando={desfazendo === chave}
                     disabled={desfazendo !== null && desfazendo !== chave}
                     onClick={() => void desfazer(c)}
-                    aria-label={
-                      c.kind === "note"
-                        ? `Desfazer: mandar a nota “${c.title}” para a lixeira`
-                        : `Desfazer: excluir o card “${c.title}”`
-                    }
+                    aria-label={como.desfazer(c.title)}
                   >
                     Desfazer
                   </Botao>

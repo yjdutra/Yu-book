@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode, RefObject } from "react";
+import { invalidarAgenda } from "./agenda";
 import { ApiError } from "./api";
 import {
   CHAVE_AJUSTES,
@@ -328,6 +329,9 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
     /// evento `criado` — que alimenta o Desfazer e não serve para isto. O
     /// pedido da ferramenta marca, e o fim do fluxo refaz o que mostra card.
     let concluiuCard = false;
+    /// O mesmo para `complete_task` (frente de agenda, Fase 2): sem a marca,
+    /// a lista de tarefas aberta mostraria a tarefa ainda por fazer.
+    let concluiuTarefa = false;
     try {
       if (!alvo) {
         // A conversa nasce com o começo da primeira pergunta como título — o
@@ -396,6 +400,9 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
           /// card assim que ele existe.
           if (evento.tipo === "criado") invalidarCriados(qc, evento.criados);
           if (evento.tipo === "ferramenta" && evento.nome === "complete_card") concluiuCard = true;
+          if (evento.tipo === "ferramenta" && evento.nome === "complete_task") {
+            concluiuTarefa = true;
+          }
         },
       });
     } catch (e) {
@@ -425,6 +432,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
       await qc.invalidateQueries({ queryKey: CHAVE_AJUSTES });
       await qc.invalidateQueries({ queryKey: CHAVE_USO });
       if (concluiuCard) invalidarConclusao(qc);
+      if (concluiuTarefa) invalidarAgenda(qc);
     }
   }, [criar, qc]);
 

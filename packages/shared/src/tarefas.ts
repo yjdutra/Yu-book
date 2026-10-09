@@ -27,6 +27,12 @@ export const MAX_TAREFA_DESCRICAO = 5000;
 /// As concluídas mais recentes que `GET /tasks?status=concluidas` devolve.
 export const LIMITE_TAREFAS_CONCLUIDAS = 100;
 
+/// As abertas sem data que `GET /agenda` traz em `undatedTasks`, as mais
+/// recentes primeiro — a que o chat quer concluir é quase sempre a recém-anotada.
+/// Sem data elas não têm período, e o agregado é lido em todo `list_agenda` do
+/// chat: um teto, declarado no texto quando é atingido.
+export const LIMITE_TAREFAS_SEM_DATA = 50;
+
 export const TASK_STATUSES = ["abertas", "concluidas", "todas"] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 

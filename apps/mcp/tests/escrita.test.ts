@@ -61,6 +61,12 @@ async function toolsDeEscrita(): Promise<ToolAnunciada[]> {
  *
  * Derivado do `inputSchema`, e não escrito à mão, pelo mesmo motivo da lista: um
  * campo obrigatório novo entra sozinho.
+ *
+ * O dia civil (`date` de `create_event`, agenda) é o caso que o schema não diz:
+ * a regra dele é um `refine` (`ehDiaCivil`), que não vai para o JSON Schema —
+ * anunciado, ele é só `string`, e `"x"` toma a recusa de validação do SDK, não
+ * a de autorização. O que ele anuncia é a `description`, e todo dia do contrato
+ * a escreve com "AAAA-MM-DD"; é dela que a forma se deriva.
  */
 function argumentosMinimos(tool: ToolAnunciada): Record<string, unknown> {
   const args: Record<string, unknown> = {};
@@ -70,7 +76,9 @@ function argumentosMinimos(tool: ToolAnunciada): Record<string, unknown> {
     else if (campo?.type === "integer" || campo?.type === "number") args[nome] = 0;
     else if (campo?.type === "boolean") args[nome] = false;
     else if (campo?.type === "array") args[nome] = [];
-    else args[nome] = campo?.format === "uuid" ? randomUUID() : "x";
+    else if (campo?.format === "uuid") args[nome] = randomUUID();
+    else if (campo?.description?.includes("AAAA-MM-DD")) args[nome] = "2026-01-01";
+    else args[nome] = "x";
   }
   return args;
 }

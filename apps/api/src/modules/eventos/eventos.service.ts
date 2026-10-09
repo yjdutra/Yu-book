@@ -29,6 +29,7 @@ import {
   quadroQueSumiu,
   tarefasAtrasadas,
   tarefasDoPeriodo,
+  tarefasSemData,
 } from "../tarefas/tarefas.service.js";
 
 /**
@@ -287,8 +288,8 @@ export async function excluirEvento(userId: string, id: string): Promise<void> {
 /**
  * Tudo o que a agenda desenha num período, numa requisição: eventos que se
  * sobrepõem a ele, tarefas com data nele, as atrasadas de antes dele (as de
- * dentro já estão nas tarefas do período, marcadas `overdue`) e os cards com
- * prazo.
+ * dentro já estão nas tarefas do período, marcadas `overdue`), as abertas sem
+ * data — que não têm período e vêm sempre — e os cards com prazo.
  *
  * O card entra pelo **dia local do prazo**, não pelo instante: a janela vai da
  * meia-noite local de `from` à do dia seguinte a `to`, e o prazo gravado às
@@ -302,11 +303,12 @@ export async function agendaDoPeriodo(userId: string, query: AgendaQuery): Promi
   const inicio = instanteLocal(query.from, "00:00", timezone);
   const fim = instanteLocal(somarDias(query.to, 1), "00:00", timezone);
 
-  const [events, tasks, overdueTasks, cards] = await Promise.all([
+  const [events, tasks, overdueTasks, undatedTasks, cards] = await Promise.all([
     eventosNoPeriodo(userId, query.from, query.to, timezone),
     tarefasDoPeriodo(userId, query.from, query.to, hoje),
     // Só as anteriores ao período: as de dentro já vêm em `tasks`.
     tarefasAtrasadas(userId, hoje, query.from < hoje ? query.from : hoje),
+    tarefasSemData(userId, hoje),
     prisma.card.findMany({
       where: {
         archived: false,
@@ -327,6 +329,7 @@ export async function agendaDoPeriodo(userId: string, query: AgendaQuery): Promi
     events,
     tasks,
     overdueTasks,
+    undatedTasks,
     cards: cards.map((card) => ({
       ...toPrazo(card),
       // Só entram cards com prazo no período, então a data existe.
