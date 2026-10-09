@@ -1,6 +1,6 @@
 ---
 name: changelog-e-versao
-description: Formato do CHANGELOG.md e do histórico de contexto do Yu-book, regras de versionamento semver dos quatro pacotes, a diferença entre a versão do conjunto no heading e a dos package.json, o que se faz com documento movido para docs/old, o que é público (CHANGELOG, README vitrine em inglês) e o que é local (docs/, historico.md) e a convenção de mensagem de commit. Use ao fechar uma entrega, ao registrar o que mudou numa sessão de trabalho, ao decidir bump de versão ou ao propor mensagem de commit.
+description: Formato do CHANGELOG.md e do histórico de contexto do Yu-book, regras de versionamento semver dos seis pacotes (e o bump de packages/cliente, que não tem build), a diferença entre a versão do conjunto no heading e a dos package.json, o que se faz com documento movido para docs/old, o que é público (CHANGELOG, README vitrine em inglês) e o que é local (docs/, historico.md) e a convenção de mensagem de commit. Use ao fechar uma entrega, ao registrar o que mudou numa sessão de trabalho, ao decidir bump de versão ou ao propor mensagem de commit.
 ---
 
 # Changelog, histórico e versão
@@ -79,15 +79,18 @@ cada um no seu `package.json`. O `package.json` da raiz é privado e não acompa
 
 Regras:
 
-- **Mudança em `packages/shared` que altera um schema ou tipo bumpa os quatro pacotes**, porque
-  todos consomem o contrato — `apps/api`, `apps/web` e também `apps/mcp`, que declara
-  `@yu-book/shared` e importa os tipos direto.
+- **Mudança em `packages/shared` que altera um schema ou tipo bumpa os seis pacotes**, porque
+  todos declaram `@yu-book/shared` e consomem o contrato — `apps/api`, `apps/web`, `apps/mcp`,
+  `apps/movel` e `packages/cliente` (desde a `[0.30.0]`).
+- **`packages/cliente` não tem build: mudança só nele bumpa `apps/web` e `apps/movel`, quando
+  observável neles** — o código vai no bundle de cada um —; nunca `shared`, `apps/api` nem
+  `apps/mcp`.
 - Uma fase entregue é **um** bump minor, não um por commit.
 - **`apps/mcp` guarda a própria versão em dois lugares** e os dois têm que bater: o `version` do
   `package.json` e o passado ao construtor do `McpServer` (`apps/mcp/src/servidor.ts:47`). O
   segundo é o que o servidor anuncia no `initialize`, e bumpar só o primeiro não quebra build nem
   teste: o servidor passa a mentir a versão para todo cliente, calado. Confira com
-  `grep -n version apps/mcp/package.json apps/mcp/src/servidor.ts`. Os outros três não têm par.
+  `grep -n version apps/mcp/package.json apps/mcp/src/servidor.ts`. Os outros cinco não têm par.
 
 ### 3.1 O heading do changelog não é a versão dos pacotes
 

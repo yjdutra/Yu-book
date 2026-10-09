@@ -1,6 +1,6 @@
 ---
 name: design-system-yu-book
-description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), os primitivos de components/base/ (Botao, Bloco, Aviso, Dialogo com foco preso e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, o gráfico de dados à mão (BarrasPorDia e Indicador, com o número fora do desenho), a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele e do painel do card), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina, e LinhaConclusao, a de quem concluiu o card), a zona de soltar arquivo dos anexos do card, ícones SVG desenhados à mão em Icones.tsx (um desenho, um sentido) e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web.
+description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), o pacote packages/cliente, casa de tokens, ícones e primitivos dos dois fronts (com @source obrigatório por app), os primitivos de base/ (Botao com tamanho g de toque, Bloco, Aviso, Dialogo com foco preso, a folha inferior do móvel e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, o gráfico de dados à mão (BarrasPorDia e Indicador, com o número fora do desenho), a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele e do painel do card), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina, e LinhaConclusao, a de quem concluiu o card), a zona de soltar arquivo dos anexos do card, ícones SVG desenhados à mão em Icones.tsx (um desenho, um sentido) e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only do web contra o móvel responsivo (um elemento por layout, toda folha com Fechar) e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web, apps/movel ou packages/cliente.
 ---
 
 # Design system do Yu-book
@@ -12,33 +12,30 @@ biblioteca de UI (§12/D-01 de `docs/old/prd-fase-5-refino.md`).
 
 ## 1. A rampa de cor é semântica
 
-Definida em `apps/web/src/index.css`. `ink-950` é sempre "o fundo mais profundo" e `ink-200` sempre
-"o texto de maior contraste" — **os nomes descrevem papel, não cor**. O tema claro inverte os
-valores e preserva o significado.
+Definida em `packages/cliente/src/tema.css`, casa única do tema do web e do móvel; os contrastes
+estão no comentário de `:30-42`. `ink-950` é sempre "o fundo mais profundo" e `ink-200` sempre "o
+texto de maior contraste" — **os nomes descrevem papel, não cor**; o tema claro inverte os valores.
 
 | Token | Papel |
 |---|---|
 | `--color-ink-950 … 700` | Superfícies, do mais profundo ao mais elevado |
-| `--color-ink-400` | Texto secundário |
-| `--color-ink-200` | Texto de maior contraste |
+| `--color-ink-400` / `200` | Texto secundário / de maior contraste |
 | `--color-titulo` | Cor de título |
 | `--color-accent-500` / `400` | Destaque e interação |
 | `--color-superficie` | Cartão que se ergue sobre o painel — o degrau que a rampa `ink` não tinha |
 | `--color-ia-500` | Só fecha o gradiente `accent-500 → ia-500` das áreas de IA; não é cor de texto |
 | `--color-agente-*` | Seis fundos de avatar de agente (`AGENT_COLORS`), com texto branco por cima |
 
-Os contrastes de `superficie`, `ia-500` e `agente-*` estão no comentário de `index.css:22-26`, não aqui.
-
 ## 2. O tema não existe em React
 
-**Nunca use a variante `dark:` do Tailwind.** Não há uma única ocorrência dela em `apps/web/src`, e
+**Nunca use a variante `dark:` do Tailwind.** Não há uma única ocorrência dela em `apps/*/src`, e
 nenhum componente tem condicional de tema. O mecanismo é:
 
 1. Um IIFE bloqueante em `apps/web/index.html` roda **antes da primeira pintura**, lê
    `localStorage["yb:tema"]` (caindo para `prefers-color-scheme`) e define
    `document.documentElement.dataset.tema`. **Não a mova para o React**: volta o flash de tema
    errado (comentário em `index.html`).
-2. `index.css` redefine **as mesmas variáveis** sob `:root[data-tema="claro"]`.
+2. `tema.css` redefine **as mesmas variáveis** sob `:root[data-tema="claro"]`.
 3. `apps/web/src/lib/tema.ts` só **lê** o que o script aplicou e grava na primeira troca manual.
    `useTema` é **um armazenamento só** (`useSyncExternalStore`, `tema.ts:33`): trilho e paleta veem
    a troca um do outro. Não crie `useState` de tema num componente (porquê em `tema.ts:7-9`).
@@ -46,11 +43,14 @@ nenhum componente tem condicional de tema. O mecanismo é:
 Consequências obrigatórias:
 
 - **Cor nova exige duas entradas**, no `@theme` e em `:root[data-tema="claro"]`: só uma quebra um tema.
+- **Cada app declara `@source` do pacote** (`apps/web/src/index.css:6`, `apps/movel/src/index.css:6`)
+  logo após importar `tema.css`: o Tailwind só gera a classe que enxerga, e sem ele a classe usada
+  só num primitivo some do CSS, calada. App novo que importa o pacote declara o seu.
 - **Sombra não segue essa regra do jeito ingênuo.** O Tailwind v4 **copia** o valor de `--shadow-*`
   para dentro da utilidade no build; redefinir `--shadow-e2` no bloco claro não muda nada. Sombra
   que troca com o tema mora em `--sombra-*` em `:root` **e** no bloco claro, e o `@theme` só aponta
-  para ela (`--shadow-e1: var(--sombra-e1)`, `apps/web/src/index.css:61`). Sombra feita só de
-  `color-mix` sobre token de cor (`--sombra-brilho-ia`, `:123-125`) já troca sozinha e fica só em `:root`.
+  para ela (`--shadow-e1: var(--sombra-e1)`, `packages/cliente/src/tema.css:69`). Sombra feita só de
+  `color-mix` sobre token de cor (`--sombra-brilho-ia`, `:131-133`) já troca sozinha e fica só em `:root`.
 - Cores de estado (`red`, `amber`, `emerald`, `sky`, `rose`, `violet`) têm valores próprios no tema
   claro — um vermelho calibrado para fundo escuro reprova em contraste sobre fundo claro.
 
@@ -59,17 +59,18 @@ verificação feita, não por impressão, e o resultado fica em comentário ao l
 
 ## 3. Ícones
 
-`apps/web/src/components/Icones.tsx` é a fonte. Grade 16×16, traço único compartilhado pela
-constante `TRACO`, `currentColor` para seguir tema e estado, `aria-hidden` porque todo item tem
-texto ao lado. Ícone novo é desenhado ali, no mesmo estilo. Não instale pacote de ícones.
+`packages/cliente/src/Icones.tsx` (`@yu-book/cliente/icones`) é a fonte. Grade 16×16, traço único
+`TRACO`, `currentColor` para seguir tema e estado, `aria-hidden` porque todo item tem texto ao lado.
+Ícone novo é desenhado ali, no mesmo estilo. Não instale pacote de ícones.
 
 `TRACO` e `IconeProps` são exportados (`Icones.tsx:13,21`). Desenho de um componente só pode morar
 nele (`SeletorTema.tsx`, `ModoNota.tsx`), mas **importa o `TRACO`, não o redeclara**: diverge calado.
 
 `ICONE_TIPO` mapeia `NoteKind` para ícone e continua total: `kind` novo no enum exige entrada ali.
 Grepe `export function Icone` antes de desenhar. Ícone que só muda de orientação ganha prop, não
-cópia — `IconeChevron({ direcao })` (`Icones.tsx:382-392`). **Um desenho, um sentido:** clipe é nota
-vinculada e anexo é `IconeAnexo` (`:366-379`); check solto é "feito" e tarefa é `IconeTarefa` (`:343`).
+cópia — `IconeChevron({ direcao })` (`Icones.tsx:396-406`). **Um desenho, um sentido:** clipe é nota
+vinculada e anexo é `IconeAnexo` (`:380-393`); check solto é "feito" e tarefa é `IconeTarefa`
+(`:357`); o "hoje" do móvel é meio sol (`IconeHoje`, `:343-355`), não o sol do `SeletorTema`.
 
 **Glifo unicode que é sigla fica glifo.** As siglas de prazo e prioridade (`!`, `◷`, `▤`, `⬆`, `⬇`)
 de `CartaoCard.tsx:19-30` e `pages/DashboardPage.tsx:37-41` são texto `aria-hidden` com o estado por
@@ -80,7 +81,7 @@ extenso ao lado (`CartaoCard.tsx:90-92`, `:98-99`): o sinal sem cor (§4). Não 
 - **Estado nunca é comunicado só por cor.** Todo status carrega letra ou glifo: tipo de nota tem
   letra (`A/P/T/W/L`), prazo tem símbolo, link quebrado tem sublinhado tracejado **e** `(criar)`.
 - Foco visível é global e incondicional; não remova `outline`. O `:focus-visible` global **não leva
-  `border-radius`** (`index.css:253`): fora de camada vencia o `rounded-*` e mudava a forma.
+  `border-radius`** (`tema.css:261`): fora de camada vencia o `rounded-*` e mudava a forma.
 - Ícone sem texto leva rótulo `sr-only`.
 - Erro usa `role="alert"`; status de salvamento usa `aria-live="polite"`.
 - Lista de opções usa `role="listbox"`/`role="option"`; item de navegação ativo usa `aria-current`.
@@ -98,8 +99,10 @@ extenso ao lado (`CartaoCard.tsx:90-92`, `:98-99`): o sinal sem cor (§4). Não 
 
 ## 5. Layout
 
-- **Desktop-only por decisão.** `GuardaDesktop` (`apps/web/src/components/Colunas.tsx`) bloqueia
-  abaixo de 1024px com um aviso. **Não escreva trabalho responsivo nem breakpoints de celular.**
+- **O web é desktop-only por decisão.** `GuardaDesktop` (`apps/web/src/components/Colunas.tsx`)
+  bloqueia abaixo de 1024px com um aviso: **em `apps/web`, nada responsivo nem breakpoint de celular.**
+  **O móvel (`apps/movel`) é o avesso**: celular primeiro, `lg:` para o desktop. Antes de escrever
+  nele, leia `referencias/movel.md` — um elemento por layout, a folha com Fechar, o alvo de toque.
 - `PainelRedimensionavel` é a primitiva de layout: largura persistida em `localStorage`, divisor
   operável por teclado (`role="separator"`, setas), limites 180–520px por padrão e `min`/`max`
   por instância — o painel do assistente usa 320–640.
@@ -121,11 +124,10 @@ A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 d
   abre painel (assistente) usa `aria-pressed`. Ativo tem barra de forma, não só fundo (RNF-09).
 - **Painel contextual** (`components/casca/PainelContexto.tsx`): "o que ver" na área atual, uma
   peça por área em `casca/contexto/Contexto*.tsx`, escolhida por `areaDe(pathname)` (`:15-21`).
-  Topo comum: workspace e busca. Mora na coluna `yb:col-nav`, a mesma da barra antiga, para a largura
-  já ajustada sobreviver. `Item`, `Titulo`, `Secao` e `CartaoTags` estão em `casca/partes.tsx`.
-- **O painel recolhe** (`Ctrl+\`, chave `yb:contexto-recolhido`) e é desmontado, não escondido
-  (`Aplicacao.tsx:438-444`). O foco que ele levava junto vai para o botão que o traz de volta,
-  `ID_MOSTRAR_CONTEXTO` (`Aplicacao.tsx:138-151`).
+  Topo comum: workspace e busca; coluna `yb:col-nav`. `Item`, `Titulo`, `Secao` e `CartaoTags` estão
+  em `casca/partes.tsx`.
+- **O painel recolhe** (`Ctrl+\`, `yb:contexto-recolhido`) e é desmontado (`Aplicacao.tsx:438-444`);
+  o foco que levava vai ao botão que o traz de volta, `ID_MOSTRAR_CONTEXTO` (`:138-151`).
 - **Recolhido, o trilho herda a regra da seção fechada:** o ponto de filtro ativo em Notas
   (`Trilho.tsx:194-202`, texto no `aria-label`, `:190`) e o selo do workspace ativo (`:276-291`).
   O ponto vem da última lista `/n?…` visitada (`Aplicacao.tsx:426`), não da rota atual — vale
@@ -151,7 +153,7 @@ A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 d
 
 ## 6. Chaves de `localStorage`
 
-Prefixo `yb:`, sempre — grepe `"yb:` em `apps/web/src` antes de criar uma, para não colidir. O
+Prefixo `yb:`, sempre — grepe `"yb:` em `apps/*/src` antes de criar uma, para não colidir. O
 princípio: **preferência com formato de dispositivo mora em `localStorage`; dado com formato de
 conta mora no banco.**
 
@@ -185,20 +187,20 @@ atalho existir num modo e não no outro, sem nada acusar.
 
 ## 8. Markdown renderizado
 
-A classe `.preview` em `index.css` é uma escala tipográfica escrita à mão — não há
+A classe `.preview` em `apps/web/src/index.css` (só do web) é uma escala tipográfica escrita à mão — não há
 `@tailwindcss/typography`. Largura de linha limitada a `72ch`. As cores do realce de sintaxe são
 variáveis `--hljs-*`, definidas nos dois temas.
 
 ## 9. Tokens do redesenho de UI
 
-O redesenho (2026-09-24) pôs no `@theme` de `index.css` um vocabulário com **nome de papel, não de
+O redesenho (2026-09-24) pôs no `@theme` (hoje em `tema.css`) um vocabulário com **nome de papel, não de
 tamanho**. Tela nova usa estes; os valores avulsos antigos migram quando o arquivo é tocado.
 
 | Token | Uso |
 |---|---|
 | `font-sans` / `font-mono` | Inter, com a pilha de sistema como recuo; `mono` para tecla e código |
 | `text-miudo` | 11/16 — o degrau abaixo de `text-xs` |
-| `rotulo` (`@utility`, `index.css:227`) | Título de seção: miúdo, caixa alta, `ink-400` |
+| `rotulo` (`@utility`, `tema.css:235`) | Título de seção: miúdo, caixa alta, `ink-400` |
 | `rounded-etiqueta` / `controle` / `cartao` / `dialogo` | Raio por papel |
 | `shadow-e1` … `e4`, `shadow-brilho-ia` | Elevação crescente; o brilho só em área de IA |
 | `ease-saida` / `ease-padrao` | Curvas de entrada e de transição comum |
@@ -206,29 +208,29 @@ tamanho**. Tela nova usa estes; os valores avulsos antigos migram quando o arqui
 | `animate-deslizar-esquerda` / `-direita` | Painel que surge da direita (assistente) / `Dialogo` lateral que surge da esquerda (gaveta) |
 | `animate-subir` | Entrada de `Toast` na pilha do pé da tela |
 | `--veu` | Fundo atrás de diálogo — variável em `:root`, fora do `@theme`, porque não é cor de texto |
-| `--z-popover` < `veu` < `dialogo` < `soltura` < `toast` | A escala de camadas (`index.css:129-133`); `z-(--z-dialogo)`, não `z-50` avulso |
+| `--z-popover` < `veu` < `dialogo` < `soltura` < `toast` | A escala de camadas (`tema.css:137-141`); `z-(--z-dialogo)`, não `z-50` avulso |
 
 - **`text-[10px]` e `text-[11px]` estão proibidos.** São `text-miudo`. 10px fica ilegível em Inter.
-- **Toda animação nova passa pelo bloco `prefers-reduced-motion`** (`index.css:238`); o `0.01ms`,
+- **Toda animação nova passa pelo bloco `prefers-reduced-motion`** (`tema.css:246`); o `0.01ms`,
   e não `none`, mantém o `animationend` disparando — não "simplifique". **Animação em JS o CSS não
-  alcança**: lê `useMovimentoReduzido` (`lib/movimento.ts`), como a soltura do `DragOverlay` do
-  quadro de modelos (`QuadroDeModelos.tsx:525`).
+  alcança**: lê `useMovimentoReduzido` (`lib/movimento.ts`; `QuadroDeModelos.tsx:525`).
 - A Inter vem do Google Fonts por `<link>` em `index.html`, **depois** do script de tema: a fonte
   pode chegar atrasada (`display=swap`), o tema não. Não mova o `<link>` para antes do script.
 
-## 10. Primitivos em `components/base/`
+## 10. Primitivos em `base/` (`packages/cliente/src/base/`)
 
 **A decisão de manter `Button` e `Modal` inexistentes foi revogada** na Etapa 1 do redesenho: as
-cópias à mão tinham divergido (o porquê está em `components/base/Botao.tsx:4-9`). Hoje existem:
+cópias à mão tinham divergido (`Botao.tsx:4-9`). Importa-se `@yu-book/cliente/base/<Nome>`. **Tudo
+ali entra nos dois apps, até variante que um não usa**: variação nova custa bytes no web. Existem:
 
 | Arquivo | Exporta |
 |---|---|
-| `Botao.tsx` | `Botao` (variantes `primario`, `secundario`, `fantasma`, `perigo`, `ia`; `carregando`) e `BotaoIcone`, cujo `rotulo` vira nome acessível e dica, com `tamanho` `p`/`m`/`g` |
+| `Botao.tsx` | `Botao` (variantes `primario`, `secundario`, `fantasma`, `perigo`, `ia`; `carregando`) e `tamanho` `p`/`m`/`g` — `g`, 48px, é o do toque (`:29-30`); `BotaoIcone`, cujo `rotulo` vira nome acessível e dica, também `p`/`m`/`g` |
 | `Bloco.tsx` | `Bloco` (variante `ia` com fio de gradiente), `Vazio`, `Esqueleto` de altura fixa. **Tem `overflow-hidden`**: lista ou menu que abre para fora é cortado — seção de formulário é `Parte`; fio de gradiente fora dele vai numa moldura própria (`rotinas/PainelDoBloco.tsx:871-879`) |
 | `Parte.tsx` | Seção de formulário com título e descrição, **sem** `overflow-hidden`; variante `ia` |
 | `Aviso.tsx` | Aviso inline, tom `erro`/`alerta`/`info`, glifo sempre; `urgente` promove `status` a `alert` |
-| `IndicadorSalvamento.tsx` | Estado do autosave com texto, único para nota e card |
-| `Dialogo.tsx` | Modal com véu, portal, `Esc`, foco preso e devolvido na limpeza do efeito (`useFocoPreso`, `lib/foco.ts`) — por isso aceita as duas montagens (INV-53); `posicao` `centro`, `topo` (paleta) ou `lateral` (gaveta, encostada no trilho, altura toda) |
+| `IndicadorSalvamento.tsx` | Estado do autosave com texto, único para nota e card. **Ficou em `apps/web/src/components/base/`**: o tipo é a máquina do `useAutosave` |
+| `Dialogo.tsx` | Modal com véu, portal, `Esc`, foco preso e devolvido na limpeza do efeito (`useFocoPreso`, `packages/cliente/src/foco.ts`) — por isso aceita as duas montagens (INV-53); `posicao` `centro`, `topo` (paleta), `lateral` (gaveta, encostada no trilho, altura toda) ou `folha` (móvel: sobe do pé, área segura; de `lg:` em diante, a caixa do centro — `Dialogo.tsx:32-34`) |
 | `Toast.tsx` | `PilhaFlutuante`, o pé da tela que empilha o que flutua, e `Toast` (`role="status"`, uma ação no máximo); erro ali dentro continua `Aviso` |
 | `Tecla.tsx` | Combinação de teclas partida em `<kbd>` |
 | `Menu.tsx` | Menu de ações com gatilho por render prop; ↑/↓/Home/End, `Esc` para ali e devolve o foco; `lado` inclui `baixo-fim`, alinhado à direita do gatilho, e `cima`, para gatilho no pé |
@@ -244,7 +246,7 @@ cópias à mão tinham divergido (o porquê está em `components/base/Botao.tsx:
   `useBlocker` no `BrowserRouter`, ela intercepta o `navigator`, e o Voltar fica de fora (`:16-20`).
 - **O que a base já define não se varia por `className`.** O Tailwind v4 ordena utilitários da
   mesma propriedade pelo nome no CSS gerado, não pela ordem no atributo: um `size-6` ou uma cor
-  passados a `Botao`/`BotaoIcone` perdem para os da base, calados (`Botao.tsx:76-80`). Tamanho é
+  passados a `Botao`/`BotaoIcone` perdem para os da base, calados (`Botao.tsx:78-82`). Tamanho é
   prop; cor vai no ícone. Precisa de outra variação? Vira prop do primitivo.
 - **`Dialogo` não serve para painel que convive com o editor** (RNF-05 da Fase 1): nota, card e
   chat não são diálogos. Ele é para o que está fora do caminho de escrita — atalhos, busca, gaveta.
@@ -252,7 +254,7 @@ cópias à mão tinham divergido (o porquê está em `components/base/Botao.tsx:
   precisa existir com ele aberto mora dentro: o desfazer do link na gaveta (`GavetaLinks.tsx:453-463`),
   e a casca esconde o `Toast` enquanto ela está aberta (`Aplicacao.tsx:554-556`).
 - **Handler do conteúdo de um `Dialogo` não pega o foco que está na caixa.** Ela tem
-  `tabIndex={-1}` (`Dialogo.tsx:70`) e o recebe num clique em área vazia; dali o evento não passa
+  `tabIndex={-1}` (`Dialogo.tsx:74`) e o recebe num clique em área vazia; dali o evento não passa
   por filho nenhum. Tecla de lista vai num wrapper e só vale com o foco num filho (`Paleta.tsx:191`);
   o que precisa valer sempre vai no `document` — o colar da gaveta (`GavetaLinks.tsx:201-219`).
 
@@ -269,14 +271,12 @@ e o fluxo de rotina (`components/rotinas/FluxoEditavel.tsx`). Arraste novo copia
   destino, não de 25 px em 25 px (`:88-124`).
 - A origem some com `opacity-0` (INV-30); cópia que continua à vista esmaece (`opacity-50`, `:413-414`).
   Controle interativo nunca fica sob os `listeners`: alça única, ou controle irmão do ativador (INV-57).
-- `onKeyDown` próprio no ativador **compõe** com o do sensor, e seta com outro uso num ancestral é
-  ignorada durante o gesto (INV-30).
+- `onKeyDown` do ativador **compõe** com o do sensor; seta de outro uso num ancestral cala no gesto (INV-30).
 - Alvo que recusa mostra a recusa com forma, ícone e texto — borda tracejada, não só vermelha
   (`:185-208`) — e a regra aparece **antes** do arraste, numa `Etiqueta` na coluna (`:471-475`).
 - `data-arrastando` no `<html>` mantém o cursor de "segurando" o gesto inteiro (`:237-242`).
-- A mesma escolha existe sem arrastar, num `Menu`: "Usar para…" no quadro de modelos (`:431-438`,
-  recusa igual nos dois por `podeServir`, `ajustes/comum.ts:42`) e "Mover para a esquerda/direita"
-  no fluxo (`FluxoEditavel.tsx:295-302`).
+- A mesma escolha sem arrastar, num `Menu`: "Usar para…" (`:431-438`, recusa por `podeServir`,
+  `ajustes/comum.ts:42`) e "Mover para a esquerda/direita" (`FluxoEditavel.tsx:295-302`).
 - **Arquivo de fora é da zona de anexos** (`AnexosDoCard.tsx:136-160`): `preventDefault` com `Files`
   mesmo cheia, ou o navegador o abre sobre o autosave pendente. `ZonasDeSoltura.tsx:41-49` o ignora.
 

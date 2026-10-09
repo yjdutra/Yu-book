@@ -5,18 +5,24 @@
 
 ## Onde ficam as coisas
 
+- Captura sem login: `page.route("**/auth/refresh")` devolve `AuthResponse` falso com allow-origin
+  do app (5174 no móvel) e allow-credentials; o boot chama o refresh (`packages/cliente/src/auth.tsx:27`).
+- Captura com login real: usuário de teste `visual-agenda-*@exemplo.test` no banco local.
+- "Nada visível mudou" se prova com `cmp` do `index-*.css` contra o `dist` guardado antes, e
+  capturas antes/depois comparadas pixel a pixel (Fase 3 da agenda, 2026-10-09).
+
 ## O que já nos mordeu
 
-- Módulo de `packages/shared` que **constrói valor em escopo de módulo** entra no bundle do front
-  mesmo sem ninguém importar. Medido em 2026-09-23: `ferramentas.ts` punha ~6,3 KB crus na primeira
-  pintura, contra 0 de `formato.ts`. Fechou com `"sideEffects": false` em
-  `packages/shared/package.json:6` — linha que o JSON não pode explicar, e cuja remoção não acusa.
+- Módulo de `shared` que constrói valor em escopo de módulo entrava no bundle sem ninguém importar
+  (~6,3 KB de `ferramentas.ts`, 2026-09-23); fechou com `"sideEffects": false`
+  (`packages/shared/package.json:6`), linha que o JSON não explica e cuja remoção não acusa.
+- Web e móvel no mesmo navegador dividem o cookie `yb_refresh` da API
+  (`apps/api/src/modules/auth/auth.routes.ts:10`): Sair num derruba o outro no próximo refresh.
 
 ## Decisões em vigor
 
-- **Conferir vazamento de `shared` para o bundle é mais barato que medir tamanho**:
-  `pnpm --filter @yu-book/web build` e depois `grep -rl "<frase literal do módulo>" apps/web/dist/assets/`.
-  Feito em 2026-09-23 com uma `descricao` de `ferramentas.ts`: ausente de todo o `dist`.
-- Tamanho de bundle e contagem de teste viram registro; **tempo de build não vira** — varia por
-  rodada e por máquina, e um número desses envelhece sem ninguém notar.
-- Chunk inicial `index-*.js` em 2026-10-09: 629.544 B (gzip 193.338), já com `lib/agenda.ts`.
+- **Vazamento de `shared` no bundle se confere por grep, não por tamanho**: build e
+  `grep -rl "<frase literal do módulo>" apps/web/dist/assets/`.
+- Tamanho de bundle vira registro; **tempo de build não** — varia por rodada e por máquina.
+- Baseline 2026-10-09, fim da Fase 3 da agenda: web `index-*.js` 630.115 B (gzip 194,10 kB), CSS
+  77.801 B; móvel `index-*.js` 341.770 B (gzip 104.090), CSS 38.258 B, chunk único.

@@ -94,13 +94,15 @@ verifique, e reconstrua a árvore copiando de volta.
 
 ## O que um push realmente dispara
 
-Quatro serviços na Railway a partir deste mesmo repositório: Postgres, API, web e MCP. Cada um com
-**Watch Paths**, que decidem o que reconstrói:
+Quatro serviços na Railway a partir deste mesmo repositório: Postgres, API, web e MCP — e um quinto,
+o móvel (`apps/movel/railway.json`), **ainda não criado: depende do operador** (`CHANGELOG.md`,
+`[0.30.0]`). Cada um com **Watch Paths**, que decidem o que reconstrói:
 
 | Serviço | Reconstrói quando muda |
 |---|---|
 | API | `apps/api/**`, `packages/shared/**`, `pnpm-lock.yaml` |
-| web | `apps/web/**`, `packages/shared/**`, `pnpm-lock.yaml` |
+| web | `apps/web/**`, `packages/shared/**`, `packages/cliente/**`, `pnpm-lock.yaml` |
+| móvel (a criar) | `apps/movel/**`, `packages/shared/**`, `packages/cliente/**`, `pnpm-lock.yaml` |
 | MCP | `apps/mcp/**`, `packages/shared/**`, `pnpm-lock.yaml` |
 
 Consequências que você precisa antecipar e avisar **antes** do push:
@@ -108,6 +110,8 @@ Consequências que você precisa antecipar e avisar **antes** do push:
 - **Mexer em `packages/shared` ou no `pnpm-lock.yaml` reconstrói os três serviços.** Instalar uma
   dependência em qualquer pacote do monorepo altera o lock e cai nesse caso — inclusive uma
   dependência só de `apps/mcp`.
+- **`packages/cliente/**` nos watch paths do web foi exigência da Fase 3 da agenda e não está
+  conferido no painel.** Sem ele, mudança só no pacote não redeploya o web: confira antes do push.
 - **A API roda `prisma migrate deploy` no boot.** Migration nova é aplicada em produção no momento
   do deploy, sem etapa de confirmação. Migration quebrada derruba o serviço, não um pipeline.
 - **`VITE_API_URL` do front é lido em tempo de build.** Trocar a variável não muda nada até haver

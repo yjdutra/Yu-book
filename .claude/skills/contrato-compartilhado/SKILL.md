@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto, e a ferramenta da web, que só o assistente consome, e os sítios do front que uma ação de escrita nova no chat exige sem o compilador cobrar, e os tipos de anexo aceitos, listados em shared e detectados pelos bytes à mão na API, e os dias em que o evento da agenda aparece contra a consulta do período), o campo novo que o formatador compartilhado lê tolerando ausência, e os schemas não estritos, que descartam chave omitida em vez de recusá-la. Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
+description: Regras do pacote packages/shared do Yu-book e da fronteira com packages/cliente (o código de navegador que web e móvel dividem: fonte sem build, configurarApi, sideEffects do CSS, dedupe do React, só import type de shared) — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto, e a ferramenta da web, que só o assistente consome, e os sítios do front que uma ação de escrita nova no chat exige sem o compilador cobrar, e os tipos de anexo aceitos, listados em shared e detectados pelos bytes à mão na API, e os dias em que o evento da agenda aparece contra a consulta do período), o campo novo que o formatador compartilhado lê tolerando ausência, e os schemas não estritos, que descartam chave omitida em vez de recusá-la. Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared ou a packages/cliente, e ao converter data ou prazo em qualquer pacote.
 ---
 
 # O contrato compartilhado
@@ -41,21 +41,19 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    função de `shared` que o schema de criação chama; "hora só com data" na tarefa, repetida à mão
    (`tarefas.ts:51-54`, `tarefas.service.ts:221-226`).
 6. Se o módulo novo **constrói valor em escopo de módulo** — objeto, array, `z.object(...)` —,
-   confira o bundle do front antes de fechar. A flag abaixo só poda o que ninguém importa: **valor
-   importado entra**, com o que o módulo constrói e o que ele importa como valor — `tarefas.ts`
-   traz `eventos.ts` (`:2`), que traz `agenda.ts` (`eventos.ts:2`), que traz `ia.ts` (`agenda.ts:2`).
-   Módulo do front no bundle inicial importa de `shared` só `import type` quando o valor traria
-   schema ou metadado: `apps/web/src/lib/agentes.ts:16-18` (painel contextual);
-   `components/rotinas/comum.tsx:1-8` e `lib/rotinas.ts`, com o valor de `agenda.ts` por rota ou
-   `lazy` (`pages/DashboardPage.tsx:26`); `lib/sessaoChat.tsx` (`:372-382`), sempre montado, que
-   **não** deduplica fontes por `chaveDaFonteDoChat` de `chat.ts` (medido) — quem tira a
-   repetição é `components/assistente/Fontes.tsx:89-96`; não "conserte" a sessão com o import nem
-   com uma segunda definição de "a mesma fonte". **`ia.ts` é o caso aberto:**
-   `casca/contexto/ContextoAjustes.tsx:2` lê `SECOES_DE_AJUSTES` de `components/ajustes/comum.ts`,
-   que importa `microsParaDolares` como valor (`:1`), e `shared/ia.ts` entra no chunk inicial
-   (medido em 2026-09-25; dívida de 9b2aec6) — "a seção é `lazy()`" não justifica import de valor
-   dele. `eventos.ts` e `tarefas.ts` não têm import de valor no front — `lib/agenda.ts` (`:11-16`), no
-   chunk inicial por `lib/chat.ts`, os evita —, e o primeiro traz a cadeia inteira.
+   confira o bundle do front antes de fechar (receita na memória do agente `frontend`). A flag
+   abaixo só poda o que ninguém importa: **valor importado entra**, com o que o módulo constrói e
+   importa como valor — `tarefas.ts` traz `eventos.ts` (`:2`), que traz `agenda.ts`
+   (`eventos.ts:2`), que traz `ia.ts` (`agenda.ts:2`). Módulo do front no chunk inicial importa de
+   `shared` só `import type` quando o valor traria schema ou metadado
+   (`apps/web/src/lib/agentes.ts:16-18`, `lib/agenda.ts:11-16`), e o valor vem por rota ou `lazy`
+   (`pages/DashboardPage.tsx:26`). `lib/sessaoChat.tsx` (`:372-382`), sempre montado, **não**
+   deduplica fontes por `chaveDaFonteDoChat` (medido): quem tira a repetição é
+   `components/assistente/Fontes.tsx:89-96` — não "conserte" a sessão com o import nem com outra
+   definição de "a mesma fonte". **`ia.ts` é o caso aberto:** `casca/contexto/ContextoAjustes.tsx:2`
+   lê `components/ajustes/comum.ts`, que importa `microsParaDolares` como valor (`:1`), e
+   `shared/ia.ts` entra no chunk inicial (medido em 2026-09-25; dívida de 9b2aec6) — "a seção é
+   `lazy()`" não justifica o import.
 
 **`"sideEffects": false` no `package.json` de `shared` não é enfeite, e não se remove.** Sem ele o
 bundler não pode presumir que importar `@yu-book/shared` é inócuo, e **todo** módulo do pacote entra
@@ -88,10 +86,7 @@ comportamento errado em silêncio. São o motivo principal desta skill existir.
 **Não conte os itens desta seção: ela cresce e encolhe.** O que se confere é o eixo — *existe uma
 segunda implementação desta regra, escrita à mão, e há um portão que acusa se as duas divergirem?*
 Quando a resposta é "não" para a segunda pergunta, o item entra aqui. Quando a regra passa a morar
-só em `packages/shared`, o item sai. §4.1 a §4.4 já passam por `shared`; §4.5 é o que **ainda não**
-passou inteiro; §4.6 é o caso invertido — uma definição só, dois consumidores, e nenhum portão;
-§4.7 mora metade em `shared` e metade escrita à mão na API; §4.8 tem portão para os dias e nenhum
-para o limite.
+só em `packages/shared`, o item sai — salvo o caso invertido do §4.6, uma definição e dois consumidores.
 
 ### 4.1 `normalizarTitulo` ↔ o índice único do Postgres
 
@@ -179,10 +174,9 @@ por `horarioNoFuso` e `horaNoFuso` (`apps/web/src/components/rotinas/comum.tsx:2
 fuso de `/ajustes` e **sem recuar ao navegador**: fuso ainda não carregado mostra "…". É o padrão que
 `PainelCard` deveria seguir, não uma quarta conversão.
 
-**`TZ` no ambiente não é conserto e agora nem é sintoma.** Pôr `TZ=America/Sao_Paulo` em
-`apps/mcp/railway.json` trocaria um fuso de processo por outro fuso de processo, que continua não
-sendo o do usuário — e depois da Etapa B a variável seria **inerte**: nenhuma data do texto do
-servidor MCP lê mais o fuso do processo. Não a acrescente para "explicar" um prazo estranho.
+**`TZ` no ambiente não é conserto.** `TZ=America/Sao_Paulo` em `apps/mcp/railway.json` trocaria um
+fuso de processo por outro, não pelo do usuário — e seria **inerte**: desde a Etapa B nenhuma data
+do texto do MCP lê o fuso do processo. Não a acrescente para "explicar" um prazo estranho.
 
 ### 4.6 Uma definição, dois consumidores — e nenhum portão sobre o texto
 
@@ -235,17 +229,14 @@ e quem avança o marco é `POST /ai/runs/seen`: um GET que marcasse visto faria 
 o painel, apagar as "novas" que o operador ainda não viu.
 
 **Quarto caso: ação de escrita nova no chat.** Além da API (INV-52), o front tem sítios que o
-compilador cobra e sítios que não. Cobra `EXPLICACAO` (`apps/web/src/components/agentes/ferramentas.ts:16`,
-`Record<NomeDoAssistente, string>`) e, se ela cria um **tipo** novo, `COMO_MOSTRAR`
-(`components/assistente/Conversa.tsx:143`), total sobre `ChatCreated["kind"]`: como o criado se
-mostra, abre e se desfaz. Não cobra: `ROTULO_DA_ACAO` (`Conversa.tsx:55`) é `Record<string, string>`
-e cai no nome cru; `invalidarCriados` (`lib/chat.ts:127-144`) invalida por `kind` citado; o editor
-de agente trata toda escrita como criação salvo exceção por nome (`EditorAgente.tsx:531-541`); e
-**escrita que não cria não passa pelo evento `criado`** — que alimenta o Desfazer —, então precisa
-de invalidação própria: `complete_card` e `complete_task` marcam pelo evento `ferramenta`
-(`lib/sessaoChat.tsx:402-405`) e invalidam no `finally` (`:434-435`), por `invalidarConclusao`
-(`lib/chat.ts:151`) e `invalidarAgenda` (`lib/agenda.ts:35`). Sem isso, a tela ao lado segue
-mostrando aberto o card ou a tarefa.
+compilador cobra: `EXPLICACAO` (`apps/web/src/components/agentes/ferramentas.ts:16`) e, se ela cria
+um **tipo** novo, `COMO_MOSTRAR` (`components/assistente/Conversa.tsx:143`, total sobre
+`ChatCreated["kind"]`). E sítios que não: `ROTULO_DA_ACAO` (`Conversa.tsx:55`) cai no nome cru;
+`invalidarCriados` (`lib/chat.ts:127-144`) invalida por `kind` citado; o editor de agente trata toda
+escrita como criação salvo exceção por nome (`EditorAgente.tsx:531-541`); e **escrita que não cria
+não passa pelo evento `criado`** (o do Desfazer) e invalida por conta própria — `complete_card` e
+`complete_task` pelo evento `ferramenta` (`lib/sessaoChat.tsx:402-405`) e no `finally` (`:434-435`),
+por `invalidarConclusao` (`lib/chat.ts:151`) e `invalidarAgenda` (`lib/agenda.ts:35`).
 
 Então, ao tocar em `ferramentas.ts`: diga no relato que as duas superfícies mudaram, e **meça** o
 `tools/list` se o texto cresceu (a receita e a baseline estão na memória do agente `mcp`). O
@@ -282,19 +273,28 @@ limite novo e segue verde.
 
 ## 5. Verificação
 
-Depois de qualquer mudança em `packages/shared`:
-
+Depois de qualquer mudança em `packages/shared` (em `packages/cliente`, basta o typecheck):
 ```bash
 pnpm --filter @yu-book/shared build && pnpm typecheck
 ```
 
 Se tocou num dos espelhamentos do §4, rode também `pnpm --filter @yu-book/api test` e
-`pnpm --filter @yu-book/mcp test`. **Nenhum dos dois cobre o §4.5 do lado do front nem o §4.6.**
+`pnpm --filter @yu-book/mcp test`. **Nenhum dos dois cobre o lado do front do §4.5 nem o §4.6.** O
+§4.5 não se revela na sua máquina, onde o fuso do navegador é o certo: ponha outro fuso em
+`/ajustes` e compare o prazo da tela com o que `get_card` relata. O §4.6 se mede à mão.
 
-- **§4.5.** O portão que existe é `apps/mcp/tests/fuso.test.ts`, e ele prova o lado do servidor —
-  que a conversão usa o fuso **pedido à API**, não o do processo. O lado do front não tem portão
-  nenhum e rodar na sua máquina não revela nada, porque o fuso do navegador é o certo aí. Para ver
-  a divergência é preciso pôr um fuso diferente em `/ajustes` e comparar o prazo que a interface
-  mostra com o que `get_card` relata.
-- **§4.6.** Editar uma `descricao` não deixa nenhum teste vermelho, nos dois pacotes. Meça o
-  `tools/list` à mão.
+## 6. `packages/cliente`: o que os dois fronts dividem
+
+`shared` é o contrato com a API, sem React nem HTTP (§1). **`packages/cliente` é o código de
+navegador que web e móvel precisam igual** — cliente HTTP e sessão, `tema.css`, `base/`, ícones e
+foco preso (`packages/cliente/src/api.ts:1-9`); cópia num app seria um espelhamento do §4. O que é
+de um app só fica nele (`IndicadorSalvamento` e `.preview`, no web).
+
+- **Fonte, não build:** `exports` aponta para `src/` e o Vite de cada app compila. Não lê
+  `import.meta.env`: cada app chama `configurarApi` no `main.tsx`, antes de montar (`api.ts:12-25`).
+- **`"sideEffects": ["*.css"]`** (`packages/cliente/package.json:6`): o TS é podável como o de
+  `shared` (§2), o `tema.css` nunca. Não troque por `false`.
+- **React é `peerDependency`, e cada `vite.config` tem `resolve.dedupe`** (`apps/web/vite.config.ts:7-12`,
+  idem no móvel): dois Reacts dão "Invalid hook call" em execução, sem erro de build.
+- **De `shared`, só `import type`** (`api.ts:10`, `auth.tsx:1`, `Icones.tsx:1`): o que o pacote
+  exporta vai ao chunk inicial dos dois apps, e valor levaria o módulo junto (§2, passo 6).

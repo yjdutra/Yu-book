@@ -198,7 +198,7 @@ globais moram num listener de `window` (`useAtalhosGlobais`, `apps/web/src/lib/a
 fora de `Aplicacao.tsx` desde a Etapa 2 do redesenho), que recebe o evento **mesmo depois de
 `preventDefault`**. Só `stopPropagation` o barra. Na `<textarea>` isso é
 imperativo (`Editor.tsx:240`); no modo ao vivo é declarativo, `stopPropagation: true` em cada tecla
-do `keymap` sob `Prec.high` para vencer o `defaultKeymap` (`apps/web/src/lib/editorMd.ts:161-178`).
+do `keymap` sob `Prec.high` para vencer o `defaultKeymap` (`apps/web/src/lib/editorMd.ts:162-179`).
 Sem isso `Ctrl+K` insere o link **e** abre a paleta — regressão já corrigida uma vez.
 
 A armadilha vizinha:
@@ -222,14 +222,14 @@ função de limpeza roda, no desmonte. Trabalho de fechamento posto no corpo com
 **A forma errada compila nos dois grupos, e nenhum portão executa qualquer um deles.** Antes de
 escrever a limpeza de um painel novo, abra `Aplicacao.tsx` e veja em qual grupo ele foi montado; a
 regra não está visível de dentro do componente. Desde a Etapa 5 do redesenho os dois repassam
-`aberta` ao `Dialogo`, e o `if (!aberto) return null` mora só nele (`base/Dialogo.tsx:52`) — é o
+`aberta` ao `Dialogo`, e o `if (!aberto) return null` mora só nele (`packages/cliente/src/base/Dialogo.tsx:54`) — é o
 que engana: existe para o grupo da prop viva e parece indicar que `false` chega. Na gaveta, o
 efeito que reseta filtro e renomeação ao abrir (`GavetaLinks.tsx:161-167`) só vale para a prop
 viva, e o comentário dele diz isso.
 
 A forma que serve aos dois grupos já existe: `useFocoPreso` põe o fechamento **na limpeza** de um
-efeito que depende de `ativo` (`apps/web/src/lib/foco.ts:65-70`), que roda quando a prop vira `false`
-e quando o componente desmonta. Por isso `Dialogo` (`components/base/Dialogo.tsx`) aceita as duas
+efeito que depende de `ativo` (`packages/cliente/src/foco.ts:65-70`), que roda quando a prop vira `false`
+e quando o componente desmonta. Por isso `Dialogo` (`packages/cliente/src/base/Dialogo.tsx`) aceita as duas
 montagens. Painel novo que precise de fechamento imita essa forma.
 
 Há uma terceira: `PainelAssistente` também nasce num `&&` (`Aplicacao.tsx:537-541`), mas **sem
@@ -328,7 +328,7 @@ vendo um modelo marcado conclui que o erro é falso.
 **Não vale para todo enum: vale para o enum cujo membro pede configuração.** `LINK_KINDS` é citado à
 mão de propósito em `apps/web/src/components/ZonasDeSoltura.tsx:131-142` — cada zona tem texto e
 ícone próprios, e ali o enum só discrimina. Enum que rotula ou discrimina pode ser citado (é também
-o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `apps/web/src/components/Icones.tsx:522` já
+o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `packages/cliente/src/Icones.tsx:536` já
 mantém total); enum cujo membro exige um valor que **só a interface** coleta, não. **E citar não é
 ternário** (frente de agenda, Fase 2): `kind === "note" ? … : card` supunha que todo não-nota era
 card, e o evento criado pelo chat teria oferecido "Abrir o card" e o Desfazer por `/cards/:id`, sem
@@ -403,10 +403,10 @@ velho por 30 s, logo depois da ação que o mudou.
 
 **INV-65 — `Dialogo` aberto dentro de um contêiner que fecha no `Esc` vai num wrapper `contents`
 por fora, com `preventDefault`; o contêiner ignora o `Esc` com `defaultPrevented`.** O `Esc` do
-`Dialogo` é ouvido no `document` (`apps/web/src/components/base/Dialogo.tsx:43-50`), mas o
+`Dialogo` é ouvido no `document` (`packages/cliente/src/base/Dialogo.tsx:45-52`), mas o
 `keydown` nascido no portal também sobe pela árvore do React até o `onKeyDown` do contêiner, que
 fecharia junto. `stopPropagation` no caminho calaria o ouvinte do próprio diálogo. O wrapper fica
-**fora** do `Dialogo` porque a caixa tem `tabIndex={-1}` (`:70`) e ganha o foco num clique em área
+**fora** do `Dialogo` porque a caixa tem `tabIndex={-1}` (`:74`) e ganha o foco num clique em área
 vazia — um wrapper dentro dela não vê a tecla. Dois pares hoje:
 `assistente/Conversa.tsx:610-620` com `assistente/PainelAssistente.tsx:61`, e
 `AnexosDoCard.tsx:263-275` com `PainelCard.tsx:157-159`. Diálogo novo num desses contêineres, ou

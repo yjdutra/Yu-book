@@ -1,13 +1,15 @@
 # Yu-book
 
-Segundo cérebro pessoal, single-user. Monorepo pnpm com quatro pacotes:
+Segundo cérebro pessoal, single-user. Monorepo pnpm com seis pacotes:
 
 | Pacote | Stack | Papel |
 |---|---|---|
 | `apps/api` | Fastify 5 + Prisma 6 + Postgres 16 | API REST |
 | `apps/web` | React 19 + Vite 6 + Tailwind v4 | SPA desktop-only |
+| `apps/movel` | React 19 + Vite 6 + Tailwind v4 | PWA responsivo para o celular |
 | `apps/mcp` | SDK MCP + stdio/HTTP | Servidor MCP, cliente da própria API |
-| `packages/shared` | Zod 3 | Schemas e helpers que os outros três consomem |
+| `packages/shared` | Zod 3 | Schemas e helpers que os outros cinco consomem |
+| `packages/cliente` | React 19 (peer), fonte sem build | Cliente HTTP, sessão, tema, primitivos e ícones de web e móvel |
 
 **O repositório é público, e `docs/` é local desde 2026-09-28:** está no `.gitignore` e fora do
 índice. Todo caminho `docs/...` citado aqui, em `.claude/` ou num comentário resolve só na máquina
@@ -58,8 +60,9 @@ rota e service — agenda interna, não o Google — e criou a **tarefa**, to-do
 os dois com o quadro como projeto e o fuso convertido só no servidor (INV-66), e a Fase 2 os pôs
 no chat e no MCP: o chat lê a agenda, **marca evento, anota tarefa e conclui tarefa** a pedido
 (`list_agenda`, `create_event`, `create_task`, `complete_task`), com o dia no fim do `system` e a
-hora só no turno enviado (INV-52). O app de celular está em andamento e ainda não tem código. A Fase 6 de produto (Google Calendar) segue sendo o item
-de menor prioridade.
+hora só no turno enviado (INV-52). A Fase 3 fez a fundação do móvel: `apps/movel`, PWA com login,
+casca e um Início ainda vazio, e `packages/cliente`, para onde saíram de `apps/web` o que os dois
+fronts dividem. A Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
 
 **Oito numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
@@ -92,14 +95,16 @@ fases.** `RF-19` é o tema claro em `apps/web/src/lib/tema.ts` e é a colisão p
 - **Não existe ESLint, Prettier, Biome nem CI.** Estilo se aprende por imitação: 2 espaços, aspas
   duplas, ~100 colunas. Não instale linter.
 - **Não instale biblioteca de UI nem de ícones.** Sem shadcn, sem Radix, sem Material. Ícone novo é
-  SVG à mão em `apps/web/src/components/Icones.tsx`. Botão, diálogo, menu e os demais primitivos já
-  existem em `apps/web/src/components/base/`: use-os em vez de copiar classes.
-- **Nunca use a variante `dark:` do Tailwind.** O tema mora inteiro em CSS, em `apps/web/src/index.css`.
-  Cor nova exige entrada no bloco `@theme` **e** em `:root[data-tema="claro"]`.
+  SVG à mão em `packages/cliente/src/Icones.tsx`. Botão, diálogo, menu e os demais primitivos já
+  existem em `packages/cliente/src/base/`: use-os em vez de copiar classes.
+- **Nunca use a variante `dark:` do Tailwind.** O tema mora inteiro em CSS, em
+  `packages/cliente/src/tema.css`, que web e móvel importam — cada um com `@source` do pacote, ou
+  a classe usada só nele some do CSS. Cor nova exige entrada no bloco `@theme` **e** em
+  `:root[data-tema="claro"]`.
 - **`apps/api` tem duas camadas e só duas:** `*.routes.ts` faz `schema.parse` → chama service →
   devolve; `*.service.ts` concentra regra e Prisma. Rota que importa `prisma` é violação.
 - **Imports internos levam extensão `.js`** (ESM/NodeNext), inclusive em arquivos `.ts` — menos em
-  `apps/web`, que resolve como `Bundler` e importa sem extensão.
+  `apps/web`, `apps/movel` e `packages/cliente`, que resolvem como `Bundler` e importam sem extensão.
 - **`strict` e `noUncheckedIndexedAccess` estão ligados.** Todo acesso por índice devolve
   `T | undefined`.
 
@@ -129,7 +134,9 @@ São os únicos portões automáticos que existem. Rode-os e relate a saída rea
 Agentes especialistas em `.claude/agents/`. Só o `curador` escreve em `.claude/`; só o
 `publicador` faz commit e deploy, e nunca dá push sem alguém pedir — aqui push para `master` é
 deploy em produção, e **`apps/mcp` também é deployado**: quarto serviço na Railway, por
-`apps/mcp/railway.json`. Ele tem **dois transportes**: stdio, que roda na máquina do operador, e
+`apps/mcp/railway.json`. `apps/movel` será o quinto, por `apps/movel/railway.json`, mas o serviço
+**ainda não existe: criá-lo depende do operador** (com `VITE_API_URL` e o domínio em `CORS_ORIGIN`
+da API). Ele tem **dois transportes**: stdio, que roda na máquina do operador, e
 StreamableHTTP, que é o do serviço hospedado — ali ele é servidor OAuth 2.1 próprio e a identidade
 vem de quem chamou. Ele **escreve** desde a Etapa 3, e **o que libera a escrita muda com o
 transporte**: em stdio, a API ser local; em HTTP, o escopo do token mais `MCP_ESCRITA_HABILITADA`.

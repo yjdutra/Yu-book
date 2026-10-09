@@ -1,6 +1,6 @@
 ---
 name: convencoes-yu-book
-description: Convenções de código do Yu-book — nomenclatura em português no domínio e inglês na fronteira da API, imports ESM com extensão .js, estilo de comentário citando RF-xx, tipagem estrita, a injeção para teste que não pode usar valor padrão de parâmetro, e a ausência deliberada de linter. Use antes de escrever ou revisar qualquer código em apps/api, apps/web ou packages/shared, e sempre que precisar decidir como nomear algo neste repositório.
+description: Convenções de código do Yu-book — nomenclatura em português no domínio e inglês na fronteira da API, imports ESM com extensão .js, estilo de comentário citando RF-xx, tipagem estrita, a injeção para teste que não pode usar valor padrão de parâmetro, e a ausência deliberada de linter. Use antes de escrever ou revisar qualquer código em apps/api, apps/web, apps/movel, apps/mcp, packages/shared ou packages/cliente, e sempre que precisar decidir como nomear algo neste repositório.
 ---
 
 # Convenções do Yu-book
@@ -39,9 +39,11 @@ import { criarNota } from "./notes.service.js";
 
 Esquecer a extensão compila no editor e quebra em runtime.
 
-**`apps/web` é a exceção:** sobrescreve para `moduleResolution: "Bundler"`
-(`apps/web/tsconfig.json:5-6`), e ali o import interno vai **sem** extensão, como todo o código do
-front já faz. Não acrescente `.js` lá.
+**Os fronts são a exceção — `apps/web`, `apps/movel` e `packages/cliente`:** resolvem como
+`moduleResolution: "Bundler"` (`apps/web/tsconfig.json:5-6`, `apps/movel/tsconfig.json:5-6`,
+`packages/cliente/tsconfig.json:2-8`), e ali o import interno vai **sem** extensão. Não acrescente
+`.js` lá. O pacote cliente é fonte compilada pelo Vite de cada app, e importa-se pelo `exports`
+(`@yu-book/cliente/base/Botao`), nunca por caminho relativo entre pacotes.
 
 ## 3. Tipagem
 
@@ -109,12 +111,13 @@ comentário explica uma escolha que parece estranha, ela é deliberada — confi
 ## 5. Estilo
 
 2 espaços, aspas duplas, ponto e vírgula, ~100 colunas. Arquivos `.tsx` só quando há JSX — por isso
-`apps/web/src/lib/auth.tsx` e `workspace.tsx` são `.tsx`, e renderizam Providers.
+`packages/cliente/src/auth.tsx` e `apps/web/src/lib/workspace.tsx` são `.tsx`, e renderizam Providers.
 
-Sem barris (`index.ts` reexportador) em `apps/web`, inclusive nas subpastas: importe do arquivo.
-`components/` admite **subpasta por papel** — primitivos em `base/`, a casca em `casca/`, e uma
-por área que cresceu além de um arquivo, como `assistente/` e `ajustes/`. `lib/` mistura hooks,
-utilitários puros e módulos de query — não reorganize.
+Sem barris (`index.ts` reexportador) nos fronts, inclusive nas subpastas: importe do arquivo.
+`components/` admite **subpasta por papel** — primitivos em `base/` (os comuns aos dois fronts moram
+em `packages/cliente/src/base/`), a casca em `casca/`, e uma por área que cresceu além de um
+arquivo, como `assistente/` e `ajustes/`. `lib/` mistura hooks, utilitários puros e módulos de query
+— não reorganize.
 
 **Caractere invisível ou de controle vai no fonte como escape `\uXXXX`, nunca literal** — em
 regex inclusive (`[\u0300-\u036f]`, `U+2028`, `U+FEFF`). Literal não se vê na revisão, e `U+2028`
