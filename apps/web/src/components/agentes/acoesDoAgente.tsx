@@ -11,7 +11,7 @@ import { Botao } from "@yu-book/cliente/base/Botao";
 import { Dialogo } from "@yu-book/cliente/base/Dialogo";
 import type { ItemMenu } from "@yu-book/cliente/base/Menu";
 import { IconeAssistente, IconeBaixar, IconeCopiar, IconeLapis, IconeLixeira } from "@yu-book/cliente/icones";
-import { AvatarAgente } from "./AvatarAgente";
+import { AvatarAgente } from "@yu-book/cliente/chat/AvatarAgente";
 
 interface AgenteAlvo {
   id: string;

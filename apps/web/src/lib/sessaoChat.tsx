@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import type { ChatAttachmentInput, ChatCreated, ChatSource, ErrorCode } from "@yu-book/shared";
+import type { ErrorCode } from "@yu-book/shared";
 import {
   createContext,
   useCallback,
@@ -13,15 +13,16 @@ import type { ReactNode, RefObject } from "react";
 import { invalidarAgenda } from "@yu-book/cliente/agenda";
 import { ApiError } from "@yu-book/cliente/api";
 import {
-  CHAVE_AJUSTES,
-  CHAVE_USO,
   CHAVE_CONVERSAS,
+  alvoDe,
+  aplicarEvento,
   chaveDaConversa,
   enviarMensagem,
-  invalidarConclusao,
-  invalidarCriados,
+  falaNova,
   useCriarConversa,
-} from "./chat";
+} from "@yu-book/cliente/chat";
+import type { Anexo, EmCurso } from "@yu-book/cliente/chat";
+import { CHAVE_AJUSTES, CHAVE_USO, invalidarConclusao, invalidarCriados } from "./chat";
 
 /**
  * A sessão do chat (redesenho de UI, Etapa 3).
@@ -37,38 +38,12 @@ import {
  * a cada pedaço que chega. Num contexto só, a casca inteira (quadro e editor
  * inclusive) re-renderizaria dezenas de vezes por segundo durante a resposta.
  *
- * Importa só `chat.ts`, que é leve: o renderizador de Markdown fica nas
- * superfícies, que carregam sob demanda.
+ * Importa só o núcleo do chat (`@yu-book/cliente/chat`) e `chat.ts`, que são
+ * leves: o renderizador de Markdown e os átomos visuais ficam nas superfícies,
+ * que carregam sob demanda. O que cada evento faz com a fala em curso é o
+ * redutor puro de lá (`aplicarEvento`), o mesmo do móvel; o que tem efeito —
+ * erro, invalidação, as marcas de "concluiu" — fica aqui.
  */
-
-export interface Anexo extends ChatAttachmentInput {
-  titulo: string;
-}
-
-/// O alvo de um anexo, que é sempre um dos três. Serve de chave de lista e de
-/// identidade para tirar um do contexto — **o título não serve**: dois cards em
-/// colunas diferentes podem se chamar igual, e remover pelo título levaria o
-/// homônimo junto.
-export const alvoDe = (a: ChatAttachmentInput & { titulo?: string }) =>
-  a.noteId ?? a.cardId ?? a.boardId ?? a.titulo ?? "";
-
-/** Uma fala ainda não persistida, enquanto o fluxo corre. */
-export interface EmCurso {
-  /** A conversa a que a fala pertence — `null` enquanto ela está sendo criada. */
-  conversaId: string | null;
-  pergunta: string;
-  anexos: Anexo[];
-  texto: string;
-  ferramenta: string | null;
-  /** O provedor está buscando na web antes de responder (Etapa G) — até o primeiro pedaço. */
-  buscando: boolean;
-  fontes: ChatSource[];
-  /** O que a resposta já gravou no acervo (Etapa C da IA) — chega antes do fim. */
-  criados: ChatCreated[];
-  cortados: string[];
-  /** Premissas do agente que não couberam (Etapa D) — declaradas como os anexos. */
-  premissasCortadas: string[];
-}
 
 /**
  * Um erro da conversa. O `code` decide o que a tela oferece junto — o modelo do
@@ -80,10 +55,9 @@ export interface ErroChat {
   code: ErrorCode | null;
 }
 
-/** Identidade de um item criado — nota e card vivem em tabelas diferentes. */
-export const chaveCriado = (c: ChatCreated) => `${c.kind}:${c.id}`;
-
 const CHAVE_ABERTO = "yb:chat-aberto";
+/// Quanto vale um pedido de foco à espera do campo (o chunk do painel chegando).
+const PRAZO_DO_FOCO = 5000;
 
 /**
  * A rota em que a conversa ocupa a tela — e onde, por isso, o painel não
@@ -144,7 +118,11 @@ interface AcoesChat {
   painelAberto: boolean;
   setTexto: (t: string) => void;
   limparErro: () => void;
-  enviar: () => Promise<void>;
+  /**
+   * Sem argumento, manda o rascunho da sessão. O compositor passa o texto à
+   * vista — com o ditado ouvindo, o parcial ainda não chegou ao rascunho.
+   */
+  enviar: (visivel?: string) => Promise<void>;
   parar: () => void;
   /** Começa do zero; com `agenteId`, a próxima conversa será com ele. */
   novaConversa: (agenteId?: string | null) => void;
@@ -209,13 +187,36 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
    */
   useEffect(() => () => abortarRef.current?.abort(), []);
 
+  /**
+   * O foco pedido para um campo que ainda não existe — até quando ele vale.
+   *
+   * O painel é `lazy()`: no primeiro `Ctrl+Shift+Y` da página o chunk ainda
+   * está chegando quando o quadro seguinte roda, e o foco caía no vazio. O
+   * pedido fica guardado e quem o cumpre é o campo, ao se registrar. Com prazo:
+   * um pedido esquecido não pode roubar o foco de uma montagem qualquer, minutos
+   * depois.
+   */
+  const focoPendenteRef = useRef(0);
+
   const focarCampo = useCallback(() => {
     // O campo pode acabar de montar junto com o painel: um quadro depois ele existe.
-    requestAnimationFrame(() => campoRef.current?.current?.focus());
+    requestAnimationFrame(() => {
+      const campo = campoRef.current?.current;
+      if (campo) {
+        focoPendenteRef.current = 0;
+        campo.focus();
+      } else {
+        focoPendenteRef.current = Date.now() + PRAZO_DO_FOCO;
+      }
+    });
   }, []);
 
   const registrarCampo = useCallback((ref: RefObject<HTMLTextAreaElement | null>) => {
     campoRef.current = ref;
+    if (focoPendenteRef.current > Date.now()) {
+      focoPendenteRef.current = 0;
+      requestAnimationFrame(() => ref.current?.focus());
+    }
     return () => {
       if (campoRef.current === ref) campoRef.current = null;
     };
@@ -260,7 +261,12 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
 
   const abrirPainel = useCallback(
     (opcoes: { anexo?: Anexo; nova?: boolean } = {}) => {
-      if (!atual.current.painelAberto && document.activeElement instanceof HTMLElement) {
+      // O `<body>` não é origem: devolver o foco a ele é perdê-lo.
+      if (
+        !atual.current.painelAberto &&
+        document.activeElement instanceof HTMLElement &&
+        document.activeElement !== document.body
+      ) {
         origemRef.current = document.activeElement;
       }
       if (opcoes.nova) novaConversa();
@@ -285,9 +291,14 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
     setPainelAberto(false);
     const origem = origemRef.current;
     origemRef.current = null;
+    focoPendenteRef.current = 0;
     requestAnimationFrame(() => {
-      if (origem?.isConnected) origem.focus();
-      else document.getElementById(ID_BOTAO_PAINEL)?.focus();
+      if (origem?.isConnected && origem !== document.body) origem.focus();
+      // A origem pode não aceitar foco (sem `tabIndex`, desabilitada no meio do
+      // caminho): conferido depois, e não presumido.
+      if (!origem || document.activeElement !== origem) {
+        document.getElementById(ID_BOTAO_PAINEL)?.focus();
+      }
     });
   }, [parar]);
 
@@ -296,14 +307,14 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
     else abrirPainel();
   }, [fecharPainel, abrirPainel]);
 
-  const enviar = useCallback(async () => {
+  const enviar = useCallback(async (visivel?: string) => {
     const {
       texto: rascunho,
       conversaId: escolhida,
       anexos: enviados,
       agenteId: agente,
     } = atual.current;
-    const pergunta = rascunho.trim();
+    const pergunta = (visivel ?? rascunho).trim();
     if (!pergunta || abortarRef.current) return;
 
     const controle = new AbortController();
@@ -311,18 +322,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
     setErro(null);
     setTexto("");
     setAnexos([]);
-    setEmCurso({
-      conversaId: escolhida,
-      pergunta,
-      anexos: enviados,
-      texto: "",
-      ferramenta: null,
-      buscando: false,
-      fontes: [],
-      criados: [],
-      cortados: [],
-      premissasCortadas: [],
-    });
+    setEmCurso(falaNova(escolhida, pergunta, enviados));
 
     let alvo = escolhida;
     /// Frente de cards, Parte 1: concluir não cria nada, então não passa pelo
@@ -354,42 +354,7 @@ export function ProvedorSessaoChat({ children }: { children: ReactNode }) {
         attachments: enviados.map(({ titulo: _titulo, ...alvos }) => alvos),
         signal: controle.signal,
         aoEvento: (evento) => {
-          setEmCurso((f) => {
-            if (!f) return f;
-            switch (evento.tipo) {
-              case "inicio":
-                return {
-                  ...f,
-                  cortados: evento.cortados,
-                  premissasCortadas: evento.premissasCortadas ?? [],
-                };
-              case "delta":
-                return { ...f, texto: f.texto + evento.texto, ferramenta: null, buscando: false };
-              case "ferramenta":
-                return { ...f, ferramenta: evento.nome, buscando: false };
-              case "busca":
-                return { ...f, buscando: true };
-              case "fontes":
-                /// Acumula sem deduplicar, de propósito: quem tira a repetição
-                /// é `Fontes` (`components/assistente/Fontes.tsx`), pela
-                /// `chaveDaFonteDoChat` da API. Chamá-la aqui traria o módulo
-                /// `chat` de `shared` — com os schemas dele — para o bundle
-                /// inicial, onde este provedor mora (medido na Etapa G). Uma
-                /// segunda definição de "a mesma fonte" escrita aqui seria o
-                /// espelhamento frágil que ela existe para evitar.
-                return evento.fontes.length
-                  ? { ...f, fontes: [...f.fontes, ...evento.fontes] }
-                  : f;
-              case "criado": {
-                const novos = evento.criados.filter(
-                  (x) => !f.criados.some((j) => chaveCriado(j) === chaveCriado(x)),
-                );
-                return novos.length ? { ...f, criados: [...f.criados, ...novos] } : f;
-              }
-              default:
-                return f;
-            }
-          });
+          setEmCurso((f) => (f ? aplicarEvento(f, evento) : f));
 
           /// Fora do updater de propósito: com o `StrictMode` ligado ele roda
           /// duas vezes, e um updater que produz efeito deixa de ser puro.

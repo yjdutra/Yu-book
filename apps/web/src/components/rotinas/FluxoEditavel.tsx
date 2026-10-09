@@ -19,7 +19,7 @@ import { MAX_PASSOS_DA_ROTINA } from "@yu-book/shared";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useMovimentoReduzido } from "../../lib/movimento";
-import { AvatarAgente } from "../agentes/AvatarAgente";
+import { AvatarAgente } from "@yu-book/cliente/chat/AvatarAgente";
 import { BotaoIcone } from "@yu-book/cliente/base/Botao";
 import { Menu } from "@yu-book/cliente/base/Menu";
 import {

@@ -21,7 +21,7 @@ import {
   IconeOpcoes,
 } from "@yu-book/cliente/icones";
 import { useAcoesDoAgente } from "./acoesDoAgente";
-import { AvatarAgente } from "./AvatarAgente";
+import { AvatarAgente } from "@yu-book/cliente/chat/AvatarAgente";
 import { contar, rotuloDoModelo } from "./comum";
 
 /** A altura do cartão e do esqueleto — a mesma, para a chegada não empurrar nada. */

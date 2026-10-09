@@ -14,17 +14,20 @@ import type { ComponentType, FormEvent, ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { quandoNaAgenda, useExcluirEvento, useExcluirTarefa } from "@yu-book/cliente/agenda";
 import { ApiError } from "@yu-book/cliente/api";
-import { useConversa, useVirarNota } from "../../lib/chat";
+import { useVirarNota } from "../../lib/chat";
 import { carregarCard, useExcluirCard } from "../../lib/kanban";
-import { renderMarkdown } from "../../lib/markdown";
 import { useExcluirNota, useWorkspaces } from "../../lib/notas";
-import { alvoDe, chaveCriado, naTelaDoChat, useSessaoChat } from "../../lib/sessaoChat";
+import { naTelaDoChat, useSessaoChat } from "../../lib/sessaoChat";
 import { useWorkspaceAtivo } from "../../lib/workspace";
-import { AvatarAgente } from "../agentes/AvatarAgente";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Botao, BotaoIcone } from "@yu-book/cliente/base/Botao";
 import { Dialogo } from "@yu-book/cliente/base/Dialogo";
-import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { alvoDe, chaveCriado, semOTurnoEmCurso, useConversa } from "@yu-book/cliente/chat";
+import { AvatarAgente } from "@yu-book/cliente/chat/AvatarAgente";
+import { BalaoUsuario } from "@yu-book/cliente/chat/BalaoUsuario";
+import { CartaoCriado } from "@yu-book/cliente/chat/CartaoCriado";
+import { FalaAssistente } from "@yu-book/cliente/chat/FalaAssistente";
+import { StatusDaResposta } from "@yu-book/cliente/chat/StatusDaResposta";
 import {
   IconeAssistente,
   IconeBoard,
@@ -44,90 +47,23 @@ import { Fontes } from "./Fontes";
  * As falas de uma conversa (RF-17 a RF-26 da IA) — a mesma nas duas
  * superfícies do chat, o painel lateral e a rota `/assistente`.
  *
- * O que é próprio daqui é a espera. Uma mensagem vira até cinco chamadas ao
- * provedor, e entre elas há segundos de silêncio enquanto o Yu-book executa
- * uma ferramenta — por isso o estado de cada passo é anunciado (RNF-07), e não
- * só o "gerando" genérico. Silêncio sem explicação é o que faz alguém clicar de
- * novo.
+ * O desenho de cada peça — balão, fala, a linha do passo em curso, o cartão do
+ * que foi criado — vem dos átomos de `@yu-book/cliente/chat/`, os mesmos do
+ * móvel (Fase 5 da frente de agenda). O que fica aqui é o que é do web: abrir
+ * a nota e o card, desfazer, virar nota, o link para o editor do agente.
  */
-
-/** O rótulo humano de cada ação — a tela não diz `search_notes` a ninguém. */
-const ROTULO_DA_ACAO: Record<string, string> = {
-  search_notes: "procurando nas suas notas",
-  get_note: "lendo uma nota",
-  list_boards: "vendo seus quadros",
-  get_board: "abrindo um quadro",
-  get_dashboard: "conferindo o que vence",
-  // Etapa C: as duas escritas que o chat tem. O rótulo diz que algo está sendo
-  // gravado — é a hora em que o usuário mais precisa saber o que acontece.
-  create_card: "criando card",
-  create_note: "criando nota",
-  // Frente de cards, Parte 1: grava, mas não cria — o rótulo não diz "criando".
-  complete_card: "concluindo card",
-  // Frente de agenda, Fase 2. "Agendando" e não "criando evento": é a palavra
-  // de quem marca um compromisso. Concluir tarefa, como concluir card, grava
-  // sem criar.
-  list_agenda: "consultando a agenda",
-  create_event: "agendando",
-  create_task: "criando tarefa",
-  complete_task: "concluindo tarefa",
-  // Etapa G: a única que sai do Yu-book. A espera é a rede de um terceiro, e
-  // pode chegar a segundos.
-  open_page: "abrindo página",
-};
 
 /**
- * Avatar de quem responde. Sem agente, a faísca do trilho no gradiente de IA;
- * com agente (Etapa D), as iniciais na cor dele — e o nome dele para o leitor
- * de tela, que de outro modo não saberia quem está falando.
+ * Avatar de quem responde. Sem agente, nada: a fala usa a faísca no gradiente
+ * de IA (`AvatarIA`); com agente (Etapa D), as iniciais na cor dele — e o nome
+ * dele para o leitor de tela, que de outro modo não saberia quem está falando.
  */
-function Avatar({ agente }: { agente: ConversationAgent | null }) {
-  if (agente) {
-    return (
-      <span className="mt-0.5" title={agente.name}>
-        <AvatarAgente
-          nome={agente.name}
-          cor={agente.color}
-          rotulado
-          excluido={agente.id === null}
-        />
-      </span>
-    );
-  }
+function avatarDe(agente: ConversationAgent | null) {
+  if (!agente) return undefined;
   return (
-    <span
-      aria-hidden="true"
-      className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full
-                 bg-linear-to-br from-accent-500 to-ia-500 text-white shadow-e1"
-    >
-      <IconeAssistente className="size-3.5" />
+    <span title={agente.name} className="flex">
+      <AvatarAgente nome={agente.name} cor={agente.color} rotulado excluido={agente.id === null} />
     </span>
-  );
-}
-
-function BalaoUsuario({
-  texto,
-  anexos,
-}: {
-  texto: string;
-  anexos: { chave: string; titulo: string }[];
-}) {
-  return (
-    <div className="flex flex-col items-end gap-1">
-      {anexos.length > 0 && (
-        <div className="flex flex-wrap justify-end gap-1">
-          {anexos.map((a) => (
-            <Etiqueta key={a.chave}>{a.titulo}</Etiqueta>
-          ))}
-        </div>
-      )}
-      <p
-        className="max-w-[85%] whitespace-pre-wrap rounded-cartao rounded-br-etiqueta bg-ink-800
-                   px-3.5 py-2 text-sm text-ink-200 shadow-e1"
-      >
-        {texto}
-      </p>
-    </div>
   );
 }
 
@@ -191,24 +127,19 @@ const COMO_MOSTRAR: Record<
 };
 
 /**
- * O dia e a hora do evento ou da tarefa, ao lado do título. `date` ausente é
+ * O dia e a hora do evento ou da tarefa, sob o título. `date` ausente é
  * mensagem gravada antes do campo existir, ou nota e card: nada a mostrar —
  * diferente de `null`, que na tarefa é "sem data".
  */
-function Quando({ criado }: { criado: ChatCreated }) {
-  if (criado.kind !== "event" && criado.kind !== "task") return null;
-  if (criado.date === undefined) return null;
+function quandoDe(criado: ChatCreated): ReactNode {
+  if (criado.kind !== "event" && criado.kind !== "task") return undefined;
+  if (criado.date === undefined) return undefined;
   const hora = criado.time ?? null;
   const texto = quandoNaAgenda(criado.kind, criado.date, hora);
-  return (
-    <span className="shrink-0 text-miudo text-ink-400">
-      ·{" "}
-      {criado.date ? (
-        <time dateTime={hora ? `${criado.date}T${hora}` : criado.date}>{texto}</time>
-      ) : (
-        texto
-      )}
-    </span>
+  return criado.date ? (
+    <time dateTime={hora ? `${criado.date}T${hora}` : criado.date}>{texto}</time>
+  ) : (
+    <>{texto}</>
   );
 }
 
@@ -316,59 +247,30 @@ function Criados({
   }
 
   return (
-    <section
-      ref={bloco}
-      tabIndex={-1}
-      aria-labelledby={idTitulo}
-      className="mt-2 rounded-cartao border border-ia-500/25 bg-linear-to-r from-accent-500/5
-                 to-ia-500/5 px-2.5 py-2"
-    >
+    <section ref={bloco} tabIndex={-1} aria-labelledby={idTitulo} className="mt-3">
       <p id={idTitulo} className="rotulo flex items-center gap-1.5">
         <IconeAssistente className="size-3 text-accent-400" />
         Criado nesta resposta
       </p>
-      <ul className="mt-1.5 space-y-1">
+      <ul className="mt-1.5 grid grid-cols-1 gap-1.5">
         {criados.map((c) => {
           const chave = chaveCriado(c);
-          const desfeito = desfeitos.has(chave);
           const como = COMO_MOSTRAR[c.kind];
           const Icone = como.Icone;
           return (
-            <li key={chave} className="flex min-w-0 items-center gap-2">
-              {desfeito ? (
-                <span className="flex min-w-0 items-center gap-1.5 text-xs text-ink-400">
-                  <Icone className="size-3.5" />
-                  <span className="truncate line-through">{c.title}</span>
-                  <span className="shrink-0 text-miudo">— {como.desfeito}</span>
-                </span>
-              ) : (
-                <>
-                  {como.abrir ? (
-                    <button
-                      type="button"
-                      onClick={() => void abrir(c)}
-                      title={como.abrir}
-                      className="flex min-w-0 items-center gap-1.5 rounded-etiqueta text-xs
-                                 text-accent-400 transition-colors hover:text-titulo"
-                    >
-                      <Icone className="size-3.5" />
-                      <span className="sr-only">{como.tipo}:</span>
-                      <span className="truncate underline decoration-accent-400/40
-                                       underline-offset-2">
-                        {c.title}
-                      </span>
-                    </button>
-                  ) : (
-                    <span className="flex min-w-0 items-center gap-1.5 text-xs text-ink-200">
-                      <Icone className="size-3.5 text-accent-400" />
-                      <span className="sr-only">{como.tipo}:</span>
-                      <span className="truncate">{c.title}</span>
-                      <Quando criado={c} />
-                    </span>
-                  )}
+            <li key={chave} className="min-w-0">
+              <CartaoCriado
+                icone={<Icone className="size-4" />}
+                tipo={como.tipo}
+                titulo={c.title}
+                quando={quandoDe(c)}
+                desfeito={desfeitos.has(chave)}
+                rotuloDesfeito={como.desfeito}
+                onAbrir={como.abrir ? () => void abrir(c) : undefined}
+                rotuloAbrir={como.abrir ?? undefined}
+                acoes={
                   <Botao
                     variante="fantasma"
-                    className="ml-auto -my-1"
                     carregando={desfazendo === chave}
                     disabled={desfazendo !== null && desfazendo !== chave}
                     onClick={() => void desfazer(c)}
@@ -376,8 +278,8 @@ function Criados({
                   >
                     Desfazer
                   </Botao>
-                </>
-              )}
+                }
+              />
             </li>
           );
         })}
@@ -560,8 +462,9 @@ function DialogoVirarNota({
 }
 
 /**
- * A barra de ações da fala: copiar e virar nota, uma ao lado da outra — a ação
- * mora junto da fala, não num menu à parte.
+ * As ações da fala: copiar e virar nota, uma ao lado da outra — a ação mora
+ * junto da fala, não num menu à parte. Vão na fileira `acoes` da
+ * `FalaAssistente`, que as mostra com o ponteiro em cima ou o foco dentro.
  */
 function Acoes({
   mensagem,
@@ -575,7 +478,7 @@ function Acoes({
   const [copiado, setCopiado] = useState(false);
   const [virando, setVirando] = useState(false);
   return (
-    <div className="mt-1.5 flex items-center gap-0.5">
+    <>
       <BotaoIcone
         rotulo="Copiar a resposta"
         tamanho="p"
@@ -604,7 +507,7 @@ function Acoes({
         />
       )}
       {/* RNF-09: o resultado é anunciado, não só colorido. */}
-      <span aria-live="polite" className="ml-1 text-miudo text-emerald-300">
+      <span aria-live="polite" className="ml-0.5 text-miudo text-emerald-300">
         {copiado ? "copiado" : ""}
       </span>
       {virando && conversa && (
@@ -630,22 +533,7 @@ function Acoes({
           />
         </div>
       )}
-    </div>
-  );
-}
-
-function FalaAssistente({
-  agente,
-  children,
-}: {
-  agente: ConversationAgent | null;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex gap-2.5">
-      <Avatar agente={agente} />
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
+    </>
   );
 }
 
@@ -662,13 +550,6 @@ function Fala({
   onNotaCriada: (nota: NoteDetail) => void;
   agente: ConversationAgent | null;
 }) {
-  // Já sanitizado por DOMPurify dentro de renderMarkdown (INV-09, RNF-05):
-  // texto de modelo é entrada não confiável como qualquer outra.
-  const html = useMemo(
-    () => (mensagem.role === "assistant" ? renderMarkdown(mensagem.content) : ""),
-    [mensagem.role, mensagem.content],
-  );
-
   if (mensagem.role === "tool") return null;
 
   if (mensagem.role === "user") {
@@ -687,35 +568,36 @@ function Fala({
   if (!mensagem.content.trim()) {
     if (mensagem.created.length === 0) return null;
     return (
-      <FalaAssistente agente={agente}>
+      <FalaAssistente avatar={avatarDe(agente)}>
         <Criados criados={mensagem.created} onAbrirFonte={onAbrir} />
       </FalaAssistente>
     );
   }
 
   return (
-    <FalaAssistente agente={agente}>
-      <div className="preview text-sm" dangerouslySetInnerHTML={{ __html: html }} />
-      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-        {mensagem.modelUsed && (
-          // RF-25: qual modelo respondeu **esta** mensagem — a escolha pode mudar
-          // entre uma e outra.
-          <Etiqueta tom="ia" titulo="Modelo que respondeu">
+    <FalaAssistente
+      avatar={avatarDe(agente)}
+      // Sanitizado por DOMPurify dentro do átomo (INV-09, RNF-05): texto de
+      // modelo é entrada não confiável como qualquer outra.
+      markdown={mensagem.content}
+      acoes={<Acoes mensagem={mensagem} conversa={conversa} onNotaCriada={onNotaCriada} />}
+      marca={
+        // RF-25: qual modelo respondeu **esta** mensagem — a escolha pode mudar
+        // entre uma e outra. Discreto, mas sempre à vista: não some com as ações.
+        mensagem.modelUsed ? (
+          <span title="Modelo que respondeu">
+            <span className="sr-only">Modelo que respondeu: </span>
             {mensagem.modelUsed}
-          </Etiqueta>
-        )}
-      </div>
+          </span>
+        ) : undefined
+      }
+    >
       <Fontes fontes={mensagem.sources} onAbrir={onAbrir} />
       {/* Só monta com conteúdo: o bloco assina o estado da sessão, que muda a
           cada pedaço da resposta, e toda fala antiga repintaria junto. */}
       {mensagem.created.length > 0 && (
         <Criados criados={mensagem.created} onAbrirFonte={onAbrir} />
       )}
-      <Acoes
-        mensagem={mensagem}
-        conversa={conversa}
-        onNotaCriada={onNotaCriada}
-      />
     </FalaAssistente>
   );
 }
@@ -742,6 +624,7 @@ export function Conversa({
   /// A fala em curso só aparece na conversa a que pertence: escolher outra no
   /// meio da resposta não pode pendurar o balão nas falas de outra conversa.
   const emCurso = fluxo && fluxo.conversaId === conversaId ? fluxo : null;
+  const visiveis = useMemo(() => semOTurnoEmCurso(mensagens, emCurso), [mensagens, emCurso]);
 
   /// Rolar para o fim a cada pedaço que chega: uma resposta que cresce fora da
   /// área visível é uma resposta que ninguém vê chegando.
@@ -750,7 +633,7 @@ export function Conversa({
   }, [emCurso?.texto, mensagens.length]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {mensagens.length === 0 &&
         !emCurso &&
         (agente.resumo ? (
@@ -759,7 +642,7 @@ export function Conversa({
           vazio
         ))}
 
-      {mensagens.map((m) => (
+      {visiveis.map((m) => (
         <Fala
           key={m.id}
           mensagem={m}
@@ -776,34 +659,19 @@ export function Conversa({
             texto={emCurso.pergunta}
             anexos={emCurso.anexos.map((a) => ({ chave: alvoDe(a), titulo: a.titulo }))}
           />
-          <FalaAssistente agente={agente.identidade}>
-            {/* RNF-07: o passo é anunciado, e o texto visível é a própria
-                região — o leitor de tela não repete. */}
-            <p role="status" className="flex items-center gap-2 text-xs text-ink-400">
-              {!emCurso.texto && (
-                <span
-                  aria-hidden="true"
-                  className="size-1.5 animate-pulse rounded-full bg-linear-to-r from-accent-400
-                             to-ia-500"
-                />
-              )}
-              {emCurso.ferramenta
-                ? `${ROTULO_DA_ACAO[emCurso.ferramenta] ?? emCurso.ferramenta}…`
-                : emCurso.texto
-                  ? ""
-                  : emCurso.buscando
-                    ? // Etapa G: a primeira chamada com busca demora mais que as
-                      // outras, e o silêncio seria sem explicação.
-                      "buscando na web…"
-                    : "pensando…"}
-            </p>
-            {emCurso.texto && (
-              <div
-                className="preview text-sm"
-                // Sanitizado por DOMPurify em renderMarkdown, a cada pedaço.
-                dangerouslySetInnerHTML={{ __html: renderMarkdown(emCurso.texto) }}
+          <FalaAssistente
+            avatar={avatarDe(agente.identidade)}
+            // Sanitizado por DOMPurify no átomo, a cada pedaço (INV-09).
+            markdown={emCurso.texto}
+            status={
+              // RNF-07: o passo é anunciado, e o texto visível é a própria região.
+              <StatusDaResposta
+                ferramenta={emCurso.ferramenta}
+                buscando={emCurso.buscando}
+                temTexto={Boolean(emCurso.texto)}
               />
-            )}
+            }
+          >
             <Fontes fontes={emCurso.fontes} onAbrir={onAbrirFonte} />
             {emCurso.criados.length > 0 && (
               <Criados criados={emCurso.criados} onAbrirFonte={onAbrirFonte} />

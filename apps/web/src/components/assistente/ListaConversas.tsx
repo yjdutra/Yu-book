@@ -1,30 +1,14 @@
 import type { Conversation } from "@yu-book/shared";
 import { useRef, useState } from "react";
-import { useConversas, useExcluirConversa, useRenomearConversa } from "../../lib/chat";
+import {
+  agruparConversas,
+  useConversas,
+  useExcluirConversa,
+  useRenomearConversa,
+} from "@yu-book/cliente/chat";
 import { useSessaoChat } from "../../lib/sessaoChat";
-import { AvatarAgente } from "../agentes/AvatarAgente";
+import { AvatarAgente } from "@yu-book/cliente/chat/AvatarAgente";
 import { IconeFechar, IconeLapis } from "@yu-book/cliente/icones";
-
-const DIA = 24 * 60 * 60 * 1000;
-
-/** Hoje, últimos 7 dias, antes — a mesma divisão de qualquer histórico de conversa. */
-function agrupar(conversas: Conversation[]): [string, Conversation[]][] {
-  const inicioDeHoje = new Date();
-  inicioDeHoje.setHours(0, 0, 0, 0);
-  const hoje = inicioDeHoje.getTime();
-
-  const grupos: [string, Conversation[]][] = [
-    ["Hoje", []],
-    ["Últimos 7 dias", []],
-    ["Antes", []],
-  ];
-  for (const c of conversas) {
-    const quando = new Date(c.updatedAt).getTime();
-    const grupo = quando >= hoje ? grupos[0] : quando >= hoje - 7 * DIA ? grupos[1] : grupos[2];
-    grupo?.[1].push(c);
-  }
-  return grupos.filter(([, lista]) => lista.length > 0);
-}
 
 function Linha({
   conversa,
@@ -163,7 +147,7 @@ export function ListaConversas({ onEscolher }: { onEscolher?: (id: string) => vo
 
   return (
     <>
-      {agrupar(conversas ?? []).map(([titulo, lista]) => (
+      {agruparConversas(conversas ?? []).map(([titulo, lista]) => (
         <section key={titulo} className="mt-4">
           <h3 className="rotulo mb-1 px-2.5">{titulo}</h3>
           <div className="space-y-0.5">

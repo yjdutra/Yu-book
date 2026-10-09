@@ -1,6 +1,8 @@
 @import "tailwindcss";
 /* Tokens, temas e base: os mesmos do web, de `@yu-book/cliente`. */
 @import "@yu-book/cliente/tema.css";
+/* A prosa do Markdown — a fala do assistente usa `.preview-fala` —, comum ao web. */
+@import "@yu-book/cliente/markdown.css";
 /* As classes dos primitivos e ícones do pacote — o Tailwind não escaneia fora
    de `apps/movel` sozinho, e sem isto elas sumiriam do CSS. */
 @source "../../../packages/cliente/src";

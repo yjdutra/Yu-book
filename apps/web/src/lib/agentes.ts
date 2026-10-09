@@ -9,7 +9,7 @@ import type {
 } from "@yu-book/shared";
 import { useEffect, useState } from "react";
 import { api, apiStream } from "@yu-book/cliente/api";
-import { CHAVE_CONVERSAS } from "./chat";
+import { CHAVE_CONVERSAS } from "@yu-book/cliente/chat";
 
 /**
  * Agentes especialistas (Etapa D da frente de IA).

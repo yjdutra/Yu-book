@@ -86,13 +86,16 @@ function BotaoCriar() {
  * 1024px vira trilho à esquerda — os mesmos itens, o "+" no topo —, que é o
  * móvel aberto no desktop. Todo alvo tem pelo menos 56px.
  */
-export function Navegacao() {
+export function Navegacao({ soTrilho = false }: { soTrilho?: boolean }) {
   return (
     <nav
       aria-label="Navegação principal"
-      className="fixed left-3 right-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))]
+      // `soTrilho`: dentro da conversa do chat, a barra do celular sairia por
+      // cima do compositor; o trilho do desktop não atrapalha e fica.
+      className={`${soTrilho ? "hidden lg:block" : ""}
+                 fixed left-3 right-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))]
                  z-(--z-navegacao) mx-auto max-w-md
-                 lg:bottom-4 lg:left-4 lg:right-auto lg:top-4 lg:mx-0 lg:max-w-none"
+                 lg:bottom-4 lg:left-4 lg:right-auto lg:top-4 lg:mx-0 lg:max-w-none`}
     >
       <ul
         className="flex h-16 items-center rounded-full border border-ink-800/70 bg-superficie/90

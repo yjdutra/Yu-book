@@ -80,6 +80,8 @@
   --animate-deslizar-esquerda: deslizar-esquerda 280ms var(--ease-saida);
   --animate-deslizar-direita: deslizar-direita 280ms var(--ease-saida);
   --animate-subir: subir 200ms var(--ease-saida);
+  /* Os três pontos do "pensando" do chat, cada um com o seu atraso. */
+  --animate-digitando: digitando 1.2s var(--ease-padrao) infinite;
 
   @keyframes surgir {
     from {
@@ -104,6 +106,20 @@
     from {
       opacity: 0;
       transform: translateY(8px);
+    }
+  }
+  /* Sobe e acende, e volta ao repouso — que é o desenho parado, para quem
+     pede menos movimento (o bloco `prefers-reduced-motion` corta o laço). */
+  @keyframes digitando {
+    0%,
+    60%,
+    100% {
+      opacity: 0.35;
+      transform: translateY(0);
+    }
+    30% {
+      opacity: 1;
+      transform: translateY(-2px);
     }
   }
   /* O painel que entra pela direita: vem de onde mora. */
@@ -254,11 +270,20 @@ body {
   }
 }
 
-/* RNF-08: foco sempre visível, sem exceção. O anel usa cor de alto contraste
-   contra qualquer um dos fundos da paleta. Sem `border-radius` aqui: fora de
-   camada, ele vencia o `rounded-*` do elemento e o botão mudava de forma ao
-   receber foco — o contorno já acompanha o raio de quem o tem. */
+/* RNF-08: foco sempre visível (a exceção abaixo redesenha o anel no contêiner).
+   Cor de alto contraste contra qualquer fundo da paleta. Sem `border-radius`:
+   fora de camada, ele vencia o `rounded-*` do elemento e o botão mudava de forma
+   ao receber foco — o contorno já acompanha o raio de quem o tem. */
 :focus-visible {
   outline: 2px solid var(--color-accent-400);
   outline-offset: 2px;
+}
+
+/* A única exceção, e com substituto: o campo do compositor do chat
+   (`chat/CampoMensagem.tsx`) passa o anel ao cartão em volta dele, com este
+   mesmo traço, cor e afastamento. O anel do próprio campo cruzaria o cartão
+   arredondado ao meio, entre o texto e a linha dos botões. Campo novo não
+   ganha `data-anel` sem desenhar o anel no contêiner. */
+textarea[data-anel="cartao"]:focus-visible {
+  outline: none;
 }

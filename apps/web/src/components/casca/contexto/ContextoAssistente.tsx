@@ -6,7 +6,7 @@ import { execucaoEmAndamento, useRotinas } from "../../../lib/rotinas";
 import { useAcoesChat } from "../../../lib/sessaoChat";
 import type { EstadoRotaChat } from "../../../lib/sessaoChat";
 import { useAcoesDoAgente } from "../../agentes/acoesDoAgente";
-import { AvatarAgente } from "../../agentes/AvatarAgente";
+import { AvatarAgente } from "@yu-book/cliente/chat/AvatarAgente";
 import { ListaConversas } from "../../assistente/ListaConversas";
 import { Botao } from "@yu-book/cliente/base/Botao";
 import { Menu } from "@yu-book/cliente/base/Menu";

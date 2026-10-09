@@ -1,6 +1,6 @@
 import type { AgentSummary, ConversationAgent } from "@yu-book/shared";
 import { useAgentes } from "../../lib/agentes";
-import { useConversa } from "../../lib/chat";
+import { useConversa } from "@yu-book/cliente/chat";
 import { useSessaoChat } from "../../lib/sessaoChat";
 
 export interface AgenteDaConversa {

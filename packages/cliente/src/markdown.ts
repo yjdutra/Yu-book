@@ -1,3 +1,8 @@
+// Valor de `shared`, contra a regra do pacote (só `import type`), e de
+// propósito: `wikilinks.ts` não importa nada nem constrói schema — a regra
+// existe pelo que um módulo arrasta, e este não arrasta nada. É a mesma
+// normalização do índice do banco (contrato §4.1); uma cópia aqui seria o
+// espelhamento frágil.
 import { normalizarTitulo } from "@yu-book/shared";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js/lib/core";
@@ -36,6 +41,13 @@ function escapar(texto: string): string {
 
 /**
  * Extensão para `[[titulo]]` (RF-21).
+ *
+ * Desde a Fase 5 da frente de agenda este módulo é dos dois fronts. Ele só
+ * desenha o link, com `href="#"` e o título normalizado em `data-wikilink`; o
+ * clique é de quem consome. Hoje só a prévia do editor de notas do web abre a
+ * nota (`clicarPreview`, `apps/web/src/components/Editor.tsx`); o chat do web
+ * não trata o clique, e o móvel, que não tem tela de nota, só impede o salto
+ * ao topo (`aoTocar`, `apps/movel/src/pages/ConversaPage.tsx`).
  *
  * O `titulo` vai escapado para o HTML e normalizado para o atributo de dados —
  * a mesma normalização do banco, senão um link válido apareceria como quebrado.

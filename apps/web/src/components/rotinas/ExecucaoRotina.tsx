@@ -12,7 +12,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ApiError, api } from "@yu-book/cliente/api";
 import { useAiAjustes } from "../../lib/ia";
 import { carregarCard } from "../../lib/kanban";
-import { renderMarkdown } from "../../lib/markdown";
+import { renderMarkdown } from "@yu-book/cliente/markdown";
 import {
   acompanharExecucao,
   chaveDaExecucao,

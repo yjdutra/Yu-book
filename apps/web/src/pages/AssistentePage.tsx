@@ -1,21 +1,14 @@
 import type { ChatSource, NoteDetail } from "@yu-book/shared";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { AvatarAgente } from "../components/agentes/AvatarAgente";
+import { AvatarAgente } from "@yu-book/cliente/chat/AvatarAgente";
 import { useAgenteDaConversa } from "../components/assistente/agenteDaConversa";
 import { Compositor } from "../components/assistente/Compositor";
 import { Conversa } from "../components/assistente/Conversa";
+import { ConviteDoAssistente } from "../components/assistente/Convite";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
-import { IconeAssistente } from "@yu-book/cliente/icones";
 import { avisoDeEspera, useAcoesChat } from "../lib/sessaoChat";
 import type { EstadoRotaChat } from "../lib/sessaoChat";
-
-/** Perguntas de partida: mostram o que o assistente alcança, e um clique as escreve. */
-const SUGESTOES = [
-  "O que vence esta semana nos meus quadros?",
-  "Resuma o que eu anotei sobre o último projeto.",
-  "Quais notas falam de testes automatizados?",
-];
 
 /**
  * O assistente em tela cheia (redesenho de UI, Etapa 3). A mesma conversa do
@@ -30,7 +23,7 @@ export function AssistentePage({
   onNotaCriada: (nota: NoteDetail) => void;
 }) {
   const navigate = useNavigate();
-  const { setTexto, focarCampo, abrirPainel, novaConversa, temFluxo } = useAcoesChat();
+  const { focarCampo, abrirPainel, novaConversa, temFluxo } = useAcoesChat();
   const agente = useAgenteDaConversa();
   const location = useLocation();
   const pedido = (location.state as EstadoRotaChat | null)?.conversaNova ?? null;
@@ -76,12 +69,18 @@ export function AssistentePage({
   }
 
   return (
-    <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+    <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+      {/* O fio de IA no topo, como no painel: a mesma conversa, o mesmo desenho. */}
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 z-10 h-0.5 bg-linear-to-r from-accent-500/0
+                   via-ia-500 to-accent-500/0"
+      />
       {/* Etapa D: com a conversa começada, quem responde fica fixo no topo —
           o seletor do compositor só existe na conversa vazia. */}
       {agente.fixo && agente.identidade && (
-        <div className="shrink-0 border-b border-ink-800 bg-ink-950/40">
-          <div className="mx-auto flex w-full max-w-[760px] items-center gap-3 px-8 py-2.5">
+        <div className="shrink-0 border-b border-ink-800/70">
+          <div className="mx-auto flex w-full max-w-[760px] items-center gap-3 px-8 py-3">
             <AvatarAgente
               nome={agente.identidade.name}
               cor={agente.identidade.color}
@@ -102,7 +101,7 @@ export function AssistentePage({
             {agente.identidade.id && (
               <Link
                 to={`/assistente/agentes/${agente.identidade.id}`}
-                className="shrink-0 rounded-controle px-2 py-1 text-xs text-ink-400 transition
+                className="shrink-0 rounded-full px-3 py-1 text-xs text-ink-400 transition
                            hover:bg-ink-800 hover:text-ink-200"
               >
                 Editar o agente
@@ -112,7 +111,7 @@ export function AssistentePage({
         </div>
       )}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[760px] px-8 py-8">
+        <div className="mx-auto w-full max-w-[760px] px-8 pt-10 pb-8">
           {esperando !== undefined && (
             <Aviso
               tom="alerta"
@@ -126,47 +125,19 @@ export function AssistentePage({
           <Conversa
             onAbrirFonte={abrirFonte}
             onNotaCriada={onNotaCriada}
-            vazio={
-              <div className="flex flex-col items-center pt-[10vh] text-center">
-                <span
-                  aria-hidden="true"
-                  className="flex size-12 items-center justify-center rounded-cartao
-                             bg-linear-to-br from-accent-500 to-ia-500 text-white shadow-brilho-ia"
-                >
-                  <IconeAssistente className="size-6" />
-                </span>
-                <h2 className="mt-4 text-xl font-semibold text-titulo">
-                  Pergunte sobre o seu acervo
-                </h2>
-                <p className="mt-1 max-w-md text-sm text-ink-400">
-                  O assistente procura nas suas notas e quadros sozinho. Use{" "}
-                  <kbd className="rounded-etiqueta bg-ink-800 px-1">@</kbd> para anexar algo
-                  específico ao contexto.
-                </p>
-                <div className="mt-6 flex w-full max-w-md flex-col gap-2">
-                  {SUGESTOES.map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => {
-                        setTexto(s);
-                        focarCampo();
-                      }}
-                      className="rounded-cartao border border-ink-800 bg-superficie px-4 py-2.5
-                                 text-left text-sm text-ink-200 shadow-e1 transition
-                                 hover:border-accent-400/60 hover:shadow-e2"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            }
+            vazio={<ConviteDoAssistente />}
           />
         </div>
       </div>
-      <div className="shrink-0 border-t border-ink-800 bg-ink-950/40">
-        <div className="mx-auto w-full max-w-[760px] px-8 py-4">
+      {/* O compositor flutua no pé da coluna, sobre um degradê que apaga o
+          fim da conversa em vez de cortá-lo numa linha. */}
+      <div className="relative shrink-0">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 -top-8 h-8 bg-linear-to-t
+                     from-ink-950 to-ink-950/0"
+        />
+        <div className="mx-auto w-full max-w-[760px] px-8 pb-5">
           <Compositor />
         </div>
       </div>

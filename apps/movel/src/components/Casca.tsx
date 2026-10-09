@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AgendaPage } from "../pages/AgendaPage";
 import { AssistentePage } from "../pages/AssistentePage";
@@ -9,6 +9,20 @@ import { TarefasPage } from "../pages/TarefasPage";
 import { Cabecalho } from "./Cabecalho";
 import { ProvedorFolhaItem } from "./folha/FolhaItem";
 import { Navegacao } from "./Navegacao";
+
+/**
+ * A conversa do chat em chunk próprio (Fase 5 da frente de agenda): traz o
+ * renderizador de Markdown e o highlight.js, que o Início, a agenda e as
+ * tarefas não usam. A lista de conversas é leve e fica no chunk inicial.
+ */
+const ConversaPage = lazy(() =>
+  import("../pages/ConversaPage").then((m) => ({ default: m.ConversaPage })),
+);
+
+/** `/assistente/nova` e `/assistente/:id` — a conversa em tela cheia. */
+export function naConversa(pathname: string): boolean {
+  return /^\/assistente\/[^/]+\/?$/.test(pathname);
+}
 
 // Projetos não está na barra (cinco posições é o teto do polegar): chega-se
 // a ele pelo cartão do Início.
@@ -30,13 +44,42 @@ export function Casca() {
   const { pathname } = useLocation();
   // O detalhe do projeto (`/projetos/:id`) fica sob o nome da área.
   const titulo =
-    TITULOS[pathname] ?? (pathname.startsWith("/projetos/") ? "Projetos" : "Início");
+    TITULOS[pathname] ??
+    (pathname.startsWith("/projetos/")
+      ? "Projetos"
+      : pathname.startsWith("/assistente/")
+        ? "Assistente"
+        : "Início");
+  const conversa = naConversa(pathname);
 
   useEffect(() => {
     document.title = pathname === "/" ? "Yu-book" : `${titulo} · Yu-book`;
     // Trocar de área é página nova: começa do topo, não da rolagem da outra.
     window.scrollTo(0, 0);
   }, [pathname, titulo]);
+
+  /// Dentro da conversa a barra inferior some (o trilho do desktop fica) e o
+  /// cabeçalho é o dela. Uma rota só, `/assistente/:id`, e fora do `<main>`
+  /// com `key`: a conversa nova troca `nova` pelo id ao nascer, e esta tela
+  /// não pode remontar no meio da resposta.
+  if (conversa) {
+    return (
+      <ProvedorFolhaItem>
+        <Navegacao soTrilho />
+        <Suspense
+          fallback={
+            <p role="status" className="p-6 text-sm text-ink-400 lg:pl-34">
+              Abrindo a conversa…
+            </p>
+          }
+        >
+          <Routes>
+            <Route path="/assistente/:id" element={<ConversaPage />} />
+          </Routes>
+        </Suspense>
+      </ProvedorFolhaItem>
+    );
+  }
 
   return (
     <ProvedorFolhaItem>

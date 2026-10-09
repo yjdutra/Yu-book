@@ -2,7 +2,7 @@ import { useId } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAgentes } from "../../lib/agentes";
 import { useSessaoChat } from "../../lib/sessaoChat";
-import { AvatarAgente } from "../agentes/AvatarAgente";
+import { AvatarAgente } from "@yu-book/cliente/chat/AvatarAgente";
 import { Menu } from "@yu-book/cliente/base/Menu";
 import { IconeAgente, IconeAssistente, IconeChevron } from "@yu-book/cliente/icones";
 
@@ -22,8 +22,12 @@ export function SeletorAgente() {
   const idRotulo = useId();
 
   return (
-    <div className="mb-2 flex items-center gap-2 text-xs text-ink-400">
-      <span id={idRotulo}>Conversar com</span>
+    // Na linha de baixo do compositor, à esquerda: o rótulo fica para o leitor
+    // de tela, e quem vê lê o nome de quem vai responder no próprio gatilho.
+    <div className="flex min-w-0 items-center">
+      <span id={idRotulo} className="sr-only">
+        Conversar com
+      </span>
       <Menu
         rotulo="Com quem conversar"
         lado="cima"
@@ -32,22 +36,23 @@ export function SeletorAgente() {
             {...p}
             type="button"
             aria-describedby={idRotulo}
-            className="inline-flex h-7 items-center gap-1.5 rounded-controle border border-ink-700
-                       bg-superficie pl-1 pr-1.5 text-xs font-medium text-ink-200 shadow-e1
-                       transition hover:border-ink-400 hover:text-titulo"
+            title="Conversar com…"
+            className="inline-flex h-8 min-w-0 items-center gap-1.5 rounded-full pl-1 pr-2
+                       text-xs font-medium text-ink-200 transition hover:bg-ink-800
+                       hover:text-titulo"
           >
             {escolhido ? (
               <AvatarAgente nome={escolhido.name} cor={escolhido.color} tamanho="p" />
             ) : (
               <span
                 aria-hidden="true"
-                className="flex size-5 items-center justify-center rounded-etiqueta
+                className="flex size-5 items-center justify-center rounded-full
                            bg-linear-to-br from-accent-500 to-ia-500 text-white"
               >
                 <IconeAssistente className="size-3" />
               </span>
             )}
-            <span className="max-w-[18ch] truncate">{escolhido?.name ?? "Assistente"}</span>
+            <span className="max-w-[16ch] truncate">{escolhido?.name ?? "Assistente"}</span>
             <IconeChevron className="size-3 text-ink-400" />
           </button>
         )}

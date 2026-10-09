@@ -1,6 +1,6 @@
 {
   "name": "@yu-book/cliente",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "sideEffects": ["*.css"],
@@ -8,8 +8,13 @@
     "./agenda": "./src/agenda.ts",
     "./api": "./src/api.ts",
     "./auth": "./src/auth.tsx",
+    "./chat": "./src/chat.ts",
+    "./chat/*": "./src/chat/*.tsx",
+    "./ditado": "./src/ditado.ts",
     "./foco": "./src/foco.ts",
     "./icones": "./src/Icones.tsx",
+    "./markdown": "./src/markdown.ts",
+    "./markdown.css": "./src/markdown.css",
     "./tema.css": "./src/tema.css",
     "./base/*": "./src/base/*.tsx"
   },
@@ -17,7 +22,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@yu-book/shared": "workspace:*"
+    "@yu-book/shared": "workspace:*",
+    "dompurify": "^3.4.13",
+    "highlight.js": "^11.12.0",
+    "marked": "^18.0.9"
   },
   "peerDependencies": {
     "@tanstack/react-query": "^5.64.1",

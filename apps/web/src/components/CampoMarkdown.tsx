@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { renderMarkdown } from "../lib/markdown";
+import { renderMarkdown } from "@yu-book/cliente/markdown";
 
 /**
  * Campo de Markdown com prévia alternável — a descrição do card (RF-28 da

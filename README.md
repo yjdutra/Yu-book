@@ -340,8 +340,10 @@ runs unchanged. In progress: an agenda and a to-do list of its own, linked to bo
 with a companion phone app. The API is in place, and the chat and the MCP server can already read
 the agenda, schedule events and add or complete tasks. The phone app, an installable PWA that
 shares its client code and theme with the web app, now covers the day at a glance, a monthly
-calendar, tasks grouped by urgency and projects, with quick create and edit from anywhere; the
-assistant on the phone comes next.
+calendar, tasks grouped by urgency and projects, with quick create and edit from anywhere, and the
+assistant: the same chat and agents as on the web, with voice dictation, so "book a meeting with
+Ana tomorrow at 3 pm" said into the phone becomes an event you can open and edit. The web chat got
+the same redesign and the same microphone.
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
 Known limitations, stated on purpose:
@@ -358,3 +360,7 @@ Known limitations, stated on purpose:
 - **Note content leaves the server for every AI task.** The provider is a cloud one: a local model
   was dropped because the API runs without a GPU. The settings screen says this, and whether the
   provider may train on your data is a toggle, off by default.
+- **Voice dictation is the browser's own speech recognition.** Yu-book never receives audio, but
+  the browser's recognizer does: in Chrome that is a Google service, and the microphone button
+  says so. Firefox has no such API, so the button is not shown there. Dictated text is never sent
+  on its own.

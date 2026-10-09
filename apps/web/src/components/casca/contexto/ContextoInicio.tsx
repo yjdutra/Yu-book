@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useConversas } from "../../../lib/chat";
+import { useConversas } from "@yu-book/cliente/chat";
 import { useBoards } from "../../../lib/kanban";
 import { FILTROS_VAZIOS, useNotas } from "../../../lib/notas";
 import { useAcoesChat } from "../../../lib/sessaoChat";

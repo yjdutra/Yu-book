@@ -75,7 +75,7 @@ function FonteWeb({ fonte }: { fonte: Extract<ChatSource, { kind: "web" }> }) {
  * deduplica o histórico gravado. A fala em curso chega somada, evento a
  * evento: buscar e depois ler a mesma nota é o caminho normal do laço, e a
  * sessão não deduplica para não levar o módulo `chat` de `shared` ao bundle
- * inicial (`lib/sessaoChat.tsx`, no `case "fontes"`).
+ * inicial (o `case "fontes"` de `aplicarEvento`, em `@yu-book/cliente/chat`).
  */
 export function Fontes({
   fontes,

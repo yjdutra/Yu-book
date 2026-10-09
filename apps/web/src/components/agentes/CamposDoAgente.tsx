@@ -8,7 +8,7 @@ import { CartaoModelo } from "../ajustes/CartaoModelo";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { BotaoIcone } from "@yu-book/cliente/base/Botao";
 import { IconeCheck, IconeFechar } from "@yu-book/cliente/icones";
-import { COR_DO_AGENTE } from "./AvatarAgente";
+import { COR_DO_AGENTE } from "@yu-book/cliente/chat/AvatarAgente";
 
 /**
  * Os campos do editor de agentes que têm desenho próprio: a cor, a fonte viva

@@ -1,6 +1,6 @@
 import type { AgentColor, RoutineStepMode } from "@yu-book/shared";
 import { Fragment } from "react";
-import { AvatarAgente } from "../agentes/AvatarAgente";
+import { AvatarAgente } from "@yu-book/cliente/chat/AvatarAgente";
 import { IconeBoard, IconeCheck, IconeFala, IconeNotas } from "@yu-book/cliente/icones";
 import { ROTULO_MODO } from "./comum";
 

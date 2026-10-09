@@ -5,11 +5,13 @@ import { useAgentes } from "../../lib/agentes";
 import { useAiAjustes, useAiSaude } from "../../lib/ia";
 import { useBoards, useCard } from "../../lib/kanban";
 import { useBusca, useNota } from "../../lib/notas";
-import { alvoDe, useSessaoChat } from "../../lib/sessaoChat";
-import type { Anexo } from "../../lib/sessaoChat";
+import { useSessaoChat } from "../../lib/sessaoChat";
 import { useWorkspaceAtivo } from "../../lib/workspace";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Botao } from "@yu-book/cliente/base/Botao";
+import { alvoDe } from "@yu-book/cliente/chat";
+import type { Anexo } from "@yu-book/cliente/chat";
+import { CampoMensagem } from "@yu-book/cliente/chat/CampoMensagem";
 import { IconeFechar, IconeMais } from "@yu-book/cliente/icones";
 import { useAgenteDaConversa } from "./agenteDaConversa";
 import { SeletorAgente } from "./SeletorAgente";
@@ -181,19 +183,14 @@ export function Compositor({ placeholder }: { placeholder?: string }) {
         return;
       }
     }
-
-    // Enter envia; Shift+Enter quebra linha. É a convenção que todo campo de
-    // conversa usa, e contrariá-la surpreende antes de ensinar.
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      mandar();
-    }
+    // O Enter que sobra — sem menu do `@` — é do `CampoMensagem`, que envia
+    // por `mandar`.
   }
 
   /** Enviar encerra a menção: uma busca atrasada não pode abrir o menu sobre o campo vazio. */
-  function mandar() {
+  function mandar(visivel: string) {
     setMencao(null);
-    void enviar();
+    void enviar(visivel);
   }
 
   return (
@@ -264,90 +261,79 @@ export function Compositor({ placeholder }: { placeholder?: string }) {
         </Aviso>
       ) : null}
 
-      {mostrarSeletor && <SeletorAgente />}
-
-      {(anexos.length > 0 || sugerirTela) && (
-        <div className="mb-2 flex flex-wrap gap-1">
-          {anexos.map((a) => (
-            <span
-              key={alvoDe(a)}
-              className="inline-flex items-center gap-1 rounded-etiqueta bg-accent-500/15 py-0.5
-                         pl-1.5 pr-0.5 text-miudo text-accent-400"
-            >
-              {a.titulo}
-              <button
-                type="button"
-                onClick={() => desanexar(alvoDe(a))}
-                aria-label={`Tirar ${a.titulo} do contexto`}
-                className="rounded-sm p-0.5 hover:bg-accent-500/20"
-              >
-                <IconeFechar className="size-3" />
-              </button>
-            </span>
-          ))}
-          {sugerirTela && daTela && (
-            <span
-              className="inline-flex items-center rounded-etiqueta border border-dashed
-                         border-ink-700"
-            >
-              <button
-                type="button"
-                onClick={() => anexar(daTela)}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 text-miudo text-ink-400
-                           hover:text-ink-200"
-              >
-                <IconeMais className="size-3" />
-                Usar “{daTela.titulo}”
-              </button>
-              <button
-                type="button"
-                onClick={() => setDispensados((d) => [...d, alvoDe(daTela)])}
-                aria-label={`Não sugerir ${daTela.titulo}`}
-                className="rounded-sm p-0.5 text-ink-400 hover:text-ink-200"
-              >
-                <IconeFechar className="size-3" />
-              </button>
-            </span>
-          )}
-        </div>
-      )}
-
-      <div
-        className="flex items-end gap-2 rounded-cartao border border-ink-700 bg-ink-950/60 p-2
-                   shadow-e1 transition-colors focus-within:border-accent-400"
-      >
-        <textarea
-          ref={campoRef}
-          value={texto}
-          onChange={(e) => aoDigitar(e.target.value)}
-          onKeyDown={teclas}
-          rows={2}
-          disabled={Boolean(motivo)}
-          aria-label="Sua pergunta"
-          aria-describedby={motivo ? idMotivo : undefined}
-          placeholder={
-            placeholder ??
-            (agente.identidade
-              ? `Escreva para ${agente.identidade.name}. @ anexa uma nota.`
-              : "Pergunte alguma coisa. @ anexa uma nota.")
-          }
-          className="max-h-40 min-w-0 flex-1 resize-none bg-transparent px-1.5 py-1 text-sm
-                     text-ink-200 outline-none placeholder:text-ink-400 disabled:opacity-50"
-        />
-        {emCurso ? (
-          <Botao variante="secundario" onClick={parar}>
-            Parar
-          </Botao>
-        ) : (
-          <Botao
-            variante="ia"
-            onClick={mandar}
-            disabled={Boolean(motivo) || !texto.trim()}
-          >
-            Enviar
-          </Botao>
-        )}
-      </div>
+      <CampoMensagem
+        valor={texto}
+        onMudar={aoDigitar}
+        onEnviar={mandar}
+        onParar={parar}
+        respondendo={Boolean(emCurso)}
+        podeEnviar={!motivo && Boolean(texto.trim())}
+        desabilitado={Boolean(motivo)}
+        campoRef={campoRef}
+        onKeyDown={teclas}
+        descritoPor={motivo ? idMotivo : undefined}
+        placeholder={
+          placeholder ??
+          (agente.identidade
+            ? `Escreva para ${agente.identidade.name}…`
+            : "Pergunte ou peça alguma coisa…")
+        }
+        esquerda={mostrarSeletor ? <SeletorAgente /> : undefined}
+        acima={
+          anexos.length > 0 || sugerirTela ? (
+            <>
+              {anexos.map((a) => (
+                <span
+                  key={alvoDe(a)}
+                  className="inline-flex max-w-full items-center gap-1 rounded-full
+                             bg-accent-500/15 py-0.5 pl-2 pr-0.5 text-miudo text-accent-400"
+                >
+                  <span className="truncate">{a.titulo}</span>
+                  <button
+                    type="button"
+                    onClick={() => desanexar(alvoDe(a))}
+                    aria-label={`Tirar ${a.titulo} do contexto`}
+                    className="rounded-full p-0.5 hover:bg-accent-500/20"
+                  >
+                    <IconeFechar className="size-3" />
+                  </button>
+                </span>
+              ))}
+              {sugerirTela && daTela && (
+                <span
+                  className="inline-flex max-w-full items-center rounded-full border
+                             border-dashed border-ink-700"
+                >
+                  <button
+                    type="button"
+                    onClick={() => anexar(daTela)}
+                    className="inline-flex min-w-0 items-center gap-1 py-0.5 pl-2 pr-1
+                               text-miudo text-ink-400 hover:text-ink-200"
+                  >
+                    <IconeMais className="size-3" />
+                    <span className="truncate">Usar “{daTela.titulo}”</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDispensados((d) => [...d, alvoDe(daTela)])}
+                    aria-label={`Não sugerir ${daTela.titulo}`}
+                    className="mr-0.5 rounded-full p-0.5 text-ink-400 hover:text-ink-200"
+                  >
+                    <IconeFechar className="size-3" />
+                  </button>
+                </span>
+              )}
+            </>
+          ) : undefined
+        }
+        dica={
+          <>
+            <span className="font-medium">Enter</span> envia ·{" "}
+            <span className="font-medium">Shift+Enter</span> quebra a linha ·{" "}
+            <span className="font-medium">@</span> anexa
+          </>
+        }
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 {
   "name": "@yu-book/web",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -23,9 +23,6 @@
     "@tanstack/react-query": "^5.64.1",
     "@yu-book/cliente": "workspace:*",
     "@yu-book/shared": "workspace:*",
-    "dompurify": "^3.4.13",
-    "highlight.js": "^11.12.0",
-    "marked": "^18.0.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.3",

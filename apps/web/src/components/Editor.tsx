@@ -4,7 +4,7 @@ import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import type { RefObject } from "react";
 import { posicaoDoCursor, wikilinkEmDigitacao } from "../lib/caret";
 import type { PosicaoCursor } from "../lib/caret";
-import { marcarNaoResolvidos, renderMarkdown } from "../lib/markdown";
+import { marcarNaoResolvidos, renderMarkdown } from "@yu-book/cliente/markdown";
 import { useTitulos } from "../lib/notas";
 import type { TituloSugerido } from "../lib/notas";
 import type { ModoNota } from "../lib/modoNota";

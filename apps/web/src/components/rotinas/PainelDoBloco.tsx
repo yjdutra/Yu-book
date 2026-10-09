@@ -24,7 +24,7 @@ import { useAgente, useAgentes } from "../../lib/agentes";
 import { useBoard } from "../../lib/kanban";
 import { useWorkspaces } from "../../lib/notas";
 import { CLASSE_CAMPO, SeletorColuna, useEscolhaDeColuna } from "../agentes/CamposDoAgente";
-import { AvatarAgente } from "../agentes/AvatarAgente";
+import { AvatarAgente } from "@yu-book/cliente/chat/AvatarAgente";
 import { ehDaWeb, levaOAcervoParaFora } from "../agentes/ferramentas";
 import { emDolares } from "../ajustes/comum";
 import { Aviso } from "@yu-book/cliente/base/Aviso";

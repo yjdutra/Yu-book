@@ -55,7 +55,7 @@ import {
 } from "@yu-book/cliente/icones";
 import { SeletorDeNota } from "../SeletorDeNota";
 import { useAcoesDoAgente } from "./acoesDoAgente";
-import { AvatarAgente } from "./AvatarAgente";
+import { AvatarAgente } from "@yu-book/cliente/chat/AvatarAgente";
 import {
   CLASSE_CAMPO,
   EscolhaDeCor,

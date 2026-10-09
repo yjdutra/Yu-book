@@ -17,6 +17,90 @@ _Nada pendente._
 
 ---
 
+## [0.32.0] — 2026-10-09
+
+**Frente de agenda, tarefas e o Yu-book no celular, Fase 5: o chat redesenhado, voz e o chat no
+celular.** O Assistente do app móvel, que a `[0.30.0]` deixou "em breve", passa a existir: lista de
+conversas e conversa em tela cheia, com agentes, com o "Criado nesta resposta" e com ditado por
+voz. O chat do web ganha o mesmo desenho e o mesmo microfone, sem mudar o que faz. Marcar evento e
+anotar tarefa pela conversa já existiam desde a `[0.29.0]`; agora também dá para fazer isso falando
+e pelo celular.
+
+**Três pacotes se movem.** `apps/web` vai de `0.25.0` para `0.26.0`, `apps/movel` de `0.2.0` para
+`0.3.0` e `packages/cliente` de `0.2.0` para `0.3.0`, com o núcleo do chat. `packages/shared` fica
+em `0.19.0`, e `apps/api` e `apps/mcp` em `0.20.0`. A API não mudou: nenhuma rota, nenhum evento
+novo do chat e nenhuma migration.
+
+**O que os dois chats dividem foi para `packages/cliente`.** São o transporte do chat, as consultas
+e mutações de conversa, o Markdown e os componentes visuais da conversa. Cada app só monta a tela e
+cuida dos próprios efeitos. `marked`, `DOMPurify` e `highlight.js` saíram das dependências do web e
+passaram para as do pacote. No móvel, a conversa fica num chunk próprio, para o Markdown e o realce
+de código não pesarem no Início.
+
+**O áudio do ditado não passa pelo Yu-book.** O ditado usa o reconhecimento de fala do navegador.
+No Chrome, o áudio vai ao serviço do Google, e a dica do botão de microfone avisa isso. No Firefox,
+que não tem a API, o botão não aparece. O texto ditado nunca é enviado sozinho: ele cai no campo, e
+o usuário revê antes de mandar.
+
+Portões, rodados no fechamento: `pnpm typecheck` limpo nos seis pacotes, e os builds do web e do
+móvel passaram. As suítes da API e do MCP não foram rodadas, porque a fase não tocou `apps/api` nem
+`apps/mcp`. Os totais da `[0.29.0]` continuam valendo: 543 testes na API e 72 no MCP. O chunk
+inicial do web foi de 630.115 para 631.187 bytes. O do móvel foi de 418,7 kB para 430,2 kB (de
+126,6 kB para 130,6 kB com gzip), e a conversa ficou num chunk à parte, de 160,3 kB (55,1 kB com
+gzip).
+
+**A interface foi conferida em navegador headless, não à mão.** Os roteiros mandaram mensagens de
+verdade, no web e no móvel, a uma API local ligada a um provedor simulado. "Marca reunião com a Ana
+amanhã às 15h" virou evento, com o status "agendando…", a resposta chegando aos pedaços, o cartão,
+a folha de edição aberta pelo cartão no móvel e o Desfazer. Os roteiros cobriram também tarefa,
+Markdown, a voz com um reconhecedor simulado e o teclado do celular simulado. Houve capturas antes e
+depois, nos dois temas. Ninguém falou num microfone real nem usou o app num celular de verdade, e
+o leitor de tela não foi usado.
+
+### Adicionado
+- **Assistente no app móvel.** A lista de conversas tem "Nova conversa" e deixa renomear e
+  excluir. A conversa abre em tela cheia, sem a barra inferior, com voltar no cabeçalho, e o campo
+  de mensagem fica preso acima do teclado. No desktop, a conversa fica numa coluna central e o
+  trilho lateral continua.
+- **Conversa nova no móvel** com boas-vindas pelo nome, sugestões que preenchem o campo sem enviar
+  e a escolha de agente, que só é possível enquanto a conversa está vazia.
+- **"Criado nesta resposta" no móvel.** O evento e a tarefa criados pelo chat abrem a folha de
+  edição do app e podem ser desfeitos. Nota e card mostram só o título: o móvel não tem tela para
+  eles, e quem quiser desfazê-los usa o web.
+- **A agenda e os projetos do móvel se atualizam sozinhos** quando o chat cria evento, tarefa ou
+  card, ou quando conclui tarefa ou card, já que o prazo do card também aparece na agenda.
+- **Copiar a resposta**, no móvel.
+- **Aviso no móvel quando falta modelo ou provedor**, dizendo que isso se configura nos ajustes do
+  web.
+- **Ditado por voz no chat**, no web e no móvel. Cada toque no microfone ouve uma fala, em
+  português, e o texto aparece no campo enquanto é dito. A mensagem não é enviada sozinha. Durante
+  o ditado, `Enter` encerra a fala e mantém o texto, e `Esc` descarta a fala em curso sem fechar o
+  painel. Enviar no meio do ditado manda o que está à vista no campo. Uma recusa de permissão vira
+  aviso. Em navegador sem reconhecimento de fala, o botão não aparece.
+
+### Alterado
+- **Chat do web redesenhado**, no painel e na tela cheia, sem mudar o que ele faz. A resposta do
+  assistente fica sem caixa, com tipografia de leitura, e a pergunta num balão tingido da cor de
+  destaque. O "Criado nesta resposta" virou cartões. O campo de mensagem flutua, arredondado, com
+  microfone e enviar/parar em ícone. A conversa vazia saúda pelo nome e traz sugestões, inclusive
+  de agenda, que preenchem o campo sem enviar.
+- **O status da resposta diz a ação em curso** com rótulo e ícone ("agendando…", por exemplo), e o
+  "pensando" vira três pontos animados, parados quando o sistema pede menos movimento.
+
+### Corrigido
+- **O primeiro `Ctrl+Shift+Y` depois de abrir a página não focava o campo** do assistente no web.
+- **Fechar o painel do assistente perdia o foco** no web quando o painel tinha sido aberto sem nada
+  focado na página. Agora o foco vai para o botão do painel.
+- **A pergunta aparecia duas vezes** numa conversa nova, enquanto a resposta chegava.
+
+### Limitações conhecidas
+- **No móvel, ao reabrir uma conversa, o cartão de algo já desfeito volta a oferecer Desfazer.** O
+  clique responde que o item já tinha sido excluído, e nada é apagado duas vezes. O que foi desfeito
+  só fica guardado enquanto a conversa está aberta. No web, o mesmo acontece depois de recarregar a
+  página, como já acontecia antes.
+
+---
+
 ## [0.31.0] — 2026-10-09
 
 **Frente de agenda, tarefas e o Yu-book no celular, Fase 4: a agenda e as tarefas no app móvel.**

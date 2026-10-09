@@ -438,6 +438,34 @@ export function IconeParar(p: IconeProps) {
   );
 }
 
+/**
+ * Microfone — o ditado por voz no compositor do chat (Fase 5 da frente de
+ * agenda). O estado "ouvindo" não mora no desenho: o botão muda de forma e diz
+ * por extenso.
+ */
+export function IconeMicrofone(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="5.75" y="1.75" width="4.5" height="7.5" rx="2.25" />
+      <path d="M3.5 7.6a4.5 4.5 0 0 0 9 0" />
+      <path d="M8 12.1v2.15M5.9 14.25h4.2" />
+    </Icone>
+  );
+}
+
+/**
+ * Seta para cima — enviar a mensagem. Para cima, e não o avião de papel: no
+ * compositor ela sobe para a conversa, e o desenho cabe no botão redondo.
+ */
+export function IconeEnviar(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8 13.2V3" />
+      <path d="M3.8 7.2 8 3l4.2 4.2" />
+    </Icone>
+  );
+}
+
 /** Seta em círculo — "ver de novo" na fila de links. */
 export function IconeRecarregar(p: IconeProps) {
   return (
