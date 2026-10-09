@@ -21,7 +21,7 @@ Carregue antes de escrever em `apps/movel`. Tokens, primitivos e ícones são os
 ## Folhas e toque
 
 - **Folha é `Dialogo posicao="folha"`**, com a `Alca` decorativa no alto (`src/components/Alca.tsx`).
-- **Toda folha tem um "Fechar" visível** (`Alca.tsx:1-8`; `folha/FormularioItem.tsx:862-864`,
+- **Toda folha tem um "Fechar" visível** (`Alca.tsx:1-8`; `folha/FormularioItem.tsx:872-874`,
   `Conta.tsx:117-119`): com TalkBack o véu fica fora da árvore (`aria-modal`), e o Voltar não é
   `Esc` nem existe no desktop. Arrastar a alça não fecha.
 - **Toda folha entra no histórico** por `useFolhaNoHistorico` (`src/lib/historico.ts:49`; usos em
@@ -30,9 +30,9 @@ Carregue antes de escrever em `apps/movel`. Tokens, primitivos e ícones são os
   limpeza vai em microtask e só com a entrada no topo: `historico.ts:39-44`.
 - **Folha com formulário tem guarda de descarte, e todo fechamento de fora passa por ela.** Véu,
   `Esc`, Voltar e "Fechar" chamam `pedirFechar` (`FolhaItem.tsx:76-88`, `:100`); `fechar` cru só
-  depois de gravar ou no "Descartar" (`FormularioItem.tsx:392`, `:795`). Ligar `fechar` ao `Dialogo`
-  ou ao hook perde a alteração calado. A pergunta é inline, sem `Dialogo` aninhado (`:777-799`), e
-  concluir com alteração pendente é "Salvar e concluir" — grava, depois conclui (`:411-436`). É o
+  depois de gravar ou no "Descartar" (`FormularioItem.tsx:402`, `:805`). Ligar `fechar` ao `Dialogo`
+  ou ao hook perde a alteração calado. A pergunta é inline, sem `Dialogo` aninhado (`:787-809`), e
+  concluir com alteração pendente é "Salvar e concluir" — grava, depois conclui (`:421-446`). É o
   par móvel do `useGuardaDeSaida` do web (§10 da skill).
 - **Uma folha só de criar e editar evento e tarefa**, na casca (`ProvedorFolhaItem`,
   `FolhaItem.tsx:42-47`; `Casca.tsx:67`, `:85`): o "+" da barra, o "+" do dia e o toque num item a abrem
@@ -62,11 +62,12 @@ Carregue antes de escrever em `apps/movel`. Tokens, primitivos e ícones são os
   prazo), usado em toda lista e página; a forma, de `Marca`: ponto cheio, anel e losango
   (`:290-310`), em três vagas fixas (`:278-284`), com legenda sob a grade (`:311`) e as contagens no
   `aria-label` do dia (`:265`). Tipo novo entra nos dois, e na legenda.
-- **Item que some com o foco dentro devolve o foco** (`useFocoQueSobrevive`,
-  `src/components/agenda/ItemAgenda.tsx:58-94`): ao vizinho na lista, ou ao título da seção mais
-  próxima que sobreviveu. **Toda seção que hospeda itens** leva `data-foco-retorno="<id do título>"`
-  e o título `tabIndex={-1}` (`tarefas/ListaAgrupada.tsx:57-60`, `agenda/ListaDoDia.tsx:52-55`,
-  `pages/InicioPage.tsx:283-285`). Seção nova sem a marca compila e manda o foco ao `<body>`.
+- **Item que some com o foco dentro devolve o foco** (`useFocoQueSobrevive`, do pacote e também
+  do web, `packages/cliente/src/focoQueSobrevive.ts:3-16`): ao vizinho na lista, ou ao título da
+  seção mais próxima que sobreviveu. **Toda seção que hospeda itens** leva
+  `data-foco-retorno="<id do título>"` e o título `tabIndex={-1}` (`tarefas/ListaAgrupada.tsx:57-60`,
+  `agenda/ListaDoDia.tsx:52-55`, `pages/InicioPage.tsx:285-287`). Seção nova sem a marca compila e
+  manda o foco ao `<body>`.
 
 ## Tema
 

@@ -44,8 +44,8 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    importa como valor — `tarefas.ts` traz `eventos.ts` (`:2`), que traz `agenda.ts`
    (`eventos.ts:2`), que traz `ia.ts` (`agenda.ts:2`). Módulo do front no chunk inicial importa de
    `shared` só `import type` quando o valor traria schema ou metadado
-   (`apps/web/src/lib/agentes.ts:17-19`, `packages/cliente/src/agenda.ts:3-12`), e o valor vem por
-   rota ou `lazy` (`apps/web/src/pages/DashboardPage.tsx:26`). O redutor do chat (`aplicarEvento`,
+   (`apps/web/src/lib/agentes.ts:18-20`, `packages/cliente/src/agenda.ts:3-12`), e o valor vem por
+   rota ou `lazy` (`apps/web/src/pages/DashboardPage.tsx:27-29`). O redutor do chat (`aplicarEvento`,
    `packages/cliente/src/chat.ts:263-270`), no chunk inicial, **não** deduplica fontes por
    `chaveDaFonteDoChat` (medido): quem tira a repetição é `components/assistente/Fontes.tsx:89-96`,
    do web — não "conserte" o redutor com o import nem com outra definição de "a mesma fonte".
@@ -60,13 +60,9 @@ no bundle do front, até os que ninguém importa (medido: um módulo de metadado
 ## 3. Códigos de erro
 
 `ERROR_CODES` em `packages/shared/src/errors.ts` é um **union type**. Um código novo precisa ser
-adicionado lá antes de ser usado — o typecheck barra o resto. O formato de resposta de erro é único:
-
-```jsonc
-{ "error": { "code": "TITULO_DUPLICADO", "message": "…", "issues": [ … ] } }
-```
-
-`issues` só aparece em `ZodError` (HTTP 422). Nunca formate erro na mão na rota: lance
+adicionado lá antes de ser usado — o typecheck barra o resto. O formato de resposta de erro é único,
+`{ "error": { "code": "TITULO_DUPLICADO", "message": "…", "issues": [ … ] } }`, e `issues` só
+aparece em `ZodError` (HTTP 422). Nunca formate erro na mão na rota: lance
 `AppError(status, code, msg)` ou os helpers de `apps/api/src/lib/errors.ts` e deixe o
 `setErrorHandler` de `app.ts` montar a resposta.
 
@@ -228,7 +224,7 @@ no nome cru e na faísca; cada app invalida por `kind` citado (`apps/web/src/lib
 `apps/movel/src/lib/sessaoChat.ts:103-108`); o editor de agente trata toda escrita como criação
 salvo exceção por nome (`EditorAgente.tsx:531-541`); e **escrita que não cria não passa pelo evento
 `criado`** (o do Desfazer): a sessão a marca pelo evento `ferramenta` e invalida no `finally`
-(`apps/web/src/lib/sessaoChat.tsx:367-370`, `:399-400`; `apps/movel/src/lib/sessaoChat.ts:109-114`, `:131`).
+(`apps/web/src/lib/sessaoChat.tsx:368-371`, `:400-401`; `apps/movel/src/lib/sessaoChat.ts:109-114`, `:131`).
 
 Então, ao tocar em `ferramentas.ts`: diga no relato que as duas superfícies mudaram, e **meça** o
 `tools/list` se o texto cresceu (a receita e a baseline estão na memória do agente `mcp`). O
@@ -253,7 +249,7 @@ e não percorre `TIPOS_DE_ARQUIVO`. Tipo novo entra nos dois, com a assinatura e
 `GET /agenda` e `GET /events` trazem o evento que se sobrepõe à janela, semiaberto em
 `[startsAt, endsAt)` (`apps/api/src/modules/eventos/eventos.service.ts:154-175`). Quem desenha dia a
 dia usa `diasDoEvento` (`packages/shared/src/eventos.ts:314`; o calendário do móvel,
-`apps/movel/src/components/agenda/itens.ts:82`), a mesma regra em dias locais: o evento
+`apps/movel/src/components/agenda/itens.ts:80`, e o bloco Hoje do web, `BlocoHoje.tsx:53`), a mesma regra em dias locais: o evento
 com hora que acaba às 00:00 traz `endDate` no dia seguinte e não aparece nele. **Não desenhe de
 `date` a `endDate`** — o calendário mostraria o evento num dia que a API desse dia não devolve.
 Portão: `apps/api/tests/eventos.test.ts:635`.
@@ -281,7 +277,8 @@ Se tocou num dos espelhamentos do §4, rode também `pnpm --filter @yu-book/api 
 `shared` é o contrato com a API, sem React nem HTTP (§1). **`packages/cliente` é o código de
 navegador que web e móvel precisam igual** — cliente HTTP e sessão, `tema.css`, `base/`, ícones,
 foco preso (`packages/cliente/src/api.ts:1-9`) e, desde a Fase 5 da agenda, o núcleo do chat, o
-Markdown e o ditado; cópia num app seria um espelhamento do §4. O que é de um app só fica nele.
+Markdown e o ditado — e as chaves de cache que pacote e apps leem, numa definição só
+(`agenda.ts:33-41`, `ia.ts:1-15`). Cópia num app seria um espelhamento do §4; o de um app só fica nele.
 
 - **Fonte, não build:** `exports` aponta para `src/` e o Vite de cada app compila. Não lê
   `import.meta.env`: cada app chama `configurarApi` no `main.tsx`, antes de montar (`api.ts:12-25`).
@@ -291,10 +288,13 @@ Markdown e o ditado; cópia num app seria um espelhamento do §4. O que é de um
   `vite.config` os põe em `resolve.dedupe`** (`apps/web/vite.config.ts:7-14`, idem no móvel), sem
   erro de build se faltar: dois Reacts dão "Invalid hook call"; duas Queries, dois contextos, e os
   hooks de `agenda.ts` não acham o `QueryClient` do app.
-- **De `shared`, só `import type`** (`api.ts:10`, `chat.ts:2-11`, `agenda.ts:3-12`), salvo módulo
-  que não arrasta nada (`markdown.ts:1-6`, razão ao lado): valor levaria o módulo de `shared` ao
-  chunk inicial (§2, passo 6). **E módulo do pacote que o inicial importa leva para lá toda
-  exportação dele que algum chunk use** (medido: o transporte do chat, pela lista de conversas do
-  móvel): o que só tela `lazy` usa mora em módulo à parte (`chat/AvatarIA.tsx:3-8`).
+- **De `shared`, só `import type`** (`api.ts:10`, `chat.ts:2-11`, `agenda.ts:3-12`): valor levaria
+  o módulo de `shared` ao chunk inicial (§2, passo 6). Duas exceções, com a razão ao lado: módulo
+  que não arrasta nada (`markdown.ts:1-6`) e `hoje.ts:1-7`, que arrasta (`somarDias` é uma só, §4.5)
+  e por isso, no web, só tela `lazy` importa.
+- **Módulo do pacote que o inicial importa leva para lá toda exportação dele que algum chunk use**
+  (medido três vezes: o transporte do chat pela lista de conversas do móvel; `useConcluirTarefa`,
+  +1,4 kB, por `agenda.ts`; `motivoSemChat` por `ia.ts`). O que só tela `lazy` usa mora em módulo
+  à parte, com entrada própria no `exports` (`chat/AvatarIA.tsx:3-8`, `concluirTarefa.ts:8-15`).
 - **O núcleo do chat é estado; o efeito é de cada app** (`packages/cliente/src/chat.ts:24-29`):
   `aplicarEvento` é puro; erro, invalidação e marcas de "concluiu" ficam na sessão de cada front.

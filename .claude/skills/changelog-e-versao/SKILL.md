@@ -178,4 +178,5 @@ Os de teste (API e MCP) saem do total da última rodada real dos portões, não 
 
 No mesmo tom do resto: frase de efeito para quem visita, sem `RF-xx`, sem número de etapa, sem
 data por entrega. Os marcadores `<!-- SCREENSHOT N -->` e as imagens em `.github/assets/` são do
-operador. "Implementado e **não verificado**" vai no changelog e no histórico, não no README.
+operador; captura nova só quando o plano a pede, de conta de demonstração com dados fictícios, e
+nunca de tela que mostre o dublê do provedor — a conversa do chat mostra o modelo dele. "Implementado e **não verificado**" vai no changelog e no histórico, não no README.

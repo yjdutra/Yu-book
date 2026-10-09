@@ -31,10 +31,9 @@ texto de maior contraste" — **os nomes descrevem papel, não cor**; o tema cla
 **Nunca use a variante `dark:` do Tailwind.** Não há uma única ocorrência dela em `apps/*/src`, e
 nenhum componente tem condicional de tema. O mecanismo é:
 
-1. Um IIFE bloqueante em `apps/web/index.html` roda **antes da primeira pintura**, lê
-   `localStorage["yb:tema"]` (caindo para `prefers-color-scheme`) e define
-   `document.documentElement.dataset.tema`. **Não a mova para o React**: volta o flash de tema
-   errado (comentário em `index.html`).
+1. Um IIFE bloqueante em `apps/web/index.html` roda **antes da primeira pintura**, lê `yb:tema`
+   (caindo para `prefers-color-scheme`) e define `document.documentElement.dataset.tema`. **Não a
+   mova para o React**: volta o flash de tema errado (comentário em `index.html`).
 2. `tema.css` redefine **as mesmas variáveis** sob `:root[data-tema="claro"]`.
 3. `apps/web/src/lib/tema.ts` só **lê** o que o script aplicou e grava na primeira troca manual.
    `useTema` é **um armazenamento só** (`useSyncExternalStore`, `tema.ts:33`): trilho e paleta veem
@@ -73,7 +72,7 @@ vinculada e anexo é `IconeAnexo` (`:380-393`); check solto é "feito" e tarefa 
 (`:357`); o "hoje" do móvel é meio sol (`IconeHoje`, `:343-355`), não o sol do `SeletorTema`.
 
 **Glifo unicode que é sigla fica glifo.** As siglas de prazo e prioridade (`!`, `◷`, `▤`, `⬆`, `⬇`)
-de `CartaoCard.tsx:19-30` e `pages/DashboardPage.tsx:37-41` são texto `aria-hidden` com o estado por
+de `CartaoCard.tsx:19-30` e `pages/DashboardPage.tsx:65-69` são texto `aria-hidden` com o estado por
 extenso ao lado (`CartaoCard.tsx:90-92`, `:98-99`): o sinal sem cor (§4). Não as troque por SVG.
 
 ## 4. Acessibilidade é requisito, não polimento
@@ -89,7 +88,8 @@ extenso ao lado (`CartaoCard.tsx:90-92`, `:98-99`): o sinal sem cor (§4). Não 
 - Toda operação de arraste tem equivalente por teclado **e** é anunciada por `Announcements` (§11).
 - **Ação que desmonta o elemento focado entrega o foco a um vizinho estável** (RNF-06 da Fase 1),
   ou ele cai no `<body>`: recolher o painel → `ID_MOSTRAR_CONTEXTO` (§5); tirar ou mover um modelo →
-  a coluna (`focarColuna`, `ajustes/QuadroDeModelos.tsx:65-71`, com o `tabIndex={-1}` de `:183`).
+  a coluna (`focarColuna`, `ajustes/QuadroDeModelos.tsx:65-71`, com o `tabIndex={-1}` de `:183`);
+  item de lista que some → `useFocoQueSobrevive`, nos dois fronts (`focoQueSobrevive.ts:3-16`).
   **Resposta que chega também desmonta:** seção de vários estados fixa a raiz e o bloco do controle
   e troca só o conteúdo (`ajustes/SecaoUsoIa.tsx:53-94`); árvore por estado remonta o controle focado.
 - **Um entre poucos é controle segmentado:** `role="group"`, botões com `aria-pressed` e o ativo
@@ -101,9 +101,8 @@ extenso ao lado (`CartaoCard.tsx:90-92`, `:98-99`): o sinal sem cor (§4). Não 
 ## 5. Layout
 
 - **O web é desktop-only por decisão.** `GuardaDesktop` (`apps/web/src/components/Colunas.tsx`)
-  bloqueia abaixo de 1024px com um aviso: **em `apps/web`, nada responsivo nem breakpoint de celular.**
-  **O móvel (`apps/movel`) é o avesso**: celular primeiro, `lg:` para o desktop. Antes de escrever
-  nele, leia `referencias/movel.md` — um elemento por layout, a folha (Fechar, Voltar, guarda), o toque, o chat.
+  bloqueia abaixo de 1024px: **em `apps/web`, nada responsivo nem breakpoint de celular.** O móvel
+  é o avesso, celular primeiro e `lg:` para o desktop: antes de escrever nele, leia `referencias/movel.md`.
 - `PainelRedimensionavel` é a primitiva de layout: largura em `localStorage`, divisor por teclado
   (`role="separator"`, setas), 180–520px por padrão e `min`/`max` por instância (assistente: 320–640).
 - Seção recolhível usa `Secao`/`useSecao`, e **fechada continua mostrando o que esconde**: o `resumo`
@@ -113,7 +112,7 @@ extenso ao lado (`CartaoCard.tsx:90-92`, `:98-99`): o sinal sem cor (§4). Não 
   dentro dele alarga a coluna (`rotinas/PainelDoBloco.tsx:149`, `:208`). Reticência só num
   `span.truncate` filho do flex, sem `items-start` no pai (`rotinas/FluxoEditavel.tsx:135-150`).
 - **`scrollIntoView` rola todo ancestral, até o `main` da casca** (`h-screen overflow-hidden`,
-  `Aplicacao.tsx:422`), e cortava o cabeçalho sticky: role só o contêiner (`FluxoEditavel.tsx:78-90`).
+  `Aplicacao.tsx:455`), e cortava o cabeçalho sticky: role só o contêiner (`FluxoEditavel.tsx:78-90`).
 
 ### A casca: trilho e painel contextual
 
@@ -126,22 +125,23 @@ A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 d
   peça por área em `casca/contexto/Contexto*.tsx`, escolhida por `areaDe(pathname)` (`:15-21`).
   Topo comum: workspace e busca; coluna `yb:col-nav`. `Item`, `Titulo`, `Secao` e `CartaoTags` estão
   em `casca/partes.tsx`.
-- **O painel recolhe** (`Ctrl+\`, `yb:contexto-recolhido`) e é desmontado (`Aplicacao.tsx:438-444`);
-  o foco que levava vai ao botão que o traz de volta, `ID_MOSTRAR_CONTEXTO` (`:138-151`).
+- **O painel recolhe** (`Ctrl+\`, `yb:contexto-recolhido`) e é desmontado (`Aplicacao.tsx:471-477`);
+  o foco que levava vai ao botão que o traz de volta, `ID_MOSTRAR_CONTEXTO` (`:140-153`).
 - **Recolhido, o trilho herda a regra da seção fechada:** o ponto de filtro ativo em Notas
   (`Trilho.tsx:194-202`, texto no `aria-label`, `:190`) e o selo do workspace ativo (`:276-291`).
-  O ponto vem da última lista `/n?…` visitada (`Aplicacao.tsx:426`), não da rota atual — vale
+  O ponto vem da última lista `/n?…` visitada (`Aplicacao.tsx:459`), não da rota atual — vale
   fora de Notas. Controle novo no painel que filtre algo ganha sinal no trilho.
 - **`/ajustes` é uma casca de rotas internas** (Etapa 4): `pages/AjustesPage.tsx` tem o cabeçalho e
   uma rota por seção de `components/ajustes/`; o painel contextual as lista por `SECOES_DE_AJUSTES`
   (`ajustes/comum.ts:9`), não pela página `lazy()` (`:4-8`) — seção nova entra nos dois.
 - **Painel do assistente** (`components/assistente/PainelAssistente.tsx`, Etapa 3): à direita, na
-  mesma linha flex, **empurra** o conteúdo em vez de cobri-lo e segue aberto enquanto se navega.
+  mesma linha flex, **empurra** o conteúdo em vez de cobri-lo e segue aberto enquanto se navega —
+  confira toda tela com ele aberto (o bloco Hoje fica com ≈270 px: `agenda/BlocoHoje.tsx:90-95`).
   **Não é modal** (RNF-05 da Fase 1): sem véu, sem foco preso, e por isso não é `Dialogo`. O `Esc`
   global (`fecharTudo`) não o fecha; o `Esc` só vale com o foco dentro (`onKeyDown` do `<aside>`,
   `:62-66`), e quem tem `Esc` próprio lá dentro — menu do `@` no `Compositor`, ditado, `Menu`,
   renomear conversa — para a propagação. **`Dialogo` lá dentro é o avesso**, como no painel do card: INV-65.
-  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:285-302`); `Ctrl+Shift+Y`
+  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:286-303`); `Ctrl+Shift+Y`
   e a paleta alternam, e na tela do chat focam o campo (INV-56). **Conversa abre por id, sem rota**:
   `selecionar(id)` + `abrirPainel()`, e com fluxo em curso o desvio de `ajustes/TabelasUsoIa.tsx:201-210`.
 - **A área Assistente é chat, agentes e rotinas; o painel só não existe no chat** (Etapas D e E):
@@ -149,7 +149,8 @@ A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 d
   `MarcaIA.tsx:84-87`). "Tela do chat?" é `naTelaDoChat`, nunca o prefixo (INV-56).
 - **Levar texto ao assistente preenche e abre conversa nova; nunca envia**: uma mensagem são até cinco
   chamadas pagas, e quem digitou não viu modelo nem teto. Assim o "Pergunte ao seu acervo"
-  (`pages/DashboardPage.tsx:139-158`) e o da paleta (`Aplicacao.tsx:612-626`); atalho novo os segue.
+  (`pages/DashboardPage.tsx:167-186`), `perguntar` da paleta (`Aplicacao.tsx:317-337`) e o rodapé
+  do bloco Hoje (`agenda/MolduraHoje.tsx:17-49`); atalho novo os segue.
 
 ## 6. Chaves de `localStorage`
 
@@ -172,7 +173,7 @@ Atalho global entra em **dois lugares**: o ouvinte único de `window`, `useAtalh
 `stopPropagation()` quando o atalho for local a um campo — `preventDefault()` sozinho não impede o
 listener de `window` de receber o evento (INV-39 mostra onde isso já custou caro).
 
-**A paleta também executa comandos** (Etapa 5): a lista mora em `Aplicacao.tsx:320-419`; `>` no
+**A paleta também executa comandos** (Etapa 5): a lista mora em `Aplicacao.tsx:344-452`; `>` no
 início deixa só comandos (`Paleta.tsx:31-32`, `:72-75`). O `atalho` de um comando é só exibido
 (`:14-17`) — continua entrando nos dois lugares acima. Ação nova do trilho ou de atalho ganha
 comando. O `Enter` espera a busca responder (`:137-142`).
@@ -188,9 +189,8 @@ atalho existir num modo e não no outro, sem nada acusar.
 ## 8. Markdown renderizado
 
 A classe `.preview` (`packages/cliente/src/markdown.css`, dos dois fronts, importado logo depois de
-`tema.css`) é uma escala tipográfica escrita à mão — não há `@tailwindcss/typography` —, com linha
-de `72ch`; a fala do chat soma `.preview-fala` (`:170-186`): 15px, entrelinha 1.65, `68ch`. As
-cores do realce de sintaxe são variáveis `--hljs-*`, definidas nos dois temas.
+`tema.css`) é uma escala tipográfica à mão — não há `@tailwindcss/typography` —, e a fala do chat
+soma `.preview-fala` (`:170-186`). O realce de sintaxe usa `--hljs-*`, definidas nos dois temas.
 
 ## 9. Tokens do redesenho de UI
 
@@ -252,7 +252,7 @@ dois apps, até variante que um não usa**: variação nova custa bytes no web. 
   chat não são diálogos. Ele é para o que está fora do caminho de escrita — atalhos, busca, gaveta.
 - **O que flutua fora de um `Dialogo` aberto fica inalcançável** (foco preso, `aria-modal`). Ação que
   precisa existir com ele aberto mora dentro: o desfazer do link na gaveta (`GavetaLinks.tsx:453-463`),
-  e a casca esconde o `Toast` enquanto ela está aberta (`Aplicacao.tsx:554-556`).
+  e a casca esconde o `Toast` enquanto ela está aberta (`Aplicacao.tsx:587-589`).
 - **Handler do conteúdo de um `Dialogo` não pega o foco que está na caixa.** Ela tem
   `tabIndex={-1}` (`Dialogo.tsx:74`) e o recebe num clique em área vazia; dali o evento não passa
   por filho nenhum. Tecla de lista vai num wrapper e só vale com o foco num filho (`Paleta.tsx:191`);

@@ -288,13 +288,19 @@ locais, e a agenda devolve o `timezone` e o `today` do usuário, não os do apar
   formatadores da agenda não recebem fuso. O avesso do prazo do card (§4.5 de
   `contrato-compartilhado`), em que o cliente monta o instante: aqui, converter desse lado conta o
   fuso duas vezes. O `system` manda o modelo não converter (`agentes.service.ts:198-203`).
-- **O hoje é o `today` da resposta, nunca a data do aparelho** (Fase 4, o móvel). O aparelho só
-  escolhe a **primeira janela**, e a resposta corrige: `useAgendaAdiante` refaz a consulta pela
-  janela certa só se o `today` divergir (`apps/movel/src/lib/hoje.ts:17-28`); quem precisa do hoje
-  espera `useHoje` (`:41-50`), e a Agenda, até ele chegar, só escolhe o mês pelo aparelho
+- **O hoje é o `today` da resposta, nunca a data do aparelho** (Fase 4, o móvel; Fase 6, o bloco
+  Hoje do Início do web, consumidor da mesma regra). O aparelho só escolhe a **primeira janela**, e
+  a resposta corrige: `useAgendaAdiante` refaz a consulta pela janela certa só se o `today` divergir
+  (`packages/cliente/src/hoje.ts:45-56`); no móvel, quem precisa do hoje espera `useHoje`
+  (`apps/movel/src/lib/hoje.ts:18-27`), e a Agenda, até ele chegar, só escolhe o mês pelo aparelho
   (`apps/movel/src/pages/AgendaPage.tsx:39-42`). As duas "correções" quebram calado: tratar o
   aparelho como hoje põe "Hoje" e "atrasada" no dia errado com o aparelho noutro fuso; esperar o
   `today` antes da primeira consulta é uma cascata em toda tela.
+- **Agenda e tarefas releem ao voltar à aba** (Fase 6): `useAgenda` e `useTarefas` ligam
+  `refetchOnWindowFocus` (`packages/cliente/src/agenda.ts:76-81`, `:103-104`), contra o `false` dos
+  dois apps (`apps/web/src/main.tsx:15`). É o que traz o `today` novo à aba aberta desde ontem e o
+  que mudou noutro aparelho; respeita o `staleTime` de 30 s. Sem isso, "Hoje" e "atrasada" ficam
+  no dia de ontem, calados. Consulta nova que leia evento ou tarefa liga o mesmo.
 
 ---
 

@@ -67,7 +67,7 @@ assistente precisa das duas metades do INV-65, ou o `Esc` fecha diálogo e paine
 
 ## O que é deliberado e não se "corrige"
 
-- **A cirurgia de cache do autosave.** `useAtualizarNota` (`lib/notas.ts:198`) compara o cache com a
+- **A cirurgia de cache do autosave.** `useAtualizarNota` (`lib/notas.ts:199`) compara o cache com a
   resposta e invalida só o que mudou; salvamento de corpo invalida **nada**, apenas costura a
   resposta nas listas. Levou o autosave de 6 requisições por pausa para 1. Trocar por
   `invalidateQueries` amplo é regressão. O `useInvalidar()` genérico serve só a criar, excluir e
@@ -110,7 +110,7 @@ repetindo a requisição, com renovação de voo único — requisições parale
 porque rotações concorrentes se invalidariam.
 
 **Mutação otimista** é `onMutate` (cancela, guarda o anterior, escreve) e `onError` (devolve o
-anterior) — `useMoverCard` em `lib/kanban.ts:336`, criar link em `lib/links.ts:34`. Se duas da
+anterior) — `useMoverCard` em `lib/kanban.ts:350`, criar link em `lib/links.ts:34`. Se duas da
 mesma chave podem estar em voo, o rollback de uma restaura a mudança otimista da outra: dê
 `mutationKey` e invalide no `onSettled` só quando `isMutating(...) <= 1`, isto é, quando a última
 termina (`useDefinirModeloDaTarefa`, `lib/ia.ts:169-202`, razão em `:193-195`). Ação que chama o
@@ -118,12 +118,16 @@ provedor invalida `CHAVE_AJUSTES` e `CHAVE_USO` no fim, não no sucesso: a falha
 (INV-62, em `referencias/front.md` da skill `invariantes-yu-book`). **No TanStack v5,
 `mutate(vars, { onError })` só chama o callback da última chamada** (`query-core/build/modern/mutationObserver.js:56-58`,
 5.101): com toques concorrentes na mesma mutação, use `mutateAsync().catch`
-(`apps/movel/src/lib/concluir.ts:18-23`).
+(`useAlternarTarefa`, `packages/cliente/src/concluirTarefa.ts:137-140`).
 
 **Ramifique por `code`, nunca por `message`.** O `ApiError` carrega `status`, `code` estável e
 `issues`.
 
-Estado de carregamento é esqueleto do tamanho do conteúdo real, para não deslocar o layout. Erro é
+Estado de carregamento é esqueleto do tamanho do conteúdo real, para não deslocar o layout. Bloco
+`lazy` desenha o mesmo esqueleto no fallback do `Suspense` e na consulta, numa moldura fora do
+chunk dele (`components/agenda/MolduraHoje.tsx:9-15`); e o ramo de esqueleto da página repete a
+árvore, filho por filho, até o bloco que vive nos dois, ou o bloco remonta e perde foco e aviso
+(`pages/DashboardPage.tsx:248-256`). Erro é
 inline, dispensável, com `role="alert"` — nunca toast que some sozinho. Os dois já têm primitivo
 (`Esqueleto` e `Aviso` em `packages/cliente/src/base/`); `Toast` é só o aviso breve que some, com no máximo
 uma ação (o desfazer). A skill `design-system-yu-book` §10 lista o resto.

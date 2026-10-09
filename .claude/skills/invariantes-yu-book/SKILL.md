@@ -21,7 +21,7 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | O diff toca | Abra |
 |---|---|
 | `apps/api`, `packages/shared`, `apps/mcp`, migration, SQL | `referencias/servidor.md` |
-| `apps/web` | `referencias/front.md` |
+| `apps/web`, `apps/movel`, `packages/cliente` | `referencias/front.md` (e INV-66, se toca a agenda) |
 | os dois | os dois |
 
 ### Índice — servidor e contrato
@@ -271,7 +271,7 @@ dois fronts dividem, e só deslocou referências. A **Fase 4** pôs agenda e tar
 estreitou INV-66 — o aparelho escolhe a janela, nunca o hoje —, cláusula sem portão, porque o móvel
 também não tem teste de front. Dois cuidados de sítio único ficam no comentário ao lado, não aqui:
 o `back()` da folha (`apps/movel/src/lib/historico.ts:39-44`) e o rollback por campos do concluir
-otimista (`packages/cliente/src/agenda.ts:208-223`); as regras de tela do móvel estão em
+otimista (hoje em `packages/cliente/src/concluirTarefa.ts:68-83`); as regras de tela do móvel estão em
 `design-system-yu-book/referencias/movel.md`. A lição é a do INV-40, de novo: o arquivo mudou de
 pacote, e duas referências de `contrato-compartilhado` seguiram no caminho velho sem nada acusar.
 
@@ -281,6 +281,11 @@ nova: INV-09 ganhou o segundo front, e INV-56 a superfície única do móvel, on
 os buracos são outros — o `navigate` que vale com a tela desmontada e a chave do `<main>` que
 remontaria a conversa. A lição é a do INV-40 pela terceira vez: `renderMarkdown`, as chaves do
 gasto e o rótulo das ações mudaram de arquivo, e as referências ficaram no caminho velho.
+
+A **Fase 6 da frente de agenda** (2026-10-09) fechou a frente com o bloco Hoje no Início do web.
+Nenhuma invariante nova: INV-66 ganhou o segundo front e a releitura ao voltar à aba. A lição é a
+do INV-40 pela quarta vez: `useAgendaAdiante`, o foco que sobrevive e o concluir otimista subiram
+para `packages/cliente`, e as referências ficaram no caminho velho — uma, num arquivo apagado.
 
 O que ainda não tem código: **busca semântica** (§5.4). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
 **menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece: reconfira
