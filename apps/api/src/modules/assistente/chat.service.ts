@@ -560,6 +560,8 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
                 title: c.titulo,
                 /// Só evento e tarefa trazem quando (Fase 2 da frente de agenda).
                 ...(c.dia !== undefined && { date: c.dia, time: c.hora ?? null }),
+                /// E só o evento traz a repetição (frente de eventos recorrentes).
+                ...(c.repete !== undefined && { repeat: c.repete }),
               }),
             );
             criadosDoTurno.push(...criados);

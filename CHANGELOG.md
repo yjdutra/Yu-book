@@ -17,6 +17,86 @@ _Nada pendente._
 
 ---
 
+## [0.34.0] — 2026-10-09
+
+**Eventos recorrentes.** Um evento passa a poder se repetir toda semana, nos dias escolhidos, com
+um último dia opcional. "Aula de inglês segunda, quarta e sexta das 8 às 9" é um compromisso só,
+que aparece em cada um desses dias. Ele se cria pela folha do celular, pedindo ao assistente ou
+pelo MCP. Editar ou excluir uma ocorrência pergunta o alcance: só esta, esta e as seguintes, ou
+todas. A repetição é só semanal. Mensal e anual ficaram fora.
+
+**Os seis pacotes se movem**, porque o contrato do evento mudou em `packages/shared`.
+`packages/shared` vai de `0.19.0` para `0.20.0`, `apps/api` e `apps/mcp` de `0.20.0` para
+`0.21.0`, `apps/web` de `0.27.0` para `0.28.0`, e `apps/movel` e `packages/cliente` de `0.4.0`
+para `0.5.0`. A migration `20261010120000_eventos_recorrentes` é só aditiva: três colunas em
+`event` e um índice parcial, `event_serie_idx`. Todo evento que já existia continua simples.
+
+**Na janela do deploy, a API precisa estar no ar antes do MCP.** Uma API anterior a esta não
+recusa a repetição: ela a descarta e cria um evento avulso. O MCP percebe isso pela resposta e
+avisa o modelo, sem tentar de novo.
+
+**O que o assistente paga a mais.** A descrição de `create_event` cresceu 525 bytes no catálogo do
+chat, e a regra da série ficou só ali. A linha equivalente que ia no system prompt foi tirada, o
+que devolve 148 bytes por turno. O `tools/list` do MCP foi de 14.544 para 15.069 bytes. O número
+de tools não mudou.
+
+Portões: `pnpm typecheck` limpo nos seis pacotes. A API passou com **619 testes** (eram 543) e o
+MCP com **74** (eram 72). Os casos novos da API cobrem horário de verão, fim da série, ocorrências
+canceladas, os três alcances, posse e escritas concorrentes com a ordem fixada.
+
+**A interface foi conferida em navegador headless, não à mão.** O pedido que motivou a frente foi
+reproduzido de ponta a ponta com um dublê do provedor: "aula de inglês seg/qua/sex 8–9 e ter/qui
+17–18" virou as duas séries certas. O calendário, a lista do dia, o cartão "Criado" e a folha da
+série foram conferidos em captura, e os três alcances, por roteiro. Ninguém usou a repetição num
+celular de verdade.
+
+### Adicionado
+- **Repetição semanal de evento**: dias da semana escolhidos, toda semana, até um último dia
+  opcional, inclusive. Os sete dias valem "todo dia". O evento que se repete dura até 24 horas,
+  podendo atravessar a meia-noite, ou é de dia inteiro, de um dia só.
+- **A hora da série acompanha o relógio do usuário.** As ocorrências se calculam no fuso dele, e
+  uma aula às 8:00 continua às 8:00 depois da virada do horário de verão.
+- **Editar ou excluir com alcance** (`PATCH` e `DELETE /events/:id`, com
+  `?scope=esta|seguintes|todas` e `occurrenceDate`). "Só esta" tira aquela ocorrência da série
+  e, ao editar, a grava como evento avulso. "Esta e as seguintes" encerra a série na véspera e
+  começa uma nova dali. "Todas" muda ou apaga a série inteira. Sem `scope`, vale "todas", que é o
+  que as rotas faziam antes.
+- **"Repetir" na folha do celular**: os dias da semana, "Todo dia" e o último dia, com o resumo
+  por extenso ("Toda seg, qua e sex, até 18 de dez"). Ao salvar ou excluir uma ocorrência, a folha
+  pergunta o alcance, com o foco em "só esta".
+- **O assistente e o MCP criam a série numa chamada só**: `create_event` aceita `repeat`, com os
+  dias em siglas (`"seg"`, `"qua"`, `"sex"`) e um último dia opcional. Horários diferentes em dias
+  diferentes são uma série por horário. O Desfazer do chat apaga a série inteira.
+- **"repete …" em toda parte onde o evento aparece**: nos itens da agenda do celular, no
+  bloco "Hoje" do web e no texto que o assistente e o MCP leem ("repete seg, qua, sex até
+  2026-12-18"). No cartão "Criado" do chat, no web e no celular, a repetição tem uma linha
+  própria. Um ícone novo marca a série. O sábado se mostra "sáb", com acento, e se pede `"sab"`.
+
+### Alterado
+- **`GET /agenda` e `GET /events` expandem as séries**: cada ocorrência vem no seu dia, com o `id`
+  da série, `occurrenceDate` (o dia daquela ocorrência) e `recurrence` (os dias e o último dia).
+  O evento simples traz `recurrence: null`.
+- **`GET /events/:id` de uma série devolve a primeira ocorrência que ainda existe.** Se a primeira
+  foi excluída, vem a seguinte.
+- **No projeto, no celular, cada série aparece uma vez**, pela próxima ocorrência, com "repete …".
+  A contagem de eventos do projeto conta a série como um.
+- **Duas escritas ao mesmo tempo na mesma série não se apagam.** Uma exclusão de ocorrência
+  gravada no meio de uma edição não some. A edição da série inteira que esbarra noutra escrita é
+  refeita uma vez sobre o estado novo, e, se a disputa se repetir, a API responde 409. A série
+  que fica sem nenhuma ocorrência é apagada.
+
+### Limitações conhecidas
+- **Os dias da semana são os do fuso em que a série foi gravada.** Uma troca de fuso que leva a
+  hora para o outro lado da meia-noite faz a série andar um dia.
+- **A folha do celular não cria evento de 24 horas com "Até…".** A API e o assistente aceitam.
+- **Só semanal.** Repetição mensal ou anual e série de vários dias ficaram fora.
+- **O chat não edita evento.** Ele cria a série e a desfaz inteira. Mudar uma ocorrência é pelo
+  celular.
+- **O desktop continua só lendo a agenda.** A série aparece no bloco "Hoje", mas se cria e se edita
+  pelo celular ou pelo assistente.
+
+---
+
 ## [0.33.0] — 2026-10-09
 
 > **Publicada em produção em 2026-10-09, junto com a `[0.28.0]` a `[0.32.0]`.** Nenhuma das seis

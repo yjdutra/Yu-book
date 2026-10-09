@@ -225,8 +225,12 @@ export function somarDias(dia: string, n: number): string {
   return new Date(Date.UTC(ano ?? 0, (mes ?? 1) - 1, (d ?? 1) + n)).toISOString().slice(0, 10);
 }
 
-/** 0 = domingo. O dia da semana é do calendário, não depende de fuso. */
-function diaDaSemana(dia: string): number {
+/**
+ * 0 = domingo. O dia da semana é do calendário, não depende de fuso.
+ * Exportada para a série de eventos (`eventos.ts`, frente de eventos
+ * recorrentes), que usa a mesma convenção de dias da agenda de rotina.
+ */
+export function diaDaSemana(dia: string): number {
   const [ano, mes, d] = dia.split("-").map(Number);
   return new Date(Date.UTC(ano ?? 0, (mes ?? 1) - 1, d ?? 1)).getUTCDay();
 }

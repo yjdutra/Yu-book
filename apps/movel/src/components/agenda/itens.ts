@@ -5,7 +5,7 @@ import {
   ordemDaTarefa,
   ordemDoEvento,
 } from "@yu-book/cliente/hoje";
-import { diasDoEvento } from "@yu-book/shared";
+import { descreverDias, diasDoEvento } from "@yu-book/shared";
 import type { AgendaCard, AgendaRange, EventItem, TaskItem } from "@yu-book/shared";
 import { diaCurto } from "../../lib/datas";
 
@@ -54,9 +54,23 @@ export function itemDePrazo(card: AgendaCard): ItemDoDia {
   };
 }
 
+/**
+ * A chave de um evento na tela. Numa série, toda ocorrência vem com o `id` da
+ * série (frente de eventos recorrentes): só o `id` repetiria a chave na mesma
+ * lista — e o React perderia o foco e o estado de um item para o vizinho.
+ * `?? date`: campo novo, que a API velha da janela do deploy não manda.
+ */
+export const chaveDoEvento = (evento: EventItem) =>
+  `e-${evento.id}-${evento.occurrenceDate ?? evento.date}`;
+
+/** "repete seg, qua, sex", ou `null` no evento que não se repete. */
+export function repeticaoDe(evento: EventItem): string | null {
+  return evento.recurrence ? `repete ${descreverDias(evento.recurrence.days)}` : null;
+}
+
 /** O evento fora da grade de um dia (listas de vários dias): hora já dita. */
 export function itemDeEvento(evento: EventItem, hora: string): ItemDoDia {
-  return { tipo: "evento", id: `e-${evento.id}`, evento, hora, ordem: evento.startsAt };
+  return { tipo: "evento", id: chaveDoEvento(evento), evento, hora, ordem: evento.startsAt };
 }
 
 /**
@@ -83,7 +97,7 @@ export function indexarPorDia(agenda: AgendaRange): Map<string, ResumoDoDia> {
       resumo.eventos += 1;
       resumo.itens.push({
         tipo: "evento",
-        id: `e-${evento.id}`,
+        id: chaveDoEvento(evento),
         evento,
         hora: texto,
         ordem: ordemDoEvento(inicio),

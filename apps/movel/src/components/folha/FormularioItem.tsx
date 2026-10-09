@@ -1,4 +1,5 @@
 import {
+  invalidarAgenda,
   useAtualizarEvento,
   useAtualizarTarefa,
   useCriarEvento,
@@ -11,21 +12,42 @@ import { ApiError } from "@yu-book/cliente/api";
 import { useConcluirTarefa } from "@yu-book/cliente/concluirTarefa";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Botao } from "@yu-book/cliente/base/Botao";
-import { IconeCalendario, IconeChevron, IconeTarefa } from "@yu-book/cliente/icones";
+import {
+  IconeCalendario,
+  IconeChevron,
+  IconeRepetir,
+  IconeTarefa,
+} from "@yu-book/cliente/icones";
 import type { IconeProps } from "@yu-book/cliente/icones";
 import {
   DURACAO_PADRAO_DO_EVENTO_MIN,
+  NOMES_CURTOS_DOS_DIAS,
+  descreverDias,
   minutosEntre,
+  primeiroDiaDaSerie,
   resolverHorario,
+  resolverSerie,
   somarDias,
   somarMinutos,
 } from "@yu-book/shared";
-import type { EventItem, EventUpdateInput, TaskItem, TaskUpdateInput } from "@yu-book/shared";
+import type {
+  EscopoDoEvento,
+  EventItem,
+  EventScope,
+  EventUpdateInput,
+  PedidoDeHorario,
+  TaskItem,
+  TaskUpdateInput,
+} from "@yu-book/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactElement, ReactNode, RefObject } from "react";
 import {
+  DIAS_LONGOS,
   diaCurto,
+  diaDaSemana,
   diaLongo,
+  diaMesCurto,
   duracaoCurta,
   proximaHoraCheia,
   proximoSabado,
@@ -57,10 +79,23 @@ interface Estado {
   hora: string | null;
   projeto: string | null;
   descricao: string;
+  /// Repetição semanal, só do evento (frente de eventos recorrentes, R3):
+  /// ligada ou não, os dias (0 = domingo) e o último dia, inclusive.
+  repetir: boolean;
+  dias: number[];
+  ate: string | null;
 }
 
 /** Os campos do formulário que um erro pode apontar. */
-type Campo = "titulo" | "dia" | "hora" | "duracao" | "projeto" | "local" | "descricao";
+type Campo =
+  | "titulo"
+  | "dia"
+  | "hora"
+  | "duracao"
+  | "repetir"
+  | "projeto"
+  | "local"
+  | "descricao";
 
 /// O `path` dos `issues` do 422 (inglês, a fronteira) para o campo na tela.
 const CAMPO_DO_PATH: Record<string, Campo> = {
@@ -71,6 +106,9 @@ const CAMPO_DO_PATH: Record<string, Campo> = {
   startTime: "hora",
   time: "hora",
   endTime: "duracao",
+  repeat: "repetir",
+  "repeat.days": "repetir",
+  "repeat.until": "repetir",
   boardId: "projeto",
   location: "local",
   description: "descricao",
@@ -91,6 +129,9 @@ function estadoInicial(abertura: AberturaFolha, hoje: string | null, fuso: strin
     hora: null,
     projeto: null,
     descricao: "",
+    repetir: false,
+    dias: [] as number[],
+    ate: null,
   };
   if (abertura.modo === "criar") {
     // O evento pede dia: sem um de partida, hoje. A tarefa aceita "Sem data",
@@ -108,6 +149,8 @@ function estadoInicial(abertura: AberturaFolha, hoje: string | null, fuso: strin
     };
   }
   if ("evento" in abertura) {
+    // Numa série, `e` é a **ocorrência** tocada: dia e hora dela, e a regra da
+    // série (`recurrence`), que é a mesma em toda ocorrência.
     const e = abertura.evento;
     const minutos =
       e.startTime && e.endTime
@@ -126,6 +169,12 @@ function estadoInicial(abertura: AberturaFolha, hoje: string | null, fuso: strin
       local: e.location ?? "",
       projeto: e.board?.id ?? null,
       descricao: e.description,
+      // `!= null`, não `!== null`: na janela do deploy a API velha não manda o
+      // campo, e `undefined !== null` ligaria "Repetir" sem dia nenhum — a
+      // folha recusaria salvar o evento simples.
+      repetir: e.recurrence != null,
+      dias: e.recurrence?.days ?? [],
+      ate: e.recurrence?.until ?? null,
     };
   }
   const t = abertura.tarefa;
@@ -152,22 +201,59 @@ function fimDoEvento(dia: string, inicio: string, fim: Fim) {
     const f = somarMinutos(dia, inicio, fim.minutos);
     return { endDate: f.dia, endTime: f.hora };
   }
-  // Hora escolhida: o servidor decide o dia (antes do início, atravessa a
-  // meia-noite — "das 22h à 1h").
+  // Hora escolhida: o servidor decide o dia (antes do início, atravessa a meia-noite — "das 22h à
+  // 1h"). Igual ao início não atravessa: 24 h por aqui dá 422 — limite aceito (plantão é raro).
   return { endDate: null, endTime: fim.hora };
 }
 
-function paraNovoEvento(e: Estado, dia: string, inicio: string | null): NovoEvento {
-  const base = {
+/**
+ * A série cabe na regra que o servidor aplica (`resolverSerie`): evento de um
+ * dia só, ou com hora e até 24 h. O dia inteiro que a folha cria é de um dia;
+ * o de vários dias, gravado por outro caminho, não repete enquanto seguir dia
+ * inteiro. Fora da regra, a seção "Repetir" some e a repetição não vai.
+ */
+function cabeRepetir(e: Estado, longoGravado: boolean): boolean {
+  if (e.tipo !== "evento") return false;
+  if (e.diaInteiro) return !longoGravado;
+  return e.fim.tipo === "hora" || e.fim.minutos <= 1440;
+}
+
+type Regra = { days: number[]; until: string | null };
+
+/** A regra que o formulário pede, ou `null` (não repete). */
+function regraDo(e: Estado, cabe: boolean): Regra | null {
+  return e.repetir && cabe ? { days: [...e.dias].sort((a, b) => a - b), until: e.ate } : null;
+}
+
+function mesmaRegra(a: Regra | null, b: Regra | null): boolean {
+  if (!a || !b) return a === b;
+  return a.until === b.until && a.days.join() === b.days.join();
+}
+
+/** O horário que o formulário pede, como `resolverHorario` o recebe. */
+function pedidoDeHorario(e: Estado, dia: string, inicio: string | null): PedidoDeHorario {
+  if (e.diaInteiro || !inicio) return { allDay: true, date: dia };
+  return { allDay: false, date: dia, startTime: inicio, ...fimDoEvento(dia, inicio, e.fim) };
+}
+
+function paraNovoEvento(e: Estado, dia: string, inicio: string | null, cabe: boolean): NovoEvento {
+  const regra = regraDo(e, cabe);
+  return {
     title: e.titulo.trim(),
     description: e.descricao,
     location: e.local.trim() || null,
     boardId: e.projeto,
+    ...pedidoDeHorario(e, dia, inicio),
+    ...(regra && { repeat: regra }),
   };
-  if (e.diaInteiro || !inicio) return { ...base, allDay: true, date: dia };
-  const fim = fimDoEvento(dia, inicio, e.fim);
-  return { ...base, allDay: false, date: dia, startTime: inicio, ...fim };
 }
+
+/**
+ * Sobre o que o PATCH se mescla no servidor: o próprio evento (ou a
+ * ocorrência, nos escopos `esta` e `seguintes`), ou o **início da série**, no
+ * escopo `todas` — e então o dia da ocorrência aberta não pode ir no `date`.
+ */
+type BaseDaMudanca = "ocorrencia" | "serie";
 
 /**
  * Só o que mudou. O horário segue "o que se vê é o que se grava": mudou
@@ -175,13 +261,43 @@ function paraNovoEvento(e: Estado, dia: string, inicio: string | null): NovoEven
  * fim que a tela mostra, e não o que `mesclarHorario` deduziria. No dia
  * inteiro vai só a parte mexida, e o servidor anda com o vão (um evento de
  * três dias movido continua de três dias).
+ *
+ * **Na série inteira (`base: "serie"`)** o `date` é o início dela, e não o da
+ * ocorrência aberta: só vai se o usuário mudou o dia de propósito — e aí a
+ * série recomeça dali, o que a pergunta de alcance avisa. Com o dia intocado
+ * vão só as horas, e o dia do fim fica com o servidor, que o mede a partir do
+ * início da série — este lado só conhece o dia da ocorrência:
+ *
+ * - **Duração intocada:** só `startTime`, e `mesclarHorario` preserva a duração
+ *   gravada — inclusive a de 24 h (08:00 → 08:00 do dia seguinte).
+ * - **Duração nova abaixo de 24 h:** `endTime` com `endDate: null`, a
+ *   inferência da criação (fim antes do início atravessa a meia-noite). Sem o
+ *   `null`, a série de 24 h gravada guardaria o vão de um dia, e "2 h" viraria
+ *   26 h, recusada.
+ * - **Duração nova de 24 h:** `endTime` **sem** `endDate`. A inferência daria
+ *   fim igual ao início (422 "O fim precisa ser depois do início"); sem o
+ *   campo, a série de 24 h gravada guarda o vão. Vinda de uma série mais curta,
+ *   o servidor ainda infere — limite dele, não deste lado.
+ *
+ * `comRegra: false` (escopo `esta`) deixa a repetição de fora: ela não muda
+ * numa ocorrência só.
  */
-function mudancaDoEvento(e: Estado, ini: Estado): EventUpdateInput {
+function mudancaDoEvento(
+  e: Estado,
+  ini: Estado,
+  { cabe, base = "ocorrencia", comRegra = true }: {
+    cabe: boolean;
+    base?: BaseDaMudanca;
+    comRegra?: boolean;
+  },
+): EventUpdateInput {
   const m: EventUpdateInput = {};
   if (e.titulo.trim() !== ini.titulo) m.title = e.titulo.trim();
   if (e.descricao !== ini.descricao) m.description = e.descricao;
   if (e.local.trim() !== ini.local) m.location = e.local.trim() || null;
   if (e.projeto !== ini.projeto) m.boardId = e.projeto;
+  const regra = regraDo(e, cabe);
+  if (comRegra && !mesmaRegra(regra, regraDo(ini, true))) m.repeat = regra;
 
   const horarioMudou =
     e.dia !== ini.dia ||
@@ -196,7 +312,40 @@ function mudancaDoEvento(e: Estado, ini: Estado): EventUpdateInput {
     return m;
   }
   if (!e.inicio) return m;
-  return { ...m, date: e.dia, startTime: e.inicio, ...fimDoEvento(e.dia, e.inicio, e.fim) };
+  const fim = fimDoEvento(e.dia, e.inicio, e.fim);
+  if (base === "serie" && e.dia === ini.dia) {
+    if (mesmoFim(e.fim, ini.fim)) return { ...m, startTime: e.inicio };
+    // Fim por hora escolhida chega sem dia: a mesma hora do início é 24 h.
+    const noDia = minutosEntre(e.dia, e.inicio, fim.endDate ?? e.dia, fim.endTime);
+    const minutos = noDia > 0 ? noDia : noDia + 1440;
+    return minutos < 1440
+      ? { ...m, startTime: e.inicio, endDate: null, endTime: fim.endTime }
+      : { ...m, startTime: e.inicio, endTime: fim.endTime };
+  }
+  return { ...m, date: e.dia, startTime: e.inicio, ...fim };
+}
+
+/**
+ * "Toda seg, qua e sex, até 18 de dez" — o resumo da regra, sob a seção. As
+ * siglas são as de `NOMES_CURTOS_DOS_DIAS`, as mesmas do "repete …" dos itens e do
+ * chat (`descreverDias`). Na criação, diz também quando cai a primeira, se não
+ * é o dia escolhido: o servidor leva o início ao primeiro dia da regra.
+ */
+function resumoDaRepeticao(e: Estado, mostrarPrimeira: boolean): string {
+  if (e.dias.length === 0) return "Escolha pelo menos um dia da semana.";
+  const dias = [...e.dias].sort((a, b) => a - b);
+  const siglas = dias.map((d) => NOMES_CURTOS_DOS_DIAS[d] ?? "");
+  const ultima = siglas.pop();
+  const lista =
+    dias.length === 7
+      ? "Todo dia"
+      : `${dias[0] === 0 || dias[0] === 6 ? "Todo" : "Toda"} ${
+          siglas.length > 0 ? `${siglas.join(", ")} e ${ultima}` : ultima
+        }`;
+  const fim = e.ate ? `até ${diaMesCurto(e.ate, e.dia)}` : "sem data de fim";
+  const primeira = mostrarPrimeira && e.dia ? primeiroDiaDaSerie(e.dia, dias) : null;
+  const aviso = primeira && primeira !== e.dia ? `. A primeira cai em ${diaCurto(primeira)}` : "";
+  return `${lista}, ${fim}${aviso}.`;
 }
 
 function paraNovaTarefa(e: Estado): NovaTarefa {
@@ -222,8 +371,15 @@ function mudancaDaTarefa(e: Estado, ini: Estado): TaskUpdateInput {
   return m;
 }
 
-/** Os erros por campo de uma recusa da API; o que não tem campo vai ao aviso. */
-function errosDaApi(erro: unknown): { campos: Partial<Record<Campo, string>>; geral: string } {
+/**
+ * Os erros por campo de uma recusa da API; o que não tem campo vai ao aviso.
+ * `ocorrencia`: a escrita tocava uma ocorrência de série, e o 404 pode ser
+ * dela — cancelada, ou a série encurtada noutro aparelho.
+ */
+function errosDaApi(
+  erro: unknown,
+  ocorrencia = false,
+): { campos: Partial<Record<Campo, string>>; geral: string } {
   if (!(erro instanceof ApiError)) {
     return {
       campos: {},
@@ -231,7 +387,13 @@ function errosDaApi(erro: unknown): { campos: Partial<Record<Campo, string>>; ge
     };
   }
   if (erro.code === "NOT_FOUND") {
-    return { campos: {}, geral: "Este item ou o projeto escolhido não existe mais." };
+    return {
+      campos: {},
+      geral: ocorrencia
+        ? "Esta ocorrência ou o projeto escolhido não existe mais — a série pode ter mudado " +
+          "noutro lugar. A agenda foi atualizada."
+        : "Este item ou o projeto escolhido não existe mais.",
+    };
   }
   const campos: Partial<Record<Campo, string>> = {};
   const soltos: string[] = [];
@@ -302,12 +464,17 @@ export function FormularioItem({
   const [geral, setGeral] = useState("");
   const [confirmarExclusao, setConfirmarExclusao] = useState(false);
   const [confirmarDescarte, setConfirmarDescarte] = useState(false);
+  // A pergunta de alcance ao salvar uma ocorrência de série — inline no pé,
+  // como a de excluir, sem diálogo aninhado.
+  const [confirmarAlcance, setConfirmarAlcance] = useState(false);
+  // Qual alcance está gravando ou excluindo: o botão dele mostra a espera.
+  const [alcanceEmCurso, setAlcanceEmCurso] = useState<EscopoDoEvento | null>(null);
   // "Salvar e concluir" usa a mutação do salvar: o estado de espera é dele.
   const [concluindo, setConcluindo] = useState(false);
   // Qual "Escolher" está aberto por toque — só esse abre o seletor ao nascer.
-  const [escolhendo, setEscolhendo] = useState<"dia" | "hora" | "fim" | "horaTarefa" | null>(
-    null,
-  );
+  const [escolhendo, setEscolhendo] = useState<
+    "dia" | "hora" | "fim" | "horaTarefa" | "ate" | null
+  >(null);
   const editando = abertura.modo === "editar";
   const [detalhes, setDetalhes] = useState(
     editando && (inicial.local !== "" || inicial.descricao !== ""),
@@ -317,6 +484,9 @@ export function FormularioItem({
   // O `Botao` não repassa ref: o foco volta ao "Excluir" pelo id.
   const idExcluir = useId();
   const focarExcluir = () => document.getElementById(idExcluir)?.focus();
+  const idSalvar = useId();
+  const focarSalvar = () => document.getElementById(idSalvar)?.focus();
+  const qc = useQueryClient();
 
   const criarEvento = useCriarEvento();
   const atualizarEvento = useAtualizarEvento();
@@ -335,6 +505,16 @@ export function FormularioItem({
   const evento = e.tipo === "evento";
   const tarefa = "tarefa" in abertura ? abertura.tarefa : null;
   const id = "evento" in abertura ? abertura.evento.id : tarefa?.id ?? null;
+  // A ocorrência aberta, quando ela é de uma série: salvar e excluir
+  // perguntam o alcance (frente de eventos recorrentes, R3).
+  const eventoAberto = "evento" in abertura ? abertura.evento : null;
+  const serie = eventoAberto?.recurrence ? eventoAberto : null;
+  // O dia inteiro de vários dias, gravado por outro caminho, não cabe numa série.
+  const longoGravado =
+    eventoAberto !== null && eventoAberto.allDay && eventoAberto.endDate !== eventoAberto.date;
+  const cabe = cabeRepetir(e, longoGravado && inicial.diaInteiro);
+  const repete = e.repetir && cabe;
+  const regraMudou = !mesmaRegra(regraDo(e, cabe), regraDo(inicial, true));
 
   function mudar(parcial: Partial<Estado>, limpar?: Campo) {
     setE((atual) => ({ ...atual, ...parcial }));
@@ -366,14 +546,31 @@ export function FormularioItem({
         locais[campo] ??= problema.message;
       }
     }
+    if (repete && e.dias.length === 0) locais.repetir = "Escolha pelo menos um dia da semana";
+    // A regra da série (um dia só, `until` depois do início, algum dia
+    // escolhido até o fim) pela função do servidor, `resolverSerie` — só na
+    // criação: ao editar uma ocorrência, o início da série não é o dia que a
+    // folha mostra, e quem confere é o servidor, sobre o gravado.
+    if (evento && e.dia && repete && !editando && !locais.repetir) {
+      const { problemas } = resolverSerie(pedidoDeHorario(e, e.dia, e.inicio), {
+        days: e.dias,
+        until: e.ate,
+      });
+      for (const problema of problemas) {
+        const campo = CAMPO_DO_PATH[problema.path] ?? "repetir";
+        locais[campo] ??= problema.message;
+      }
+    }
     setErros(locais);
     setGeral("");
     if (locais.titulo) focoTitulo.current?.focus();
     return Object.keys(locais).length === 0;
   }
 
-  function falhou(erro: unknown) {
-    const { campos, geral: texto } = errosDaApi(erro);
+  function falhou(erro: unknown, ocorrencia = false) {
+    const { campos, geral: texto } = errosDaApi(erro, ocorrencia);
+    // A série mudou noutro lugar: a agenda por trás da folha está velha.
+    if (ocorrencia && erro instanceof ApiError && erro.code === "NOT_FOUND") invalidarAgenda(qc);
     setErros(campos);
     setGeral(texto);
     if (campos.local || campos.descricao) setDetalhes(true);
@@ -385,12 +582,20 @@ export function FormularioItem({
     if (salvando || !conferir()) return;
     try {
       if (abertura.modo === "criar") {
-        if (evento && e.dia) await criarEvento.mutateAsync(paraNovoEvento(e, e.dia, e.inicio));
-        else await criarTarefa.mutateAsync(paraNovaTarefa(e));
+        if (evento && e.dia) {
+          await criarEvento.mutateAsync(paraNovoEvento(e, e.dia, e.inicio, cabe));
+        } else {
+          await criarTarefa.mutateAsync(paraNovaTarefa(e));
+        }
         onCriado(e.tipo);
       } else if ("evento" in abertura) {
-        const mudanca = mudancaDoEvento(e, inicial);
+        const mudanca = mudancaDoEvento(e, inicial, { cabe });
         if (Object.keys(mudanca).length > 0) {
+          // Numa série, o alcance vem antes da ida: a pergunta toma o pé.
+          if (serie) {
+            setConfirmarAlcance(true);
+            return;
+          }
           await atualizarEvento.mutateAsync({ id: abertura.evento.id, mudanca });
         }
       } else {
@@ -405,16 +610,52 @@ export function FormularioItem({
     }
   }
 
-  async function excluir() {
-    if (!id) return;
+  /// O alcance como a API o pede: `todas` não diz ocorrência.
+  const escopoDe = (scope: EscopoDoEvento): EventScope | undefined => {
+    if (!serie) return undefined;
+    return scope === "todas" ? { scope } : { scope, occurrenceDate: serie.occurrenceDate ?? serie.date };
+  };
+
+  /**
+   * Salvar uma ocorrência de série, com o alcance escolhido. Em `todas` a
+   * mudança se mede contra o início da série (`base: "serie"`); em `esta` a
+   * repetição fica de fora — a pergunta nem oferece `esta` quando ela mudou.
+   */
+  async function salvarNaSerie(scope: EscopoDoEvento) {
+    if (!serie) return;
+    const mudanca = mudancaDoEvento(e, inicial, {
+      cabe,
+      base: scope === "todas" ? "serie" : "ocorrencia",
+      comRegra: scope !== "esta",
+    });
+    setAlcanceEmCurso(scope);
     try {
-      if (evento) await excluirEvento.mutateAsync(id);
+      if (Object.keys(mudanca).length > 0) {
+        await atualizarEvento.mutateAsync({ id: serie.id, mudanca, escopo: escopoDe(scope) });
+      }
+      onFechar();
+    } catch (erro) {
+      setConfirmarAlcance(false);
+      falhou(erro, scope !== "todas");
+      requestAnimationFrame(focarSalvar);
+    } finally {
+      setAlcanceEmCurso(null);
+    }
+  }
+
+  async function excluir(scope: EscopoDoEvento = "todas") {
+    if (!id) return;
+    setAlcanceEmCurso(scope);
+    try {
+      if (evento) await excluirEvento.mutateAsync({ id, escopo: escopoDe(scope) });
       else await excluirTarefa.mutateAsync(id);
       onFechar();
     } catch (erro) {
       setConfirmarExclusao(false);
-      falhou(erro);
+      falhou(erro, serie !== null && scope !== "todas");
       requestAnimationFrame(focarExcluir);
+    } finally {
+      setAlcanceEmCurso(null);
     }
   }
 
@@ -449,7 +690,8 @@ export function FormularioItem({
   // já vêm escolhidas, e não são trabalho); na edição, o que o PATCH mandaria.
   const sujo = !editando
     ? e.titulo.trim() !== "" || e.descricao.trim() !== "" || e.local.trim() !== ""
-    : Object.keys(evento ? mudancaDoEvento(e, inicial) : mudancaDaTarefa(e, inicial)).length > 0;
+    : Object.keys(evento ? mudancaDoEvento(e, inicial, { cabe }) : mudancaDaTarefa(e, inicial))
+        .length > 0;
   const sujoRef = useRef(sujo);
   sujoRef.current = sujo;
 
@@ -457,6 +699,7 @@ export function FormularioItem({
     registrarGuarda(() => {
       if (!sujoRef.current) return true;
       setConfirmarExclusao(false);
+      setConfirmarAlcance(false);
       setConfirmarDescarte(true);
       return false;
     });
@@ -496,6 +739,17 @@ export function FormularioItem({
             </span>
           )}
         </div>
+        {serie?.recurrence && (
+          // Quem abre uma ocorrência sabe, antes de mexer, que é de uma série —
+          // e qual: salvar e excluir vão perguntar o alcance.
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-400">
+            <IconeRepetir className="size-3.5" />
+            <span>
+              Repete {descreverDias(serie.recurrence.days)} · esta é a de{" "}
+              {diaCurto(serie.occurrenceDate ?? serie.date)}
+            </span>
+          </p>
+        )}
 
         {!editando && (
           <div
@@ -702,6 +956,20 @@ export function FormularioItem({
             )
           )}
 
+          {evento && cabe && (
+            <SecaoRepetir
+              e={e}
+              erro={erros.repetir}
+              escolhendoAte={escolhendo === "ate"}
+              mostrarPrimeira={serie === null}
+              onEscolherAte={() => setEscolhendo("ate")}
+              onMudar={(parcial) => {
+                if (parcial.ate === null) setEscolhendo(null);
+                mudar(parcial, "repetir");
+              }}
+            />
+          )}
+
           <GrupoPilulas rotulo="Projeto" erro={erros.projeto}>
             <Pilula ativa={e.projeto === null} onClick={() => mudar({ projeto: null }, "projeto")}>
               Nenhum
@@ -807,6 +1075,123 @@ export function FormularioItem({
               </Botao>
             </div>
           </div>
+        ) : confirmarAlcance && serie ? (
+          <div role="group" aria-labelledby={`${idTitulo}-a`}>
+            <p id={`${idTitulo}-a`} className="mb-3 text-sm text-ink-200">
+              Este evento se repete. Aplicar a alteração a quais ocorrências?
+            </p>
+            {regraMudou && (
+              <p className="mb-3 text-xs text-ink-400">
+                A repetição muda nesta e nas seguintes, ou em todas — não numa só.
+              </p>
+            )}
+            {e.dia && e.dia !== inicial.dia && (
+              <p className="mb-3 text-xs text-ink-400">
+                <span aria-hidden="true">! </span>Em “Todas”, a série recomeça em{" "}
+                {diaCurto(e.dia)}, e as ocorrências antes dele somem.
+              </p>
+            )}
+            {regraMudou && !repete && (
+              <p className="mb-3 text-xs text-ink-400">
+                Sem repetição, “Todas” deixa só a primeira ocorrência da série, e “Esta e
+                as seguintes”, só esta.
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              {!regraMudou && (
+                // O foco cai no alcance menor: um Enter distraído mexe numa só.
+                <Botao
+                  variante="primario"
+                  tamanho="g"
+                  autoFocus
+                  carregando={alcanceEmCurso === "esta"}
+                  disabled={alcanceEmCurso !== null}
+                  onClick={() => void salvarNaSerie("esta")}
+                >
+                  Alterar só esta
+                </Botao>
+              )}
+              <Botao
+                variante={regraMudou ? "primario" : "secundario"}
+                tamanho="g"
+                autoFocus={regraMudou}
+                carregando={alcanceEmCurso === "seguintes"}
+                disabled={alcanceEmCurso !== null}
+                onClick={() => void salvarNaSerie("seguintes")}
+              >
+                Esta e as seguintes
+              </Botao>
+              <Botao
+                variante="secundario"
+                tamanho="g"
+                carregando={alcanceEmCurso === "todas"}
+                disabled={alcanceEmCurso !== null}
+                onClick={() => void salvarNaSerie("todas")}
+              >
+                Todas
+              </Botao>
+              <Botao
+                variante="fantasma"
+                tamanho="g"
+                disabled={alcanceEmCurso !== null}
+                className={regraMudou ? "" : "col-span-2"}
+                onClick={() => {
+                  setConfirmarAlcance(false);
+                  requestAnimationFrame(focarSalvar);
+                }}
+              >
+                Cancelar
+              </Botao>
+            </div>
+          </div>
+        ) : confirmarExclusao && serie ? (
+          <div role="group" aria-labelledby={`${idTitulo}-x`}>
+            <p id={`${idTitulo}-x`} className="mb-3 text-sm text-ink-200">
+              Este evento se repete. Excluir quais ocorrências? Não dá para desfazer.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {/* Nasce no lugar do "Excluir" com o foco no alcance menor. */}
+              <Botao
+                variante="perigo"
+                tamanho="g"
+                autoFocus
+                carregando={alcanceEmCurso === "esta"}
+                disabled={alcanceEmCurso !== null}
+                onClick={() => void excluir("esta")}
+              >
+                Excluir só esta
+              </Botao>
+              <Botao
+                variante="perigo"
+                tamanho="g"
+                carregando={alcanceEmCurso === "seguintes"}
+                disabled={alcanceEmCurso !== null}
+                onClick={() => void excluir("seguintes")}
+              >
+                Esta e as seguintes
+              </Botao>
+              <Botao
+                variante="perigo"
+                tamanho="g"
+                carregando={alcanceEmCurso === "todas"}
+                disabled={alcanceEmCurso !== null}
+                onClick={() => void excluir("todas")}
+              >
+                Toda a série
+              </Botao>
+              <Botao
+                variante="secundario"
+                tamanho="g"
+                disabled={alcanceEmCurso !== null}
+                onClick={() => {
+                  setConfirmarExclusao(false);
+                  requestAnimationFrame(focarExcluir);
+                }}
+              >
+                Cancelar
+              </Botao>
+            </div>
+          </div>
         ) : confirmarExclusao ? (
           <div role="group" aria-labelledby={`${idTitulo}-x`}>
             <p id={`${idTitulo}-x`} className="mb-3 text-sm text-ink-200">
@@ -830,7 +1215,7 @@ export function FormularioItem({
                 tamanho="g"
                 autoFocus
                 carregando={excluindo}
-                onClick={excluir}
+                onClick={() => void excluir()}
               >
                 Excluir
               </Botao>
@@ -873,6 +1258,7 @@ export function FormularioItem({
                 Fechar
               </Botao>
               <Botao
+                id={idSalvar}
                 type="submit"
                 variante="primario"
                 tamanho="g"
@@ -978,5 +1364,128 @@ function CampoTexto({
       )}
       {erro && <ErroDoCampo id={`${id}-e`}>{erro}</ErroDoCampo>}
     </div>
+  );
+}
+
+/// As letras dos dias na grade, domingo primeiro — a ordem do calendário
+/// (`gradeDoMes`). A letra só é o desenho: o nome acessível é o dia por extenso.
+const LETRAS_DOS_DIAS = ["D", "S", "T", "Q", "Q", "S", "S"] as const;
+const DIA_MARCADO = "border-accent-500 bg-accent-500 font-bold text-white shadow-e1";
+const DIA_LIVRE = "border-ink-700 bg-ink-900 font-medium text-ink-200 hover:border-ink-400";
+
+/**
+ * "Repetir" (frente de eventos recorrentes, R3): não repete ou toda semana; ligada,
+ * os dias da semana em pílulas e o último dia — sem fim, ou uma data no seletor
+ * nativo —, com o resumo da regra por extenso embaixo. Só aparece no evento
+ * que cabe numa série (`cabeRepetir`).
+ */
+function SecaoRepetir({
+  e,
+  erro,
+  escolhendoAte,
+  mostrarPrimeira,
+  onEscolherAte,
+  onMudar,
+}: {
+  e: Estado;
+  erro?: string;
+  escolhendoAte: boolean;
+  /** Dizer quando cai a primeira: na criação, e no evento simples que vira série. */
+  mostrarPrimeira: boolean;
+  onEscolherAte: () => void;
+  onMudar: (parcial: Partial<Estado>) => void;
+}) {
+  const idDias = useId();
+
+  function alternarDia(dia: number) {
+    onMudar({
+      dias: e.dias.includes(dia) ? e.dias.filter((d) => d !== dia) : [...e.dias, dia],
+    });
+  }
+
+  return (
+    <>
+      <GrupoPilulas rotulo="Repetir" erro={e.repetir ? null : erro}>
+        <Pilula ativa={!e.repetir} onClick={() => onMudar({ repetir: false })}>
+          Não repete
+        </Pilula>
+        <Pilula
+          ativa={e.repetir}
+          onClick={() =>
+            onMudar({
+              repetir: true,
+              // Ao ligar, o dia da data já vem marcado: "toda semana" sem dia
+              // nenhum não diz nada, e é quase sempre o dia escolhido acima.
+              dias: e.dias.length > 0 ? e.dias : e.dia ? [diaDaSemana(e.dia)] : [],
+            })
+          }
+        >
+          Toda semana
+        </Pilula>
+      </GrupoPilulas>
+
+      {e.repetir && (
+        <>
+          <div className="min-w-0">
+            <h3 id={idDias} className="rotulo">
+              Nos dias
+            </h3>
+            {/* Sete alvos de 44 px numa linha: cabem na folha de 390 px. O
+                marcado muda de forma — cheio, em negrito e com o traço embaixo —,
+                não só de cor. */}
+            <div role="group" aria-labelledby={idDias} className="mt-2 grid grid-cols-7 gap-1.5">
+              {LETRAS_DOS_DIAS.map((letra, dia) => {
+                const marcado = e.dias.includes(dia);
+                return (
+                  <button
+                    key={dia}
+                    type="button"
+                    aria-pressed={marcado}
+                    aria-label={DIAS_LONGOS[dia]}
+                    onClick={() => alternarDia(dia)}
+                    className={`flex h-11 min-w-11 flex-col items-center justify-center
+                                rounded-full border text-sm transition duration-150
+                                ease-(--ease-padrao) active:scale-[0.97] ${
+                                  marcado ? DIA_MARCADO : DIA_LIVRE
+                                }`}
+                  >
+                    <span aria-hidden="true">{letra}</span>
+                    <span
+                      aria-hidden="true"
+                      className={`h-0.5 w-3 rounded-full ${
+                        marcado ? "bg-white" : "bg-transparent"
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <GrupoPilulas
+            rotulo="Até"
+            erro={erro}
+            rodape={<span aria-live="polite">{resumoDaRepeticao(e, mostrarPrimeira)}</span>}
+          >
+            <Pilula ativa={e.ate === null && !escolhendoAte} onClick={() => onMudar({ ate: null })}>
+              Sem fim
+            </Pilula>
+            {escolhendoAte || e.ate !== null ? (
+              <PilulaEscolher
+                tipo="date"
+                valor={e.ate ?? ""}
+                rotulo="Último dia da repetição"
+                abrirAoNascer={escolhendoAte && e.ate === null}
+                onEscolher={(ate) => onMudar({ ate })}
+              />
+            ) : (
+              <Pilula ativa={false} onClick={onEscolherAte}>
+                Escolher data…
+              </Pilula>
+            )}
+          </GrupoPilulas>
+        </>
+      )}
+    </>
   );
 }

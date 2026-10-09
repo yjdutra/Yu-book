@@ -11,8 +11,27 @@ export const DIAS_DE_PROJETO = 30;
 export interface Projeto {
   quadro: BoardSummary;
   abertas: TaskItem[];
-  /// Os que ainda não acabaram, na janela, em ordem de início.
+  /// Os que ainda não acabaram, na janela, em ordem de início — a série uma
+  /// vez só, pela próxima ocorrência (`proximaDeCada`). `length` conta a série
+  /// como um evento: é o que o projeto tem marcado, não quantas vezes acontece.
   eventos: EventItem[];
+}
+
+/**
+ * Cada evento uma vez: da série, a primeira ocorrência da lista, que chega em
+ * ordem de início (`GET /agenda`) — a próxima, ou a que está acontecendo. Numa
+ * janela de 30 dias, "seg, qua e sex" seriam ~13 linhas iguais; o "repete …"
+ * do item diz que há mais. A ocorrência guardada é a de verdade (horário e
+ * `occurrenceDate` dela): tocar abre a folha nela, com a pergunta do alcance.
+ * O evento simples tem `id` único na lista e passa intacto.
+ */
+function proximaDeCada(eventos: EventItem[]): EventItem[] {
+  const vistos = new Set<string>();
+  return eventos.filter((e) => {
+    if (vistos.has(e.id)) return false;
+    vistos.add(e.id);
+    return true;
+  });
 }
 
 /**
@@ -34,7 +53,9 @@ export function useProjetos({ fresca = false }: { fresca?: boolean } = {}) {
     // O instante de agora contra o fim do evento: comparar instantes não
     // passa por fuso nenhum.
     const agora = Date.now();
-    const futuros = (agenda.data?.events ?? []).filter((e) => Date.parse(e.endsAt) > agora);
+    const futuros = proximaDeCada(
+      (agenda.data?.events ?? []).filter((e) => Date.parse(e.endsAt) > agora),
+    );
     return quadros.data.map(
       (quadro): Projeto => ({
         quadro,

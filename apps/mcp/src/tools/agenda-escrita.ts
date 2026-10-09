@@ -1,6 +1,11 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { FERRAMENTAS_DO_ACERVO, formatarEvento, formatarTarefa } from "@yu-book/shared";
+import {
+  diasDasSiglas,
+  FERRAMENTAS_DO_ACERVO,
+  formatarEvento,
+  formatarTarefa,
+} from "@yu-book/shared";
 import type { EventItem, TaskItem } from "@yu-book/shared";
 import { origemDoCliente } from "../autor.js";
 import { api, ErroDaApi } from "../cliente.js";
@@ -25,6 +30,15 @@ import { relatar } from "../notificacoes.js";
  * **Toda escrita manda `origin`** (INV-58, INV-63): as duas criações nascem
  * marcadas como geradas por IA, e a conclusão grava quem concluiu — pela rota
  * própria, `PATCH /tasks/:id/complete`, a única da tarefa que aceita `origin`.
+ *
+ * **`repeat` vai em número, e a falta dele na volta é avisada** (frente de
+ * eventos recorrentes, R2). O modelo escreve siglas (`seg`, `qua`) e a API só
+ * conhece 0–6: `diasDasSiglas` converte nesta fronteira. Uma API anterior à
+ * série **não recusa** o `repeat` — o schema dela não é estrito e descarta a
+ * chave (§2 de `contrato-compartilhado`) — e cria um evento avulso com 201. A
+ * única pista é a resposta sem `recurrence`, e é ela que vira aviso. Sem
+ * `isError` e sem reenvio: o evento existe, e um erro faria o modelo criar
+ * outro.
  *
  * As três rotas são da Fase 1 da agenda: contra uma API mais velha elas voltam
  * `NOT_FOUND` (§13 da skill do MCP), e a tradução genérica desse código fala
@@ -74,6 +88,12 @@ export function registrarEscritaDeAgenda(server: McpServer): void {
           ...(entrada.location !== undefined && { location: entrada.location }),
           ...(entrada.description !== undefined && { description: entrada.description }),
           ...(entrada.boardId !== undefined && { boardId: entrada.boardId }),
+          ...(entrada.repeat !== undefined && {
+            repeat: {
+              days: diasDasSiglas(entrada.repeat.days),
+              ...(entrada.repeat.until !== undefined && { until: entrada.repeat.until }),
+            },
+          }),
           origin,
         });
       } catch (erro) {
@@ -83,6 +103,9 @@ export function registrarEscritaDeAgenda(server: McpServer): void {
         throw erro;
       }
 
+      // `?.` apesar do tipo: a API mais velha nem manda a chave (§13 da skill).
+      const repeticaoPerdida = entrada.repeat !== undefined && !criado.recurrence?.days?.length;
+
       await relato.passo("evento criado");
       await relato.registrar("info", {
         acao: "evento criado",
@@ -90,11 +113,23 @@ export function registrarEscritaDeAgenda(server: McpServer): void {
         title: criado.title,
         date: criado.date,
         startTime: criado.startTime,
+        ...(criado.recurrence?.days && { repeatDays: criado.recurrence.days }),
         author: origin.author,
       });
 
+      const texto = `Evento criado.\n\n${formatarEvento(criado)}`;
+      if (!repeticaoPerdida) return { content: [{ type: "text", text: texto }] };
       return {
-        content: [{ type: "text", text: `Evento criado.\n\n${formatarEvento(criado)}` }],
+        content: [
+          {
+            type: "text",
+            text:
+              `${texto}\n\n**Atenção: o evento não se repete.** A API do Yu-book no ar ainda não ` +
+              "tem eventos recorrentes e ignorou `repeat`: só esta ocorrência foi criada, " +
+              "avulsa. Não chame `create_event` de novo — criaria um evento a mais, também " +
+              "avulso. Diga ao usuário que a repetição não foi gravada.",
+          },
+        ],
       };
     }),
   );

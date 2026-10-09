@@ -4,6 +4,7 @@ import type {
   AgendaRange,
   EventInput,
   EventItem,
+  EventScope,
   EventUpdateInput,
   TaskInput,
   TaskItem,
@@ -120,23 +121,54 @@ export function useCriarEvento() {
 }
 
 /**
+ * O caminho de PATCH e DELETE de um evento, com o escopo na query quando ele
+ * vem (frente de eventos recorrentes, R3). Sem escopo, o servidor entende
+ * `todas`: a série inteira, ou o evento simples — o que o Desfazer do chat
+ * quer, e o que estas rotas faziam antes da série.
+ */
+function caminhoDoEvento(id: string, escopo?: EventScope): string {
+  if (!escopo) return `/events/${id}`;
+  const busca = new URLSearchParams({ scope: escopo.scope });
+  if (escopo.occurrenceDate) busca.set("occurrenceDate", escopo.occurrenceDate);
+  return `/events/${id}?${busca.toString()}`;
+}
+
+/**
  * PATCH parcial: mande só o que mudou. O servidor mescla o horário com o
  * gravado (`mesclarHorario`) — mandar `date` sozinho anda com o evento inteiro,
  * mantendo o vão e a duração.
+ *
+ * **Numa série, o escopo muda a base da mescla.** Em `esta` e `seguintes` ela é
+ * a ocorrência de `occurrenceDate`; em `todas`, a **primeira** ocorrência: ali
+ * `date` recomeça a série, e mudar só a hora move todas. Quem edita a partir de
+ * uma ocorrência não manda o `date` dela num `todas`, salvo quando o usuário
+ * mudou o dia de propósito. Devolve o evento que ficou com os dados novos — o
+ * avulso ou a série nova têm `id` próprio.
  */
 export function useAtualizarEvento() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, mudanca }: { id: string; mudanca: EventUpdateInput }) =>
-      api.patch<EventItem>(`/events/${id}`, mudanca),
+    mutationFn: ({
+      id,
+      mudanca,
+      escopo,
+    }: {
+      id: string;
+      mudanca: EventUpdateInput;
+      escopo?: EventScope;
+    }) => api.patch<EventItem>(caminhoDoEvento(id, escopo), mudanca),
     onSuccess: () => invalidarAgenda(qc),
   });
 }
 
+/** Só o `id` apaga a série inteira (ou o evento simples). */
 export function useExcluirEvento() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.delete<void>(`/events/${id}`),
+    mutationFn: (alvo: string | { id: string; escopo?: EventScope }) =>
+      typeof alvo === "string"
+        ? api.delete<void>(caminhoDoEvento(alvo))
+        : api.delete<void>(caminhoDoEvento(alvo.id, alvo.escopo)),
     onSuccess: () => invalidarAgenda(qc),
   });
 }

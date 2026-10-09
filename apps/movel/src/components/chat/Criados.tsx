@@ -45,6 +45,14 @@ function quandoDe(c: ChatCreated): ReactNode {
 }
 
 /**
+ * No evento que se repete, "seg, qua, sex" — o texto pronto de
+ * `ChatCreated.repeat` (frente de eventos recorrentes, R2), que o cartão põe
+ * numa linha própria. Abrir o cartão abre a série pela primeira ocorrência, e
+ * salvar pergunta o alcance.
+ */
+const repeteDe = (c: ChatCreated) => (c.kind === "event" ? (c.repeat ?? null) : null);
+
+/**
  * O "Criado nesta resposta" do móvel. Evento e tarefa abrem a **folha de
  * edição** da casca — o item é lido da API na hora, porque o evento do chat
  * traz só id, título e quando — e se desfazem (excluídos; não há lixeira
@@ -132,6 +140,7 @@ export function Criados({
                 tipo={como.tipo}
                 titulo={c.title}
                 quando={quandoDe(c)}
+                repete={repeteDe(c)}
                 desfeito={desfeitos.has(chave)}
                 rotuloDesfeito={como.desfeito}
                 onAbrir={como.agenda ? () => void abrirItem(c) : undefined}

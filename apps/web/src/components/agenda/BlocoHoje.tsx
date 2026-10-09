@@ -9,9 +9,15 @@ import {
   ordemDoEvento,
   useAgendaAdiante,
 } from "@yu-book/cliente/hoje";
-import { IconeBoard, IconeCalendario, IconeCheck, IconeHoje } from "@yu-book/cliente/icones";
+import {
+  IconeBoard,
+  IconeCalendario,
+  IconeCheck,
+  IconeHoje,
+  IconeRepetir,
+} from "@yu-book/cliente/icones";
 import { contar } from "@yu-book/cliente/texto";
-import { diasDoEvento, somarDias } from "@yu-book/shared";
+import { descreverDias, diasDoEvento, somarDias } from "@yu-book/shared";
 import type { AgendaRange, EventItem, TaskItem } from "@yu-book/shared";
 import { useId, useMemo } from "react";
 import type { ReactNode } from "react";
@@ -96,10 +102,13 @@ function resumoDeAmanha(eventos: EventoDoDia[], tarefas: TaskItem[]): string {
 function Detalhe({
   quando,
   projeto,
+  repete = null,
   atrasada = false,
 }: {
   quando: string;
   projeto: string | null;
+  /** O evento que se repete: "repete seg, qua, sex", com o glifo ao lado. */
+  repete?: string | null;
   atrasada?: boolean;
 }) {
   return (
@@ -108,6 +117,13 @@ function Detalhe({
         {atrasada && <span className="sr-only">Atrasada desde </span>}
         {quando}
       </span>
+      {repete && (
+        <>
+          <span aria-hidden="true">·</span>
+          <IconeRepetir className="size-3 shrink-0" />
+          <span className="truncate">{repete}</span>
+        </>
+      )}
       {projeto && (
         <>
           <span aria-hidden="true">·</span>
@@ -129,7 +145,11 @@ function LinhaEvento({ item }: { item: EventoDoDia }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm text-ink-200">{evento.title}</span>
-        <Detalhe quando={hora} projeto={evento.board?.name ?? null} />
+        <Detalhe
+          quando={hora}
+          projeto={evento.board?.name ?? null}
+          repete={evento.recurrence ? `repete ${descreverDias(evento.recurrence.days)}` : null}
+        />
       </span>
     </li>
   );
@@ -325,7 +345,13 @@ export function BlocoHoje() {
           {eventos.length > 0 && (
             <Grupo id={`${id}-eventos`} titulo="Eventos" contagem={eventos.length}>
               {eventos.map((item) => (
-                <LinhaEvento key={item.evento.id} item={item} />
+                // Numa série, toda ocorrência traz o `id` dela: a chave leva o
+                // dia da ocorrência (frente de eventos recorrentes); `?? date`
+                // porque a API velha da janela do deploy não manda o campo.
+                <LinhaEvento
+                  key={`${item.evento.id}-${item.evento.occurrenceDate ?? item.evento.date}`}
+                  item={item}
+                />
               ))}
             </Grupo>
           )}

@@ -4,6 +4,7 @@ import { contar } from "@yu-book/cliente/texto";
 import { Link } from "react-router-dom";
 import { TOM_DO_TIPO } from "../components/agenda/Calendario";
 import { EstadoVazio } from "../components/agenda/ItemAgenda";
+import { repeticaoDe } from "../components/agenda/itens";
 import { DIAS_DE_PROJETO, useProjetos } from "../components/projetos/dados";
 import type { Projeto } from "../components/projetos/dados";
 import { diaRelativo } from "../lib/datas";
@@ -49,13 +50,20 @@ export function ProjetosPage() {
   );
 }
 
-/** "Voo para Lisboa · ter, 20 de out, 22:00" — o próximo evento do projeto. */
+/**
+ * "Voo para Lisboa · ter, 20 de out, 22:00" — o próximo evento do projeto; na
+ * série, a próxima ocorrência e "· repete seg, qua", como no item da agenda.
+ */
 export function textoDoEvento(
   evento: Projeto["eventos"][number],
   hoje: string | null,
 ): string {
   const quando = diaRelativo(evento.date, hoje);
-  return `${evento.title} · ${quando}${evento.startTime ? `, ${evento.startTime}` : ""}`;
+  const repete = repeticaoDe(evento);
+  return (
+    `${evento.title} · ${quando}${evento.startTime ? `, ${evento.startTime}` : ""}` +
+    (repete ? ` · ${repete}` : "")
+  );
 }
 
 function CartaoProjeto({

@@ -117,6 +117,13 @@ export function diaCurto(dia: string): string {
   return `${DIAS_CURTOS[diaDaSemana(dia)]}, ${d} de ${MESES_CURTOS[mes - 1]}`;
 }
 
+/** "18 de dez" — com o ano quando ele não é `anoDe` ("18 de dez de 2027"). */
+export function diaMesCurto(dia: string, anoDe?: string | null): string {
+  const { ano, mes, d } = partes(dia);
+  const outroAno = anoDe && partes(anoDe).ano !== ano;
+  return `${d} de ${MESES_CURTOS[mes - 1]}${outroAno ? ` de ${ano}` : ""}`;
+}
+
 /** "10 de outubro". */
 export function diaPorExtenso(dia: string): string {
   const { mes, d } = partes(dia);

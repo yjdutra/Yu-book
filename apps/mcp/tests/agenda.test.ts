@@ -29,9 +29,13 @@ const TAREFA_ID = "99999999-9999-4999-8999-999999999999";
 
 const COMPLETO = identidade(["yubook:read", "yubook:write"]);
 
-/** Tipado pelo contrato: campo novo em `EventItem` quebra o typecheck aqui. */
+/**
+ * Tipado pelo contrato: campo novo em `EventItem` quebra o typecheck aqui. Com
+ * `repeat` no corpo, devolve a regra como a API da série (R1) devolveria.
+ */
 function evento(corpo: Record<string, unknown>): EventItem {
   const origem = corpo["origin"] as { via: "mcp"; author: string } | undefined;
+  const repeat = corpo["repeat"] as { days: number[]; until?: string } | undefined;
   const ai: AiMark | null = origem
     ? {
         generatedAt: AGORA,
@@ -56,6 +60,8 @@ function evento(corpo: Record<string, unknown>): EventItem {
     endTime: (corpo["endTime"] as string | undefined) ?? null,
     startsAt: "2026-10-15T17:00:00.000Z",
     endsAt: "2026-10-15T18:00:00.000Z",
+    occurrenceDate: String(corpo["date"]),
+    recurrence: repeat ? { days: repeat.days, until: repeat.until ?? null } : null,
     location: null,
     url: null,
     board: null,
@@ -244,6 +250,79 @@ describe("create_event", () => {
       const criado = evento(chamadas[0]?.corpo ?? {});
       expect(texto(r)).toBe(`Evento criado.\n\n${formatarEvento(criado)}`);
       expect(texto(r)).toContain("gerado por IA");
+    } finally {
+      await cliente.encerrar();
+    }
+  });
+
+  it("repeat vai em dias numéricos, e o texto de volta diz a regra", async () => {
+    const cliente = await abrirCliente({ escrita: true, nomeDoCliente: "Claude Code" }, COMPLETO);
+    try {
+      // Fora de ordem e repetido: a API grava em ordem e sem repetir.
+      const r = await cliente.chamarTool("create_event", {
+        title: "Inglês",
+        date: "2026-10-12",
+        startTime: "19:00",
+        repeat: { days: ["qua", "seg", "seg"], until: "2026-12-16" },
+      });
+      // Sem `until`, a chave não vai — nem `undefined`, nem `null`.
+      const semFim = await cliente.chamarTool("create_event", {
+        title: "Academia",
+        date: "2026-10-12",
+        startTime: "07:00",
+        repeat: { days: ["dom", "sab"] },
+      });
+
+      expect(r.isError).toBeFalsy();
+      expect(semFim.isError).toBeFalsy();
+      expect(chamadas).toHaveLength(2);
+      expect(chamadas[0]?.corpo?.["repeat"]).toEqual({ days: [1, 3], until: "2026-12-16" });
+      expect(chamadas[1]?.corpo?.["repeat"]).toEqual({ days: [0, 6] });
+
+      const criado = evento(chamadas[0]?.corpo ?? {});
+      expect(texto(r)).toBe(`Evento criado.\n\n${formatarEvento(criado)}`);
+      expect(texto(r)).toContain("repete seg, qua até 2026-12-16");
+      expect(texto(semFim)).toContain("repete dom, sáb");
+      expect(texto(r)).not.toContain("não se repete");
+    } finally {
+      await cliente.encerrar();
+    }
+  });
+
+  it("API sem a série: resposta sem recurrence vira aviso, sem erro e sem reenvio", async () => {
+    const cliente = await abrirCliente({ escrita: true }, COMPLETO);
+    // A API anterior à R1: o schema não é estrito, descarta `repeat` e devolve
+    // 201 com um evento avulso — sem `occurrenceDate` nem `recurrence`.
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      const corpo =
+        typeof init?.body === "string"
+          ? (JSON.parse(init.body) as Record<string, unknown>)
+          : undefined;
+      chamadas.push({ metodo: init?.method ?? "GET", url: String(url), corpo });
+      const { recurrence: _r, occurrenceDate: _o, ...velho } = evento({
+        ...corpo,
+        repeat: undefined,
+      });
+      return json(velho, 201);
+    });
+    try {
+      const r = await cliente.chamarTool("create_event", {
+        title: "Inglês",
+        date: "2026-10-12",
+        startTime: "19:00",
+        repeat: { days: ["seg", "qua"] },
+      });
+
+      // O evento existe: erro faria o modelo criar outro.
+      expect(r.isError).toBeFalsy();
+      expect(chamadas).toHaveLength(1);
+      expect(chamadas[0]?.corpo?.["repeat"]).toEqual({ days: [1, 3] });
+      expect(texto(r)).toContain("Evento criado.");
+      // A linha da regra, que só o formatador escreve, não aparece.
+      expect(texto(r)).not.toContain("repete seg");
+      expect(texto(r)).toContain("o evento não se repete");
+      expect(texto(r)).toContain("só esta ocorrência foi criada");
+      expect(texto(r)).toContain("Não chame `create_event` de novo");
     } finally {
       await cliente.encerrar();
     }

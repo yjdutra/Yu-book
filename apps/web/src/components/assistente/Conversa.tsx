@@ -144,6 +144,15 @@ function quandoDe(criado: ChatCreated): ReactNode {
 }
 
 /**
+ * O evento que se repete diz os dias pelo texto pronto do servidor
+ * (`ChatCreated.repeat`, frente de eventos recorrentes), sem importar
+ * `descreverDias`: o cartão não carrega a regra, só o texto dela — e o põe numa
+ * linha própria, que o painel estreito não corta.
+ */
+const repeteDe = (criado: ChatCreated) =>
+  criado.kind === "event" ? (criado.repeat ?? null) : null;
+
+/**
  * O que o chat criou nesta resposta (Etapa C da frente de IA), abaixo das
  * fontes e no mesmo desenho delas. Cada item abre o que foi criado — quando há
  * onde abrir — e oferece desfazer: a escrita é iniciada pelo usuário e
@@ -264,6 +273,7 @@ function Criados({
                 tipo={como.tipo}
                 titulo={c.title}
                 quando={quandoDe(c)}
+                repete={repeteDe(c)}
                 desfeito={desfeitos.has(chave)}
                 rotuloDesfeito={como.desfeito}
                 onAbrir={como.abrir ? () => void abrir(c) : undefined}

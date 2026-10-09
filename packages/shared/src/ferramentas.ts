@@ -6,6 +6,7 @@ import {
   MAX_EVENTO_LOCAL,
   MAX_EVENTO_TITULO,
   novoDiaCivilSchema,
+  SIGLAS_DOS_DIAS,
 } from "./eventos.js";
 import {
   cardPrioritySchema,
@@ -404,7 +405,9 @@ export const FERRAMENTAS_DO_ACERVO = {
     descricao:
       "Cria um compromisso na agenda (reunião, consulta, viagem). Dia e hora são locais do " +
       "usuário: não converta fuso. Sem `endTime`, dura uma hora. Para algo a fazer sem hora " +
-      "marcada, use `create_task`. O evento nasce marcado como gerado por IA.",
+      "marcada, use `create_task`. O evento nasce marcado como gerado por IA. Compromisso " +
+      "semanal (aula, academia): mande `repeat` — cria UMA série, não um evento por semana; " +
+      "horários diferentes em dias diferentes são uma chamada por horário.",
     escrita: true,
     anotacoes: {
       readOnlyHint: false,
@@ -435,6 +438,17 @@ export const FERRAMENTAS_DO_ACERVO = {
         .uuid()
         .optional()
         .describe("O projeto: id de um quadro, de `list_boards`. Omita se não houver."),
+      /// Frente de eventos recorrentes, R2. Siglas, não números (ver
+      /// `SIGLAS_DOS_DIAS`); quem chama converte por `diasDasSiglas` antes da
+      /// API, que só conhece 0–6. O `until` é instância própria, pela regra do
+      /// `$ref` acima. Série de mais de um dia a API recusa, com a frase dela.
+      repeat: z
+        .object({
+          days: z.array(z.enum(SIGLAS_DOS_DIAS)).min(1).max(7),
+          until: novoDiaCivilSchema().describe("Último dia, inclusive, AAAA-MM-DD.").optional(),
+        })
+        .optional()
+        .describe("Repetição semanal, a partir de `date`."),
     },
   },
 

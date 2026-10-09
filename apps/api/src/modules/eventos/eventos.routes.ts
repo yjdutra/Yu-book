@@ -1,4 +1,9 @@
-import { agendaQuerySchema, eventInputSchema, eventUpdateSchema } from "@yu-book/shared";
+import {
+  agendaQuerySchema,
+  eventInputSchema,
+  eventScopeSchema,
+  eventUpdateSchema,
+} from "@yu-book/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { authenticate } from "../../lib/authenticate.js";
@@ -28,15 +33,18 @@ export async function eventosRoutes(app: FastifyInstance): Promise<void> {
     return service.buscarEvento(request.userId, id);
   });
 
+  // Numa série, o escopo vem na query: `?scope=esta|seguintes|todas&occurrenceDate=AAAA-MM-DD`.
   app.patch("/events/:id", async (request) => {
     const { id } = paramsSchema.parse(request.params);
+    const escopo = eventScopeSchema.parse(request.query);
     const input = eventUpdateSchema.parse(request.body);
-    return service.atualizarEvento(request.userId, id, input);
+    return service.atualizarEvento(request.userId, id, input, escopo);
   });
 
   app.delete("/events/:id", async (request, reply) => {
     const { id } = paramsSchema.parse(request.params);
-    await service.excluirEvento(request.userId, id);
+    const escopo = eventScopeSchema.parse(request.query);
+    await service.excluirEvento(request.userId, id, escopo);
     return reply.status(204).send();
   });
 

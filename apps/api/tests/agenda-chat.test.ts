@@ -1,7 +1,13 @@
 import {
+  FERRAMENTAS_DO_ACERVO,
+  FERRAMENTAS_SEM_AGENTE,
+  SIGLAS_DOS_DIAS,
   TETO_DIARIO_PADRAO_MICROS,
   TREINO_PERMITIDO_PADRAO,
+  descreverDias,
+  diasDasSiglas,
   formatarAgenda,
+  formatarEvento,
 } from "@yu-book/shared";
 import type {
   AgendaRange,
@@ -17,7 +23,11 @@ import type {
 import type { FastifyInstance } from "fastify";
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vitest";
 import { prisma } from "../src/db.js";
-import { linhaDeHoje, sufixoDeAgora } from "../src/modules/assistente/agentes.service.js";
+import {
+  instrucoesPara,
+  linhaDeHoje,
+  sufixoDeAgora,
+} from "../src/modules/assistente/agentes.service.js";
 import { esquecerCatalogo } from "../src/modules/assistente/modelos.service.js";
 import { chamar, criarUsuario, limpar, subirApp } from "./apoio.js";
 import type { Usuario } from "./apoio.js";
@@ -33,6 +43,11 @@ import type { Dublê } from "./provedor.js";
  * instante, a tarefa fica dia civil (INV-66), o que se cria nasce marcado pelo
  * servidor (INV-58), a conclusão assina e a reabertura desassina (INV-63), e o
  * "hoje" que resolve "amanhã" chega ao provedor sem ser gravado.
+ *
+ * E, desde a R2 da frente de eventos recorrentes: **compromisso semanal é uma
+ * série só** — o `repeat` em siglas vira uma linha com os dias em 0–6, a tela
+ * recebe os dias descritos só quando há série, o `list_agenda` devolve cada
+ * ocorrência com a regra e o `id` da série, e o Desfazer apaga a série inteira.
  *
  * O provedor é o dublê de `tests/provedor.ts`. Os dias ficam em 2030, longe do
  * relógio real: nenhuma tarefa daqui fica atrasada por o tempo passar.
@@ -641,6 +656,314 @@ describe("o relógio do modelo: o dia no system, a hora no fim do turno", () => 
   });
 });
 
+/* ------------------------------------------- create_event com repetição */
+
+/// Segunda-feira, 4 de novembro de 2030. A semana de 4 a 10 é a do pedido do
+/// operador: inglês seg/qua/sex de manhã e ter/qui à tarde.
+const SEG = "2030-11-04";
+
+/** Os trechos aparecem no texto nesta ordem, cada um depois do anterior. */
+function emOrdem(texto: string, trechos: string[]): void {
+  let desde = 0;
+  for (const trecho of trechos) {
+    const i = texto.indexOf(trecho, desde);
+    expect(i, `«${trecho}» ausente, ou fora de ordem, em:\n${texto}`).toBeGreaterThanOrEqual(0);
+    desde = i + trecho.length;
+  }
+}
+
+/** Quantas vezes `trecho` aparece em `texto`. */
+const vezes = (texto: string, trecho: string) => texto.split(trecho).length - 1;
+
+describe("INV-58 / INV-66: o compromisso semanal marcado pelo chat é UMA série", () => {
+  test("repeat em siglas grava uma linha só, com os dias em 0–6 e o fim, marcada pelo chat; o criado diz os dias, e o evento simples segue sem a chave repeat", async () => {
+    const usuario = await comChat("serie-chat", TOQUIO);
+    const conversa = await conversaCom(usuario);
+    dublê.roteiro = [
+      chamarFerramenta("create_event", {
+        title: "Inglês",
+        date: SEG,
+        startTime: "08:00",
+        endTime: "09:00",
+        repeat: { days: ["seg", "qua", "sex"], until: "2030-12-20" },
+      }),
+      chamarFerramenta("create_event", { title: "Dentista", date: "2030-11-12", startTime: "15:00" }),
+      { tipo: "texto", texto: "Marquei." },
+    ];
+
+    const r = await enviar(usuario, conversa, "inglês seg/qua/sex às 8h até 20/12; dentista dia 12");
+
+    expect(r.status).toBe(200);
+
+    // Uma linha pela série, não uma por semana; mais a do dentista.
+    expect(await prisma.event.count({ where: { userId: usuario.id } })).toBe(2);
+    const serie = await prisma.event.findFirstOrThrow({
+      where: { userId: usuario.id, title: "Inglês" },
+    });
+    expect(serie.repeatDays).toEqual([1, 3, 5]);
+    expect(serie.repeatUntil?.toISOString()).toBe("2030-12-20T00:00:00.000Z");
+    expect(serie.exdates).toEqual([]);
+    // A primeira ocorrência, 08:00 em Tóquio, é 23:00 UTC da véspera.
+    expect(serie.startsAt.toISOString()).toBe("2030-11-03T23:00:00.000Z");
+    expect(serie.endsAt.toISOString()).toBe("2030-11-04T00:00:00.000Z");
+    expect(serie).toMatchObject({
+      aiVia: "chat",
+      aiAuthor: "estudio/conversa",
+      aiConversationId: conversa,
+    });
+    const simples = await prisma.event.findFirstOrThrow({
+      where: { userId: usuario.id, title: "Dentista" },
+    });
+    expect(simples.repeatDays).toEqual([]);
+    expect(simples.repeatUntil).toBeNull();
+
+    // A tela recebe os dias já descritos; o evento simples, sem a chave —
+    // é dela que dependem os `toEqual` do criado sem repetição.
+    const anunciados = criadosAnunciados(r);
+    expect(anunciados).toEqual([
+      {
+        kind: "event",
+        id: serie.id,
+        title: "Inglês",
+        date: SEG,
+        time: "08:00",
+        repeat: "seg, qua, sex",
+      },
+      { kind: "event", id: simples.id, title: "Dentista", date: "2030-11-12", time: "15:00" },
+    ]);
+    expect(anunciados[1]).not.toHaveProperty("repeat");
+    // A fala gravada guarda o mesmo, para o Desfazer depois de recarregar.
+    const ultima = await prisma.aiMessage.findFirstOrThrow({
+      where: { conversationId: conversa, role: "assistant" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(ultima.created).toEqual(anunciados);
+    expect((ultima.created as unknown as ChatCreated[])[1]).not.toHaveProperty("repeat");
+
+    // O modelo confirma uma série, não um compromisso avulso.
+    const [daSerie = "", doSimples = ""] = await respostasAoModelo(conversa);
+    expect(daSerie).toContain("repete seg, qua, sex até 2030-12-20");
+    expect(daSerie).toContain(`id: ${serie.id}`);
+    expect(doSimples).not.toContain("repete");
+  });
+
+  test("manhã seg/qua/sex e tarde ter/qui no mesmo turno são duas séries, e list_agenda devolve as cinco ocorrências da semana com a regra e o id da série", async () => {
+    const usuario = await comChat("serie-chat-duas", TOQUIO);
+    const conversa = await conversaCom(usuario);
+    dublê.roteiro = [
+      chamarFerramenta("create_event", {
+        title: "Inglês manhã",
+        date: SEG,
+        startTime: "08:00",
+        endTime: "09:00",
+        repeat: { days: ["seg", "qua", "sex"] },
+      }),
+      chamarFerramenta("create_event", {
+        title: "Inglês tarde",
+        date: SEG,
+        startTime: "14:00",
+        endTime: "15:00",
+        repeat: { days: ["ter", "qui"] },
+      }),
+      chamarFerramenta("list_agenda", { from: SEG, to: "2030-11-10" }),
+      { tipo: "texto", texto: "Pronto." },
+    ];
+
+    const r = await enviar(usuario, conversa, "inglês seg/qua/sex de manhã e ter/qui à tarde");
+
+    expect(r.status).toBe(200);
+    expect(r.eventos.at(-1)?.tipo).toBe("fim");
+    expect(await prisma.event.count({ where: { userId: usuario.id } })).toBe(2);
+    const manha = await prisma.event.findFirstOrThrow({
+      where: { userId: usuario.id, title: "Inglês manhã" },
+    });
+    const tarde = await prisma.event.findFirstOrThrow({
+      where: { userId: usuario.id, title: "Inglês tarde" },
+    });
+    expect(manha.repeatDays).toEqual([1, 3, 5]);
+    expect(manha.repeatUntil).toBeNull();
+    expect(tarde.repeatDays).toEqual([2, 4]);
+    // Pedida a partir da segunda, a série de ter/qui começa na terça: 14:00
+    // em Tóquio é 05:00 UTC.
+    expect(tarde.startsAt.toISOString()).toBe("2030-11-05T05:00:00.000Z");
+
+    expect(criadosAnunciados(r)).toEqual([
+      {
+        kind: "event",
+        id: manha.id,
+        title: "Inglês manhã",
+        date: SEG,
+        time: "08:00",
+        repeat: "seg, qua, sex",
+      },
+      {
+        kind: "event",
+        id: tarde.id,
+        title: "Inglês tarde",
+        date: "2030-11-05",
+        time: "14:00",
+        repeat: "ter, qui",
+      },
+    ]);
+
+    const [, , texto = ""] = await respostasAoModelo(conversa);
+    const MANHA = "08:00–09:00 · **Inglês manhã** · repete seg, qua, sex";
+    const TARDE = "14:00–15:00 · **Inglês tarde** · repete ter, qui";
+    emOrdem(texto, [
+      "## segunda-feira, 2030-11-04",
+      MANHA,
+      "## terça-feira, 2030-11-05",
+      TARDE,
+      "## quarta-feira, 2030-11-06",
+      MANHA,
+      "## quinta-feira, 2030-11-07",
+      TARDE,
+      "## sexta-feira, 2030-11-08",
+      MANHA,
+    ]);
+    expect(vezes(texto, "**Inglês manhã**")).toBe(3);
+    expect(vezes(texto, "**Inglês tarde**")).toBe(2);
+    expect(vezes(texto, " · repete ")).toBe(5);
+    // Fim de semana não tem cabeçalho de dia: nenhuma das duas séries cai
+    // nele. (O "hoje é …" do cabeçalho segue o relógio real e pode ser sábado.)
+    expect(texto).not.toContain("## sábado");
+    expect(texto).not.toContain("## domingo");
+    // Cada ocorrência leva, na linha de baixo, o id da sua série.
+    const linhas = texto.split("\n");
+    linhas.forEach((linha, i) => {
+      if (linha.includes("**Inglês manhã**")) expect(linhas[i + 1]).toBe(`  id: ${manha.id}`);
+      if (linha.includes("**Inglês tarde**")) expect(linhas[i + 1]).toBe(`  id: ${tarde.id}`);
+    });
+  });
+
+  test("Desfazer o criado — DELETE sem scope — apaga a série inteira, e não só a primeira ocorrência", async () => {
+    const usuario = await comChat("serie-chat-desfazer", TOQUIO);
+    const conversa = await conversaCom(usuario);
+    dublê.roteiro = [
+      chamarFerramenta("create_event", {
+        title: "Academia",
+        date: SEG,
+        startTime: "07:00",
+        repeat: { days: ["seg", "qua", "sex"] },
+      }),
+      { tipo: "texto", texto: "Marquei." },
+    ];
+    const r = await enviar(usuario, conversa, "academia seg/qua/sex às 7h");
+    const [criado] = criadosAnunciados(r);
+    expect(criado?.repeat).toBe("seg, qua, sex");
+    const ocorrencias = async () => {
+      const { status, body } = await api(usuario, "GET", `/agenda?from=${SEG}&to=2030-11-30`);
+      expect(status).toBe(200);
+      return (body as AgendaRange).events.filter((e) => e.title === "Academia");
+    };
+    // De 4 a 30 de novembro, doze segundas, quartas e sextas.
+    expect(await ocorrencias()).toHaveLength(12);
+
+    // O que o cartão do chat chama: `/events/:id`, sem query.
+    const { status } = await api(usuario, "DELETE", `/events/${criado?.id}`);
+
+    expect(status).toBe(204);
+    expect(await prisma.event.count({ where: { userId: usuario.id } })).toBe(0);
+    expect(await ocorrencias()).toEqual([]);
+  });
+});
+
+describe("repetição que o modelo erra volta a ele como erro, e nada é gravado", () => {
+  const CASOS: { rotulo: string; argumentos: Record<string, unknown>; resposta: RegExp }[] = [
+    {
+      rotulo: "dias por extenso em vez de sigla",
+      argumentos: { date: SEG, startTime: "08:00", repeat: { days: ["segunda", "quarta"] } },
+      resposta: /^Erro em create_event: repeat\.days\.0:/,
+    },
+    {
+      rotulo: "dias em número em vez de sigla",
+      argumentos: { date: SEG, startTime: "08:00", repeat: { days: [1, 3] } },
+      resposta: /^Erro em create_event: repeat\.days\.0:/,
+    },
+    {
+      rotulo: "nenhum dia",
+      argumentos: { date: SEG, startTime: "08:00", repeat: { days: [] } },
+      resposta: /^Erro em create_event: repeat\.days:/,
+    },
+    {
+      rotulo: "série de dois dias inteiros",
+      argumentos: {
+        date: SEG,
+        endDate: "2030-11-05",
+        allDay: true,
+        repeat: { days: ["seg"] },
+      },
+      resposta: /^Erro em create_event: Um evento que se repete dura um dia só$/,
+    },
+    {
+      rotulo: "fim da repetição antes do início",
+      argumentos: {
+        date: SEG,
+        startTime: "08:00",
+        repeat: { days: ["seg"], until: "2030-11-01" },
+      },
+      resposta: /^Erro em create_event: A repetição não pode terminar antes do início$/,
+    },
+  ];
+
+  for (const caso of CASOS) {
+    test(`${caso.rotulo}: a conversa fecha, o erro diz o que corrigir, e a agenda segue vazia`, async () => {
+      const usuario = await comChat("serie-chat-invalida", TOQUIO);
+      const conversa = await conversaCom(usuario);
+      dublê.roteiro = [
+        chamarFerramenta("create_event", { title: "Aula", ...caso.argumentos }),
+        { tipo: "texto", texto: "Não deu." },
+      ];
+
+      const r = await enviar(usuario, conversa, "aula toda semana");
+
+      expect(r.status).toBe(200);
+      expect(r.eventos.at(-1)?.tipo).toBe("fim");
+      expect(r.eventos.some((e) => e.tipo === "criado")).toBe(false);
+      const [resposta] = await respostasAoModelo(conversa);
+      expect(resposta).toMatch(caso.resposta);
+      expect(await prisma.event.count({ where: { userId: usuario.id } })).toBe(0);
+    });
+  }
+});
+
+describe("§4.6: a regra da série mora na descrição de create_event, não no system", () => {
+  test("a descrição a diz; o system não a repete, nem com create_event", () => {
+    expect(FERRAMENTAS_DO_ACERVO.create_event.descricao).toContain("cria UMA série");
+    expect(FERRAMENTAS_DO_ACERVO.create_event.descricao).toContain("`repeat`");
+    // Os dois caminhos do system: o assistente sem agente e um agente que só
+    // cria evento.
+    for (const ferramentas of [FERRAMENTAS_SEM_AGENTE, ["create_event"] as const]) {
+      const system = instrucoesPara(ferramentas, false);
+      // O bloco de create_event está lá: sem ele, o "não diz" abaixo não prova nada.
+      expect(system).toContain("`allDay`");
+      // Nem a frase da descrição, nem outra que diga o mesmo: o system não
+      // fala de série nem do argumento que a cria.
+      expect(system.toLowerCase()).not.toContain("série");
+      expect(system).not.toContain("repeat");
+      expect(system.toLowerCase()).not.toContain("semanal");
+    }
+  });
+});
+
+describe("as siglas dos dias: a única conversão entre o modelo e a API", () => {
+  test("diasDasSiglas devolve 0–6 em ordem e sem repetir, com domingo 0 e sábado 6", () => {
+    expect(diasDasSiglas(["sex", "seg", "seg", "qua"])).toEqual([1, 3, 5]);
+    expect(diasDasSiglas([...SIGLAS_DOS_DIAS].reverse())).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(diasDasSiglas(["dom"])).toEqual([0]);
+    expect(diasDasSiglas(["sab"])).toEqual([6]);
+  });
+
+  test("descreverDias escreve as siglas em ordem, e os sete dias como todo dia", () => {
+    expect(descreverDias([5, 1, 3, 1])).toBe("seg, qua, sex");
+    expect(descreverDias([0, 6])).toBe("dom, sáb");
+    expect(descreverDias([0, 1, 2, 3, 4, 5, 6])).toBe("todo dia");
+    expect(descreverDias([6, 5, 4, 3, 2, 1, 0, 0])).toBe("todo dia");
+    // Ida e volta: o que o modelo pediu é o que a tela lê.
+    expect(descreverDias(diasDasSiglas(["qui", "ter"]))).toBe("ter, qui");
+  });
+});
+
 /* --------------------------------------------------- tolerância do MCP */
 
 describe("formatarAgenda tolera a API mais velha que o pacote", () => {
@@ -656,6 +979,8 @@ describe("formatarAgenda tolera a API mais velha que o pacote", () => {
     endTime: "11:00",
     startsAt: "2030-11-12T01:00:00.000Z",
     endsAt: "2030-11-12T02:00:00.000Z",
+    occurrenceDate: "2030-11-12",
+    recurrence: null,
     location: null,
     url: null,
     ...CAMPOS_COMUNS,
@@ -699,5 +1024,39 @@ describe("formatarAgenda tolera a API mais velha que o pacote", () => {
 
     expect(texto).toContain("## Tarefas abertas sem data");
     expect(texto).toContain("id: tarefa-sem-dia");
+  });
+
+  test("sem recurrence — o evento de antes da série —, agenda e confirmação saem inteiras e não dizem que repete", () => {
+    // Lançar aqui, depois da escrita, diria ao modelo que falhou um evento
+    // que a API já criou.
+    const { recurrence: _ausente, occurrenceDate: _tambem, ...antigo } = evento;
+    const daApiVelha = antigo as EventItem;
+
+    const naAgenda = formatarAgenda({ ...agenda, events: [daApiVelha] });
+    const confirmacao = formatarEvento(daApiVelha);
+
+    expect(naAgenda).toContain("10:00–11:00 · **Reunião**");
+    expect(naAgenda).toContain("id: evento-1");
+    expect(naAgenda).not.toContain("repete");
+    expect(confirmacao).toContain("**Reunião**");
+    expect(confirmacao).toContain("id: evento-1");
+    expect(confirmacao).not.toContain("repete");
+    // `recurrence: null` é o evento simples da API nova: também não repete.
+    expect(formatarEvento(evento)).not.toContain("repete");
+  });
+
+  test("com a regra, a confirmação diz os dias e o fim; a série sem fim não diz até", () => {
+    const comFim = formatarEvento({
+      ...evento,
+      recurrence: { days: [1, 3, 5], until: "2030-12-20" },
+    });
+    const semFim = formatarEvento({
+      ...evento,
+      recurrence: { days: [0, 1, 2, 3, 4, 5, 6], until: null },
+    });
+
+    expect(comFim).toContain("repete seg, qua, sex até 2030-12-20");
+    expect(semFim).toContain("repete todo dia");
+    expect(semFim).not.toContain(" até ");
   });
 });

@@ -207,6 +207,10 @@ export function instrucoesPara(
           "tarde\") ou ambígua (\"às 3\": manhã ou tarde?): pergunte, salvo se o contexto " +
           "resolver. Nunca invente a hora.",
         "- O que é do dia todo (aniversário, feriado, viagem) vai com `allDay`, sem perguntar hora.",
+        // Frente de eventos recorrentes: "compromisso semanal é UMA série" não
+        // vem aqui. A `descricao` de `create_event` já o diz, inteiro, e vai
+        // em todo turno com o catálogo (e ao MCP, que não lê este system):
+        // repetir aqui seria custo por turno sem mudar o que o modelo faz.
       );
     }
     if (tem("create_task")) {

@@ -70,6 +70,13 @@ export interface ChatCreated {
   /// hora. Ausente em nota, em card e nas mensagens gravadas antes disto.
   date?: string | null;
   time?: string | null;
+  /// Só no evento que se repete (frente de eventos recorrentes, R2): os dias
+  /// da série já descritos, `"seg, qua, sex"` ou `"todo dia"`
+  /// (`descreverDias`), para a tela dizer "repete …" sem importar `eventos.ts`
+  /// no chunk inicial. Ausente no evento simples, em nota, card e tarefa, e
+  /// nas mensagens gravadas antes disto — um estado só para "não diz que
+  /// repete". Leva só os dias: o fim da série se vê no próprio evento.
+  repeat?: string;
 }
 
 export interface ChatAttachment {

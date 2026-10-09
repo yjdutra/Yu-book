@@ -4,7 +4,7 @@ import type { SearchResponse, SearchResult } from "./busca.js";
 import { formatarBytes } from "./arquivos.js";
 import type { CardFile } from "./arquivos.js";
 import type { CardComPrazo, Dashboard } from "./dashboard.js";
-import { diasDoEvento } from "./eventos.js";
+import { descreverDias, diasDoEvento } from "./eventos.js";
 import type { AgendaCard, AgendaRange, EventItem } from "./eventos.js";
 import { diaLocal } from "./ia.js";
 import type { BoardDetail, BoardSummary, CardDetail, CardSummary } from "./kanban.js";
@@ -512,9 +512,29 @@ function horarioDoEvento(evento: EventItem, dia?: string): string {
   return `${de} → ${ate}`;
 }
 
-/** Uma linha de evento numa lista por dia. */
+/**
+ * `repete seg, qua, sex até 2026-12-18`, ou `null` no evento simples (frente de
+ * eventos recorrentes, R2). `?? null`: `recurrence` é posterior ao `EventItem`
+ * da frente de agenda, e o MCP pode formatar a resposta de uma API que ainda
+ * não o manda — lançar aqui, depois da escrita, diria ao modelo que falhou um
+ * evento já criado.
+ */
+function repeticaoDoEvento(evento: EventItem): string | null {
+  const regra = evento.recurrence ?? null;
+  if (!regra?.days?.length) return null;
+  return `repete ${descreverDias(regra.days)}${regra.until ? ` até ${regra.until}` : ""}`;
+}
+
+/**
+ * Uma linha de evento numa lista por dia. A série já chega expandida da API,
+ * uma ocorrência por dia, com o `id` da série — basta ao chat, que não edita
+ * evento —; a repetição vai em cada linha para que "a aula de quarta" não seja
+ * lida como compromisso avulso.
+ */
 function linhaDoEvento(evento: EventItem, dia: string): string {
   const partes = [`- ${horarioDoEvento(evento, dia)}`, `**${evento.title}**`];
+  const repete = repeticaoDoEvento(evento);
+  if (repete) partes.push(repete);
   if (evento.board?.name) partes.push(`projeto ${evento.board.name}`);
   if (evento.location) partes.push(`local: ${evento.location}`);
   return `${partes.join(" · ")}${sufixoIa(evento.ai ?? null)}\n  id: ${evento.id}`;
@@ -545,14 +565,18 @@ function linhaDoCardNaAgenda(card: AgendaCard): string {
 /**
  * Um evento inteiro: é a confirmação de `create_event`. A descrição vira
  * contagem, como em `formatarCardDetalhe` — devolver ao modelo o texto que ele
- * acabou de escrever só gasta contexto.
+ * acabou de escrever só gasta contexto. Numa série, o dia é o da primeira
+ * ocorrência, e a linha seguinte diz a regra: é o que o modelo confirma ao
+ * usuário — um compromisso, não um por semana.
  */
 export function formatarEvento(evento: EventItem): string {
   const linhas = [
     `**${evento.title}**`,
     `${diaComSemana(evento.date)} · ${horarioDoEvento(evento)}`,
-    `id: ${evento.id}`,
   ];
+  const repete = repeticaoDoEvento(evento);
+  if (repete) linhas.push(repete);
+  linhas.push(`id: ${evento.id}`);
   if (evento.board?.name) linhas.push(`projeto: ${evento.board.name}`);
   if (evento.location) linhas.push(`local: ${evento.location}`);
   if (evento.url) linhas.push(`link: ${evento.url}`);

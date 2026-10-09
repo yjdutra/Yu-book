@@ -476,6 +476,22 @@ export function IconeRecarregar(p: IconeProps) {
   );
 }
 
+/**
+ * Duas setas num laço fechado — o evento que se repete (frente de eventos
+ * recorrentes, R3). Não é `IconeRecarregar`, a seta única em círculo de "ver
+ * de novo": um desenho, um sentido. Sempre com "repete …" por extenso ao lado.
+ */
+export function IconeRepetir(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M2.6 7.4V6.6a2.2 2.2 0 0 1 2.2-2.2h8" />
+      <path d="M11 2.6l1.8 1.8L11 6.2" />
+      <path d="M13.4 8.6v.8a2.2 2.2 0 0 1-2.2 2.2h-8" />
+      <path d="M5 13.4l-1.8-1.8L5 9.8" />
+    </Icone>
+  );
+}
+
 export function IconeInfo(p: IconeProps) {
   return (
     <Icone {...p}>

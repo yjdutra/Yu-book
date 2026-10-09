@@ -4,13 +4,14 @@ import {
   IconeCheck,
   IconeChevron,
   IconeRelogio,
+  IconeRepetir,
 } from "@yu-book/cliente/icones";
 import type { IconeProps } from "@yu-book/cliente/icones";
 import { useFocoQueSobrevive } from "@yu-book/cliente/focoQueSobrevive";
 import type { TaskItem } from "@yu-book/shared";
 import type { ReactElement, ReactNode } from "react";
 import { TOM_DO_TIPO } from "./Calendario";
-import { tituloDe } from "./itens";
+import { repeticaoDe, tituloDe } from "./itens";
 import type { ItemDoDia } from "./itens";
 
 const NOME_DO_TIPO = { evento: "Evento", tarefa: "Tarefa", prazo: "Prazo" } as const;
@@ -82,6 +83,7 @@ export function ItemAgenda({
   const tom = TOM_DO_TIPO[item.tipo];
   const concluida = item.tipo === "tarefa" && item.tarefa.completedAt !== null;
   const titulo = tituloDe(item);
+  const repete = item.tipo === "evento" ? repeticaoDe(item.evento) : null;
   const projeto =
     item.tipo === "evento"
       ? item.evento.board?.name
@@ -95,6 +97,17 @@ export function ItemAgenda({
         <span className="font-semibold uppercase tracking-wide">{NOME_DO_TIPO[item.tipo]}</span>
         <span aria-hidden="true">·</span>
         <span className="tabular-nums">{item.hora}</span>
+        {/* A série diz que é série: o glifo e a regra por extenso, não só o
+            ícone — é o que avisa que editar vai perguntar o alcance. */}
+        {repete && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span className="inline-flex items-center gap-1">
+              <IconeRepetir className="size-3" />
+              {repete}
+            </span>
+          </>
+        )}
         {atrasada && (
           <>
             <span aria-hidden="true">·</span>

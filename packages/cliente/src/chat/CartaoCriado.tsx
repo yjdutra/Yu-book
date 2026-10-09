@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { IconeRepetir } from "../Icones";
 
 /**
  * Um item do "Criado nesta resposta" (Etapa C da IA): o que o chat gravou no
@@ -11,12 +12,26 @@ import type { ReactNode } from "react";
  *
  * `onAbrir` transforma título e tipo num botão só; sem ele, são texto. O que abrir
  * significa é de quem usa: o web navega, o móvel abre a folha.
+ *
+ * `repete` (frente de eventos recorrentes) é uma linha própria, com o glifo e
+ * sem `truncate`: na linha do quando, a 390 px ou no painel estreito do web,
+ * o corte comia justo ela ("08:0…"), e é o que avisa que abrir edita uma série.
  */
+function LinhaRepete({ repete }: { repete: string }) {
+  return (
+    <span className="mt-0.5 flex items-start gap-1 text-miudo text-ink-400">
+      <IconeRepetir className="mt-0.5 size-3 shrink-0" />
+      <span className="min-w-0 break-words">repete {repete}</span>
+    </span>
+  );
+}
+
 export function CartaoCriado({
   icone,
   tipo,
   titulo,
   quando,
+  repete,
   desfeito = false,
   rotuloDesfeito,
   onAbrir,
@@ -28,6 +43,8 @@ export function CartaoCriado({
   tipo: string;
   titulo: string;
   quando?: ReactNode;
+  /** "seg, qua, sex" — o `ChatCreated.repeat` do evento que se repete. */
+  repete?: string | null;
   desfeito?: boolean;
   /** "nota desfeita" — o estado por extenso. */
   rotuloDesfeito: string;
@@ -71,6 +88,7 @@ export function CartaoCriado({
               {tipo}
               {quando && <> · {quando}</>}
             </span>
+            {repete && <LinhaRepete repete={repete} />}
           </button>
         ) : (
           <>
@@ -85,6 +103,7 @@ export function CartaoCriado({
               {desfeito ? rotuloDesfeito : tipo}
               {!desfeito && quando && <> · {quando}</>}
             </p>
+            {!desfeito && repete && <LinhaRepete repete={repete} />}
           </>
         )}
       </div>

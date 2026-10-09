@@ -452,6 +452,15 @@ model Event {
   startsAt    DateTime @map("starts_at")
   endsAt      DateTime @map("ends_at")
   allDay      Boolean  @default(false) @map("all_day")
+  /// Repetição semanal (frente de eventos recorrentes, R1): dias da semana,
+  /// 0 = domingo; vazio = não repete. Numa série, `starts_at`/`ends_at` são a
+  /// primeira ocorrência, e as demais se calculam na leitura, no fuso do
+  /// usuário (`ocorrenciasNoPeriodo`, em `packages/shared/src/eventos.ts`).
+  repeatDays  Int[]      @default([]) @map("repeat_days")
+  /// O último dia da série, inclusive. Data civil, como `task.date`.
+  repeatUntil DateTime?  @map("repeat_until") @db.Date
+  /// Ocorrências canceladas, pelo dia local em que começam. Data civil.
+  exdates     DateTime[] @default([]) @db.Date
   location    String?
   url         String?
   noteId      String?  @map("note_id") @db.Uuid

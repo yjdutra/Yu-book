@@ -72,13 +72,17 @@ of project-specific agents and skills that live in this repository.
 - **An agenda and a to-do list of their own:** timed and all-day events, and tasks with or without
   a date, each optionally linked to a board as its project. Days and times are always yours: the
   server resolves them in your time zone, never in the device's.
+- **Weekly recurring events:** pick the days and an optional end date, and the series keeps its
+  wall-clock time across daylight-saving changes. Editing or deleting one occurrence asks how far
+  it should reach: just this one, this and the following ones, or the whole series.
 - **A phone app**, an installable PWA separate from the desktop app: the day at a glance, a monthly
   calendar, tasks grouped by urgency, projects, and one sheet to create or edit an event or a task
   from any screen.
 - **The assistant on the phone**, with the same chat and agents as on the web and **voice
   dictation**: "book a meeting with Ana tomorrow at 3 pm", said into the phone, becomes an event you
-  can open, edit or undo. The assistant and the MCP server can read the agenda, book events, add
-  tasks and complete them.
+  can open, edit or undo. "English class Monday, Wednesday and Friday from 8 to 9" becomes one
+  recurring event, not one per week. The assistant and the MCP server can read the agenda, book
+  events, add tasks and complete them.
 - **Today on the desktop home page:** overdue tasks and today's events and tasks, with one-click
   completion. It is re-read when you come back to the tab, so what you did on the phone is already
   there.
@@ -214,8 +218,8 @@ on purpose.
   deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
   unique index), never through process memory. A run that started is never retried, because a
   retry costs money again.
-- **Tests against real infrastructure:** 543 integration tests boot the whole Fastify app against a
-  real Postgres; 72 more cover the MCP server.
+- **Tests against real infrastructure:** 619 integration tests boot the whole Fastify app against a
+  real Postgres; 74 more cover the MCP server.
 
 ---
 
@@ -371,7 +375,8 @@ runs unchanged.
 The most recent addition is complete: an agenda and a to-do list of their own, linked to boards as
 projects, that the assistant and the MCP server can read and write; a "Today" block on the desktop
 home page; and a companion phone app with the agenda, tasks, projects and the assistant, voice
-included. The phone app runs in production as its own service, next to the web app.
+included. The phone app runs in production as its own service, next to the web app. Events can
+now repeat every week.
 
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
@@ -386,8 +391,11 @@ Known limitations, stated on purpose:
   unless both are served under one custom domain. It has no offline mode.
 - **The desktop only reads the agenda.** Tasks can be ticked off from the home page, but events
   and tasks are created and edited on the phone or by asking the assistant.
-- **No notifications, reminders or recurring events.** The agenda shows up where you look: the
-  phone app, the desktop home page, the assistant. Nothing pings you.
+- **No notifications or reminders.** The agenda shows up where you look: the phone app, the
+  desktop home page, the assistant. Nothing pings you.
+- **Recurrence is weekly only.** No monthly or yearly rules, and a recurring event lasts one day
+  at most. The assistant creates and undoes a series but does not edit it; that is done on the
+  phone.
 - **No front-end tests and no CI.** The automated gates are the type check and the API and MCP
   test suites; the UI is verified by hand.
 - **Note content leaves the server for every AI task.** The provider is a cloud one: a local model

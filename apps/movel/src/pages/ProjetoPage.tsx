@@ -6,7 +6,7 @@ import { useId } from "react";
 import { Link, useParams } from "react-router-dom";
 import { TOM_DO_TIPO } from "../components/agenda/Calendario";
 import { EstadoVazio, ItemAgenda } from "../components/agenda/ItemAgenda";
-import { itemDeEvento, quandoDoEvento } from "../components/agenda/itens";
+import { chaveDoEvento, itemDeEvento, quandoDoEvento } from "../components/agenda/itens";
 import type { ItemDoDia } from "../components/agenda/itens";
 import { useFolhaItem } from "../components/folha/FolhaItem";
 import { DIAS_DE_PROJETO, useProjetos } from "../components/projetos/dados";
@@ -199,7 +199,7 @@ export function ProjetoPage() {
               <ul className="mt-3 space-y-2">
                 {eventos.map((evento) => (
                   <ItemAgenda
-                    key={evento.id}
+                    key={chaveDoEvento(evento)}
                     item={itemDeEvento(evento, quandoDoEvento(evento))}
                     onAbrir={abrirItem}
                     onConcluir={alternar}

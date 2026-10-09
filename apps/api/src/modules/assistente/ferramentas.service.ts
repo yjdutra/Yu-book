@@ -2,7 +2,9 @@ import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   DEFINICOES_DO_ASSISTENTE,
+  descreverDias,
   diaParaPrazo,
+  diasDasSiglas,
   FERRAMENTAS_DA_WEB,
   FERRAMENTAS_DO_ACERVO,
   FERRAMENTAS_DO_CHAT,
@@ -66,7 +68,7 @@ export interface FonteDoAcervo {
  * agenda: evento e tarefa se criam, mas não são fonte — `ChatSource` não os
  * abre, e citar "a agenda" não leva a lugar nenhum —, e quadro é fonte, mas
  * não se cria. `dia` e `hora` são os de `ChatCreated.date`/`time`, só em evento
- * e tarefa.
+ * e tarefa; `repete`, o `ChatCreated.repeat`, só no evento que se repete.
  */
 export interface Criado {
   tipo: "note" | "card" | "event" | "task";
@@ -74,6 +76,7 @@ export interface Criado {
   titulo: string;
   dia?: string | null;
   hora?: string | null;
+  repete?: string;
 }
 
 /** Uma página da web: aberta por `open_page` ou citada pela busca (Etapa G). */
@@ -292,6 +295,10 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
   /// service, pelo fuso de `ai_preference` — o mesmo caminho da rota. O
   /// horário é conferido lá de novo (`resolverHorario`), e a recusa é
   /// `AppError` com a frase do campo.
+  ///
+  /// A repetição (frente de eventos recorrentes, R2) chega em siglas e vai ao
+  /// service em 0–6. A série é um evento só: o que volta, e o que entra em
+  /// `criados` — e o Desfazer apaga —, é ela, lida na primeira ocorrência.
   create_event: async (argumentos, { userId, origem }) => {
     const entrada = conferir(FERRAMENTAS_DO_ACERVO.create_event.entrada, argumentos);
     const evento = await eventos.criarEvento(
@@ -306,6 +313,12 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
         ...(entrada.location !== undefined && { location: entrada.location }),
         ...(entrada.description !== undefined && { description: entrada.description }),
         ...(entrada.boardId !== undefined && { boardId: entrada.boardId }),
+        ...(entrada.repeat !== undefined && {
+          repeat: {
+            days: diasDasSiglas(entrada.repeat.days),
+            ...(entrada.repeat.until !== undefined && { until: entrada.repeat.until }),
+          },
+        }),
       },
       origem,
     );
@@ -315,6 +328,7 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
       titulo: evento.title,
       dia: evento.date,
       hora: evento.startTime,
+      ...(evento.recurrence && { repete: descreverDias(evento.recurrence.days) }),
     };
     return { texto: formatarEvento(evento), fontes: [], criados: [criado] };
   },
