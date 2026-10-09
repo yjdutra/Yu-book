@@ -6,29 +6,56 @@ Carregue antes de escrever em `apps/movel`. Tokens, primitivos e ícones são os
 ## Layout
 
 - **Responsivo, celular primeiro.** O padrão é a tela de ~390px; `lg:` (1024px) é o desktop. A
-  barra inferior vira coluna lateral (`src/components/Navegacao.tsx:90-97`) e a folha vira a caixa
+  barra inferior vira coluna lateral (`src/components/Navegacao.tsx:93-100`) e a folha vira a caixa
   do centro (`packages/cliente/src/base/Dialogo.tsx:32-34`). Não existe `GuardaDesktop` aqui.
 - **Item em posições diferentes por layout: um elemento por layout, nunca `order`.** Dois nós, um
-  com `hidden lg:flex` e outro com `lg:hidden` (`Navegacao.tsx:99-110`, o `BotaoCriar`): a ordem do
+  com `hidden lg:flex` e outro com `lg:hidden` (`Navegacao.tsx:102-113`, o `BotaoCriar`): a ordem do
   Tab segue o DOM (WCAG 2.4.3), e `order` mudaria só o desenho; o oculto, `display: none`, sai da
   árvore de acessibilidade.
 - **Área segura por `env(safe-area-inset-*)`**, porque a página desce sob a barra de gestos
-  (`viewport-fit=cover`, `index.html:5-9`): a barra (`Navegacao.tsx:90`), o conteúdo da casca
-  (`Casca.tsx:48-49`) e a folha (`pb-[env(safe-area-inset-bottom)]` no `Dialogo`).
+  (`viewport-fit=cover`, `index.html:5-9`): a barra (`Navegacao.tsx:93`), o conteúdo da casca
+  (`Casca.tsx:50-52`) e a folha (`pb-[env(safe-area-inset-bottom)]` no `Dialogo`).
 - **Camada própria abaixo do popover:** `--z-navegacao: 30` (`src/index.css:20`) — menu e diálogo
   passam por cima da barra. O CSS do app só mistura tokens, nunca cor nova (`src/index.css:8-12`).
 
 ## Folhas e toque
 
 - **Folha é `Dialogo posicao="folha"`**, com a `Alca` decorativa no alto (`src/components/Alca.tsx`).
-- **Toda folha tem um "Fechar" visível** (`Alca.tsx:2-6`; `FolhaCriar.tsx:68-69`,
-  `Conta.tsx:114-116`): com TalkBack o véu fica fora da árvore (`aria-modal`) e o Voltar do
-  Android não vira `Esc`. Arrastar a alça não fecha. Hoje o Voltar **navega** com a folha aberta —
-  falta integrar com o histórico; o botão continua obrigatório depois disso.
+- **Toda folha tem um "Fechar" visível** (`Alca.tsx:1-8`; `folha/FormularioItem.tsx:862-864`,
+  `Conta.tsx:117-119`): com TalkBack o véu fica fora da árvore (`aria-modal`), e o Voltar não é
+  `Esc` nem existe no desktop. Arrastar a alça não fecha.
+- **Toda folha entra no histórico** por `useFolhaNoHistorico` (`src/lib/historico.ts:49`; usos em
+  `Conta.tsx:44` e `folha/FolhaItem.tsx:88`): o Voltar do Android fecha a folha em vez de sair da
+  tela. Folha nova sem o hook compila, e o Voltar navega com ela aberta. Por que o `back()` da
+  limpeza vai em microtask e só com a entrada no topo: `historico.ts:39-44`.
+- **Folha com formulário tem guarda de descarte, e todo fechamento de fora passa por ela.** Véu,
+  `Esc`, Voltar e "Fechar" chamam `pedirFechar` (`FolhaItem.tsx:76-88`, `:100`); `fechar` cru só
+  depois de gravar ou no "Descartar" (`FormularioItem.tsx:392`, `:795`). Ligar `fechar` ao `Dialogo`
+  ou ao hook perde a alteração calado. A pergunta é inline, sem `Dialogo` aninhado (`:777-799`), e
+  concluir com alteração pendente é "Salvar e concluir" — grava, depois conclui (`:411-436`). É o
+  par móvel do `useGuardaDeSaida` do web (§10 da skill).
+- **Uma folha só de criar e editar evento e tarefa**, na casca (`ProvedorFolhaItem`,
+  `FolhaItem.tsx:42-47`; `Casca.tsx:42`): o "+" da barra, o "+" do dia e o toque num item a abrem
+  por `useFolhaItem`. Não monte outra por tela.
 - **Alvo de toque ≥ 44px:** botão de folha e de ação usa `Botao tamanho="g"` (48px,
   `packages/cliente/src/base/Botao.tsx:29-30`). Pelo mesmo motivo o avatar abre **folha**, não
-  `Menu`: o item do menu do web tem 32px (`Conta.tsx:29-34`).
-- Escolha entre poucos continua controle segmentado, como o `SeletorModo` do web (§4 da skill).
+  `Menu`: o item do menu do web tem 32px (`Conta.tsx:30-35`).
+- Escolha entre poucos continua controle segmentado, como o `SeletorModo` do web (§4 da skill); na
+  folha, em pílulas que quebram linha, e a escolhida muda de forma, cheia e com check
+  (`GrupoPilulas`, `src/components/folha/Pilulas.tsx:5-11`).
+
+## Agenda e listas
+
+- **Tipo de item tem tom e forma.** O tom sai de `TOM_DO_TIPO`
+  (`src/components/agenda/Calendario.tsx:19-25` — cores de agente: azul evento, verde tarefa, âmbar
+  prazo), usado em toda lista e página; a forma, de `Marca`: ponto cheio, anel e losango
+  (`:290-310`), em três vagas fixas (`:278-284`), com legenda sob a grade (`:311`) e as contagens no
+  `aria-label` do dia (`:265`). Tipo novo entra nos dois, e na legenda.
+- **Item que some com o foco dentro devolve o foco** (`useFocoQueSobrevive`,
+  `src/components/agenda/ItemAgenda.tsx:58-94`): ao vizinho na lista, ou ao título da seção mais
+  próxima que sobreviveu. **Toda seção que hospeda itens** leva `data-foco-retorno="<id do título>"`
+  e o título `tabIndex={-1}` (`tarefas/ListaAgrupada.tsx:57-60`, `agenda/ListaDoDia.tsx:52-55`,
+  `pages/InicioPage.tsx:283-285`). Seção nova sem a marca compila e manda o foco ao `<body>`.
 
 ## Tema
 

@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book e da fronteira com packages/cliente (o código de navegador que web e móvel dividem: fonte sem build, configurarApi, sideEffects do CSS, dedupe do React, só import type de shared) — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto, e a ferramenta da web, que só o assistente consome, e os sítios do front que uma ação de escrita nova no chat exige sem o compilador cobrar, e os tipos de anexo aceitos, listados em shared e detectados pelos bytes à mão na API, e os dias em que o evento da agenda aparece contra a consulta do período), o campo novo que o formatador compartilhado lê tolerando ausência, e os schemas não estritos, que descartam chave omitida em vez de recusá-la. Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared ou a packages/cliente, e ao converter data ou prazo em qualquer pacote.
+description: Regras do pacote packages/shared do Yu-book e da fronteira com packages/cliente (o código de navegador que web e móvel dividem: fonte sem build, configurarApi, sideEffects do CSS, dedupe do React e do TanStack Query, só import type de shared) — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto, e a ferramenta da web, que só o assistente consome, e os sítios do front que uma ação de escrita nova no chat exige sem o compilador cobrar, e os tipos de anexo aceitos, listados em shared e detectados pelos bytes à mão na API, e os dias em que o evento da agenda aparece contra a consulta do período), o campo novo que o formatador compartilhado lê tolerando ausência, e os schemas não estritos, que descartam chave omitida em vez de recusá-la. Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared ou a packages/cliente, e ao converter data ou prazo em qualquer pacote.
 ---
 
 # O contrato compartilhado
@@ -46,9 +46,9 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    importa como valor — `tarefas.ts` traz `eventos.ts` (`:2`), que traz `agenda.ts`
    (`eventos.ts:2`), que traz `ia.ts` (`agenda.ts:2`). Módulo do front no chunk inicial importa de
    `shared` só `import type` quando o valor traria schema ou metadado
-   (`apps/web/src/lib/agentes.ts:16-18`, `lib/agenda.ts:11-16`), e o valor vem por rota ou `lazy`
-   (`pages/DashboardPage.tsx:26`). `lib/sessaoChat.tsx` (`:372-382`), sempre montado, **não**
-   deduplica fontes por `chaveDaFonteDoChat` (medido): quem tira a repetição é
+   (`apps/web/src/lib/agentes.ts:16-18`, `packages/cliente/src/agenda.ts:3-12`), e o valor vem por
+   rota ou `lazy` (`apps/web/src/pages/DashboardPage.tsx:26`). `lib/sessaoChat.tsx` (`:372-382`),
+   sempre montado, **não** deduplica fontes por `chaveDaFonteDoChat` (medido): quem tira a repetição é
    `components/assistente/Fontes.tsx:89-96` — não "conserte" a sessão com o import nem com outra
    definição de "a mesma fonte". **`ia.ts` é o caso aberto:** `casca/contexto/ContextoAjustes.tsx:2`
    lê `components/ajustes/comum.ts`, que importa `microsParaDolares` como valor (`:1`), e
@@ -57,10 +57,8 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
 
 **`"sideEffects": false` no `package.json` de `shared` não é enfeite, e não se remove.** Sem ele o
 bundler não pode presumir que importar `@yu-book/shared` é inócuo, e **todo** módulo do pacote entra
-no bundle do front, inclusive os que nenhum componente importa — o custo cai na primeira pintura,
-que é o que o usuário espera. Foi medido nesta forma: um módulo de metadado que o front não usa
-entrou inteiro no bundle, e zerou com a flag. O ponteiro é fácil de perder porque `package.json` não
-aceita comentário: a linha existe e não diz por quê. É esta seção que diz.
+no bundle do front, até os que ninguém importa — custo na primeira pintura (medido: um módulo de
+metadado que o front não usa entrou inteiro e zerou com a flag). JSON não diz por quê; esta seção diz.
 
 ## 3. Códigos de erro
 
@@ -75,8 +73,7 @@ adicionado lá antes de ser usado — o typecheck barra o resto. O formato de re
 `AppError(status, code, msg)` ou os helpers de `apps/api/src/lib/errors.ts` e deixe o
 `setErrorHandler` de `app.ts` montar a resposta.
 
-**O front ramifica por `code`, nunca por `message`.** A mensagem é para o humano; o código é o
-contrato.
+**O front ramifica por `code`, nunca por `message`**: a mensagem é do humano, o código é o contrato.
 
 ## 4. Os espelhamentos frágeis
 
@@ -103,10 +100,9 @@ passa a discordar do banco. Alterar um lado obriga a alterar o outro **e** a cri
 `apps/api/src/modules/kanban/kanban.service.ts` executa em transação, para que o arraste apareça
 antes da resposta da API.
 
-Se divergirem: a UI otimista mente — o card aparece numa posição e salta para outra quando a resposta
-chega. A prova da matemática do servidor está em `apps/api/tests/mover-card.test.ts`, que faz 200
-movimentos aleatórios e verifica que não sobra posição repetida nem buraco. Leia esse teste antes de
-mexer em qualquer um dos dois lados.
+Se divergirem: a UI otimista mente — o card aparece numa posição e salta para outra na resposta. A
+prova do servidor é `apps/api/tests/mover-card.test.ts` (200 movimentos aleatórios, sem posição
+repetida nem buraco): leia-o antes de mexer em qualquer um dos dois lados.
 
 ### 4.3 `normalizarUrl` ↔ a unicidade de link
 
@@ -236,7 +232,7 @@ um **tipo** novo, `COMO_MOSTRAR` (`components/assistente/Conversa.tsx:143`, tota
 escrita como criação salvo exceção por nome (`EditorAgente.tsx:531-541`); e **escrita que não cria
 não passa pelo evento `criado`** (o do Desfazer) e invalida por conta própria — `complete_card` e
 `complete_task` pelo evento `ferramenta` (`lib/sessaoChat.tsx:402-405`) e no `finally` (`:434-435`),
-por `invalidarConclusao` (`lib/chat.ts:151`) e `invalidarAgenda` (`lib/agenda.ts:35`).
+por `invalidarConclusao` (`lib/chat.ts:151`) e `invalidarAgenda` (`packages/cliente/src/agenda.ts:50`).
 
 Então, ao tocar em `ferramentas.ts`: diga no relato que as duas superfícies mudaram, e **meça** o
 `tools/list` se o texto cresceu (a receita e a baseline estão na memória do agente `mcp`). O
@@ -260,7 +256,8 @@ e não percorre `TIPOS_DE_ARQUIVO`. Tipo novo entra nos dois, com a assinatura e
 
 `GET /agenda` e `GET /events` trazem o evento que se sobrepõe à janela, semiaberto em
 `[startsAt, endsAt)` (`apps/api/src/modules/eventos/eventos.service.ts:154-175`). Quem desenha dia a
-dia usa `diasDoEvento` (`packages/shared/src/eventos.ts:308`), a mesma regra em dias locais: o evento
+dia usa `diasDoEvento` (`packages/shared/src/eventos.ts:314`; o calendário do móvel,
+`apps/movel/src/components/agenda/itens.ts:82`), a mesma regra em dias locais: o evento
 com hora que acaba às 00:00 traz `endDate` no dia seguinte e não aparece nele. **Não desenhe de
 `date` a `endDate`** — o calendário mostraria o evento num dia que a API desse dia não devolve.
 Portão: `apps/api/tests/eventos.test.ts:635`.
@@ -294,7 +291,10 @@ de um app só fica nele (`IndicadorSalvamento` e `.preview`, no web).
   `import.meta.env`: cada app chama `configurarApi` no `main.tsx`, antes de montar (`api.ts:12-25`).
 - **`"sideEffects": ["*.css"]`** (`packages/cliente/package.json:6`): o TS é podável como o de
   `shared` (§2), o `tema.css` nunca. Não troque por `false`.
-- **React é `peerDependency`, e cada `vite.config` tem `resolve.dedupe`** (`apps/web/vite.config.ts:7-12`,
-  idem no móvel): dois Reacts dão "Invalid hook call" em execução, sem erro de build.
-- **De `shared`, só `import type`** (`api.ts:10`, `auth.tsx:1`, `Icones.tsx:1`): o que o pacote
+- **React e TanStack Query são `peerDependency`** (`packages/cliente/package.json:22-26`), **e cada
+  `vite.config` os põe em `resolve.dedupe`** (`apps/web/vite.config.ts:7-14`, idem no móvel), sem
+  erro de build se faltar: dois Reacts dão "Invalid hook call"; duas Queries, dois contextos, e os
+  hooks de `agenda.ts` não acham o `QueryClient` do app.
+- **De `shared`, só `import type`** (`api.ts:10`, `auth.tsx:1`, `Icones.tsx:1`, `agenda.ts:3-12`;
+  `invalidarAgenda` e as chaves de cache moram aqui, uma vez para os dois fronts): o que o pacote
   exporta vai ao chunk inicial dos dois apps, e valor levaria o módulo junto (§2, passo 6).

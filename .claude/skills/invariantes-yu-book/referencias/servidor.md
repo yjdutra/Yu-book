@@ -265,7 +265,7 @@ varredura de órfãos é dívida declarada (`armazem.ts:177-181`). Coberto em
 **INV-66 — O evento é instante e a tarefa é dia civil: o fuso move um e não o outro.** Frente de
 agenda (2026-10-09). O cliente não converte fuso: entra e sai dia (`AAAA-MM-DD`) e hora (`HH:MM`)
 locais, e a agenda devolve o `timezone` e o `today` do usuário, não os do aparelho
-(`packages/shared/src/eventos.ts:435-437`). Parece incoerência entre vizinhos da mesma tela;
+(`packages/shared/src/eventos.ts:441-443`). Parece incoerência entre vizinhos da mesma tela;
 "uniformizar" para um dos lados quebra o outro calado.
 
 - **Evento guarda instante** (`apps/api/prisma/schema.prisma:448-453`), e o dia e a hora saem pelo
@@ -288,6 +288,13 @@ locais, e a agenda devolve o `timezone` e o `today` do usuário, não os do apar
   formatadores da agenda não recebem fuso. O avesso do prazo do card (§4.5 de
   `contrato-compartilhado`), em que o cliente monta o instante: aqui, converter desse lado conta o
   fuso duas vezes. O `system` manda o modelo não converter (`agentes.service.ts:198-203`).
+- **O hoje é o `today` da resposta, nunca a data do aparelho** (Fase 4, o móvel). O aparelho só
+  escolhe a **primeira janela**, e a resposta corrige: `useAgendaAdiante` refaz a consulta pela
+  janela certa só se o `today` divergir (`apps/movel/src/lib/hoje.ts:17-28`); quem precisa do hoje
+  espera `useHoje` (`:41-50`), e a Agenda, até ele chegar, só escolhe o mês pelo aparelho
+  (`apps/movel/src/pages/AgendaPage.tsx:39-42`). As duas "correções" quebram calado: tratar o
+  aparelho como hoje põe "Hoje" e "atrasada" no dia errado com o aparelho noutro fuso; esperar o
+  `today` antes da primeira consulta é uma cascata em toda tela.
 
 ---
 
@@ -498,7 +505,7 @@ uma marca de chat sem `conversationId` compilava. O que o assistente monta é `O
   (`origemDoCliente`, `apps/mcp/src/autor.ts:49`); mover e lixeira não têm marca. Tool nova de marca
   que escreva sem ele grava o ato do modelo como humano, e nada acusa;
 - `updateNoteSchema` e `cardUpdateSchema` **omitem** `origin` (`packages/shared/src/notes.ts:42`,
-  `kanban.ts:129`), como `eventUpdateSchema` e `taskUpdateSchema` (`eventos.ts:365-366`,
+  `kanban.ts:129`), como `eventUpdateSchema` e `taskUpdateSchema` (`eventos.ts:371-372`,
   `tarefas.ts:58-59`), e as rotas de criação o desestruturam antes do service
   (`notes.routes.ts:39`, `kanban.routes.ts:89`, `eventos.routes.ts:21`, `tarefas.routes.ts:26`),
   porque `origin` não é coluna;

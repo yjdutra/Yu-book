@@ -1,6 +1,6 @@
 ---
 name: design-system-yu-book
-description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), o pacote packages/cliente, casa de tokens, ícones e primitivos dos dois fronts (com @source obrigatório por app), os primitivos de base/ (Botao com tamanho g de toque, Bloco, Aviso, Dialogo com foco preso, a folha inferior do móvel e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, o gráfico de dados à mão (BarrasPorDia e Indicador, com o número fora do desenho), a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele e do painel do card), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina, e LinhaConclusao, a de quem concluiu o card), a zona de soltar arquivo dos anexos do card, ícones SVG desenhados à mão em Icones.tsx (um desenho, um sentido) e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only do web contra o móvel responsivo (um elemento por layout, toda folha com Fechar) e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web, apps/movel ou packages/cliente.
+description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), o pacote packages/cliente, casa de tokens, ícones e primitivos dos dois fronts (com @source obrigatório por app), os primitivos de base/ (Botao com tamanho g de toque, Bloco, Aviso, Dialogo com foco preso, a folha inferior do móvel e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, o gráfico de dados à mão (BarrasPorDia e Indicador, com o número fora do desenho), a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele e do painel do card), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina, e LinhaConclusao, a de quem concluiu o card), a zona de soltar arquivo dos anexos do card, ícones SVG desenhados à mão em Icones.tsx (um desenho, um sentido) e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only do web contra o móvel responsivo (um elemento por layout, toda folha com Fechar e no histórico do Voltar, a guarda de descarte da folha, tom e forma por tipo na agenda) e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web, apps/movel ou packages/cliente.
 ---
 
 # Design system do Yu-book
@@ -24,7 +24,7 @@ texto de maior contraste" — **os nomes descrevem papel, não cor**; o tema cla
 | `--color-accent-500` / `400` | Destaque e interação |
 | `--color-superficie` | Cartão que se ergue sobre o painel — o degrau que a rampa `ink` não tinha |
 | `--color-ia-500` | Só fecha o gradiente `accent-500 → ia-500` das áreas de IA; não é cor de texto |
-| `--color-agente-*` | Seis fundos de avatar de agente (`AGENT_COLORS`), com texto branco por cima |
+| `--color-agente-*` | Seis fundos de avatar de agente (`AGENT_COLORS`), com texto branco por cima; no móvel, também o tom de cada tipo da agenda (`TOM_DO_TIPO`, `referencias/movel.md`) |
 
 ## 2. O tema não existe em React
 
@@ -102,7 +102,7 @@ extenso ao lado (`CartaoCard.tsx:90-92`, `:98-99`): o sinal sem cor (§4). Não 
 - **O web é desktop-only por decisão.** `GuardaDesktop` (`apps/web/src/components/Colunas.tsx`)
   bloqueia abaixo de 1024px com um aviso: **em `apps/web`, nada responsivo nem breakpoint de celular.**
   **O móvel (`apps/movel`) é o avesso**: celular primeiro, `lg:` para o desktop. Antes de escrever
-  nele, leia `referencias/movel.md` — um elemento por layout, a folha com Fechar, o alvo de toque.
+  nele, leia `referencias/movel.md` — um elemento por layout, a folha (Fechar, Voltar, guarda), o toque.
 - `PainelRedimensionavel` é a primitiva de layout: largura persistida em `localStorage`, divisor
   operável por teclado (`role="separator"`, setas), limites 180–520px por padrão e `min`/`max`
   por instância — o painel do assistente usa 320–640.
@@ -200,7 +200,7 @@ tamanho**. Tela nova usa estes; os valores avulsos antigos migram quando o arqui
 |---|---|
 | `font-sans` / `font-mono` | Inter, com a pilha de sistema como recuo; `mono` para tecla e código |
 | `text-miudo` | 11/16 — o degrau abaixo de `text-xs` |
-| `rotulo` (`@utility`, `tema.css:235`) | Título de seção: miúdo, caixa alta, `ink-400` |
+| `rotulo` (`@utility`, `tema.css:235`) | Título de seção: miúdo, caixa alta, `ink-400`. Cor própria vai num filho: `text-*` no mesmo nó disputa pela ordem do CSS gerado, não do atributo (§10; `apps/movel/src/components/tarefas/ListaAgrupada.tsx:58-63`) |
 | `rounded-etiqueta` / `controle` / `cartao` / `dialogo` | Raio por papel |
 | `shadow-e1` … `e4`, `shadow-brilho-ia` | Elevação crescente; o brilho só em área de IA |
 | `ease-saida` / `ease-padrao` | Curvas de entrada e de transição comum |

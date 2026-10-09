@@ -60,9 +60,12 @@ rota e service — agenda interna, não o Google — e criou a **tarefa**, to-do
 os dois com o quadro como projeto e o fuso convertido só no servidor (INV-66), e a Fase 2 os pôs
 no chat e no MCP: o chat lê a agenda, **marca evento, anota tarefa e conclui tarefa** a pedido
 (`list_agenda`, `create_event`, `create_task`, `complete_task`), com o dia no fim do `system` e a
-hora só no turno enviado (INV-52). A Fase 3 fez a fundação do móvel: `apps/movel`, PWA com login,
-casca e um Início ainda vazio, e `packages/cliente`, para onde saíram de `apps/web` o que os dois
-fronts dividem. A Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
+hora só no turno enviado (INV-52). A Fase 3 fez a fundação do móvel: `apps/movel`, PWA com login
+e casca, e `packages/cliente`, para onde saíram de `apps/web` o que os dois fronts dividem; a Fase 4
+pôs no móvel **agenda e tarefas** — Início, calendário, listas e uma folha de criar e editar que o
+Voltar do Android fecha —, e os hooks da agenda subiram para `packages/cliente/src/agenda.ts`. O
+hoje do móvel é o da API, não o do aparelho (INV-66). A Fase 6 de produto (Google Calendar) segue
+sendo o item de menor prioridade.
 
 **Oito numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e

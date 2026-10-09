@@ -265,6 +265,16 @@ também são cliente que não converte). A lição é a do INV-54: **o `else` de
 união é censo de um** — afirma que o resto é o outro membro, e o tipo novo herda o caminho dele sem
 erro de compilação.
 
+A **Fase 3 da frente de agenda** (2026-10-09) levou de `apps/web` para `packages/cliente` o que os
+dois fronts dividem, e só deslocou referências. A **Fase 4** pôs agenda e tarefas no móvel e moveu
+`apps/web/src/lib/agenda.ts` para `packages/cliente/src/agenda.ts`. Nenhuma invariante nova:
+estreitou INV-66 — o aparelho escolhe a janela, nunca o hoje —, cláusula sem portão, porque o móvel
+também não tem teste de front. Dois cuidados de sítio único ficam no comentário ao lado, não aqui:
+o `back()` da folha (`apps/movel/src/lib/historico.ts:39-44`) e o rollback por campos do concluir
+otimista (`packages/cliente/src/agenda.ts:208-223`); as regras de tela do móvel estão em
+`design-system-yu-book/referencias/movel.md`. A lição é a do INV-40, de novo: o arquivo mudou de
+pacote, e duas referências de `contrato-compartilhado` seguiram no caminho velho sem nada acusar.
+
 O que ainda não tem código: **busca semântica** (§5.4). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
 **menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece: reconfira
 as referências antes de confiar nelas. Quando a fase vier, duas invariantes ficam na linha de tiro:
