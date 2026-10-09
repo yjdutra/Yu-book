@@ -211,6 +211,18 @@ body {
   font-feature-settings: "cv11", "ss01";
 }
 
+/* Barras de rolagem ocultas em todo o app, a pedido do operador (2026-09-30):
+   a barra nativa do sistema quebrava o desenho do quadro e do fluxo de rotina.
+   A rolagem continua — roda, trackpad, teclado e o arraste do kanban, que rola
+   a borda sozinho. O que se perde é o indicador de "tem mais": na horizontal,
+   com mouse comum, rolar o quadro é Shift + roda. */
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
 /* Título de seção — o mesmo trio de classes repetido em quinze telas. */
 @utility rotulo {
   font-size: var(--text-miudo);
