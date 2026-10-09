@@ -8,9 +8,9 @@ import { useBusca, useNota } from "../../lib/notas";
 import { alvoDe, useSessaoChat } from "../../lib/sessaoChat";
 import type { Anexo } from "../../lib/sessaoChat";
 import { useWorkspaceAtivo } from "../../lib/workspace";
-import { Aviso } from "../base/Aviso";
-import { Botao } from "../base/Botao";
-import { IconeFechar, IconeMais } from "../Icones";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { IconeFechar, IconeMais } from "@yu-book/cliente/icones";
 import { useAgenteDaConversa } from "./agenteDaConversa";
 import { SeletorAgente } from "./SeletorAgente";
 

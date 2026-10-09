@@ -6,10 +6,10 @@ import type {
   OpenRouterProviderActivity,
 } from "@yu-book/shared";
 import type { ReactNode } from "react";
-import { ApiError } from "../../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import type { useOpenRouterConta, useOpenRouterMetricas } from "../../lib/ia";
-import { Aviso } from "../base/Aviso";
-import { Bloco, Esqueleto, Vazio } from "../base/Bloco";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Bloco, Esqueleto, Vazio } from "@yu-book/cliente/base/Bloco";
 import { BarrasPorDia, diaCurto } from "./BarrasPorDia";
 import { duracao, emDolares } from "./comum";
 import { Indicador } from "./Indicador";

@@ -1,6 +1,6 @@
 import type { CardPriority, CardSummary } from "@yu-book/shared";
 import { memo } from "react";
-import { IconeAnexo, IconeCheck, IconeClipe } from "./Icones";
+import { IconeAnexo, IconeCheck, IconeClipe } from "@yu-book/cliente/icones";
 import { MarcaIA } from "./MarcaIA";
 
 /** RF-32: vencido e "vence logo" são estados diferentes, com destaques diferentes. */

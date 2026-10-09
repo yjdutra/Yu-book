@@ -2,9 +2,9 @@ import { useQueries } from "@tanstack/react-query";
 import { DEFINICOES_DO_ASSISTENTE, MAX_PASSOS_DO_LACO } from "@yu-book/shared";
 import type { AgentDetail, AgentPreview, AgentPreviewInput } from "@yu-book/shared";
 import { chaveDoAgente } from "../../lib/agentes";
-import { api } from "../../lib/api";
+import { api } from "@yu-book/cliente/api";
 import { emDolares } from "../ajustes/comum";
-import { IconeAlerta, IconeGlobo } from "../Icones";
+import { IconeAlerta, IconeGlobo } from "@yu-book/cliente/icones";
 import type { PassoRascunho } from "./rascunho";
 
 /**

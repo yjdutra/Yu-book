@@ -1,6 +1,6 @@
 {
   "name": "@yu-book/web",
-  "version": "0.24.0",
+  "version": "0.25.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -21,6 +21,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@lezer/markdown": "^1.7.2",
     "@tanstack/react-query": "^5.64.1",
+    "@yu-book/cliente": "workspace:*",
     "@yu-book/shared": "workspace:*",
     "dompurify": "^3.4.13",
     "highlight.js": "^11.12.0",

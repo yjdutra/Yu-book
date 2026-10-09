@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ApiError } from "../../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { execucaoEmAndamento, useRodarRotina, useRotinas } from "../../lib/rotinas";
-import { Aviso } from "../base/Aviso";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
 
 /** Onde se acompanha uma execução. */
 export const rotaDaExecucao = (routineId: string | null, runId: string) =>

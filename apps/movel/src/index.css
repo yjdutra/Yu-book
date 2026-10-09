@@ -1,0 +1,67 @@
+@import "tailwindcss";
+/* Tokens, temas e base: os mesmos do web, de `@yu-book/cliente`. */
+@import "@yu-book/cliente/tema.css";
+/* As classes dos primitivos e ícones do pacote — o Tailwind não escaneia fora
+   de `apps/movel` sozinho, e sem isto elas sumiriam do CSS. */
+@source "../../../packages/cliente/src";
+
+/* ---------------------------------------------------------------
+   Só do móvel (frente de agenda, Fase 3). Nada aqui é cor nova: o véu, os
+   cartões em tom pastel e a sombra do "+" são misturas de tokens do `@theme`,
+   e por isso trocam com o tema sozinhos.
+   --------------------------------------------------------------- */
+:root {
+  /* No escuro o acento precisa de mais presença para aparecer sobre o
+     `ink-950`; no claro, a mesma força tingiria a tela inteira. */
+  --forca-veu: 26%;
+  --forca-pastel: 18%;
+
+  /* Abaixo de `--z-popover`: menu e diálogo passam por cima da barra. */
+  --z-navegacao: 30;
+
+  /* A barra inferior: 64px de pílula mais a folga até o pé. O conteúdo
+     reserva isto embaixo para o último item não morar atrás dela. */
+  --altura-barra: 5.5rem;
+
+  --sombra-criar: 0 10px 24px -6px color-mix(in srgb, var(--color-accent-500) 65%, transparent),
+    0 2px 6px -2px rgb(0 0 0 / 0.35);
+}
+
+:root[data-tema="claro"] {
+  --forca-veu: 16%;
+  --forca-pastel: 13%;
+  --sombra-criar: 0 10px 24px -6px color-mix(in srgb, var(--color-accent-500) 45%, transparent),
+    0 2px 6px -2px rgb(27 33 48 / 0.12);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  /* O toque tem o próprio retorno (`active:`); o clarão cinza do Android
+     tapava o anel de foco e o indicador do item ativo. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* O véu de cor no topo da tela: o acento e o `ia-500`, bem diluídos. */
+.veu-topo {
+  background:
+    radial-gradient(
+      90% 75% at 10% 0%,
+      color-mix(in srgb, var(--color-accent-500) var(--forca-veu), transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      70% 65% at 100% 0%,
+      color-mix(in srgb, var(--color-ia-500) var(--forca-veu), transparent),
+      transparent 70%
+    );
+}
+
+/* Cartão em tom pastel: quem usa declara o tom em `--tom` (um token de cor,
+   `[--tom:var(--color-agente-azul)]`). Misturado sobre `superficie`, e não
+   transparente, para o contraste do texto não depender do que está atrás.
+   Calculado sobre os cinco tons usados (accent-500, ia-500, agente azul, verde
+   e âmbar): `ink-400` fica entre 5,59 e 5,74 no escuro e 5,17 e 5,25 no claro;
+   `titulo`, acima de 14 nos dois. Tom novo entra com a conta refeita. */
+.cartao-pastel {
+  background-color: color-mix(in srgb, var(--tom) var(--forca-pastel), var(--color-superficie));
+}

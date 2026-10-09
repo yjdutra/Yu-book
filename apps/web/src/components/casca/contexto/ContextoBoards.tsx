@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useBoards } from "../../../lib/kanban";
 import { useWorkspaceAtivo } from "../../../lib/workspace";
-import { IconeBoard } from "../../Icones";
+import { IconeBoard } from "@yu-book/cliente/icones";
 import { Item, Titulo } from "../partes";
 
 /** Área Boards. RF-11 da Fase 2: os boards do workspace ativo; sem ativo, todos. */

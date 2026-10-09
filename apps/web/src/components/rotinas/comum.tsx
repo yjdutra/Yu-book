@@ -7,7 +7,7 @@ import type {
   RoutineStepMode,
 } from "@yu-book/shared";
 import type { ReactNode } from "react";
-import { IconeAlerta, IconeCheck, IconeFechar, IconeParar, IconeRelogio } from "../Icones";
+import { IconeAlerta, IconeCheck, IconeFechar, IconeParar, IconeRelogio } from "@yu-book/cliente/icones";
 
 /**
  * A execução que pede atenção: falhou, foi interrompida (um deploy ou reinício

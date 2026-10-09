@@ -1,7 +1,7 @@
 import type { AgentColor, RoutineStepMode } from "@yu-book/shared";
 import { Fragment } from "react";
 import { AvatarAgente } from "../agentes/AvatarAgente";
-import { IconeBoard, IconeCheck, IconeFala, IconeNotas } from "../Icones";
+import { IconeBoard, IconeCheck, IconeFala, IconeNotas } from "@yu-book/cliente/icones";
 import { ROTULO_MODO } from "./comum";
 
 export interface PassoDaMiniatura {

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Etiqueta } from "../base/Etiqueta";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
 import { contexto, emDolares, provedorDe } from "./comum";
 
 /** O que o cartão precisa saber — serve ao favorito e ao modelo do catálogo. */

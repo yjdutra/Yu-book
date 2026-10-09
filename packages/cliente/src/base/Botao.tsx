@@ -6,7 +6,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
  * Até aqui o projeto decidia manter `Button` inexistente e cada tela copiava as
  * classes à mão. As cópias divergiram em raio, altura e hover — sete botões
  * primários, cinco desenhos. A decisão foi revogada: o redesenho precisa de um
- * vocabulário só, e ele mora em `components/base/`.
+ * vocabulário só, e ele mora em `base/` (hoje em `@yu-book/cliente`).
  *
  * O foco visível vem do `:focus-visible` global (RNF-08); nada aqui o remove.
  */
@@ -26,6 +26,8 @@ const VARIANTE: Record<VarianteBotao, string> = {
 const TAMANHO = {
   p: "h-7 gap-1.5 px-2.5 text-xs",
   m: "h-8 gap-2 px-3 text-sm",
+  // O do toque (móvel): 48px de altura, acima do alvo mínimo de 44px.
+  g: "h-12 gap-2 px-5 text-base",
 } as const;
 
 type BotaoProps = ButtonHTMLAttributes<HTMLButtonElement> & {

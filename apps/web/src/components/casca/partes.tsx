@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useSecao } from "../../lib/secoes";
 import { casaTermo } from "../../lib/tags";
-import { IconeSeta, IconeTag } from "../Icones";
+import { IconeSeta, IconeTag } from "@yu-book/cliente/icones";
 
 /**
  * Peças do painel contextual — saíram da antiga `Navegacao` no redesenho de

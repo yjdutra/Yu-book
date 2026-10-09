@@ -1,7 +1,7 @@
 import type { Link, LinkKind, NoteDetail } from "@yu-book/shared";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { ApiError } from "../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useAtalhosGlobais } from "../lib/atalhosGlobais";
 import { lerFiltros, temFiltroAtivo } from "../lib/filtrosUrl";
 import { useCriarLink, useExcluirLink, useLinks } from "../lib/links";
@@ -12,9 +12,9 @@ import { useWorkspaceAtivo } from "../lib/workspace";
 import { DashboardPage } from "../pages/DashboardPage";
 import { NotasPage } from "../pages/NotasPage";
 import { Atalhos } from "./Atalhos";
-import { Aviso } from "./base/Aviso";
-import { Botao } from "./base/Botao";
-import { PilhaFlutuante, Toast } from "./base/Toast";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { PilhaFlutuante, Toast } from "@yu-book/cliente/base/Toast";
 import { PainelContexto } from "./casca/PainelContexto";
 import { ID_MOSTRAR_CONTEXTO, Trilho } from "./casca/Trilho";
 import {
@@ -29,7 +29,7 @@ import {
   IconePainelDireito,
   IconeRotina,
   IconeTeclado,
-} from "./Icones";
+} from "@yu-book/cliente/icones";
 import { Paleta } from "./Paleta";
 import type { ComandoPaleta } from "./Paleta";
 import { ZonasDeSoltura } from "./ZonasDeSoltura";

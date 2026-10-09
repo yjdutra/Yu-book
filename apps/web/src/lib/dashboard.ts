@@ -1,6 +1,6 @@
 import type { Dashboard } from "@yu-book/shared";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "./api";
+import { api } from "@yu-book/cliente/api";
 
 /** RF-04: a tela inicial inteira em uma requisição. */
 export function useDashboard(workspaceId: string | null) {

@@ -1,7 +1,7 @@
 import { chaveDaFonteDoChat } from "@yu-book/shared";
 import type { ChatSource } from "@yu-book/shared";
-import { Etiqueta } from "../base/Etiqueta";
-import { IconeGlobo } from "../Icones";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { IconeGlobo } from "@yu-book/cliente/icones";
 
 /** A fonte que mora no acervo e abre pelo id — a da web abre pelo endereço, sem a casca. */
 export type FonteDoAcervo = Exclude<ChatSource, { kind: "web" }>;

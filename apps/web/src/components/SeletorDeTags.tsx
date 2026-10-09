@@ -2,7 +2,7 @@ import { MAX_TAGS_CARD, normalizarTag, normalizarTitulo } from "@yu-book/shared"
 import { useId, useMemo, useRef, useState } from "react";
 import { casaTermo } from "../lib/tags";
 import type { TagDoBoard } from "../lib/tags";
-import { IconeFechar } from "./Icones";
+import { IconeFechar } from "@yu-book/cliente/icones";
 
 interface Opcao {
   nome: string;

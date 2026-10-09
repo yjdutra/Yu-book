@@ -27,9 +27,9 @@ import { CLASSE_CAMPO, SeletorColuna, useEscolhaDeColuna } from "../agentes/Camp
 import { AvatarAgente } from "../agentes/AvatarAgente";
 import { ehDaWeb, levaOAcervoParaFora } from "../agentes/ferramentas";
 import { emDolares } from "../ajustes/comum";
-import { Aviso } from "../base/Aviso";
-import { Etiqueta } from "../base/Etiqueta";
-import { Interruptor } from "../base/Interruptor";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { Interruptor } from "@yu-book/cliente/base/Interruptor";
 import { CampoMarkdown } from "../CampoMarkdown";
 import {
   IconeBoard,
@@ -39,7 +39,7 @@ import {
   IconeLapis,
   IconeNotas,
   IconeRotina,
-} from "../Icones";
+} from "@yu-book/cliente/icones";
 import { GLIFO_MODO, NUMERO, ROTULO_CONSUMO, ROTULO_MODO } from "./comum";
 import type { BlocoEscolhido, PassoRascunho, Rascunho } from "./rascunho";
 

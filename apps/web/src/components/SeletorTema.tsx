@@ -1,6 +1,6 @@
 import { useTema } from "../lib/tema";
-import { BotaoIcone } from "./base/Botao";
-import { TRACO } from "./Icones";
+import { BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { TRACO } from "@yu-book/cliente/icones";
 
 function Sol() {
   return (

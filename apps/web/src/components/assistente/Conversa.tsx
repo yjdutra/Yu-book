@@ -13,7 +13,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ComponentType, FormEvent, ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { quandoNaAgenda, useExcluirEvento, useExcluirTarefa } from "../../lib/agenda";
-import { ApiError } from "../../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useConversa, useVirarNota } from "../../lib/chat";
 import { carregarCard, useExcluirCard } from "../../lib/kanban";
 import { renderMarkdown } from "../../lib/markdown";
@@ -21,10 +21,10 @@ import { useExcluirNota, useWorkspaces } from "../../lib/notas";
 import { alvoDe, chaveCriado, naTelaDoChat, useSessaoChat } from "../../lib/sessaoChat";
 import { useWorkspaceAtivo } from "../../lib/workspace";
 import { AvatarAgente } from "../agentes/AvatarAgente";
-import { Aviso } from "../base/Aviso";
-import { Botao, BotaoIcone } from "../base/Botao";
-import { Dialogo } from "../base/Dialogo";
-import { Etiqueta } from "../base/Etiqueta";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao, BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { Dialogo } from "@yu-book/cliente/base/Dialogo";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
 import {
   IconeAssistente,
   IconeBoard,
@@ -34,8 +34,8 @@ import {
   IconeNotas,
   IconeTarefa,
   IconeVirarNota,
-} from "../Icones";
-import type { IconeProps } from "../Icones";
+} from "@yu-book/cliente/icones";
+import type { IconeProps } from "@yu-book/cliente/icones";
 import { useAgenteDaConversa } from "./agenteDaConversa";
 import { ApresentacaoAgente } from "./ApresentacaoAgente";
 import { Fontes } from "./Fontes";

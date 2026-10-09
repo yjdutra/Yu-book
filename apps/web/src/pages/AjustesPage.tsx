@@ -17,7 +17,7 @@ import { SecaoUsoIa } from "../components/ajustes/SecaoUsoIa";
  *
  * Os cartões vinham copiados do dashboard, com a decisão de manter `Button` e
  * `Modal` inexistentes no projeto. O redesenho revogou isso: as seções usam os
- * primitivos de `components/base/`.
+ * primitivos de `base/`, em `@yu-book/cliente`.
  */
 export function AjustesPage() {
   const [erro, setErro] = useState<string | null>(null);

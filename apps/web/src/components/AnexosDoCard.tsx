@@ -6,12 +6,12 @@ import {
 } from "@yu-book/shared";
 import type { CardFileWithUrl } from "@yu-book/shared";
 import { useRef, useState } from "react";
-import { ApiError } from "../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useArquivosDoCard, useEnviarArquivo, useExcluirArquivo } from "../lib/arquivos";
-import { Esqueleto } from "./base/Bloco";
-import { Botao, BotaoIcone } from "./base/Botao";
-import { Dialogo } from "./base/Dialogo";
-import { IconeBaixar, IconeLixeira, IconeMais } from "./Icones";
+import { Esqueleto } from "@yu-book/cliente/base/Bloco";
+import { Botao, BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { Dialogo } from "@yu-book/cliente/base/Dialogo";
+import { IconeBaixar, IconeLixeira, IconeMais } from "@yu-book/cliente/icones";
 
 interface AnexosDoCardProps {
   cardId: string;

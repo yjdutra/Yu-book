@@ -2,7 +2,7 @@ import type { Workspace } from "@yu-book/shared";
 import { useEffect, useRef, useState } from "react";
 import { useAtualizarWorkspace, useCriarWorkspace, useExcluirWorkspace } from "../lib/notas";
 import { useWorkspaceAtivo } from "../lib/workspace";
-import { IconeCheck, IconeChevron, IconeFechar, IconeLapis } from "./Icones";
+import { IconeCheck, IconeChevron, IconeFechar, IconeLapis } from "@yu-book/cliente/icones";
 
 /**
  * RF-09: a confirmação diz exatamente o que se perde junto. Board e card caem

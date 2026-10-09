@@ -1,6 +1,6 @@
 import type { TagDoBoard } from "../lib/tags";
-import { Botao } from "./base/Botao";
-import { IconeCheck, IconeTag } from "./Icones";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { IconeCheck, IconeTag } from "@yu-book/cliente/icones";
 
 interface BarraDeTagsProps {
   tags: TagDoBoard[];

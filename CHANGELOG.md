@@ -17,6 +17,72 @@ _Nada pendente._
 
 ---
 
+## [0.30.0] — 2026-10-09
+
+**Frente de agenda, tarefas e o Yu-book no celular, Fase 3: a fundação do app móvel.** Nasce
+`apps/movel`, um PWA para o celular com login, casca de navegação e um Início ainda sem números.
+Agenda, Tarefas, Projetos e Assistente existem como rotas "em breve" e são preenchidas nas
+próximas fases. Para os dois fronts não copiarem um ao outro, o cliente HTTP, a sessão, os
+primitivos de interface, os ícones e os tokens de tema saíram de `apps/web` para um pacote novo,
+`packages/cliente`. O web passou a importar de lá sem mudar nada visível.
+
+**Dois pacotes nascem e um se move.** `apps/movel` (`@yu-book/movel`) e `packages/cliente`
+(`@yu-book/cliente`) nascem em `0.1.0`. `apps/web` vai de `0.24.0` para `0.25.0`.
+`packages/shared` fica em `0.18.0`, `apps/api` em `0.20.0` e `apps/mcp` em `0.20.0`: o MCP só
+teve um comentário corrigido para o caminho novo do cliente HTTP. Nenhuma migration, nenhuma rota
+nova, nenhum contrato alterado.
+
+**`packages/cliente` é fonte, não build.** O `exports` aponta para `src/`, e é o Vite de cada app
+que compila o TypeScript dele. O pacote tem `typecheck` próprio, que entrou em `pnpm typecheck`, e
+React como `peerDependency`. Ele não lê `import.meta.env`: cada app chama
+`configurarApi({ baseUrl })` no `main.tsx`, e a primeira requisição feita sem isso falha e escreve
+no console o que faltou.
+
+**O web não mudou na tela, e isso foi medido.** O CSS de produção saiu idêntico byte a byte depois
+da troca de imports, antes de os primitivos ganharem variantes. Capturas do Início e do Assistente
+nos dois temas saíram idênticas pixel a pixel antes e depois da fase. O chunk inicial foi de
+629.544 para 630.115 bytes (+571), pela `configurarApi`, pela guarda dela e pelas variantes novas
+dos primitivos. O CSS foi de 77.106 para 77.801 bytes.
+
+**O app móvel ainda não está no ar.** Para publicá-lo é preciso criar o serviço na Railway com
+`apps/movel/railway.json` e `VITE_API_URL`, e acrescentar o domínio dele em `CORS_ORIGIN` da API,
+que aceita origens separadas por vírgula. Os watch paths do web e do móvel precisam incluir
+`packages/cliente/**`: sem isso, uma mudança só no pacote não redeploya nenhum dos dois. A sessão
+entre domínios funciona no Chrome do Android. O Safari do iPhone recusaria o cookie, porque
+`*.up.railway.app` está na Public Suffix List, e isso fica fora do escopo da frente.
+
+Portões, rodados no fechamento: `pnpm typecheck` limpo nos seis pacotes e
+`pnpm --filter @yu-book/mcp test` com **72 testes**. A suíte da API não foi rodada nesta fase, que
+não tocou `apps/api`. Os builds do web e do móvel passaram. O móvel sai num chunk só, de 342 kB
+(104 kB com gzip).
+
+**A interface foi conferida em captura, não à mão.** O móvel foi aberto em navegador headless, com
+login real contra a API local, em 390×844 e em 1280×800, nos dois temas, e a ordem de Tab foi
+percorrida. Ninguém abriu o app num celular de verdade nem o instalou como PWA, e o leitor de tela
+não foi usado.
+
+### Adicionado
+- **App móvel (`apps/movel`)**, um PWA instalável, porta 5174 em desenvolvimento. Login com a mesma
+  sessão do web. Barra inferior flutuante com Início, Agenda, "+" central, Tarefas e Assistente,
+  que vira trilho lateral a partir de 1024px. Cabeçalho com saudação e uma folha de conta com o
+  tema (claro, escuro ou sistema) e o sair. Início com os quatro cartões de resumo (Hoje, Agenda,
+  Projetos, Tarefas), ainda sem contagem. Agenda, Tarefas, Projetos e Assistente em estado "em
+  breve". A folha do "+" mostra as opções de criar, desabilitadas.
+- **Manifest e ícones do PWA:** 192, 512, `maskable` e `apple-touch-icon`, abertura em tela cheia e
+  em retrato. Não há service worker, e o app não funciona offline.
+- **`packages/cliente`**, com o cliente HTTP, a sessão, o foco, os ícones, os primitivos de
+  interface e `tema.css`, os tokens e a base de estilo dos dois fronts.
+- **Variantes novas nos primitivos:** `Dialogo` com `posicao="folha"`, que abre como folha presa à
+  base da tela, e `Botao` com `tamanho="g"`. Ícone novo, `IconeHoje`.
+
+### Alterado
+- **O web passou a usar `packages/cliente`** para o cliente HTTP, a sessão, os primitivos, os
+  ícones e os tokens de tema, sem diferença visível. `IndicadorSalvamento` ficou no web, porque só
+  ele o usa.
+- **`pnpm build` constrói também o móvel.**
+
+---
+
 ## [0.29.0] — 2026-10-09
 
 **Frente de agenda, tarefas e o Yu-book no celular, Fase 2: a IA e o MCP usam a agenda.** O chat e

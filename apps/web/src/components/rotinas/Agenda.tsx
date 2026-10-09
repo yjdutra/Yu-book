@@ -11,11 +11,11 @@ import type { RoutineRunSummary, RoutineSchedule, RoutineSummary } from "@yu-boo
 import { useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Aviso } from "../base/Aviso";
-import { Botao, BotaoIcone } from "../base/Botao";
-import { Etiqueta } from "../base/Etiqueta";
-import { Interruptor } from "../base/Interruptor";
-import { Parte } from "../base/Parte";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao, BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { Interruptor } from "@yu-book/cliente/base/Interruptor";
+import { Parte } from "@yu-book/cliente/base/Parte";
 import {
   IconeAlerta,
   IconeCheck,
@@ -23,7 +23,7 @@ import {
   IconeInfo,
   IconeMais,
   IconeRelogio,
-} from "../Icones";
+} from "@yu-book/cliente/icones";
 import { DIAS_DA_SEMANA, horaNoFuso, horarioNoFuso, nomeDoFuso, ROTULO_GATILHO } from "./comum";
 
 /**

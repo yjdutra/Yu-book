@@ -5,9 +5,9 @@ import { Link } from "react-router-dom";
 import { useAiAjustes } from "../../lib/ia";
 import { useBoard, useBoards } from "../../lib/kanban";
 import { CartaoModelo } from "../ajustes/CartaoModelo";
-import { Aviso } from "../base/Aviso";
-import { BotaoIcone } from "../base/Botao";
-import { IconeCheck, IconeFechar } from "../Icones";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { IconeCheck, IconeFechar } from "@yu-book/cliente/icones";
 import { COR_DO_AGENTE } from "./AvatarAgente";
 
 /**

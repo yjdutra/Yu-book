@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
-import { ApiError } from "../../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useAiAjustes } from "../../lib/ia";
 import { useHistorico } from "../../lib/rotinas";
 import { emDolares } from "../ajustes/comum";
-import { Aviso } from "../base/Aviso";
-import { Botao } from "../base/Botao";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao } from "@yu-book/cliente/base/Botao";
 import { textoDoGatilho } from "./Agenda";
 import { duracao, duracaoEntre, quando, SeloStatus } from "./comum";
 import { rotaDaExecucao } from "./rodar";

@@ -14,7 +14,7 @@ import type {
   TarefaComModelo,
 } from "@yu-book/shared";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api } from "@yu-book/cliente/api";
 import { CHAVE_USO } from "./chat";
 
 /**

@@ -1,5 +1,5 @@
 import type { EstadoSalvamento } from "../../lib/useAutosave";
-import { IconeAlerta } from "../Icones";
+import { IconeAlerta } from "@yu-book/cliente/icones";
 
 /**
  * RF-16 / RNF-09: estado do autosave com texto próprio, não só cor. A nota e o

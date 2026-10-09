@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../../lib/auth";
+import { useAuth } from "@yu-book/cliente/auth";
 import { ID_BOTAO_PAINEL, naTelaDoChat } from "../../lib/sessaoChat";
 import { useWorkspaceAtivo } from "../../lib/workspace";
-import { BotaoIcone } from "../base/Botao";
-import { Menu } from "../base/Menu";
+import { BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { Menu } from "@yu-book/cliente/base/Menu";
 import {
   IconeAjustes,
   IconeAssistente,
@@ -17,7 +17,7 @@ import {
   IconePainelDireito,
   IconeRecolher,
   IconeTeclado,
-} from "../Icones";
+} from "@yu-book/cliente/icones";
 import { SeletorTema } from "../SeletorTema";
 import { areaDe } from "./PainelContexto";
 

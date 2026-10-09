@@ -41,8 +41,9 @@ export const linguagemMd = new Language(dadosDaLinguagem, parserMd, [], "markdow
 
 /**
  * O tema é só string de CSS, então usa as variáveis que já existem em
- * `index.css`. É isso que faz o editor seguir os dois temas sem um único
- * condicional em JavaScript — o mesmo mecanismo do resto da aplicação.
+ * `tema.css` (`@yu-book/cliente`). É isso que faz o editor seguir os dois
+ * temas sem um único condicional em JavaScript — o mesmo mecanismo do resto da
+ * aplicação.
  *
  * **Não** passe `{ dark: true }` aqui: fixaria um dos dois temas.
  */

@@ -341,6 +341,20 @@ export function IconeCalendario(p: IconeProps) {
 }
 
 /**
+ * O sol nascendo no horizonte — "hoje", o resumo do dia no móvel. Meio sol, e
+ * não o sol inteiro do seletor de tema do web, para os dois não se lerem um
+ * pelo outro.
+ */
+export function IconeHoje(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M1.8 12.6h12.4M4.5 12.6a3.5 3.5 0 0 1 7 0" />
+      <path d="M8 4.8v1.7M3.3 7.4l1.2 1.2M12.7 7.4l-1.2 1.2" />
+    </Icone>
+  );
+}
+
+/**
  * Caixa de marcar — a tarefa da agenda, a coisa a fazer. O check solto
  * (`IconeCheck`) continua dizendo "feito" — concluído, copiado —, e por isso
  * não serve aqui: na lista do chat a tarefa acabou de nascer, não de acabar.

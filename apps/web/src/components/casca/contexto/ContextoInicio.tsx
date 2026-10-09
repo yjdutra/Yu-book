@@ -4,7 +4,7 @@ import { useBoards } from "../../../lib/kanban";
 import { FILTROS_VAZIOS, useNotas } from "../../../lib/notas";
 import { useAcoesChat } from "../../../lib/sessaoChat";
 import { useWorkspaceAtivo } from "../../../lib/workspace";
-import { IconeAssistente, IconeBoard, IconeEstrela } from "../../Icones";
+import { IconeAssistente, IconeBoard, IconeEstrela } from "@yu-book/cliente/icones";
 import { Item, Titulo } from "../partes";
 
 const MAX_FAVORITAS = 5;

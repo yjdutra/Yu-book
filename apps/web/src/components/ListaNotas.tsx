@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useFiltrosDaUrl } from "../lib/filtrosUrl";
 import { useNotas } from "../lib/notas";
-import { Botao } from "./base/Botao";
-import { Etiqueta } from "./base/Etiqueta";
-import { IconeAssistente, IconeEstrela, IconeFechar } from "./Icones";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { IconeAssistente, IconeEstrela, IconeFechar } from "@yu-book/cliente/icones";
 import { MarcaIA } from "./MarcaIA";
 import { RotuloTipo } from "./RotuloTipo";
 

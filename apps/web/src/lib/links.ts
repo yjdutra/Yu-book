@@ -1,7 +1,7 @@
 import type { Link, LinkInput, LinkKind, LinkUpdateInput } from "@yu-book/shared";
 import { normalizarUrl } from "@yu-book/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api } from "@yu-book/cliente/api";
 
 const CHAVE = ["links"] as const;
 

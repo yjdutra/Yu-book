@@ -2,10 +2,10 @@ import { loginSchema, registerSchema } from "@yu-book/shared";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { ZodError } from "zod";
-import { Aviso } from "../components/base/Aviso";
-import { Botao } from "../components/base/Botao";
-import { ApiError } from "../lib/api";
-import { useAuth } from "../lib/auth";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { ApiError } from "@yu-book/cliente/api";
+import { useAuth } from "@yu-book/cliente/auth";
 
 type Mode = "login" | "register";
 

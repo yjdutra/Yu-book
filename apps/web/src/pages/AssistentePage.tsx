@@ -5,8 +5,8 @@ import { AvatarAgente } from "../components/agentes/AvatarAgente";
 import { useAgenteDaConversa } from "../components/assistente/agenteDaConversa";
 import { Compositor } from "../components/assistente/Compositor";
 import { Conversa } from "../components/assistente/Conversa";
-import { Aviso } from "../components/base/Aviso";
-import { IconeAssistente } from "../components/Icones";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { IconeAssistente } from "@yu-book/cliente/icones";
 import { avisoDeEspera, useAcoesChat } from "../lib/sessaoChat";
 import type { EstadoRotaChat } from "../lib/sessaoChat";
 

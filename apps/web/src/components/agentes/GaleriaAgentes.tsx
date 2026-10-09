@@ -3,12 +3,12 @@ import type { AgentSummary, ModeloDeAgente } from "@yu-book/shared";
 import { useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAgentes } from "../../lib/agentes";
-import { ApiError } from "../../lib/api";
-import { Aviso } from "../base/Aviso";
-import { Botao } from "../base/Botao";
-import { Etiqueta } from "../base/Etiqueta";
-import { Menu } from "../base/Menu";
-import type { ItemMenu } from "../base/Menu";
+import { ApiError } from "@yu-book/cliente/api";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { Menu } from "@yu-book/cliente/base/Menu";
+import type { ItemMenu } from "@yu-book/cliente/base/Menu";
 import {
   IconeAgente,
   IconeAlerta,
@@ -19,7 +19,7 @@ import {
   IconeMais,
   IconeNotas,
   IconeOpcoes,
-} from "../Icones";
+} from "@yu-book/cliente/icones";
 import { useAcoesDoAgente } from "./acoesDoAgente";
 import { AvatarAgente } from "./AvatarAgente";
 import { contar, rotuloDoModelo } from "./comum";

@@ -11,7 +11,7 @@ import type {
   NoteDetail,
 } from "@yu-book/shared";
 import { invalidarAgenda } from "./agenda";
-import { api, apiStream } from "./api";
+import { api, apiStream } from "@yu-book/cliente/api";
 import { useInvalidar } from "./notas";
 
 /**

@@ -1,8 +1,8 @@
 import type { AiCompletion, AiMark } from "@yu-book/shared";
 import { useNavigate } from "react-router-dom";
 import { useAcoesChat } from "../lib/sessaoChat";
-import { Etiqueta } from "./base/Etiqueta";
-import { IconeAssistente, IconeCheck } from "./Icones";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { IconeAssistente, IconeCheck } from "@yu-book/cliente/icones";
 
 /**
  * A marca de conteúdo gerado por IA (Etapa C da frente de IA).

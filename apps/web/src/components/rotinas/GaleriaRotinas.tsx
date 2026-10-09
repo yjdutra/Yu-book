@@ -7,14 +7,14 @@ import type {
 } from "@yu-book/shared";
 import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ApiError } from "../../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useAiAjustes } from "../../lib/ia";
 import { useAlternarAgenda, useExcluirRotina, useRotinas } from "../../lib/rotinas";
 import { emDolares } from "../ajustes/comum";
-import { Aviso } from "../base/Aviso";
-import { Botao } from "../base/Botao";
-import { Dialogo } from "../base/Dialogo";
-import { Menu } from "../base/Menu";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { Dialogo } from "@yu-book/cliente/base/Dialogo";
+import { Menu } from "@yu-book/cliente/base/Menu";
 import {
   IconeAlerta,
   IconeLapis,
@@ -25,7 +25,7 @@ import {
   IconeRelogio,
   IconeRodar,
   IconeRotina,
-} from "../Icones";
+} from "@yu-book/cliente/icones";
 import { SeloAgenda, temAgenda } from "./Agenda";
 import { quando, SeloStatus } from "./comum";
 import { MiniaturaFluxo } from "./MiniaturaFluxo";

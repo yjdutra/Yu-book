@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { ReactNode, RefObject } from "react";
 import { createPortal } from "react-dom";
-import { useFocoPreso } from "../../lib/foco";
+import { useFocoPreso } from "../foco";
 
 /**
  * Diálogo modal — a anatomia que Paleta, Atalhos, gaveta de links e chat
@@ -29,9 +29,11 @@ export function Dialogo({
   rotulo: string;
   /**
    * `lateral` encosta a caixa à esquerda, logo depois do trilho, na altura
-   * toda — a gaveta de links, que entra de onde o botão dela mora.
+   * toda — a gaveta de links, que entra de onde o botão dela mora. `folha` é a
+   * folha inferior do celular (o móvel): sobe do pé da tela, na largura toda,
+   * e respeita a área segura; a partir de 1024px volta a ser a caixa do centro.
    */
-  posicao?: "centro" | "topo" | "lateral";
+  posicao?: "centro" | "topo" | "lateral" | "folha";
   /** Classe `max-w-*` da caixa. */
   largura?: string;
   focoInicial?: RefObject<HTMLElement | null>;
@@ -58,7 +60,9 @@ export function Dialogo({
           ? "items-stretch justify-start pl-14"
           : posicao === "topo"
             ? "items-start justify-center px-4 pt-[12vh]"
-            : "items-center justify-center px-4"
+            : posicao === "folha"
+              ? "items-end justify-center lg:items-center lg:px-4"
+              : "items-center justify-center px-4"
       }`}
       onMouseDown={onFechar}
     >
@@ -73,7 +77,11 @@ export function Dialogo({
                     shadow-e4 ${
                       posicao === "lateral"
                         ? "flex h-full flex-col rounded-r-dialogo border-y border-r animate-deslizar-direita"
-                        : "max-h-[80vh] rounded-dialogo border animate-surgir"
+                        : posicao === "folha"
+                          ? `max-h-[85vh] rounded-t-dialogo border-x border-t
+                             pb-[env(safe-area-inset-bottom)] animate-subir
+                             lg:max-h-[80vh] lg:rounded-dialogo lg:border lg:pb-0 lg:animate-surgir`
+                          : "max-h-[80vh] rounded-dialogo border animate-surgir"
                     } ${largura}`}
       >
         {children}

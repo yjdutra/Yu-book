@@ -23,14 +23,14 @@ import { TAREFAS_COM_MODELO } from "@yu-book/shared";
 import type { AiFavorite, TarefaComModelo } from "@yu-book/shared";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { ApiError } from "../../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useAiAjustes, useDefinirModeloDaTarefa, useDesfavoritar } from "../../lib/ia";
 import { useMovimentoReduzido } from "../../lib/movimento";
-import { Esqueleto, Vazio } from "../base/Bloco";
-import { BotaoIcone } from "../base/Botao";
-import { Etiqueta } from "../base/Etiqueta";
-import { Menu } from "../base/Menu";
-import { IconeAlca, IconeAlerta, IconeFechar, IconeOpcoes } from "../Icones";
+import { Esqueleto, Vazio } from "@yu-book/cliente/base/Bloco";
+import { BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { Menu } from "@yu-book/cliente/base/Menu";
+import { IconeAlca, IconeAlerta, IconeFechar, IconeOpcoes } from "@yu-book/cliente/icones";
 import { CartaoModelo } from "./CartaoModelo";
 import {
   EXIGE_FERRAMENTA,

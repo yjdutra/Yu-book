@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      `viewport-fit=cover`: a página desce sob a barra de gestos e o recorte da
+      câmera, e a casca devolve o espaço por `env(safe-area-inset-*)`.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Yu-book no celular: agenda, tarefas, projetos e o assistente." />
+    <!-- O `ink-950` de cada tema; o script abaixo os iguala ao tema escolhido. -->
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0e14" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f7fa" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>Yu-book</title>
+    <!--
+      RNF-07: o tema é decidido antes da primeira pintura, como no web (mesma
+      chave, `yb:tema`). Se isto virasse um efeito do React, abrir com tema claro
+      salvo mostraria um quadro escuro antes. Com preferência salva, a cor da
+      barra do sistema segue o tema escolhido, não o do aparelho.
+    -->
+    <script>
+      (function () {
+        var salvo = null;
+        var claro;
+        try {
+          salvo = localStorage.getItem("yb:tema");
+          claro = salvo
+            ? salvo === "claro"
+            : window.matchMedia("(prefers-color-scheme: light)").matches;
+        } catch (e) {
+          claro = false;
+        }
+        document.documentElement.dataset.tema = claro ? "claro" : "escuro";
+        // Sem preferência salva, o `media` de cada meta já acerta sozinho.
+        if (salvo) {
+          var metas = document.querySelectorAll('meta[name="theme-color"]');
+          var cor = claro ? metas[1] : metas[0];
+          for (var i = 0; cor && i < metas.length; i++) metas[i].content = cor.content;
+        }
+      })();
+    </script>
+    <!--
+      Inter, depois do script de tema: a fonte pode chegar atrasada (`swap`),
+      o tema não. Sem rede, cai na pilha de sistema de `--font-sans`.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

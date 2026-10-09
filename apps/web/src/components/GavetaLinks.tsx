@@ -6,10 +6,10 @@ import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ordenar, useAtualizarLink, useMoverLink, useRebuscarTitulo } from "../lib/links";
 import { DIAS_PARA_ENVELHECER, diasDesde, idadeRelativa } from "../lib/tempo";
-import { Aviso } from "./base/Aviso";
-import { Botao, BotaoIcone } from "./base/Botao";
-import { Dialogo } from "./base/Dialogo";
-import { Tecla } from "./base/Tecla";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao, BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { Dialogo } from "@yu-book/cliente/base/Dialogo";
+import { Tecla } from "@yu-book/cliente/base/Tecla";
 import { BlocoDominio } from "./BlocoDominio";
 import {
   IconeAlerta,
@@ -19,7 +19,7 @@ import {
   IconeLapis,
   IconeRecarregar,
   IconeRelogio,
-} from "./Icones";
+} from "@yu-book/cliente/icones";
 import { MiniaturaLink } from "./MiniaturaLink";
 
 /** RNF-16: a página aberta não pode ter referência à janela do Yu-book. */

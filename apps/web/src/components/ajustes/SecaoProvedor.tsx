@@ -1,6 +1,6 @@
-import { ApiError } from "../../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useAiAjustes, useAiSaude, useAtualizarAjustes } from "../../lib/ia";
-import { Bloco } from "../base/Bloco";
+import { Bloco } from "@yu-book/cliente/base/Bloco";
 
 /** Provedor: a conexão e o que ele pode fazer com o conteúdo enviado. */
 export function SecaoProvedor({ onErro }: { onErro: (mensagem: string | null) => void }) {

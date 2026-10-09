@@ -1,0 +1,30 @@
+{
+  "name": "@yu-book/cliente",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": ["*.css"],
+  "exports": {
+    "./api": "./src/api.ts",
+    "./auth": "./src/auth.tsx",
+    "./foco": "./src/foco.ts",
+    "./icones": "./src/Icones.tsx",
+    "./tema.css": "./src/tema.css",
+    "./base/*": "./src/base/*.tsx"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@yu-book/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.7",
+    "@types/react-dom": "^19.0.3",
+    "typescript": "^5.7.3"
+  }
+}

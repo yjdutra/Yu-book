@@ -10,7 +10,7 @@ import type {
 } from "@yu-book/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api } from "@yu-book/cliente/api";
 
 export const chaveBoard = (id: string) => ["board", id] as const;
 

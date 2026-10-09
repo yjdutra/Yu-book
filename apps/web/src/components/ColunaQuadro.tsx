@@ -4,11 +4,11 @@ import { SortableContext, useSortable } from "@dnd-kit/sortable";
 import type { SortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMemo, useRef, useState } from "react";
-import { ApiError } from "../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useAtualizarColuna, useCriarCard, useExcluirColuna } from "../lib/kanban";
-import { BotaoIcone } from "./base/Botao";
+import { BotaoIcone } from "@yu-book/cliente/base/Botao";
 import { CartaoCard } from "./CartaoCard";
-import { IconeAlca, IconeAlerta, IconeCheck, IconeOpcoes } from "./Icones";
+import { IconeAlca, IconeAlerta, IconeCheck, IconeOpcoes } from "@yu-book/cliente/icones";
 
 export const idColunaArrastavel = (id: string) => `coluna:${id}`;
 export const idZonaDeSoltura = (id: string) => `zona:${id}`;

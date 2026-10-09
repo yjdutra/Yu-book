@@ -1,7 +1,7 @@
 import type { CardFilesResponse, CardFileWithUrl } from "@yu-book/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api } from "@yu-book/cliente/api";
 import { chaveBoard } from "./kanban";
 
 /**

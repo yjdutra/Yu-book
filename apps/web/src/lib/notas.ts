@@ -19,7 +19,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api } from "@yu-book/cliente/api";
 
 export interface Filtros {
   q: string;

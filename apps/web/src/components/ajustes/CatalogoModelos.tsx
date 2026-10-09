@@ -1,13 +1,13 @@
 import { FAIXAS_DE_PRECO_MICROS, TAREFAS_COM_MODELO } from "@yu-book/shared";
 import type { AiModel, AiModelIndices, AiModelSort } from "@yu-book/shared";
 import { useEffect, useRef, useState } from "react";
-import { ApiError } from "../../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useAiAjustes, useAiModelos, useDesfavoritar, useFavoritar } from "../../lib/ia";
-import { Aviso } from "../base/Aviso";
-import { Vazio } from "../base/Bloco";
-import { Botao } from "../base/Botao";
-import { Etiqueta } from "../base/Etiqueta";
-import { IconeBusca, IconeEstrela } from "../Icones";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Vazio } from "@yu-book/cliente/base/Bloco";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { IconeBusca, IconeEstrela } from "@yu-book/cliente/icones";
 import { ROTULO_DA_TAREFA, contexto, emDolares, provedorDe } from "./comum";
 
 /**

@@ -11,7 +11,7 @@ import {
 } from "react";
 import type { ReactNode, RefObject } from "react";
 import { invalidarAgenda } from "./agenda";
-import { ApiError } from "./api";
+import { ApiError } from "@yu-book/cliente/api";
 import {
   CHAVE_AJUSTES,
   CHAVE_USO,

@@ -7,11 +7,11 @@ import {
   useOpenRouterConta,
   useOpenRouterMetricas,
 } from "../../lib/ia";
-import { Aviso } from "../base/Aviso";
-import { Bloco, Esqueleto, Vazio } from "../base/Bloco";
-import { Botao } from "../base/Botao";
-import { Etiqueta } from "../base/Etiqueta";
-import { IconeRecarregar } from "../Icones";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Bloco, Esqueleto, Vazio } from "@yu-book/cliente/base/Bloco";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { IconeRecarregar } from "@yu-book/cliente/icones";
 import { horaNoFuso } from "../rotinas/comum";
 import { emDolares } from "./comum";
 import { ContaOpenRouter, MetricasOpenRouter, mensagemDeErro } from "./ContaOpenRouter";

@@ -28,20 +28,20 @@ import {
   useCriarAgente,
   usePreviaDoAgente,
 } from "../../lib/agentes";
-import { ApiError, api } from "../../lib/api";
+import { ApiError, api } from "@yu-book/cliente/api";
 import { useGuardaDeSaida } from "../../lib/guardaDeSaida";
 import { useCriarNota, useTitulos } from "../../lib/notas";
 import type { TituloSugerido } from "../../lib/notas";
 import { useWorkspaceAtivo } from "../../lib/workspace";
 import { emDolares } from "../ajustes/comum";
-import { Aviso } from "../base/Aviso";
-import { Botao, BotaoIcone } from "../base/Botao";
-import { Dialogo } from "../base/Dialogo";
-import { Etiqueta } from "../base/Etiqueta";
-import { Interruptor } from "../base/Interruptor";
-import { Menu } from "../base/Menu";
-import { Parte } from "../base/Parte";
-import { Tecla } from "../base/Tecla";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao, BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { Dialogo } from "@yu-book/cliente/base/Dialogo";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { Interruptor } from "@yu-book/cliente/base/Interruptor";
+import { Menu } from "@yu-book/cliente/base/Menu";
+import { Parte } from "@yu-book/cliente/base/Parte";
+import { Tecla } from "@yu-book/cliente/base/Tecla";
 import { CampoMarkdown } from "../CampoMarkdown";
 import {
   IconeAlerta,
@@ -52,7 +52,7 @@ import {
   IconeMais,
   IconeNotas,
   IconeOpcoes,
-} from "../Icones";
+} from "@yu-book/cliente/icones";
 import { SeletorDeNota } from "../SeletorDeNota";
 import { useAcoesDoAgente } from "./acoesDoAgente";
 import { AvatarAgente } from "./AvatarAgente";

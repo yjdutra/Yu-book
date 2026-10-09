@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useAgentes } from "../../lib/agentes";
 import { useSessaoChat } from "../../lib/sessaoChat";
 import { AvatarAgente } from "../agentes/AvatarAgente";
-import { Menu } from "../base/Menu";
-import { IconeAgente, IconeAssistente, IconeChevron } from "../Icones";
+import { Menu } from "@yu-book/cliente/base/Menu";
+import { IconeAgente, IconeAssistente, IconeChevron } from "@yu-book/cliente/icones";
 
 /**
  * "Conversar com: Assistente ▾" (Etapa D da IA) — só na conversa vazia.

@@ -23,10 +23,10 @@ import type {
 } from "@dnd-kit/core";
 import { SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError } from "../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useConcluirCard, useMoverCard, useMoverColuna } from "../lib/kanban";
 import { cardCasaFiltro } from "../lib/tags";
-import { Aviso } from "./base/Aviso";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { CartaoCard } from "./CartaoCard";
 import { ColunaQuadro, idColunaArrastavel } from "./ColunaQuadro";
 

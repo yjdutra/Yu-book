@@ -1,11 +1,11 @@
 import type { BoardSummary } from "@yu-book/shared";
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Aviso } from "../components/base/Aviso";
-import { Esqueleto } from "../components/base/Bloco";
-import { Botao, BotaoIcone } from "../components/base/Botao";
-import { IconeFechar } from "../components/Icones";
-import { ApiError } from "../lib/api";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Esqueleto } from "@yu-book/cliente/base/Bloco";
+import { Botao, BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { IconeFechar } from "@yu-book/cliente/icones";
+import { ApiError } from "@yu-book/cliente/api";
 import { useBoards, useCriarBoard, useExcluirBoard } from "../lib/kanban";
 import { useWorkspaceAtivo } from "../lib/workspace";
 

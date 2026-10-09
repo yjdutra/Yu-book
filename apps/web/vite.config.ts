@@ -4,6 +4,12 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    // `@yu-book/cliente` é fonte com React como peer: se a versão daqui e a
+    // resolvida por ele divergissem, o bundle levaria dois Reacts — "Invalid
+    // hook call" em tempo de execução, sem erro de build.
+    dedupe: ["react", "react-dom"],
+  },
   server: {
     port: 5173,
   },

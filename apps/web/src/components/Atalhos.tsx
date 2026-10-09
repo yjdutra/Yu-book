@@ -1,7 +1,7 @@
 import { useRef } from "react";
-import { Botao } from "./base/Botao";
-import { Dialogo } from "./base/Dialogo";
-import { Tecla } from "./base/Tecla";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { Dialogo } from "@yu-book/cliente/base/Dialogo";
+import { Tecla } from "@yu-book/cliente/base/Tecla";
 
 // A ordem dos grupos na tela. O tipo do atalho sai daqui: grupo que não está
 // nesta lista não compila, em vez de sumir da tela calado.

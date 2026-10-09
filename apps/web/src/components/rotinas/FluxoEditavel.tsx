@@ -20,8 +20,8 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useMovimentoReduzido } from "../../lib/movimento";
 import { AvatarAgente } from "../agentes/AvatarAgente";
-import { BotaoIcone } from "../base/Botao";
-import { Menu } from "../base/Menu";
+import { BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { Menu } from "@yu-book/cliente/base/Menu";
 import {
   IconeAlca,
   IconeAlerta,
@@ -31,7 +31,7 @@ import {
   IconeLixeira,
   IconeMais,
   IconeOpcoes,
-} from "../Icones";
+} from "@yu-book/cliente/icones";
 import { GLIFO_MODO, ROTULO_MODO } from "./comum";
 import type { BlocoEscolhido, PassoRascunho } from "./rascunho";
 

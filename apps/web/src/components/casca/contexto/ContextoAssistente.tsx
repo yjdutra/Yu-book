@@ -8,8 +8,8 @@ import type { EstadoRotaChat } from "../../../lib/sessaoChat";
 import { useAcoesDoAgente } from "../../agentes/acoesDoAgente";
 import { AvatarAgente } from "../../agentes/AvatarAgente";
 import { ListaConversas } from "../../assistente/ListaConversas";
-import { Botao } from "../../base/Botao";
-import { Menu } from "../../base/Menu";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { Menu } from "@yu-book/cliente/base/Menu";
 import {
   IconeAgente,
   IconeAlerta,
@@ -17,7 +17,7 @@ import {
   IconeOpcoes,
   IconeRelogio,
   IconeRotina,
-} from "../../Icones";
+} from "@yu-book/cliente/icones";
 import { horarioNoFuso, pedeAtencao } from "../../rotinas/comum";
 import { Secao } from "../partes";
 

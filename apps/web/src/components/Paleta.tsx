@@ -5,9 +5,9 @@ import type { ReactNode } from "react";
 import { useBusca } from "../lib/notas";
 import { casaTermo } from "../lib/tags";
 import { useWorkspaceAtivo } from "../lib/workspace";
-import { Dialogo } from "./base/Dialogo";
-import { Tecla } from "./base/Tecla";
-import { IconeAssistente, IconeBusca } from "./Icones";
+import { Dialogo } from "@yu-book/cliente/base/Dialogo";
+import { Tecla } from "@yu-book/cliente/base/Tecla";
+import { IconeAssistente, IconeBusca } from "@yu-book/cliente/icones";
 import { MarcaIA } from "./MarcaIA";
 import { RotuloTipo } from "./RotuloTipo";
 

@@ -4,7 +4,7 @@ import { env } from "./env.js";
 
 /**
  * Erro da API preservando o `code` estável. Espelha `ApiError` de
- * `apps/web/src/lib/api.ts`: quem chama ramifica por `code`, nunca por
+ * `packages/cliente/src/api.ts`: quem chama ramifica por `code`, nunca por
  * `message` — a mensagem é para humano, o código é o contrato.
  */
 export class ErroDaApi extends Error {

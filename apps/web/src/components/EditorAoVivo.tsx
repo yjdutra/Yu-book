@@ -105,7 +105,7 @@ export function EditorAoVivo({
         /*
          * Sem `syntaxHighlighting(defaultHighlightStyle)` de propósito: aquele
          * estilo traz cores fixas, que não seguiriam os dois temas. Quem pinta
-         * aqui são as decorações abaixo, que usam as variáveis do `index.css`.
+         * aqui são as decorações abaixo, que usam as variáveis do `tema.css`.
          * Como não há linguagem aninhada dentro das cercas, também não há token
          * de código para colorir — o realce completo continua nos modos que
          * passam por `renderMarkdown`.

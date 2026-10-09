@@ -3,14 +3,14 @@ import { useCallback, useState } from "react";
 import type { ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { baixarAgente, useExcluirAgente } from "../../lib/agentes";
-import { ApiError } from "../../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { avisoDeEspera, naTelaDoChat, useAcoesChat } from "../../lib/sessaoChat";
 import type { EstadoRotaChat } from "../../lib/sessaoChat";
-import { Aviso } from "../base/Aviso";
-import { Botao } from "../base/Botao";
-import { Dialogo } from "../base/Dialogo";
-import type { ItemMenu } from "../base/Menu";
-import { IconeAssistente, IconeBaixar, IconeCopiar, IconeLapis, IconeLixeira } from "../Icones";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao } from "@yu-book/cliente/base/Botao";
+import { Dialogo } from "@yu-book/cliente/base/Dialogo";
+import type { ItemMenu } from "@yu-book/cliente/base/Menu";
+import { IconeAssistente, IconeBaixar, IconeCopiar, IconeLapis, IconeLixeira } from "@yu-book/cliente/icones";
 import { AvatarAgente } from "./AvatarAgente";
 
 interface AgenteAlvo {

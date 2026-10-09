@@ -1,8 +1,8 @@
 import { useLocation } from "react-router-dom";
-import { BotaoIcone } from "../base/Botao";
-import { Tecla } from "../base/Tecla";
+import { BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { Tecla } from "@yu-book/cliente/base/Tecla";
 import { PainelRedimensionavel } from "../Colunas";
-import { IconeBusca, IconeRecolher } from "../Icones";
+import { IconeBusca, IconeRecolher } from "@yu-book/cliente/icones";
 import { SeletorWorkspace } from "../SeletorWorkspace";
 import { ContextoAjustes } from "./contexto/ContextoAjustes";
 import { ContextoAssistente } from "./contexto/ContextoAssistente";

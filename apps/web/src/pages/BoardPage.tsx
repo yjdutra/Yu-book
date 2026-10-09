@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { BarraDeTags } from "../components/BarraDeTags";
-import { Aviso } from "../components/base/Aviso";
-import { Esqueleto } from "../components/base/Bloco";
-import { Botao } from "../components/base/Botao";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Esqueleto } from "@yu-book/cliente/base/Bloco";
+import { Botao } from "@yu-book/cliente/base/Botao";
 import { CartaoCard } from "../components/CartaoCard";
 import { PainelRedimensionavel } from "../components/Colunas";
 import { PainelCard } from "../components/PainelCard";
 import { Quadro } from "../components/Quadro";
-import { ApiError } from "../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useArquivados, useAtualizarBoard, useBoard, useCriarColuna } from "../lib/kanban";
 import { cardCasaFiltro, catalogoDeTags } from "../lib/tags";
 

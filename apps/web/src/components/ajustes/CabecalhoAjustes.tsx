@@ -1,5 +1,5 @@
 import { useAiAjustes, useAiSaude } from "../../lib/ia";
-import { Aviso } from "../base/Aviso";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { emDolares } from "./comum";
 
 /**

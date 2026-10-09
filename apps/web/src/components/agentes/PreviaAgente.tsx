@@ -1,9 +1,9 @@
 import { MAX_PASSOS_DO_LACO } from "@yu-book/shared";
 import type { AgentContextBlock, AgentPreview } from "@yu-book/shared";
-import { ApiError } from "../../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { emDolares } from "../ajustes/comum";
-import { Aviso } from "../base/Aviso";
-import { IconeBoard, IconeCheck, IconeGlobo, IconeInfo, IconeNotas } from "../Icones";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { IconeBoard, IconeCheck, IconeGlobo, IconeInfo, IconeNotas } from "@yu-book/cliente/icones";
 
 const NUMERO = new Intl.NumberFormat("pt-BR");
 

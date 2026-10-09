@@ -123,6 +123,7 @@ presented the token. Writing is locked behind two independent layers. Details in
 flowchart LR
   subgraph clients[Clients]
     web[apps/web<br/>React SPA]
+    movel[apps/movel<br/>phone PWA]
     mcpc[MCP clients<br/>Claude, IDEs]
   end
 
@@ -136,6 +137,7 @@ flowchart LR
   www[Public web]
 
   web -- REST + SSE --> api
+  movel -- REST --> api
   mcpc -- Streamable HTTP --> mcp
   mcp -- REST, as the user --> api
   api --> db
@@ -146,14 +148,21 @@ flowchart LR
   shared -.-> web
   shared -.-> api
   shared -.-> mcp
+  shared -.-> movel
+
+  cliente[[packages/cliente<br/>HTTP client, session, UI primitives, theme]]
+  cliente -.-> web
+  cliente -.-> movel
 ```
 
 | Package | Stack | Role |
 |---|---|---|
 | `apps/api` | Fastify 5, Prisma 6, Postgres 16 | REST API, AI orchestration, background runs and scheduler |
 | `apps/web` | React 19, Vite 6, Tailwind v4, TanStack Query | Desktop-only SPA, with no UI or icon library |
+| `apps/movel` | React 19, Vite 6, Tailwind v4, TanStack Query | Phone app, an installable PWA (in progress) |
 | `apps/mcp` | Official MCP TypeScript SDK | MCP server, a client of the API, never of the database |
-| `packages/shared` | Zod 3 | Single source of truth for the contract the other three share |
+| `packages/shared` | Zod 3 | Single source of truth for the contract the other packages share |
+| `packages/cliente` | React 19, TypeScript source (no build step) | What both front ends share: HTTP client, session, UI primitives, icons and theme tokens |
 
 A note on naming: the **domain is written in Portuguese** (`criar`, `mover`, `renumerarCards`) and
 the **API boundary in English** (`title`, `contentMd`, `dueDate`). Both live in the same function
@@ -242,14 +251,16 @@ docker exec yubook-db createdb -U postgres yubook
 
 cp apps/api/.env.example apps/api/.env      # set DATABASE_URL and generate JWT_SECRET
 cp apps/web/.env.example apps/web/.env.local
+cp apps/movel/.env.example apps/movel/.env.local
 
 pnpm --filter @yu-book/api db:migrate       # tables + full-text search setup
-pnpm dev                                    # API on :3333, web on :5173
+pnpm dev                                    # API on :3333, web on :5173, phone app on :5174
 ```
 
 Generate the secret with `openssl rand -base64 48`. The API refuses to boot with a short
 `JWT_SECRET`. Open `http://localhost:5173` and create your account (`ALLOW_SIGNUP=true` in
-development).
+development). To use the phone app locally, add `http://localhost:5174` to `CORS_ORIGIN` (a
+comma-separated list).
 
 AI features are optional: set `OPENROUTER_API_KEY` in `apps/api/.env` and pick a model per task
 in `/ajustes/modelos`. Without it, the app runs normally and the AI features explain why they are
@@ -257,8 +268,8 @@ unavailable.
 
 | Command | What it does |
 |---|---|
-| `pnpm dev` | API and web together |
-| `pnpm build` | shared → api → web → mcp |
+| `pnpm dev` | every app together |
+| `pnpm build` | shared → api → web → phone app → mcp |
 | `pnpm typecheck` | type check every package |
 | `pnpm --filter @yu-book/api test` | API integration tests (uses the `DATABASE_URL` from `.env`) |
 | `pnpm --filter @yu-book/mcp test` | MCP server tests (no database needed) |
@@ -276,7 +287,8 @@ One project, all services built from this repository, each with its own config f
 |---|---|---|
 | Postgres | Railway plugin | — |
 | API | `apps/api/railway.json` | `apps/api/**`, `packages/shared/**`, `pnpm-lock.yaml` |
-| Web | `apps/web/railway.json` | `apps/web/**`, `packages/shared/**`, `pnpm-lock.yaml` |
+| Web | `apps/web/railway.json` | `apps/web/**`, `packages/cliente/**`, `packages/shared/**`, `pnpm-lock.yaml` |
+| Phone app (optional) | `apps/movel/railway.json` | `apps/movel/**`, `packages/cliente/**`, `packages/shared/**`, `pnpm-lock.yaml` |
 | MCP (optional) | `apps/mcp/railway.json` | see [apps/mcp/README.md](apps/mcp/README.md) |
 
 Leave **Root Directory empty** on every service: the build runs `pnpm install` at the root so the
@@ -289,7 +301,7 @@ fill in the variables, because the API needs the web domain and the web needs th
 NODE_ENV=production
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 JWT_SECRET=<openssl rand -base64 48>
-CORS_ORIGIN=https://<web-domain>
+CORS_ORIGIN=https://<web-domain>      # add ,https://<phone-app-domain> if you deploy it
 COOKIE_SAMESITE=none
 NIXPACKS_NODE_VERSION=22
 # optional
@@ -303,7 +315,7 @@ S3_SECRET_ACCESS_KEY=${{Bucket.SECRET_ACCESS_KEY}}
 S3_REGION=auto
 ```
 
-**Web variables**
+**Web and phone app variables**
 
 ```
 VITE_API_URL=https://<api-domain>
@@ -325,15 +337,21 @@ features (chat, AI provenance, agents, routines, scheduling, web research, usage
 all delivered and running in production. Kanban cards have since gained a done state and file
 attachments, stored in an S3-compatible bucket that is optional: without one, the rest of the app
 runs unchanged. In progress: an agenda and a to-do list of its own, linked to boards as projects,
-with a phone-friendly companion app. The API is in place, and the chat and the MCP server can
-already read the agenda, schedule events and add or complete tasks; the screens are not there yet.
+with a companion phone app. The API is in place, and the chat and the MCP server can already read
+the agenda, schedule events and add or complete tasks. The phone app, an installable PWA that
+shares its client code and theme with the web app, has its sign-in, navigation and home screen;
+its agenda and task screens come next.
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
 Known limitations, stated on purpose:
 
 - **Single-user by design.** Some AI settings (the provider account dashboard) are server-wide and
   assume one owner.
-- **Desktop-only.** Below 1024 px the app says so instead of degrading the layout.
+- **The web app is desktop-only.** Below 1024 px it says so instead of degrading the layout; the
+  phone gets its own app instead.
+- **The phone app relies on cross-site cookies** when it and the API live on different sites, as
+  they do on Railway's default domains. Chrome on Android accepts them; Safari on iOS does not,
+  unless both are served under one custom domain. It has no offline mode.
 - **No front-end tests and no CI.** The automated gates are the type check and the API and MCP
   test suites; the UI is verified by hand.
 - **Note content leaves the server for every AI task.** The provider is a cloud one: a local model

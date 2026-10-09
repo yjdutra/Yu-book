@@ -11,7 +11,7 @@ import type {
   RoutineUpdateInput,
   RotinaEvent,
 } from "@yu-book/shared";
-import { api, apiStream } from "./api";
+import { api, apiStream } from "@yu-book/cliente/api";
 import { CHAVE_AJUSTES, CHAVE_USO, lerEventos } from "./chat";
 
 /**

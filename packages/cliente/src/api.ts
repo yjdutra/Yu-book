@@ -1,6 +1,28 @@
+/*
+ * `@yu-book/cliente` (frente de agenda, Fase 3): o que o web e o móvel precisam
+ * igual — este cliente HTTP, a sessão (`auth.tsx`), os tokens de tema
+ * (`tema.css`), os primitivos de `base/`, os ícones e o foco preso. Uma cópia
+ * em cada app seria mais um espelhamento frágil; aqui a fonte é uma só.
+ *
+ * Os apps consomem a fonte TS pelo Vite, sem build: `exports` aponta para
+ * `src/`, e o pacote tem typecheck próprio.
+ */
 import type { ApiErrorBody, AuthResponse, ErrorCode } from "@yu-book/shared";
 
-const BASE_URL = (import.meta.env.VITE_API_URL ?? "http://localhost:3333").replace(/\/$/, "");
+/**
+ * Frente de agenda, Fase 3. A base vem de quem monta o app, não de
+ * `import.meta.env`: o pacote serve ao web e ao móvel, e cada um lê a própria
+ * env no `main.tsx`, antes de montar. Requisição antes disso é erro de
+ * montagem e não bate na origem da página: lança. Mas quem chama costuma
+ * engolir a exceção — o `AuthProvider` vira "anônimo", o login mostra "Não foi
+ * possível conectar à API" —, e o defeito pareceria API fora do ar. Por isso o
+ * guarda escreve no console antes de lançar: é ali que ele aparece.
+ */
+let baseUrl: string | null = null;
+
+export function configurarApi(opcoes: { baseUrl: string }): void {
+  baseUrl = opcoes.baseUrl.replace(/\/$/, "");
+}
 
 /**
  * O access token vive em memória, não em localStorage: um XSS não consegue
@@ -36,7 +58,16 @@ async function toApiError(response: Response): Promise<ApiError> {
 }
 
 async function rawRequest(path: string, init: RequestInit = {}): Promise<Response> {
+  if (baseUrl === null) {
+    const mensagem =
+      "@yu-book/cliente: configurarApi() não foi chamada antes da primeira requisição " +
+      `(${path}). Chame-a no main.tsx, antes de montar o app.`;
+    console.error(mensagem);
+    throw new Error(mensagem);
+  }
   const headers = new Headers(init.headers);
+  // Não é o nome do app: é a defesa contra CSRF da API, que exige exatamente
+  // "web" (`requireClientHeader`, em `apps/api`). O móvel manda o mesmo valor.
   headers.set("X-Yu-Book-Client", "web");
   // `FormData` leva o próprio `multipart/form-data; boundary=…`, que só o
   // navegador sabe escrever — fixar o tipo aqui quebraria o upload de anexo.
@@ -45,7 +76,7 @@ async function rawRequest(path: string, init: RequestInit = {}): Promise<Respons
   }
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
 
-  return fetch(`${BASE_URL}${path}`, {
+  return fetch(`${baseUrl}${path}`, {
     ...init,
     headers,
     credentials: "include", // envia o cookie de refresh

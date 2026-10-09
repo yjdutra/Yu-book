@@ -1,7 +1,7 @@
 import type { LinkKind } from "@yu-book/shared";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { IconeEstrela, IconeRelogio } from "./Icones";
+import { IconeEstrela, IconeRelogio } from "@yu-book/cliente/icones";
 
 /** O tipo que o navegador usa quando o que se arrasta é um link de verdade. */
 const TIPO_URL = "text/uri-list";

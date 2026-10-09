@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { useConversas, useExcluirConversa, useRenomearConversa } from "../../lib/chat";
 import { useSessaoChat } from "../../lib/sessaoChat";
 import { AvatarAgente } from "../agentes/AvatarAgente";
-import { IconeFechar, IconeLapis } from "../Icones";
+import { IconeFechar, IconeLapis } from "@yu-book/cliente/icones";
 
 const DIA = 24 * 60 * 60 * 1000;
 

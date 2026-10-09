@@ -9,7 +9,7 @@ import type {
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ApiError, api } from "../../lib/api";
+import { ApiError, api } from "@yu-book/cliente/api";
 import { useAiAjustes } from "../../lib/ia";
 import { carregarCard } from "../../lib/kanban";
 import { renderMarkdown } from "../../lib/markdown";
@@ -21,9 +21,9 @@ import {
   useExecucao,
 } from "../../lib/rotinas";
 import { emDolares } from "../ajustes/comum";
-import { Aviso } from "../base/Aviso";
-import { Botao, BotaoIcone } from "../base/Botao";
-import { Dialogo } from "../base/Dialogo";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao, BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { Dialogo } from "@yu-book/cliente/base/Dialogo";
 import {
   IconeAlerta,
   IconeBoard,
@@ -33,7 +33,7 @@ import {
   IconeNotas,
   IconeParar,
   IconeRotina,
-} from "../Icones";
+} from "@yu-book/cliente/icones";
 import { ehDaWeb } from "../agentes/ferramentas";
 import { Fontes } from "../assistente/Fontes";
 import type { FonteDoAcervo } from "../assistente/Fontes";

@@ -2,7 +2,7 @@ import { NOTE_KINDS } from "@yu-book/shared";
 import type { NoteDetail, NoteKind, UpdateNoteInput } from "@yu-book/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { ApiError } from "../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import {
   useAtualizarNota,
   useExcluirDefinitivo,
@@ -19,8 +19,8 @@ import type { FocoDoCorpo } from "./Editor";
 import { FaixaIA } from "./MarcaIA";
 import { SeletorModo } from "./ModoNota";
 import { useAcoesChat } from "../lib/sessaoChat";
-import { Aviso } from "./base/Aviso";
-import { Botao, BotaoIcone } from "./base/Botao";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao, BotaoIcone } from "@yu-book/cliente/base/Botao";
 import {
   IconeAssistente,
   IconeChevron,
@@ -28,7 +28,7 @@ import {
   IconeEstrela,
   IconeFechar,
   IconeFormatar,
-} from "./Icones";
+} from "@yu-book/cliente/icones";
 import { IndicadorSalvamento } from "./base/IndicadorSalvamento";
 import { RotuloTipo } from "./RotuloTipo";
 

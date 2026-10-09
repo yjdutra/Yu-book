@@ -4,7 +4,7 @@ import { useFiltrosDaUrl } from "../../../lib/filtrosUrl";
 import type { FiltrosDaUrl } from "../../../lib/filtrosUrl";
 import { useContadores, useTags } from "../../../lib/notas";
 import { useWorkspaceAtivo } from "../../../lib/workspace";
-import { Botao } from "../../base/Botao";
+import { Botao } from "@yu-book/cliente/base/Botao";
 import {
   ICONE_TIPO,
   IconeAssistente,
@@ -12,7 +12,7 @@ import {
   IconeLixeira,
   IconeMais,
   IconeNotas,
-} from "../../Icones";
+} from "@yu-book/cliente/icones";
 import { CartaoTags, Item, Secao } from "../partes";
 
 /** Área Notas: os filtros da lista, que agora moram na URL. */

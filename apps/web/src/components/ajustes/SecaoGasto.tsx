@@ -1,7 +1,7 @@
 import { dolaresParaMicros, microsParaDolares } from "@yu-book/shared";
-import { ApiError } from "../../lib/api";
+import { ApiError } from "@yu-book/cliente/api";
 import { useAiAjustes, useAtualizarAjustes } from "../../lib/ia";
-import { Bloco } from "../base/Bloco";
+import { Bloco } from "@yu-book/cliente/base/Bloco";
 
 /** Gasto: o teto do dia. O que já foi gasto hoje está no cabeçalho, sempre à vista. */
 export function SecaoGasto({ onErro }: { onErro: (mensagem: string | null) => void }) {

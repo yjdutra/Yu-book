@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Aplicacao } from "./components/Aplicacao";
 import { GuardaDesktop } from "./components/Colunas";
-import { useAuth } from "./lib/auth";
+import { useAuth } from "@yu-book/cliente/auth";
 import { ProvedorSessaoChat } from "./lib/sessaoChat";
 import { WorkspaceProvider } from "./lib/workspace";
 import { LoginPage } from "./pages/LoginPage";

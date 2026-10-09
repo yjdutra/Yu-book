@@ -2,8 +2,8 @@ import type { AgentSummary } from "@yu-book/shared";
 import { Link } from "react-router-dom";
 import { AvatarAgente } from "../agentes/AvatarAgente";
 import { contar, rotuloDoModelo } from "../agentes/comum";
-import { Etiqueta } from "../base/Etiqueta";
-import { IconeBoard, IconeGlobo, IconeLapis, IconeNotas } from "../Icones";
+import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
+import { IconeBoard, IconeGlobo, IconeLapis, IconeNotas } from "@yu-book/cliente/icones";
 
 /**
  * O convite da conversa vazia quando há agente escolhido (Etapa D da IA): quem

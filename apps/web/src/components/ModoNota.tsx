@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import type { ModoNota } from "../lib/modoNota";
-import { IconeLapis, TRACO } from "./Icones";
-import type { IconeProps } from "./Icones";
+import { IconeLapis, TRACO } from "@yu-book/cliente/icones";
+import type { IconeProps } from "@yu-book/cliente/icones";
 
 /** Texto já formatado, com o cursor dentro — o modo em que se escreve vendo. */
 function AoVivo() {

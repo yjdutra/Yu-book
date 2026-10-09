@@ -19,7 +19,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useAgentes } from "../../lib/agentes";
 import { useAiAjustes } from "../../lib/ia";
-import { ApiError, api } from "../../lib/api";
+import { ApiError, api } from "@yu-book/cliente/api";
 import { useGuardaDeSaida } from "../../lib/guardaDeSaida";
 import { useBoard, useBoards } from "../../lib/kanban";
 import { useWorkspaces } from "../../lib/notas";
@@ -32,11 +32,11 @@ import {
   useRotinas,
 } from "../../lib/rotinas";
 import { CLASSE_CAMPO } from "../agentes/CamposDoAgente";
-import { Aviso } from "../base/Aviso";
-import { Botao, BotaoIcone } from "../base/Botao";
-import { Dialogo } from "../base/Dialogo";
-import { Menu } from "../base/Menu";
-import { Tecla } from "../base/Tecla";
+import { Aviso } from "@yu-book/cliente/base/Aviso";
+import { Botao, BotaoIcone } from "@yu-book/cliente/base/Botao";
+import { Dialogo } from "@yu-book/cliente/base/Dialogo";
+import { Menu } from "@yu-book/cliente/base/Menu";
+import { Tecla } from "@yu-book/cliente/base/Tecla";
 import {
   IconeAlerta,
   IconeBoard,
@@ -49,7 +49,7 @@ import {
   IconeRelogio,
   IconeRodar,
   IconeRotina,
-} from "../Icones";
+} from "@yu-book/cliente/icones";
 import { ID_AGENDA, SecaoAgenda, SeloAgenda, temAgenda } from "./Agenda";
 import { NUMERO, ROTULO_CONSUMO } from "./comum";
 import { Estimativa } from "./Estimativa";
