@@ -55,8 +55,10 @@ no mesmo dia, trouxe **anexos**: o binário vai a um bucket S3 (Railway Storage 
 param; INV-08), e a cascata do banco não o alcança (INV-64). Em 2026-10-09 começou a frente
 **Agenda, tarefas e o Yu-book no celular** (`docs/plano-agenda-movel.md`): a Fase 1 deu ao `event`
 rota e service — agenda interna, não o Google — e criou a **tarefa**, to-do solto que não é card,
-os dois com o quadro como projeto e o fuso convertido só no servidor (INV-66); o app de celular
-está em andamento e ainda não tem código. A Fase 6 de produto (Google Calendar) segue sendo o item
+os dois com o quadro como projeto e o fuso convertido só no servidor (INV-66), e a Fase 2 os pôs
+no chat e no MCP: o chat lê a agenda, **marca evento, anota tarefa e conclui tarefa** a pedido
+(`list_agenda`, `create_event`, `create_task`, `complete_task`), com o dia no fim do `system` e a
+hora só no turno enviado (INV-52). O app de celular está em andamento e ainda não tem código. A Fase 6 de produto (Google Calendar) segue sendo o item
 de menor prioridade.
 
 **Oito numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**

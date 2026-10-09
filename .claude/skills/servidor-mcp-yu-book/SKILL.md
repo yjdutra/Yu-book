@@ -1,6 +1,6 @@
 ---
 name: servidor-mcp-yu-book
-description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os dois transportes (stdio e StreamableHTTP) com uma montagem só, de onde vem a identidade em cada um e por que a escrita é liberada por eixos diferentes (URL local no stdio, escopo do token em HTTP), o servidor de autorização OAuth 2.1 próprio sem estado durável, cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, a formatação que saiu deste pacote para packages/shared e hoje serve também o chat da API, de onde vem o fuso horário do usuário e por que na leitura ele recua e na escrita falha alto, a description como contrato de conversa com o modelo, o origin que toda tool cuja escrita grava marca de IA (de geração ou de conclusão) manda, a rota nova que exige a API no ar antes do MCP e o campo novo que o formatador lê com ?., os anexos de card que aparecem no texto sem URL e não viram tool, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, antes de tocar em transporte, sessão, autenticação, formatação de texto ou qualquer conversão de data, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
+description: Decisões de projeto do servidor MCP do Yu-book (apps/mcp) — os dois transportes (stdio e StreamableHTTP) com uma montagem só, de onde vem a identidade em cada um e por que a escrita é liberada por eixos diferentes (URL local no stdio, escopo do token em HTTP), o servidor de autorização OAuth 2.1 próprio sem estado durável, cliente da API e não do banco, orçamento de contexto das tools, resource direto versus template, a formatação que saiu deste pacote para packages/shared e hoje serve também o chat da API, de onde vem o fuso horário do usuário e por que na leitura ele recua, na escrita do prazo falha alto e na agenda nem é pedido, o prompt que muda com a escrita liberada, a description como contrato de conversa com o modelo, o origin que toda tool cuja escrita grava marca de IA (de geração ou de conclusão) manda, a rota nova que exige a API no ar antes do MCP e o campo novo que o formatador lê com ?., os anexos de card que aparecem no texto sem URL e não viram tool, log e progresso sem deixar notificação decidir o resultado, e a propagação obrigatória quando o domínio muda. Use antes de criar ou alterar qualquer tool, resource ou prompt, antes de expor qualquer operação que mude dado, antes de tocar em transporte, sessão, autenticação, formatação de texto ou qualquer conversão de data, e sempre que uma feature de apps/api ou packages/shared mudar o domínio.
 ---
 
 # O servidor MCP do Yu-book
@@ -86,9 +86,8 @@ mais cara que a rede.
 ## 4. Tipos: sempre os do SDK
 
 `CallToolResult` e `ReadResourceResult` vêm de `@modelcontextprotocol/sdk/types.js`. **Nunca escreva
-o equivalente à mão** — o SDK exige uma assinatura de índice que um tipo caseiro não tem, e o
-typecheck recusa com um erro longo e pouco óbvio. Já cometido duas vezes: antes de declarar
-interface para o retorno de um handler, procure no SDK.
+o equivalente à mão** — o SDK exige assinatura de índice que tipo caseiro não tem, e o typecheck
+recusa com erro longo e pouco óbvio. Cometido duas vezes: procure no SDK antes de declarar o tipo.
 
 ## 5. As três primitivas — a diferença é quem aciona
 
@@ -139,9 +138,9 @@ hospedado, relatando todo prazo um dia à frente, calado.
 
 **A assimetria é decidida, e você a escolhe ao escrever a tool.** Tool que só **lê** e imprime data
 usa `exigir: false` — recuar para `FUSO_PADRAO` custa no máximo uma linha com o dia de outro fuso.
-Tool que **escreve** data (`create_card` com `dueDate`) usa `exigir: true`, e busca o fuso **antes**
-do POST (`src/tools/kanban-escrita.ts:37-47`): ali o fuso vira o instante gravado no banco, e recuar
-gravaria prazo errado em silêncio.
+Tool que **monta o instante** (`create_card` com `dueDate`) usa `exigir: true`, antes do POST
+(`src/tools/kanban-escrita.ts:37-47`): recuar gravaria prazo errado, calado. **Evento e tarefa não
+pedem fuso:** vão em dia e hora locais e a API converte (`src/tools/agenda-escrita.ts:17-23`, INV-66).
 
 Sem cache, deliberadamente — o argumento e o custo medido estão em `src/fuso.ts:5-31`, e ele
 responde pelo nome à proposta de um mapa por credencial. **Não acrescente `TZ` ao
@@ -154,14 +153,16 @@ responde pelo nome à proposta de um mapa por credencial. **Não acrescente `TZ`
 - **Prompt declara o que NÃO fazer.** É o que separa instrução testada de frase solta. Sem limites,
   o modelo preenche as lacunas e devolve algo plausível e errado. Ver `src/prompts/revisao.ts`:
   não inventar prazo, não sugerir ação que não existe como tool, não tratar a fila de links como
-  urgência.
+  urgência. **O que existe muda com a sessão:** a escrita só entra no texto se liberada
+  (`registrarPrompts(server, { escrita })`, `src/servidor.ts:61`), e tool de escrita nova entra
+  em `regraDeEscrita` (`src/prompts/revisao.ts:23-30`).
 - A `description` aparece no menu do `/` — descreve **o resultado**, não a implementação.
 
 ## 9. Escrita: nasce desligada, e o nome carrega o domínio
 
 Tools que mudam dado vivem em `src/tools/*-escrita.ts`, longe das de leitura: risco diferente.
-**Tool cuja escrita grava marca de IA manda `origin`** (`src/autor.ts`) — as que criam e
-`complete_card`, esta pela rota própria, a única que o aceita: sem ele, o ato vira humano (INV-58, INV-63).
+**Tool cuja escrita grava marca de IA manda `origin`** (`src/autor.ts`) — as que criam e as que
+concluem, estas pela rota própria, a única que o aceita: sem ele, o ato vira humano (INV-58, INV-63).
 
 **O que libera a escrita é outro em cada transporte, e são eixos diferentes de propósito.** Quem
 recebe a decisão pronta é `criarServidor({ escrita })` — elas ou são registradas na montagem
@@ -217,10 +218,9 @@ descrição fraca custa uma chamada inútil; numa de escrita, custa dado errado 
   São dica para o cliente, não garantia: `destructiveHint: true` só em `trash_note`.
 
 **O contrapeso: não descreva o que o modelo não pode agir.** A `description` é cobrada em **todo
-turno**, não por chamada. Transformação silenciosa que o modelo não tem como evitar sai do texto —
-a normalização de tags do servidor (minúsculas, corte em 24, fusão de repetidas) saiu por isso
-(`packages/shared/src/ferramentas.ts:190`). O critério é a pergunta: *sabendo disto, o modelo faria
-algo diferente?* Se não, é custo puro. Vale o §3: **meça o `tools/list`**, não estime.
+turno**, não por chamada. Transformação silenciosa que o modelo não evita sai do texto — a
+normalização de tags saiu por isso (`packages/shared/src/ferramentas.ts:229`). O critério: *sabendo
+disto, o modelo faria algo diferente?* Se não, é custo puro. **Meça o `tools/list`** (§3).
 
 ## 11. A via de volta: log e progresso
 
@@ -231,7 +231,7 @@ arquivo (`:9-46`): leia-as lá, não são repetidas aqui.
 
 O que **não** está no código e custa caro descobrir:
 
-- **A capability `logging` se declara no construtor do `McpServer`** (`src/servidor.ts:51`) — outro
+- **A capability `logging` se declara no construtor do `McpServer`** (`src/servidor.ts:53`) — outro
   arquivo. Sem ela `sendLoggingMessage` não lança nem avisa: só não faz nada, e o log das escritas
   some calado. Declarar depois não adianta: o handler de `logging/setLevel` só é registrado ali.
 - **Log sempre por `server.server.sendLoggingMessage`, nunca por `extra.sendNotification` com
@@ -257,9 +257,9 @@ então o MCP fala com uma API que pode ser semanas mais velha que o contrato que
 novo ausente na resposta é **omitido**, não emitido como `undefined` (`src/resources/catalogos.ts`).
 **O formatador de `shared` também tolera, e ali pesa mais:** roda **depois** da escrita, e lançar
 diria ao modelo que falhou um card já criado — ele criaria outro. Campo array novo se lê com `?.`
-apesar do tipo (`files`, `packages/shared/src/formato.ts:344-347`).
-**Rota nova não se tolera:** rota inexistente volta `NOT_FOUND` (`apps/api/src/app.ts:100-101`) e o
-modelo ouve "não existe esse id". Tool em rota nova (`complete_card`) exige a API no ar antes.
+apesar do tipo (`files`, `packages/shared/src/formato.ts:348-351`). **Rota nova não se tolera:**
+rota inexistente volta `NOT_FOUND` (`apps/api/src/app.ts:100-101`) e o modelo ouve "não existe esse
+id" — tool em rota nova exige a API no ar, ou traduz o `NOT_FOUND` (`src/tools/agenda.ts:40-55`).
 
 ## 14. Propagação — o que fazer quando o domínio muda
 
@@ -290,7 +290,7 @@ esquecimento. **As funções da frente de IA — chat, agentes, rotinas, `open_p
 (NO3, RF-53, RF-62 e RF-74 do PRD de IA): quem usa o MCP já traz o próprio modelo. O que propaga é o **dado** que gravam —
 a marca, com agente e rotina, chega às tools por `formato.ts`; o `runId` não é impresso. **Anexo
 também não vira tool:** a face conta, o detalhe dá nome, tipo e tamanho, **nunca a URL** — assinada,
-vence em 1 h (`formato.ts:354-368`) —, e a `descricao` de `get_board` cresceu com isso (§4.6 do contrato).
+vence em 1 h (`formato.ts:358-372`) —, e a `descricao` de `get_board` cresceu com isso (§4.6 do contrato).
 
 ## 15. Como verificar
 

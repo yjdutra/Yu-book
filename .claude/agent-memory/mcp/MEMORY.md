@@ -20,12 +20,12 @@
 
 ## Decisões em vigor
 
-- Baseline sobre `dist/`: `resources/list` 929, `resources/templates/list` 553, `prompts/list` 757
-  (2026-09-25). Cobrados em todo turno; meça contra eles, não estime.
-- `tools/list` sem baseline desde 2026-09-30: `complete_card` e o `get_board` mais longo derrubaram
-  a de 5/10 tools. A primeira medição com 5/11 vira a nova.
+- Baseline sobre `dist/` (2026-10-09, conferida pelo curador): `tools/list` 14544 com 15 tools e
+  4275 só leitura (6); `resources/list` 929, `resources/templates/list` 553, `prompts/list` 766.
+  Cobrados em todo turno; meça contra eles, não estime.
 - O texto que produz esses bytes mora em `packages/shared/src/ferramentas.ts`: a baseline se move
   por edição **fora** de `apps/mcp`, e nenhum portão acusa (§4.6 de `contrato-compartilhado`).
 - Como medir: `initialize`/`initialized`/`*/list` por `printf` no stdin de
   `node --env-file=.env dist/index.js`, e `Buffer.byteLength(JSON.stringify(linha))` na resposta
-  inteira (envelope JSON-RPC incluído) — não só no `result`.
+  inteira (envelope incluído). Só leitura: `YUBOOK_API_URL=http://api.exemplo.invalid` exportada
+  antes — `--env-file` não sobrescreve variável do ambiente.

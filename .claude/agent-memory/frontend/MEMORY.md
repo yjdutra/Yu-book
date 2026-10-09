@@ -19,3 +19,4 @@
   Feito em 2026-09-23 com uma `descricao` de `ferramentas.ts`: ausente de todo o `dist`.
 - Tamanho de bundle e contagem de teste viram registro; **tempo de build não vira** — varia por
   rodada e por máquina, e um número desses envelhece sem ninguém notar.
+- Chunk inicial `index-*.js` em 2026-10-09: 629.544 B (gzip 193.338), já com `lib/agenda.ts`.

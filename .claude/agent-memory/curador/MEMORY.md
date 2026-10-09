@@ -5,8 +5,8 @@
 ## O que já nos mordeu
 
 - Ref erra **de origem**, não só de linha: grepe o caminho; `cat -n` de vários arquivos soma linhas.
-- Refs em lote por difflib: ref podre em HEAD passa, e regex erra basename; releia a linha.
-- `:NNN` resolve pelo último caminho citado; parágrafo tocado: confira **todo** ref dele.
+- Lote pelos hunks do diff: ref podre em HEAD passa; cace também linha além do fim do arquivo.
+- `:NNN` resolve pelo último caminho citado, até de outro arquivo: confira **todo** ref do parágrafo.
 - **Agente apodrece calado, e a paráfrase junto:** grepe o fato, não a frase.
 - **O código alcança o registro:** comentário tardio no sítio desbanca o item.
 - Regra que troca de mecanismo vira INV novo; o velho fica com a parte geral.

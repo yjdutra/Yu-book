@@ -37,9 +37,9 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    próprios (`cardCompleteSchema`, `kanban.ts:142`), e a marca dela, tipo próprio (`AiCompletion`,
    `marca.ts:50`, que **não** é `AiMark`: segue o estado e some ao reabrir). **Regra que cruza
    campos não roda no schema parcial:** o servidor a reaplica sobre o valor **mesclado** com o
-   gravado — `mesclarHorario` + `resolverHorario` no evento (`eventos.service.ts:250-254`), a mesma
+   gravado — `mesclarHorario` + `resolverHorario` no evento (`eventos.service.ts:251-255`), a mesma
    função de `shared` que o schema de criação chama; "hora só com data" na tarefa, repetida à mão
-   (`tarefas.ts:45-48`, `tarefas.service.ts:215-220`).
+   (`tarefas.ts:51-54`, `tarefas.service.ts:221-226`).
 6. Se o módulo novo **constrói valor em escopo de módulo** — objeto, array, `z.object(...)` —,
    confira o bundle do front antes de fechar. A flag abaixo só poda o que ninguém importa: **valor
    importado entra**, com o que o módulo constrói e o que ele importa como valor — `tarefas.ts`
@@ -47,15 +47,15 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    Módulo do front no bundle inicial importa de `shared` só `import type` quando o valor traria
    schema ou metadado: `apps/web/src/lib/agentes.ts:16-18` (painel contextual);
    `components/rotinas/comum.tsx:1-8` e `lib/rotinas.ts`, com o valor de `agenda.ts` por rota ou
-   `lazy` (`pages/DashboardPage.tsx:26`); `lib/sessaoChat.tsx` (`:368-378`), sempre montado, que
+   `lazy` (`pages/DashboardPage.tsx:26`); `lib/sessaoChat.tsx` (`:372-382`), sempre montado, que
    **não** deduplica fontes por `chaveDaFonteDoChat` de `chat.ts` (medido) — quem tira a
    repetição é `components/assistente/Fontes.tsx:89-96`; não "conserte" a sessão com o import nem
    com uma segunda definição de "a mesma fonte". **`ia.ts` é o caso aberto:**
    `casca/contexto/ContextoAjustes.tsx:2` lê `SECOES_DE_AJUSTES` de `components/ajustes/comum.ts`,
    que importa `microsParaDolares` como valor (`:1`), e `shared/ia.ts` entra no chunk inicial
    (medido em 2026-09-25; dívida de 9b2aec6) — "a seção é `lazy()`" não justifica import de valor
-   dele. `eventos.ts` e `tarefas.ts` ainda não têm consumidor no front: o primeiro import de valor
-   deles no chunk inicial traz a cadeia inteira.
+   dele. `eventos.ts` e `tarefas.ts` não têm import de valor no front — `lib/agenda.ts` (`:11-16`), no
+   chunk inicial por `lib/chat.ts`, os evita —, e o primeiro traz a cadeia inteira.
 
 **`"sideEffects": false` no `package.json` de `shared` não é enfeite, e não se remove.** Sem ele o
 bundler não pode presumir que importar `@yu-book/shared` é inócuo, e **todo** módulo do pacote entra
@@ -149,12 +149,12 @@ string continua seguro para `createdAt`/`updatedAt`, que são instantes, e para 
 este defeito por construção — o cliente não converte fuso, e o eixo está em INV-66.
 
 **O lado do servidor fechou.** A conversão mora em `packages/shared/src/formato.ts`: `diaDoPrazo`
-(`:69`) e `diaParaPrazo` (`:87`), as duas sobre `diaLocal` (`packages/shared/src/ia.ts:48`), que
+(`:73`) e `diaParaPrazo` (`:91`), as duas sobre `diaLocal` (`packages/shared/src/ia.ts:48`), que
 formata por `Intl` com `timeZone`. **O parâmetro `fuso` não tem valor padrão, e é a peça
 principal** — um padrão traria de volta exatamente o defeito que a Etapa B consertou, o fuso do
 *processo* passando por fuso do usuário. Quem chama declara de qual fuso está falando: o MCP
 pergunta à API (`apps/mcp/src/fuso.ts:43`) e o chat recebe o `fuso` no contexto da ferramenta
-(`apps/api/src/modules/assistente/ferramentas.service.ts:87-90`). **Desde a Etapa F a volta passa por `instanteLocal`**
+(`apps/api/src/modules/assistente/ferramentas.service.ts:110-113`). **Desde a Etapa F a volta passa por `instanteLocal`**
 (`packages/shared/src/agenda.ts:165`), a mesma conversão de relógio de parede em instante que a
 agenda de rotina usa: mexer nela move o prazo e o horário da rotina juntos, e o portão das duas é
 `apps/api/tests/agenda.test.ts` mais `apps/mcp/tests/fuso.test.ts`. **A aritmética de dia
@@ -191,11 +191,11 @@ título, `descricao` e schema de entrada — mora só em `packages/shared/src/fe
 exatamente o que a doutrina manda. O risco mudou de forma, não de tamanho.
 
 **Desde a Etapa G o arquivo tem dois objetos, e só um vai ao MCP.** `FERRAMENTAS_DO_ACERVO` tem os
-dois consumidores abaixo; `FERRAMENTAS_DA_WEB` (`:359`, `open_page`) só o assistente da API (RF-74).
+dois consumidores abaixo; `FERRAMENTAS_DA_WEB` (`:527`, `open_page`) só o assistente da API (RF-74).
 O MCP fica fora dela **só porque registra tool à mão**, módulo por módulo: um laço sobre
 `DEFINICOES_DO_ASSISTENTE` ou `FERRAMENTAS_DO_CHAT` no MCP publicaria `open_page` sem handler, e
 nada falharia — o sinal é o `tools/list` sair da baseline da memória do agente `mcp`. Do outro lado,
-definição de um nome do assistente se lê por `DEFINICOES_DO_ASSISTENTE` (`:400`), total sobre as
+definição de um nome do assistente se lê por `DEFINICOES_DO_ASSISTENTE` (`:568`), total sobre as
 duas origens; nome que chega como `string` passa por uma guarda sobre ele
 (`ehDoAssistente`, `apps/web/src/components/rotinas/ExecucaoRotina.tsx:64-66`). O cast
 `nome as NomeDeFerramenta` compila: sem guarda, `FERRAMENTAS_DO_ACERVO[nome].titulo` lança com
@@ -203,11 +203,11 @@ duas origens; nome que chega como `string` passa por uma guarda sobre ele
 
 **Dois consumidores, dois contratos diferentes, um arquivo:**
 
-- `apps/mcp` publica esse metadado em `tools/list` (`src/tools/kanban.ts:18`, `notas.ts`,
-  `kanban-escrita.ts`, `notas-escrita.ts`) — a `descricao` é o contrato de conversa do servidor MCP
-  com qualquer modelo que se conecte;
+- `apps/mcp` publica esse metadado em `tools/list` (`apps/mcp/src/tools/`, um módulo por área e
+  risco, como `kanban.ts:18`) — a `descricao` é o contrato de conversa do servidor MCP com qualquer
+  modelo que se conecte;
 - `apps/api` o oferece ao provedor no campo `tools` de **todo turno** do chat
-  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:303`, só as de
+  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:412`, só as de
   `FERRAMENTAS_DO_CHAT`, estreitadas pela lista do agente — e, num passo de rotina, só a leitura dele) — ali a `descricao` é
   contrato **e** custo por turno.
 
@@ -220,29 +220,32 @@ sobre o `tools/list` em bytes.
 definição e dois consumidores — tools e resources do MCP, executores do chat (§7 da skill
 `servidor-mcp-yu-book`) — e ali o texto não é só contrato: é o **resultado** sobre o qual o modelo
 decide continuar ou desistir. `formatarBusca` diz, no caso vazio, que a busca é por palavra sobre
-título e corpo e manda tentar o substantivo sozinho (`:201-202`); o argumento e o episódio que o
-motivou estão no comentário ao lado (`:192-200`). Mudar uma dessas frases muda as duas superfícies,
+título e corpo e manda tentar o substantivo sozinho (`:205-206`); o argumento e o episódio que o
+motivou estão no comentário ao lado (`:196-204`). Mudar uma dessas frases muda as duas superfícies,
 e nenhum teste fica vermelho. **Campo novo lido ali tolera ausência** (`card.files?.length`,
-`formato.ts:344-347`), apesar do tipo: o MCP formata depois da escrita, contra uma API que pode ser
+`formato.ts:348-351`), apesar do tipo: o MCP formata depois da escrita, contra uma API que pode ser
 mais velha (§13 de `servidor-mcp-yu-book`). O detalhe do card leva `files` **sem URL** — ela vence
 em 1 h —, e quem mostra o arquivo pede `GET /cards/:id/files` (`packages/shared/src/kanban.ts:226-228`).
 
-**Terceiro caso: o tipo `Dashboard`.** O Início e `formatarDashboard` (`formato.ts:381`, servido
+**Terceiro caso: o tipo `Dashboard`.** O Início e `formatarDashboard` (`formato.ts:385`, servido
 pelo `get_dashboard` do MCP e do chat) leem a mesma resposta. Desde a Etapa F ela traz `rotinas`,
 e o formatador **as ignora de propósito** — rotina não entra no MCP (RF-62). O mesmo par explica
 por que `GET /dashboard` **só lê** `runsSeenAt` (`apps/api/src/modules/dashboard/dashboard.service.ts:59`)
 e quem avança o marco é `POST /ai/runs/seen`: um GET que marcasse visto faria o modelo, ao consultar
 o painel, apagar as "novas" que o operador ainda não viu.
 
-**Quarto caso: ação de escrita nova no chat.** Além da API (INV-52), o front tem quatro sítios, e
-o compilador cobra um: `EXPLICACAO` (`apps/web/src/components/agentes/ferramentas.ts:16`) é
-`Record<NomeDoAssistente, string>`. `ROTULO_DA_ACAO` (`components/assistente/Conversa.tsx:51`) é
-`Record<string, string>` e cai no nome cru; o texto do editor de agente trata toda escrita como
-criação salvo exceção por nome (`EditorAgente.tsx:531-538`); e **escrita que não cria não passa
-pelo evento `criado`** — que alimenta o Desfazer —, então precisa de invalidação própria:
-`complete_card` marca pelo evento `ferramenta` (`lib/sessaoChat.tsx:398`) e chama
-`invalidarConclusao` (`lib/chat.ts:148`) no `finally` (`sessaoChat.tsx:427`). Sem ela, o quadro
-aberto ao lado segue mostrando o card aberto.
+**Quarto caso: ação de escrita nova no chat.** Além da API (INV-52), o front tem sítios que o
+compilador cobra e sítios que não. Cobra `EXPLICACAO` (`apps/web/src/components/agentes/ferramentas.ts:16`,
+`Record<NomeDoAssistente, string>`) e, se ela cria um **tipo** novo, `COMO_MOSTRAR`
+(`components/assistente/Conversa.tsx:143`), total sobre `ChatCreated["kind"]`: como o criado se
+mostra, abre e se desfaz. Não cobra: `ROTULO_DA_ACAO` (`Conversa.tsx:55`) é `Record<string, string>`
+e cai no nome cru; `invalidarCriados` (`lib/chat.ts:127-144`) invalida por `kind` citado; o editor
+de agente trata toda escrita como criação salvo exceção por nome (`EditorAgente.tsx:531-541`); e
+**escrita que não cria não passa pelo evento `criado`** — que alimenta o Desfazer —, então precisa
+de invalidação própria: `complete_card` e `complete_task` marcam pelo evento `ferramenta`
+(`lib/sessaoChat.tsx:402-405`) e invalidam no `finally` (`:434-435`), por `invalidarConclusao`
+(`lib/chat.ts:151`) e `invalidarAgenda` (`lib/agenda.ts:35`). Sem isso, a tela ao lado segue
+mostrando aberto o card ou a tarefa.
 
 Então, ao tocar em `ferramentas.ts`: diga no relato que as duas superfícies mudaram, e **meça** o
 `tools/list` se o texto cresceu (a receita e a baseline estão na memória do agente `mcp`). O
@@ -253,8 +256,8 @@ diferente?* Se não, é custo puro — cobrado agora em dois lugares.
 
 O que se anexa a card é decidido **pelos bytes**, na API: `detectarTipo`
 (`apps/api/src/modules/arquivos/arquivos.service.ts:87-110`) reconhece cada tipo por assinatura
-escrita à mão. `TIPOS_DE_ARQUIVO` (`packages/shared/src/arquivos.ts:93-118`) é a lista que o resto
-lê: o `accept` do seletor (`ACEITA_ARQUIVO`, `:121`), `ehImagem`, e na própria API `nomeCoerente` e
+escrita à mão. `TIPOS_DE_ARQUIVO` (`packages/shared/src/arquivos.ts:25-50`) é a lista que o resto
+lê: o `accept` do seletor (`ACEITA_ARQUIVO`, `:53`), `ehImagem`, e na própria API `nomeCoerente` e
 o tipo do texto por extensão (`mimeDaExtensao`, `arquivos.service.ts:75-78`).
 
 Se divergirem: tipo só em `shared` aparece no seletor e toma 415 (`TIPO_NAO_PERMITIDO`) em todo
@@ -265,14 +268,14 @@ e não percorre `TIPOS_DE_ARQUIVO`. Tipo novo entra nos dois, com a assinatura e
 ### 4.8 O evento no período: `diasDoEvento` e `MAX_DIAS_DO_EVENTO` ↔ a consulta da API
 
 `GET /agenda` e `GET /events` trazem o evento que se sobrepõe à janela, semiaberto em
-`[startsAt, endsAt)` (`apps/api/src/modules/eventos/eventos.service.ts:153-174`). Quem desenha dia a
-dia usa `diasDoEvento` (`packages/shared/src/eventos.ts:301`), a mesma regra em dias locais: o evento
+`[startsAt, endsAt)` (`apps/api/src/modules/eventos/eventos.service.ts:154-175`). Quem desenha dia a
+dia usa `diasDoEvento` (`packages/shared/src/eventos.ts:308`), a mesma regra em dias locais: o evento
 com hora que acaba às 00:00 traz `endDate` no dia seguinte e não aparece nele. **Não desenhe de
 `date` a `endDate`** — o calendário mostraria o evento num dia que a API desse dia não devolve.
 Portão: `apps/api/tests/eventos.test.ts:635`.
 
 O limite também tem dois leitores. `MAX_DIAS_DO_EVENTO` (`eventos.ts:35`) recusa o evento longo e é
-o piso de `startsAt` na consulta (`eventos.service.ts:162-167`), para o índice `(user_id, starts_at)`
+o piso de `startsAt` na consulta (`eventos.service.ts:163-168`), para o índice `(user_id, starts_at)`
 cortar dos dois lados. Subi-lo é seguro; **baixá-lo** com eventos mais longos já gravados os tira
 das janelas em que terminam, sem erro — e o portão (`eventos.test.ts:850`) cria o mais longo pelo
 limite novo e segue verde.

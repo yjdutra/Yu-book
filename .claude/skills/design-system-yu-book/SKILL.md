@@ -68,8 +68,8 @@ nele (`SeletorTema.tsx`, `ModoNota.tsx`), mas **importa o `TRACO`, não o redecl
 
 `ICONE_TIPO` mapeia `NoteKind` para ícone e continua total: `kind` novo no enum exige entrada ali.
 Grepe `export function Icone` antes de desenhar. Ícone que só muda de orientação ganha prop, não
-cópia — `IconeChevron({ direcao })` (`Icones.tsx:353-363`). **Um desenho, um sentido:** o clipe é
-nota vinculada, e anexo é a moldura `IconeAnexo` (`:337-350`), não um segundo clipe.
+cópia — `IconeChevron({ direcao })` (`Icones.tsx:382-392`). **Um desenho, um sentido:** clipe é nota
+vinculada e anexo é `IconeAnexo` (`:366-379`); check solto é "feito" e tarefa é `IconeTarefa` (`:343`).
 
 **Glifo unicode que é sigla fica glifo.** As siglas de prazo e prioridade (`!`, `◷`, `▤`, `⬆`, `⬇`)
 de `CartaoCard.tsx:19-30` e `pages/DashboardPage.tsx:37-41` são texto `aria-hidden` com o estado por
@@ -80,7 +80,7 @@ extenso ao lado (`CartaoCard.tsx:90-92`, `:98-99`): o sinal sem cor (§4). Não 
 - **Estado nunca é comunicado só por cor.** Todo status carrega letra ou glifo: tipo de nota tem
   letra (`A/P/T/W/L`), prazo tem símbolo, link quebrado tem sublinhado tracejado **e** `(criar)`.
 - Foco visível é global e incondicional; não remova `outline`. O `:focus-visible` global **não leva
-  `border-radius`** (`index.css:241`): fora de camada vencia o `rounded-*` e mudava a forma.
+  `border-radius`** (`index.css:253`): fora de camada vencia o `rounded-*` e mudava a forma.
 - Ícone sem texto leva rótulo `sr-only`.
 - Erro usa `role="alert"`; status de salvamento usa `aria-live="polite"`.
 - Lista de opções usa `role="listbox"`/`role="option"`; item de navegação ativo usa `aria-current`.
@@ -139,7 +139,7 @@ A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 d
   global (`fecharTudo`) não o fecha; o `Esc` só vale com o foco dentro (`onKeyDown` do `<aside>`,
   `:60-64`), e quem tem `Esc` próprio lá dentro — menu do `@` no `Compositor`, `Menu`, renomear
   conversa — para a propagação. **`Dialogo` lá dentro é o avesso**, como no painel do card: INV-65.
-  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:282-291`); `Ctrl+Shift+Y`
+  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:283-292`); `Ctrl+Shift+Y`
   e a paleta alternam, e na tela do chat focam o campo (INV-56). **Conversa abre por id, sem rota**:
   `selecionar(id)` + `abrirPainel()`, e com fluxo em curso o desvio de `ajustes/TabelasUsoIa.tsx:201-210`.
 - **A área Assistente é chat, agentes e rotinas; o painel só não existe no chat** (Etapas D e E):
@@ -198,7 +198,7 @@ tamanho**. Tela nova usa estes; os valores avulsos antigos migram quando o arqui
 |---|---|
 | `font-sans` / `font-mono` | Inter, com a pilha de sistema como recuo; `mono` para tecla e código |
 | `text-miudo` | 11/16 — o degrau abaixo de `text-xs` |
-| `rotulo` (`@utility`, `index.css:215`) | Título de seção: miúdo, caixa alta, `ink-400` |
+| `rotulo` (`@utility`, `index.css:227`) | Título de seção: miúdo, caixa alta, `ink-400` |
 | `rounded-etiqueta` / `controle` / `cartao` / `dialogo` | Raio por papel |
 | `shadow-e1` … `e4`, `shadow-brilho-ia` | Elevação crescente; o brilho só em área de IA |
 | `ease-saida` / `ease-padrao` | Curvas de entrada e de transição comum |
@@ -209,7 +209,7 @@ tamanho**. Tela nova usa estes; os valores avulsos antigos migram quando o arqui
 | `--z-popover` < `veu` < `dialogo` < `soltura` < `toast` | A escala de camadas (`index.css:129-133`); `z-(--z-dialogo)`, não `z-50` avulso |
 
 - **`text-[10px]` e `text-[11px]` estão proibidos.** São `text-miudo`. 10px fica ilegível em Inter.
-- **Toda animação nova passa pelo bloco `prefers-reduced-motion`** (`index.css:226`); o `0.01ms`,
+- **Toda animação nova passa pelo bloco `prefers-reduced-motion`** (`index.css:238`); o `0.01ms`,
   e não `none`, mantém o `animationend` disparando — não "simplifique". **Animação em JS o CSS não
   alcança**: lê `useMovimentoReduzido` (`lib/movimento.ts`), como a soltura do `DragOverlay` do
   quadro de modelos (`QuadroDeModelos.tsx:525`).
