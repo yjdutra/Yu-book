@@ -14,7 +14,9 @@ import { CAMPOS_DA_MARCA, paraMarca } from "../../lib/marca.js";
 import { CAMPOS_DO_RUN, listar as listarRotinas, paraRun } from "../assistente/rotinas.service.js";
 import { listar as listarNotas } from "../notes/notes.service.js";
 
-const CAMPOS_PRAZO = {
+/// Exportados para a agenda (`eventos.service.ts`, frente de agenda, Fase 1),
+/// que mostra o mesmo card com prazo — uma forma só para os dois.
+export const CAMPOS_PRAZO = {
   id: true,
   title: true,
   dueDate: true,
@@ -25,7 +27,7 @@ const CAMPOS_PRAZO = {
 
 type CardBruto = Prisma.CardGetPayload<{ select: typeof CAMPOS_PRAZO }>;
 
-function toPrazo(card: CardBruto): CardComPrazo {
+export function toPrazo(card: CardBruto): CardComPrazo {
   return {
     id: card.id,
     title: card.title,

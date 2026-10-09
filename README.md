@@ -186,7 +186,7 @@ on purpose.
   deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
   unique index), never through process memory. A run that started is never retried, because a
   retry costs money again.
-- **Tests against real infrastructure:** 449 integration tests boot the whole Fastify app against a
+- **Tests against real infrastructure:** 518 integration tests boot the whole Fastify app against a
   real Postgres; 60 more cover the MCP server.
 
 ---
@@ -324,8 +324,9 @@ The product phases (notes, kanban, links, dashboard, refinements), the MCP serve
 features (chat, AI provenance, agents, routines, scheduling, web research, usage dashboards) are
 all delivered and running in production. Kanban cards have since gained a done state and file
 attachments, stored in an S3-compatible bucket that is optional: without one, the rest of the app
-runs unchanged. Next on the roadmap: semantic search over the knowledge base and Google Calendar
-integration.
+runs unchanged. In progress: an agenda and a to-do list of its own, linked to boards as projects,
+with a phone-friendly companion app; the data model and the API are in place, the screens are not
+yet. Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
 Known limitations, stated on purpose:
 

@@ -17,3 +17,5 @@ export * from "./chat.js";
 export * from "./agentes.js";
 export * from "./rotinas.js";
 export * from "./agenda.js";
+export * from "./eventos.js";
+export * from "./tarefas.js";

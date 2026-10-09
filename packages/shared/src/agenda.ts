@@ -199,6 +199,19 @@ export function instanteLocal(dia: string, hora: string, fuso: string): Date {
 }
 
 /**
+ * A hora de parede `HH:MM` de um instante em `fuso` — a volta de
+ * `instanteLocal`, par de `diaLocal` (`ia.ts`). Os segundos caem.
+ *
+ * Nasceu com a agenda de eventos (frente de agenda, Fase 1), que guarda
+ * instante e devolve dia e hora locais: o cliente não converte fuso. Mora aqui
+ * porque é o mesmo `comoSeFosseUtc` da ida, e o corte do ISO é seguro sobre o
+ * valor dele, que já são as partes locais vistas como UTC.
+ */
+export function horaLocal(instante: Date, fuso: string): string {
+  return new Date(comoSeFosseUtc(instante.getTime(), fuso)).toISOString().slice(11, 16);
+}
+
+/**
  * `AAAA-MM-DD` mais `n` dias de calendário (`n` pode ser negativo).
  *
  * Aritmética sobre as partes do texto, com `Date.UTC` e o corte do ISO — que é

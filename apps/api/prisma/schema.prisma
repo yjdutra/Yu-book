@@ -107,6 +107,7 @@ model User {
   boards        Board[]
   companies     Company[]
   events        Event[]
+  tasks         Task[]
   links         Link[]
   refreshTokens RefreshToken[]
 
@@ -281,6 +282,10 @@ model Board {
   workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   columns       BoardColumn[]
   aiAttachments AiAttachment[]
+  /// Frente de agenda, Fase 1: o quadro é o "projeto" de evento e tarefa.
+  /// `SetNull` do outro lado — excluir o quadro solta o item, não o apaga.
+  events        Event[]
+  tasks         Task[]
 
   @@unique([workspaceId, name])
   @@index([userId, workspaceId])
@@ -440,6 +445,10 @@ model Event {
   workspaceId String?  @map("workspace_id") @db.Uuid
   title       String
   description String?
+  /// Instantes UTC. O dia e a hora locais saem daqui pelo fuso do usuário
+  /// (`ai_preference.timezone`), nunca pelo do processo nem do navegador. Dia
+  /// inteiro vai da meia-noite local do primeiro dia à do dia seguinte ao
+  /// último (frente de agenda, Fase 1).
   startsAt    DateTime @map("starts_at")
   endsAt      DateTime @map("ends_at")
   allDay      Boolean  @default(false) @map("all_day")
@@ -447,16 +456,77 @@ model Event {
   url         String?
   noteId      String?  @map("note_id") @db.Uuid
   cardId      String?  @map("card_id") @db.Uuid
+  /// O projeto do evento (frente de agenda, Fase 1). Quadro excluído solta o
+  /// evento, não o apaga.
+  boardId     String?  @map("board_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
-  note      Note?      @relation(fields: [noteId], references: [id], onDelete: SetNull)
-  card      Card?      @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  /// A marca de conteúdo gerado, a mesma de card e nota (INV-58): gravada só
+  /// pelo servidor, na criação, e nunca apagada.
+  aiGeneratedAt    DateTime? @map("ai_generated_at")
+  aiVia            AiVia?    @map("ai_via")
+  aiAuthor         String?   @map("ai_author")
+  aiConversationId String?   @map("ai_conversation_id") @db.Uuid
+  aiRevisedAt      DateTime? @map("ai_revised_at")
+  aiAgentName      String?   @map("ai_agent_name")
+  aiRunId          String?   @map("ai_run_id") @db.Uuid
+  aiRoutineName    String?   @map("ai_routine_name")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace      Workspace?      @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  note           Note?           @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  card           Card?           @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  board          Board?          @relation(fields: [boardId], references: [id], onDelete: SetNull)
+  aiConversation AiConversation? @relation("EventosGerados", fields: [aiConversationId], references: [id], onDelete: SetNull)
+  aiRun          AiRoutineRun?   @relation("EventosDaRotina", fields: [aiRunId], references: [id], onDelete: SetNull)
 
   @@index([userId, startsAt])
+  @@index([userId, boardId])
   @@map("event")
+}
+
+/// A tarefa (frente de agenda, Fase 1): o to-do solto, que não é card — não
+/// tem coluna, posição nem quadro obrigatório. O quadro é opcional e faz as
+/// vezes de projeto.
+model Task {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  boardId       String?   @map("board_id") @db.Uuid
+  title         String
+  descriptionMd String    @default("") @map("description_md")
+  /// Data **civil** do usuário, sem hora nem fuso: tarefa "para 12/10" é do
+  /// dia 12 onde quer que se olhe. Não é o 23:59:59 do prazo do card, que é um
+  /// instante e por isso depende do fuso para virar dia (§4.5 do contrato).
+  date          DateTime? @db.Date
+  /// `HH:MM` local, só com `date`.
+  time          String?   @db.VarChar(5)
+  /// Como no card (INV-63): a marca de quem concluiu acompanha o estado.
+  completedAt          DateTime? @map("completed_at")
+  aiCompletedVia       AiVia?    @map("ai_completed_via")
+  aiCompletedAuthor    String?   @map("ai_completed_author")
+  aiCompletedAgentName String?   @map("ai_completed_agent_name")
+
+  aiGeneratedAt    DateTime? @map("ai_generated_at")
+  aiVia            AiVia?    @map("ai_via")
+  aiAuthor         String?   @map("ai_author")
+  aiConversationId String?   @map("ai_conversation_id") @db.Uuid
+  aiRevisedAt      DateTime? @map("ai_revised_at")
+  aiAgentName      String?   @map("ai_agent_name")
+  aiRunId          String?   @map("ai_run_id") @db.Uuid
+  aiRoutineName    String?   @map("ai_routine_name")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  board          Board?          @relation(fields: [boardId], references: [id], onDelete: SetNull)
+  aiConversation AiConversation? @relation("TarefasGeradas", fields: [aiConversationId], references: [id], onDelete: SetNull)
+  aiRun          AiRoutineRun?   @relation("TarefasDaRotina", fields: [aiRunId], references: [id], onDelete: SetNull)
+
+  @@index([userId, completedAt, date])
+  @@index([boardId])
+  @@map("task")
 }
 
 /// Preferências de IA. Primeira tabela de configuração por usuário do projeto:
@@ -609,8 +679,10 @@ model AiConversation {
   usages   AiUsage[]
   /// O que esta conversa criou no acervo. `SetNull` do outro lado: apagar a
   /// conversa perde o link "Abrir conversa", nunca a marca.
-  notasGeradas Note[] @relation("NotasGeradas")
-  cardsGerados Card[] @relation("CardsGerados")
+  notasGeradas   Note[]  @relation("NotasGeradas")
+  cardsGerados   Card[]  @relation("CardsGerados")
+  eventosGerados Event[] @relation("EventosGerados")
+  tarefasGeradas Task[]  @relation("TarefasGeradas")
 
   @@index([userId, updatedAt(sort: Desc)])
   @@map("ai_conversation")
@@ -927,6 +999,8 @@ model AiRoutineRun {
   usages     AiUsage[]
   notas      Note[]             @relation("NotasDaRotina")
   cards      Card[]             @relation("CardsDaRotina")
+  eventos    Event[]            @relation("EventosDaRotina")
+  tarefas    Task[]             @relation("TarefasDaRotina")
 
   // RN-19 tem ainda um índice único parcial, `ai_routine_run_uma_em_andamento_idx`
   // — `(user_id) WHERE status = 'em_andamento'`, na migration

@@ -228,6 +228,15 @@ export interface CardDetail extends CardSummary {
   files: CardFile[];
 }
 
+/**
+ * O quadro como "projeto" de evento e tarefa (frente de agenda, Fase 1): só o
+ * que se mostra ao lado do item e o id para abrir o quadro.
+ */
+export interface BoardRef {
+  id: string;
+  name: string;
+}
+
 /** Um card visto do lado da nota (RF-38). */
 export interface CardRef {
   id: string;

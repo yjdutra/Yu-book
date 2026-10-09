@@ -48,7 +48,7 @@ export type OrigemIA =
 /** A origem que o próprio assistente monta — nunca o MCP (Etapa E). */
 export type OrigemDoAssistente = Extract<OrigemIA, { via: "chat" | "rotina" }>;
 
-/** Os campos `ai*` de uma criação, iguais em nota e card. */
+/** Os campos `ai*` de uma criação, iguais em nota, card, evento e tarefa. */
 export function camposDaOrigem(origem: OrigemIA | undefined) {
   if (!origem) return {};
   return {
@@ -62,7 +62,10 @@ export function camposDaOrigem(origem: OrigemIA | undefined) {
   };
 }
 
-/** O mesmo recorte de colunas em `note` e em `card`. */
+/**
+ * O mesmo recorte de colunas em `note`, `card`, `event` e `task` (estes dois
+ * desde a frente de agenda, Fase 1).
+ */
 export const CAMPOS_DA_MARCA = {
   aiGeneratedAt: true,
   aiVia: true,
@@ -72,7 +75,7 @@ export const CAMPOS_DA_MARCA = {
   aiRunId: true,
   aiRoutineName: true,
   aiRevisedAt: true,
-} satisfies Prisma.NoteSelect & Prisma.CardSelect;
+} satisfies Prisma.NoteSelect & Prisma.CardSelect & Prisma.EventSelect & Prisma.TaskSelect;
 
 interface LinhaDaMarca {
   aiGeneratedAt: Date | null;
@@ -102,6 +105,7 @@ export function paraMarca(linha: LinhaDaMarca): AiMark | null {
 
 /**
  * A conclusão do card e a marca de quem concluiu (frente de cards, Parte 1).
+ * A tarefa (frente de agenda, Fase 1) usa a mesma, com as mesmas colunas.
  *
  * Só se chama quando o estado **muda** — concluir um card já concluído não
  * passa por aqui, e a data e a marca originais ficam. Sem `origem`, a
@@ -125,7 +129,7 @@ export const CAMPOS_DA_CONCLUSAO = {
   aiCompletedVia: true,
   aiCompletedAuthor: true,
   aiCompletedAgentName: true,
-} satisfies Prisma.CardSelect;
+} satisfies Prisma.CardSelect & Prisma.TaskSelect;
 
 interface LinhaDaConclusao {
   aiCompletedVia: AiVia | null;

@@ -17,6 +17,70 @@ _Nada pendente._
 
 ---
 
+## [0.28.0] — 2026-10-09
+
+**Frente de agenda, tarefas e o Yu-book no celular, Fase 1: o domínio.** O Yu-book passa a ter
+agenda e lista de tarefas próprias, por enquanto só na API. Evento é compromisso com dia e,
+opcionalmente, hora. Tarefa é o to-do solto, que não é card: não tem coluna nem posição. Os dois
+podem pertencer a um quadro, que faz as vezes de projeto. Nenhuma tela, nenhuma ferramenta do chat e
+nenhuma tool do MCP enxergam isso ainda: as próximas fases da frente trazem a IA e o MCP, e depois um
+app próprio para o celular.
+
+**O cliente não converte fuso.** Evento e tarefa entram e saem em dia (`AAAA-MM-DD`) e hora
+(`HH:MM`) locais do usuário. O servidor converte pelo fuso salvo em `/ajustes`, nunca pelo do
+navegador nem pelo do processo. O evento devolve também os instantes (`startsAt`, `endsAt`), para
+ordenar. A data da tarefa é civil: "para 12/10" é do dia 12 em qualquer fuso, e o fuso só decide o
+que é hoje, e com isso se a tarefa está atrasada.
+
+**Só `packages/shared` e `apps/api` se movem.** O contrato cresceu sem alterar nada que já existia:
+entraram os módulos `eventos.ts` e `tarefas.ts`, `horaLocal` em `agenda.ts` e `BoardRef` em
+`kanban.ts`. `apps/web` e `apps/mcp` não importam nada disso nem mudaram uma linha, e se movem nas
+fases em que passarem a consumir o contrato novo. Versões: `packages/shared` de `0.16.0` para
+`0.17.0` e `apps/api` de `0.18.0` para `0.19.0`. `apps/web` fica em `0.23.0` e `apps/mcp` em
+`0.19.0`.
+
+**Uma migration aditiva**, `20261009120000_agenda_eventos_tarefas`. A tabela `event`, que existia
+desde a migration inicial sem nenhuma rota que gravasse nela, ganha `board_id` e as oito colunas da
+marca de IA de card e nota. Nasce a tabela `task`, com data civil (`DATE`), hora opcional, conclusão
+com marca de quem concluiu e a mesma marca de IA. Excluir o quadro solta o evento e a tarefa, sem
+apagá-los. Nenhum dado existente muda.
+
+Portões, rodados no fechamento: `pnpm typecheck` limpo e `pnpm --filter @yu-book/api test` com
+**518 testes** (eram 449). Os 69 novos estão em `eventos.test.ts` e `tarefas.test.ts` e cobrem
+CRUD, validação de horário, fuso (a mesma data e hora em São Paulo e em Tóquio viram instantes
+diferentes e voltam iguais), o fim que anda com o início no `PATCH`, a consulta por intervalo, a
+agenda agregada, a marca de IA, a posse e a cascata. `apps/mcp` não mudou, e seus 60 testes não
+foram rodados de novo.
+
+### Adicionado
+- **Eventos:** `GET /events?from&to`, `GET /events/:id`, `POST /events`, `PATCH /events/:id` e
+  `DELETE /events/:id`. O evento tem dia inteiro de um ou vários dias, ou início e fim com hora. Sem
+  hora de término, dura uma hora. Um fim anterior ao início, sem dia de término, atravessa a
+  meia-noite ("das 22h à 1h"). A duração máxima é de 14 dias. Tem também local, endereço
+  `http(s)`, descrição e quadro.
+- **A consulta por período pega o evento que atravessa a borda:** `GET /events` devolve o que se
+  sobrepõe à janela, não só o que começa nela. A janela vai até 62 dias, que é um mês com as semanas
+  das bordas.
+- **`PATCH` de evento que preserva a duração:** mudar só o início arrasta o fim junto, e mudar o dia
+  de um evento de vários dias leva o vão inteiro. Trocar o título não recalcula os instantes.
+- **Tarefas:** `GET /tasks?status&boardId` (abertas, concluídas ou todas, filtráveis por quadro),
+  `GET /tasks/:id`, `POST /tasks`, `PATCH /tasks/:id` e `DELETE /tasks/:id`. A tarefa tem data e
+  hora opcionais (hora só com data) e devolve `overdue` quando está aberta com data anterior a hoje.
+- **`PATCH /tasks/:id/complete`** conclui e reabre a tarefa, como o card: a marca de quem concluiu,
+  quando foi o assistente, segue o estado.
+- **`GET /agenda?from&to`:** tudo o que um calendário desenha num período, numa requisição só. Traz
+  os eventos que se sobrepõem a ele, as tarefas com data nele, as tarefas atrasadas de antes dele e
+  os cards abertos e não arquivados com prazo no período. O dia do card é contado no fuso do
+  usuário. A resposta leva o `timezone` e o dia de hoje nele, para o cliente não precisar do
+  relógio do aparelho.
+- **Marca de conteúdo gerado em evento e tarefa**, a mesma de card e nota: gravada só pelo servidor,
+  na criação, e o `origin` do MCP aceito na criação e na conclusão. Ainda não há quem a grave. O
+  chat e o MCP chegam na próxima fase.
+- **Quadro como projeto:** `boardId` em evento e tarefa. Quadro de outra conta responde 404, como
+  inexistente, e um quadro excluído no meio da escrita também.
+
+---
+
 ## [0.27.0] — 2026-09-30
 
 **Frente de cards, Parte 2: anexos de arquivo no card.** Um card passa a guardar imagens, PDFs,

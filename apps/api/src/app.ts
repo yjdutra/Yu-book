@@ -13,11 +13,13 @@ import { arquivosRoutes } from "./modules/arquivos/arquivos.routes.js";
 import { assistenteRoutes } from "./modules/assistente/assistente.routes.js";
 import { authRoutes } from "./modules/auth/auth.routes.js";
 import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
+import { eventosRoutes } from "./modules/eventos/eventos.routes.js";
 import { healthRoutes } from "./modules/health.routes.js";
 import { kanbanRoutes } from "./modules/kanban/kanban.routes.js";
 import { linksRoutes } from "./modules/links/links.routes.js";
 import { notesRoutes } from "./modules/notes/notes.routes.js";
 import { organizacaoRoutes } from "./modules/organizacao/organizacao.routes.js";
+import { tarefasRoutes } from "./modules/tarefas/tarefas.routes.js";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -108,6 +110,8 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(arquivosRoutes);
   await app.register(linksRoutes);
   await app.register(dashboardRoutes);
+  await app.register(eventosRoutes);
+  await app.register(tarefasRoutes);
   await app.register(assistenteRoutes);
 
   return app;
