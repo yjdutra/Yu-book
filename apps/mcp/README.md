@@ -79,7 +79,8 @@ expulsa ninguém e não há mapa crescendo em memória.
 
 ## Hospedado na Railway
 
-`railway.json` fica em [`apps/mcp/railway.json`](railway.json), como os dos outros dois serviços.
+O serviço é configurado nas configurações dele na Railway, que não lê este arquivo; os mesmos
+comandos de build e start ficam em [`apps/mcp/railway.json`](railway.json) como referência.
 **Root Directory vazio** — apontar para `apps/mcp` quebra a resolução de `@yu-book/shared`. Watch
 Paths: `apps/mcp/**`, `packages/shared/**`, `pnpm-lock.yaml`.
 

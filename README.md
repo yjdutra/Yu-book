@@ -252,7 +252,7 @@ invariants, and a changelog entry: see [`CHANGELOG.md`](CHANGELOG.md).
 | AI | OpenRouter (any model in its catalog), server-sent events for streaming |
 | MCP | Official TypeScript SDK, stdio and Streamable HTTP, OAuth 2.1 with PKCE |
 | Tests | Vitest, integration tests against real Postgres |
-| Hosting | Railway: Postgres, API, web and MCP as four services from one repository |
+| Hosting | Railway: Postgres, API, web, phone app and MCP as five services from one repository |
 
 ---
 
@@ -300,19 +300,30 @@ To run the MCP server locally over stdio, see [apps/mcp/README.md](apps/mcp/READ
 
 ## Deploying to Railway
 
-One project, all services built from this repository, each with its own config file:
+One project, all services built from this repository:
 
 | Service | Config | Watch paths |
 |---|---|---|
 | Postgres | Railway plugin | — |
 | API | `apps/api/railway.json` | `apps/api/**`, `packages/shared/**`, `pnpm-lock.yaml` |
 | Web | `apps/web/railway.json` | `apps/web/**`, `packages/cliente/**`, `packages/shared/**`, `pnpm-lock.yaml` |
-| Phone app (optional) | `apps/movel/railway.json` | `apps/movel/**`, `packages/cliente/**`, `packages/shared/**`, `pnpm-lock.yaml` |
-| MCP (optional) | `apps/mcp/railway.json` | see [apps/mcp/README.md](apps/mcp/README.md) |
+| Phone app (optional) | service settings, see below | `apps/movel/**`, `packages/cliente/**`, `packages/shared/**`, `pnpm-lock.yaml` |
+| MCP (optional) | service settings (commands in `apps/mcp/railway.json`) | see [apps/mcp/README.md](apps/mcp/README.md) |
 
 Leave **Root Directory empty** on every service: the build runs `pnpm install` at the root so the
 `@yu-book/shared` workspace resolves. Create the services and generate their domains first, then
 fill in the variables, because the API needs the web domain and the web needs the API domain.
+
+**Phone app service.** Railway no longer accepts config-as-code (`railway.json`) on new services,
+so set the build in the service settings instead. `apps/movel/railway.json` keeps the same
+commands for reference, but Railway does not read it.
+
+| Setting | Value |
+|---|---|
+| Builder | Nixpacks |
+| Build command | `pnpm install --frozen-lockfile && pnpm --filter @yu-book/shared build && pnpm --filter @yu-book/movel build` |
+| Start command | `pnpm --filter @yu-book/movel start` |
+| Restart policy | On failure, 3 retries |
 
 **API variables**
 
@@ -360,8 +371,7 @@ runs unchanged.
 The most recent addition is complete: an agenda and a to-do list of their own, linked to boards as
 projects, that the assistant and the MCP server can read and write; a "Today" block on the desktop
 home page; and a companion phone app with the agenda, tasks, projects and the assistant, voice
-included. The phone app has its Railway config but no hosted service yet, so for now it runs
-locally next to the API.
+included. The phone app runs in production as its own service, next to the web app.
 
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 

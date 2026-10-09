@@ -19,6 +19,20 @@ _Nada pendente._
 
 ## [0.33.0] — 2026-10-09
 
+> **Publicada em produção em 2026-10-09, junto com a `[0.28.0]` a `[0.32.0]`.** Nenhuma das seis
+> tinha ido ao ar. A frente subiu inteira, num push só. API, web e MCP foram redeployados, e a API
+> aplicou a migration `20261009120000_agenda_eventos_tarefas` no boot. **O app móvel passou a estar
+> publicado**, num serviço próprio na Railway, e a origem dele entrou em `CORS_ORIGIN` da API. O que
+> esta entrada diz abaixo sobre ele não estar publicado deixou de valer. Serviço novo na Railway não
+> aceita mais `railway.json`, então o do móvel foi configurado no painel com os mesmos comandos, e
+> `apps/movel/railway.json` não é lido por ela. Os watch paths do web passaram a incluir
+> `packages/cliente/**`, `packages/shared/**` e `pnpm-lock.yaml`, e os da API, `pnpm-lock.yaml`.
+> **O MCP hospedado roda com a escrita ligada** (`MCP_ESCRITA_HABILITADA=1`): o `tools/list`
+> publica as tools de escrita, inclusive `create_event`, `create_task` e `complete_task`. O
+> cadastro segue fechado. **Conferido só por fora:** os health checks responderam, e o móvel, num
+> navegador headless, abriu o login sem erro de CORS. Ninguém entrou com a conta real no móvel
+> publicado, nem o instalou como PWA, nem o usou num Android ou com microfone.
+
 **Frente de agenda, tarefas e o Yu-book no celular, Fase 6: o dia no Início do desktop, e o
 fechamento da frente.** O Início do web ganha o bloco "Hoje", com as tarefas atrasadas e os
 eventos e as tarefas do dia. A tarefa se conclui ali com um clique. O resto continua só leitura no
@@ -86,7 +100,7 @@ não foi usado. Nenhuma fase da frente teve a interface conferida à mão.
 ### Limitações conhecidas
 - **O desktop não cria nem edita evento e tarefa.** Ele lê a agenda e conclui tarefa.
 - **O app móvel não está publicado.** Falta o serviço na Railway e a origem dele em `CORS_ORIGIN`
-  da API.
+  da API. _(Resolvido na publicação, no mesmo dia: ver a nota no topo desta entrada.)_
 - **Sem notificações nem lembretes.** O evento e a tarefa aparecem onde se olha, mas nada avisa.
 
 ---
