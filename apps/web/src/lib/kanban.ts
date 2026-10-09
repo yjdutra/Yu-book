@@ -10,6 +10,7 @@ import type {
 } from "@yu-book/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
+import { invalidarAgenda } from "@yu-book/cliente/agenda";
 import { api } from "@yu-book/cliente/api";
 
 export const chaveBoard = (id: string) => ["board", id] as const;
@@ -87,20 +88,33 @@ export function useCriarBoard() {
   });
 }
 
+/*
+ * Renomear e excluir quadro também invalidam a agenda: evento e tarefa trazem
+ * `board.name` (o projeto, no bloco "Hoje" do Início e no móvel). Fica de fora
+ * de `useInvalidarKanban`, que roda a cada card e coluna, que não mudam isso.
+ */
 export function useAtualizarBoard() {
+  const qc = useQueryClient();
   const invalidar = useInvalidarKanban();
   return useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) =>
       api.patch<BoardDetail>(`/boards/${id}`, { name }),
-    onSuccess: (board) => invalidar(board.id),
+    onSuccess: (board) => {
+      invalidar(board.id);
+      invalidarAgenda(qc);
+    },
   });
 }
 
 export function useExcluirBoard() {
+  const qc = useQueryClient();
   const invalidar = useInvalidarKanban();
   return useMutation({
     mutationFn: (id: string) => api.delete<void>(`/boards/${id}`),
-    onSuccess: () => invalidar(),
+    onSuccess: () => {
+      invalidar();
+      invalidarAgenda(qc);
+    },
   });
 }
 

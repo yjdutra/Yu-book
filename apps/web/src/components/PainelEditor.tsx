@@ -1,5 +1,5 @@
 import { NOTE_KINDS } from "@yu-book/shared";
-import type { NoteDetail, NoteKind, UpdateNoteInput } from "@yu-book/shared";
+import type { NoteKind, UpdateNoteInput } from "@yu-book/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { ApiError } from "@yu-book/cliente/api";

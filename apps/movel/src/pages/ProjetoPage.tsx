@@ -1,5 +1,6 @@
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Botao } from "@yu-book/cliente/base/Botao";
+import { useAlternarTarefa } from "@yu-book/cliente/concluirTarefa";
 import { IconeBoard, IconeCalendario, IconeChevron, IconeMais } from "@yu-book/cliente/icones";
 import { useId } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -10,7 +11,6 @@ import type { ItemDoDia } from "../components/agenda/itens";
 import { useFolhaItem } from "../components/folha/FolhaItem";
 import { DIAS_DE_PROJETO, useProjetos } from "../components/projetos/dados";
 import { ListaAgrupada } from "../components/tarefas/ListaAgrupada";
-import { useAlternarTarefa } from "../lib/concluir";
 import { useReconferirQuadro } from "../lib/quadros";
 
 /**

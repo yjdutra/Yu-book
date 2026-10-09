@@ -1,5 +1,4 @@
 import { useMatch, useNavigate } from "react-router-dom";
-import type { RoutineSummary } from "@yu-book/shared";
 import { useAgentes } from "../../../lib/agentes";
 import { useAiAjustes } from "../../../lib/ia";
 import { execucaoEmAndamento, useRotinas } from "../../../lib/rotinas";

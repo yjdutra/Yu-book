@@ -22,7 +22,8 @@ import {
   useCriarConversa,
 } from "@yu-book/cliente/chat";
 import type { Anexo, EmCurso } from "@yu-book/cliente/chat";
-import { CHAVE_AJUSTES, CHAVE_USO, invalidarConclusao, invalidarCriados } from "./chat";
+import { CHAVE_AJUSTES } from "@yu-book/cliente/ia";
+import { CHAVE_USO, invalidarConclusao, invalidarCriados } from "./chat";
 
 /**
  * A sessão do chat (redesenho de UI, Etapa 3).

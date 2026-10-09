@@ -13,10 +13,9 @@ import { useInvalidar } from "./notas";
  * — depois que o chat grava nele.
  */
 
-/// A tela de ajustes mostra o gasto do dia, e uma mensagem do chat o move.
-export const CHAVE_AJUSTES = ["ia", "ajustes"] as const;
 /// O AI usage dash (`/ajustes/uso`) lê `ai_usage`, e toda chamada ao provedor
-/// grava uma linha ali. Invalidado nos mesmos pontos que `CHAVE_AJUSTES`.
+/// grava uma linha ali. Invalidado nos mesmos pontos que `CHAVE_AJUSTES`
+/// (`@yu-book/cliente/ia`, a chave que o móvel também lê).
 export const CHAVE_USO = ["ia", "uso"] as const;
 
 /**
@@ -49,7 +48,8 @@ export function useVirarNota() {
  * O chat acabou de gravar no acervo (evento `criado`): as listas que mostram
  * nota e card ficaram velhas. O quadro vai inteiro — o evento não diz em qual
  * o card caiu, e é raro o bastante para não pesar. Evento e tarefa (frente de
- * agenda) levam os prefixos da agenda, que ainda não têm query no web.
+ * agenda) levam os prefixos da agenda (`invalidarAgenda`), que o bloco "Hoje"
+ * do Início lê.
  */
 export function invalidarCriados(qc: QueryClient, criados: ChatCreated[]): void {
   if (criados.some((c) => c.kind === "note")) {

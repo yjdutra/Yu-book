@@ -13,7 +13,8 @@ import type {
 } from "@yu-book/shared";
 import { api, apiStream } from "@yu-book/cliente/api";
 import { lerEventos } from "@yu-book/cliente/chat";
-import { CHAVE_AJUSTES, CHAVE_USO } from "./chat";
+import { CHAVE_AJUSTES } from "@yu-book/cliente/ia";
+import { CHAVE_USO } from "./chat";
 
 /**
  * Rotinas (Etapa E da frente de IA).

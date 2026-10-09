@@ -1,3 +1,10 @@
+import {
+  compararNoDia,
+  horaDoEvento,
+  ORDEM_DO_PRAZO,
+  ordemDaTarefa,
+  ordemDoEvento,
+} from "@yu-book/cliente/hoje";
 import { diasDoEvento } from "@yu-book/shared";
 import type { AgendaCard, AgendaRange, EventItem, TaskItem } from "@yu-book/shared";
 import { diaCurto } from "../../lib/datas";
@@ -23,21 +30,6 @@ export interface ResumoDoDia {
   itens: ItemDoDia[];
 }
 
-/**
- * A hora de um evento **naquele dia**: "14:00–15:00" no dia em que começa e
- * acaba; nos de um evento que atravessa a meia-noite, a parte do dia
- * ("22:00–24:00", "00:00–01:00"), e "o dia todo" no meio.
- */
-export function horaDoEvento(evento: EventItem, dia: string): { texto: string; inicio: string } {
-  if (evento.allDay || !evento.startTime || !evento.endTime) {
-    return { texto: "dia inteiro", inicio: "" };
-  }
-  const inicio = dia === evento.date ? evento.startTime : "00:00";
-  const fim = dia === evento.endDate ? evento.endTime : "24:00";
-  if (inicio === "00:00" && fim === "24:00") return { texto: "o dia todo", inicio: "" };
-  return { texto: `${inicio}–${fim}`, inicio };
-}
-
 function novoResumo(): ResumoDoDia {
   return { eventos: 0, tarefas: 0, concluidas: 0, prazos: 0, itens: [] };
 }
@@ -48,12 +40,18 @@ export function itemDeTarefa(tarefa: TaskItem, hora: string): ItemDoDia {
     id: `t-${tarefa.id}`,
     tarefa,
     hora,
-    ordem: tarefa.time ? `1${tarefa.time}` : "2",
+    ordem: ordemDaTarefa(tarefa),
   };
 }
 
 export function itemDePrazo(card: AgendaCard): ItemDoDia {
-  return { tipo: "prazo", id: `c-${card.id}`, card, hora: "até o fim do dia", ordem: "3" };
+  return {
+    tipo: "prazo",
+    id: `c-${card.id}`,
+    card,
+    hora: "até o fim do dia",
+    ordem: ORDEM_DO_PRAZO,
+  };
 }
 
 /** O evento fora da grade de um dia (listas de vários dias): hora já dita. */
@@ -62,10 +60,10 @@ export function itemDeEvento(evento: EventItem, hora: string): ItemDoDia {
 }
 
 /**
- * Agrupa a resposta de `GET /agenda` por dia. A ordem: o evento de dia
- * inteiro primeiro, depois o que tem hora, pela hora, as tarefas sem hora — o
- * que se faz "em algum momento" do dia — e por fim os prazos de card, que são
- * do quadro e só se leem aqui.
+ * Agrupa a resposta de `GET /agenda` por dia, na ordem do dia que o bloco
+ * "Hoje" do web também segue (`compararNoDia`, em `@yu-book/cliente/hoje`): o
+ * evento de dia inteiro primeiro, depois o que tem hora, pela hora, as tarefas
+ * sem hora e por fim os prazos de card.
  */
 export function indexarPorDia(agenda: AgendaRange): Map<string, ResumoDoDia> {
   const porDia = new Map<string, ResumoDoDia>();
@@ -88,7 +86,7 @@ export function indexarPorDia(agenda: AgendaRange): Map<string, ResumoDoDia> {
         id: `e-${evento.id}`,
         evento,
         hora: texto,
-        ordem: inicio ? `1${inicio}` : "0",
+        ordem: ordemDoEvento(inicio),
       });
     }
   }
@@ -106,8 +104,11 @@ export function indexarPorDia(agenda: AgendaRange): Map<string, ResumoDoDia> {
   }
 
   for (const resumo of porDia.values()) {
-    resumo.itens.sort(
-      (a, b) => a.ordem.localeCompare(b.ordem) || tituloDe(a).localeCompare(tituloDe(b), "pt-BR"),
+    resumo.itens.sort((a, b) =>
+      compararNoDia(
+        { ordem: a.ordem, titulo: tituloDe(a) },
+        { ordem: b.ordem, titulo: tituloDe(b) },
+      ),
     );
   }
   return porDia;

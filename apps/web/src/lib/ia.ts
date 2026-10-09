@@ -15,6 +15,7 @@ import type {
 } from "@yu-book/shared";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@yu-book/cliente/api";
+import { CHAVE_AJUSTES, CHAVE_SAUDE_IA } from "@yu-book/cliente/ia";
 import { CHAVE_USO } from "./chat";
 
 /**
@@ -24,12 +25,11 @@ import { CHAVE_USO } from "./chat";
  * servidor (RNF-02). O que o navegador conhece, o bundle publica.
  */
 
-const AJUSTES = ["ia", "ajustes"] as const;
 const TAREFA = ["ia", "tarefa"] as const;
 
 export function useAiSaude() {
   return useQuery({
-    queryKey: ["ia", "saude"],
+    queryKey: CHAVE_SAUDE_IA,
     queryFn: () => api.get<AiHealth>("/ai/health"),
     staleTime: 60_000,
   });
@@ -38,7 +38,7 @@ export function useAiSaude() {
 /** Os três blocos da tela vêm juntos, numa requisição só. */
 export function useAiAjustes() {
   return useQuery({
-    queryKey: AJUSTES,
+    queryKey: CHAVE_AJUSTES,
     queryFn: () => api.get<AiSettings>("/ai/settings"),
     staleTime: 30_000,
   });
@@ -137,7 +137,7 @@ export function useAtualizarAjustes() {
     // usage dash, não: trocar o fuso muda o `to` e o nome do fuso que ele
     // mostra, e só o servidor recalcula o período.
     onSuccess: (ajustes) => {
-      qc.setQueryData(AJUSTES, ajustes);
+      qc.setQueryData(CHAVE_AJUSTES, ajustes);
       void qc.invalidateQueries({ queryKey: CHAVE_USO });
     },
   });
@@ -148,7 +148,7 @@ export function useFavoritar() {
   return useMutation({
     mutationFn: (modelId: string) => api.post<AiFavorite>("/ai/favorites", { modelId }),
     // A resposta é só o favorito, não a tela inteira — aqui invalidar é honesto.
-    onSuccess: () => qc.invalidateQueries({ queryKey: AJUSTES }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CHAVE_AJUSTES }),
   });
 }
 
@@ -156,7 +156,7 @@ export function useDesfavoritar() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (favoriteId: string) => api.delete<void>(`/ai/favorites/${favoriteId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: AJUSTES }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CHAVE_AJUSTES }),
   });
 }
 
@@ -173,29 +173,29 @@ export function useDefinirModeloDaTarefa() {
     mutationFn: ({ task, modelId }: { task: TarefaComModelo; modelId: string | null }) =>
       api.patch<AiSettings["taskModels"]>(`/ai/tasks/${task}`, { modelId }),
     onMutate: async ({ task, modelId }) => {
-      await qc.cancelQueries({ queryKey: AJUSTES });
-      const antes = qc.getQueryData<AiSettings>(AJUSTES);
+      await qc.cancelQueries({ queryKey: CHAVE_AJUSTES });
+      const antes = qc.getQueryData<AiSettings>(CHAVE_AJUSTES);
       if (antes) {
         const taskModels = { ...antes.taskModels };
         if (modelId) taskModels[task] = modelId;
         else delete taskModels[task];
-        qc.setQueryData<AiSettings>(AJUSTES, { ...antes, taskModels });
+        qc.setQueryData<AiSettings>(CHAVE_AJUSTES, { ...antes, taskModels });
       }
       return { antes };
     },
     onError: (_erro, _vars, contexto) => {
-      if (contexto?.antes) qc.setQueryData(AJUSTES, contexto.antes);
+      if (contexto?.antes) qc.setQueryData(CHAVE_AJUSTES, contexto.antes);
     },
     onSuccess: (taskModels) => {
-      const atual = qc.getQueryData<AiSettings>(AJUSTES);
-      if (atual) qc.setQueryData(AJUSTES, { ...atual, taskModels });
+      const atual = qc.getQueryData<AiSettings>(CHAVE_AJUSTES);
+      if (atual) qc.setQueryData(CHAVE_AJUSTES, { ...atual, taskModels });
     },
     /// Dois arrastes seguidos, antes de a rede responder: as respostas podem
     /// chegar fora de ordem, e o rollback de uma pode restaurar a mudança
     /// otimista da outra. Quando a última termina, o servidor decide.
     onSettled: () => {
       if (qc.isMutating({ mutationKey: TAREFA }) <= 1) {
-        void qc.invalidateQueries({ queryKey: AJUSTES });
+        void qc.invalidateQueries({ queryKey: CHAVE_AJUSTES });
       }
     },
   });
@@ -220,7 +220,7 @@ export function useFormatarNota() {
     // `ai_usage`. `void`: quem espera o `mutateAsync` não precisa esperar
     // estes refetches.
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: AJUSTES });
+      void qc.invalidateQueries({ queryKey: CHAVE_AJUSTES });
       void qc.invalidateQueries({ queryKey: CHAVE_USO });
     },
   });

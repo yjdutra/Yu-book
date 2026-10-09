@@ -1,13 +1,7 @@
-/**
- * "Bom dia", "Boa tarde", "Boa noite" pela hora do aparelho. Só serve à
- * saudação: dia e hora de dado (evento, tarefa, prazo) vêm da API, no fuso do
- * usuário (contrato §4.5). As outras leituras do relógio moram em `datas.ts`.
+/*
+ * O nome do usuário como o móvel o diz. A saudação ("Bom dia") é
+ * `@yu-book/cliente/texto`, a mesma do Início do web.
  */
-export function saudacao(hora: number): string {
-  if (hora >= 5 && hora < 12) return "Bom dia";
-  if (hora >= 12 && hora < 18) return "Boa tarde";
-  return "Boa noite";
-}
 
 export function primeiroNome(nome: string): string {
   return nome.trim().split(/\s+/)[0] ?? "";

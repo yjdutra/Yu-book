@@ -1,10 +1,10 @@
 import { IconeChevron } from "@yu-book/cliente/icones";
+import { contar } from "@yu-book/cliente/texto";
 import { somarDias } from "@yu-book/shared";
 import { useEffect, useId, useRef } from "react";
 import type { KeyboardEvent, TouchEvent } from "react";
 import {
   DIAS_LONGOS,
-  contar,
   diaDaSemana,
   diaPorExtenso,
   gradeDoMes,

@@ -6,6 +6,8 @@ import { Bloco, Esqueleto, Vazio } from "@yu-book/cliente/base/Bloco";
 import { Botao } from "@yu-book/cliente/base/Botao";
 import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
 import { IconeAlerta, IconeAssistente, IconeRelogio } from "@yu-book/cliente/icones";
+import { saudacao } from "@yu-book/cliente/texto";
+import { EsqueletoHoje, MolduraHoje } from "../components/agenda/MolduraHoje";
 import { MarcaIA } from "../components/MarcaIA";
 import { MiniaturaLink } from "../components/MiniaturaLink";
 import { RotuloTipo } from "../components/RotuloTipo";
@@ -13,7 +15,7 @@ import { useAuth } from "@yu-book/cliente/auth";
 import { useDashboard } from "../lib/dashboard";
 import { useBoards } from "../lib/kanban";
 import { useAcoesChat } from "../lib/sessaoChat";
-import { idadeRelativa, prazoRelativo, saudacao } from "../lib/tempo";
+import { idadeRelativa, prazoRelativo } from "../lib/tempo";
 import { useWorkspaceAtivo } from "../lib/workspace";
 
 /**
@@ -25,6 +27,32 @@ import { useWorkspaceAtivo } from "../lib/workspace";
 const BlocoRotinas = lazy(() =>
   import("../components/rotinas/InicioRotinas").then((m) => ({ default: m.BlocoRotinas })),
 );
+
+/**
+ * O bloco Hoje (frente de agenda, Fase 6) é preguiçoso pelo mesmo motivo: os
+ * dias do evento (`diasDoEvento`) e a soma de dias são valor de `shared`, que
+ * arrasta schema. A consulta dele não depende do `/dashboard`, e por isso ele
+ * já monta no esqueleto da página: as duas saem juntas, sem cascata. O
+ * fallback é o mesmo esqueleto que o bloco mostra enquanto a agenda não chega
+ * (`MolduraHoje.tsx`).
+ */
+const BlocoHoje = lazy(() =>
+  import("../components/agenda/BlocoHoje").then((m) => ({ default: m.BlocoHoje })),
+);
+
+function Hoje() {
+  return (
+    <Suspense
+      fallback={
+        <MolduraHoje>
+          <EsqueletoHoje />
+        </MolduraHoje>
+      }
+    >
+      <BlocoHoje />
+    </Suspense>
+  );
+}
 
 function EsqueletoRotinas() {
   return (
@@ -199,42 +227,50 @@ export function DashboardPage({ onNovaNota, onAbrirGaveta, onAbrirNota }: Dashbo
   const boards = useBoards(ativoId);
 
   const primeiroNome = user?.name.trim().split(/\s+/)[0] ?? "";
+  const carregando = isLoading || !data;
 
   // O cabeçalho e a pergunta não dependem dos dados: são os mesmos no esqueleto
-  // e na tela pronta.
+  // e na tela pronta. O "Carregando…" mora dentro do cabeçalho, e não antes
+  // dele, pela razão do comentário abaixo.
   const cabecalho = (
     <header>
       <h2 className="text-2xl font-semibold text-titulo">
-        {saudacao()}
+        {saudacao(new Date().getHours())}
         {primeiroNome && `, ${primeiroNome}`}
       </h2>
       <p className="mt-1 text-xs text-ink-400">
         {dataPorExtenso()} · {ativo ? `Workspace ${ativo.name}` : "Todos os workspaces"}
       </p>
+      {carregando && <span className="sr-only">Carregando…</span>}
     </header>
   );
 
-  if (isLoading || !data) {
+  if (carregando) {
     // RNF-11: o esqueleto tem a forma da tela pronta — mesma grade, mesmos
-    // blocos —, para a chegada dos dados não empurrar nada.
+    // blocos —, para a chegada dos dados não empurrar nada. E a mesma árvore
+    // até o bloco Hoje (`main` > cabeçalho, pergunta, grade > coluna, `Hoje`),
+    // filho por filho: o `/dashboard` chega, ou o workspace troca e ele volta
+    // a carregar, e o React reaproveita o bloco em vez de remontá-lo — o
+    // aviso de uma falha e o foco na caixa de uma tarefa sobrevivem. Elemento
+    // a mais ou a menos antes dele, num ramo só, o remontaria.
     return (
       <main
         aria-busy="true"
         className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto px-8 py-6"
       >
-        <span className="sr-only">Carregando…</span>
         {cabecalho}
         <PergunteAoAcervo />
         <div className="grid min-w-0 grid-cols-12 gap-4">
-          <div className="col-span-7 min-w-0">
+          <div className="col-span-7 flex min-w-0 flex-col gap-4">
             <Bloco titulo="Prazos">
               <Esqueleto linhas={3} />
             </Bloco>
-          </div>
-          <div className="col-span-5 min-w-0">
             <Bloco titulo="Onde você parou">
               <Esqueleto linhas={4} />
             </Bloco>
+          </div>
+          <div className="col-span-5 min-w-0">
+            <Hoje />
           </div>
           <div className="col-span-12 min-w-0">
             <EsqueletoRotinas />
@@ -269,8 +305,10 @@ export function DashboardPage({ onNovaNota, onAbrirGaveta, onAbrirNota }: Dashbo
 
       <div className="grid min-w-0 grid-cols-12 gap-4">
         {/* RN-01: prazo vencido tem precedência sobre tudo — primeiro bloco,
-            e dentro dele os vencidos antes dos próximos. */}
-        <div className="col-span-7 min-w-0">
+            e dentro dele os vencidos antes dos próximos. "Onde você parou" vai
+            embaixo dele, na mesma coluna (frente de agenda, Fase 6): ao lado
+            fica o dia, que é a lista que cresce. */}
+        <div className="col-span-7 flex min-w-0 flex-col gap-4">
           <Bloco titulo="Prazos">
             {semPrazo ? (
               <Vazio
@@ -321,9 +359,7 @@ export function DashboardPage({ onNovaNota, onAbrirGaveta, onAbrirNota }: Dashbo
               </div>
             )}
           </Bloco>
-        </div>
 
-        <div className="col-span-5 min-w-0">
           <Bloco titulo="Onde você parou">
             {notas.length === 0 ? (
               <Vazio
@@ -364,6 +400,13 @@ export function DashboardPage({ onNovaNota, onAbrirGaveta, onAbrirNota }: Dashbo
               </ul>
             )}
           </Bloco>
+        </div>
+
+        {/* Frente de agenda, Fase 6: o dia ao lado dos prazos — o que tem hora
+            marcada perto do que tem data para entregar. Os prazos de card de
+            hoje ficam só em Prazos. */}
+        <div className="col-span-5 min-w-0">
+          <Hoje />
         </div>
 
         {/* Etapa F: o que as rotinas fizeram sozinhas. Depois dos prazos (RN-01), antes

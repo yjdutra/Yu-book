@@ -17,6 +17,80 @@ _Nada pendente._
 
 ---
 
+## [0.33.0] — 2026-10-09
+
+**Frente de agenda, tarefas e o Yu-book no celular, Fase 6: o dia no Início do desktop, e o
+fechamento da frente.** O Início do web ganha o bloco "Hoje", com as tarefas atrasadas e os
+eventos e as tarefas do dia. A tarefa se conclui ali com um clique. O resto continua só leitura no
+desktop: evento e tarefa se criam e se editam pelo celular ou pedindo ao assistente, e o próprio
+bloco diz isso. A agenda e as tarefas passam a ser relidas quando a aba volta ao foco, e o que foi
+feito no celular aparece no desktop sem recarregar a página.
+
+**É a última das seis fases da frente.** Com a `[0.28.0]` a `[0.33.0]`, o Yu-book tem agenda e
+tarefas próprias, ligadas a quadros como projetos. O chat e o MCP leem a agenda, marcam evento,
+anotam tarefa e concluem tarefa. O app móvel tem Início, Agenda, Tarefas, Projetos e o Assistente,
+com ditado por voz, e o Início do web mostra o dia. **O app móvel ainda não está publicado:** ele
+tem build e `apps/movel/railway.json`, mas nenhum serviço na Railway.
+
+**Três pacotes se movem.** `apps/web` vai de `0.26.0` para `0.27.0`, `apps/movel` de `0.3.0` para
+`0.4.0` e `packages/cliente` de `0.3.0` para `0.4.0`. O móvel se move pela agenda e pelas tarefas
+relidas ao voltar ao app. O resto do que mudou nele é código que subiu para o pacote, sem efeito na
+tela. `packages/shared` fica em `0.19.0`, e `apps/api` e `apps/mcp` em `0.20.0`. Nenhuma rota nova,
+nenhuma migration e nenhum contrato alterado.
+
+**O que o web e o móvel repetiam foi para `packages/cliente`.** Subiram o concluir tarefa
+otimista, a janela da agenda que se corrige pelo `today` da resposta, a ordem dos itens no dia, a
+saudação, os dias da semana, o plural, a pergunta do dia, as chaves de cache da IA e a regra que
+diz por que o chat não pode enviar. A duração padrão do evento novo, no móvel, passou a vir de
+`packages/shared`, a mesma que o servidor aplica ao evento sem fim. O valor continua sendo 60
+minutos.
+
+Portões: `pnpm typecheck` limpo nos seis pacotes, e os builds do web e do móvel passaram. A API
+passou com **543 testes** e o MCP com **72**, rodados na revisão final da frente, nesta árvore,
+antes do último lote de ajustes. Esse lote não tocou `apps/api`, `apps/mcp` nem `packages/shared`.
+O chunk inicial do web foi de 631.187 para 632.623 bytes. O bloco "Hoje" vai num chunk à parte, de
+9,12 kB, que só o Início carrega. O móvel ficou em 430.306 bytes.
+
+**A interface foi conferida em navegador headless, não à mão.** Os roteiros do último lote passaram
+31 de 31. O bloco "Hoje" e a releitura ao voltar à aba estão **implementados e não verificados à
+mão**. Ninguém usou o app num celular de verdade nem falou num microfone real, e o leitor de tela
+não foi usado. Nenhuma fase da frente teve a interface conferida à mão.
+
+### Adicionado
+- **Bloco "Hoje" no Início do web**, ao lado de Prazos. Mostra as tarefas atrasadas (até cinco, e
+  "e mais N" depois disso), os eventos do dia, com hora e projeto, e as tarefas do dia. Cada tarefa
+  tem uma caixa de concluir: ela marca na hora e volta se a API recusar. O dia é o do usuário,
+  dito pela API, e não o do relógio do computador. Prazo de card fica só em Prazos.
+- **Resumo de amanhã** no bloco quando hoje está vazio ("Amanhã: 2 eventos, 1 tarefa"), e "Dia
+  livre" quando também não há nada atrasado.
+- **"Tentar de novo"** quando a agenda não carrega no bloco.
+- **"de todos os workspaces"** no cabeçalho do bloco quando há workspace ativo. Evento e tarefa não
+  pertencem a workspace, e o resto do Início é recortado por ele.
+- **Rodapé do bloco** dizendo que se cria e edita pelo celular ou pelo assistente, com um botão
+  "O que tenho hoje?". O botão abre o painel do assistente numa conversa nova, com a pergunta no
+  campo, sem enviar.
+- **Comando "O que tenho hoje?" na paleta**, com o mesmo efeito do botão.
+
+### Alterado
+- **A agenda e as tarefas são relidas quando a aba, ou o app, volta ao foco**, no web e no
+  móvel. A tarefa concluída no celular, o evento marcado pelo MCP e a virada do dia aparecem sem
+  recarregar. As outras consultas continuam sem releitura ao focar.
+- **No Início do web, "Onde você parou" desceu para baixo de Prazos**, na mesma coluna. A coluna da
+  direita passou a ser do bloco "Hoje".
+- **O bloco "Hoje" se atualiza depois das escritas que mudam o que ele mostra.** São elas: o chat
+  marcar evento ou anotar ou concluir tarefa, e, no web, renomear ou excluir um quadro ou excluir um
+  workspace. Evento e tarefa mostram o nome do projeto.
+- **O bloco "Hoje" não remonta quando os dados do Início chegam nem quando o workspace troca.** Um
+  aviso de falha e o foco na caixa de uma tarefa continuam onde estavam.
+
+### Limitações conhecidas
+- **O desktop não cria nem edita evento e tarefa.** Ele lê a agenda e conclui tarefa.
+- **O app móvel não está publicado.** Falta o serviço na Railway e a origem dele em `CORS_ORIGIN`
+  da API.
+- **Sem notificações nem lembretes.** O evento e a tarefa aparecem onde se olha, mas nada avisa.
+
+---
+
 ## [0.32.0] — 2026-10-09
 
 **Frente de agenda, tarefas e o Yu-book no celular, Fase 5: o chat redesenhado, voz e o chat no

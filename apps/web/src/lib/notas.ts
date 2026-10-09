@@ -19,6 +19,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import type { InfiniteData, QueryClient } from "@tanstack/react-query";
+import { invalidarAgenda } from "@yu-book/cliente/agenda";
 import { api } from "@yu-book/cliente/api";
 
 export interface Filtros {
@@ -290,6 +291,9 @@ export function useExcluirWorkspace() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["workspaces"] });
       invalidar();
+      // Os quadros do workspace vão junto, e evento e tarefa ligados a eles
+      // mostram o projeto (`board.name`): a agenda também ficou velha.
+      invalidarAgenda(qc);
     },
   });
 }

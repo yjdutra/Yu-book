@@ -1,7 +1,6 @@
 import {
   useAtualizarEvento,
   useAtualizarTarefa,
-  useConcluirTarefa,
   useCriarEvento,
   useCriarTarefa,
   useExcluirEvento,
@@ -9,11 +8,18 @@ import {
 } from "@yu-book/cliente/agenda";
 import type { NovaTarefa, NovoEvento } from "@yu-book/cliente/agenda";
 import { ApiError } from "@yu-book/cliente/api";
+import { useConcluirTarefa } from "@yu-book/cliente/concluirTarefa";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Botao } from "@yu-book/cliente/base/Botao";
 import { IconeCalendario, IconeChevron, IconeTarefa } from "@yu-book/cliente/icones";
 import type { IconeProps } from "@yu-book/cliente/icones";
-import { minutosEntre, resolverHorario, somarDias, somarMinutos } from "@yu-book/shared";
+import {
+  DURACAO_PADRAO_DO_EVENTO_MIN,
+  minutosEntre,
+  resolverHorario,
+  somarDias,
+  somarMinutos,
+} from "@yu-book/shared";
 import type { EventItem, EventUpdateInput, TaskItem, TaskUpdateInput } from "@yu-book/shared";
 import { useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, ReactElement, ReactNode, RefObject } from "react";
@@ -78,7 +84,9 @@ function estadoInicial(abertura: AberturaFolha, hoje: string | null, fuso: strin
   const vazio = {
     titulo: "",
     diaInteiro: false,
-    fim: { tipo: "duracao", minutos: 60 } as Fim,
+    // A duração que o servidor dá ao evento sem fim (`resolverHorario`): a
+    // folha começa no mesmo padrão, e não numa cópia dele.
+    fim: { tipo: "duracao", minutos: DURACAO_PADRAO_DO_EVENTO_MIN } as Fim,
     local: "",
     hora: null,
     projeto: null,
@@ -102,7 +110,9 @@ function estadoInicial(abertura: AberturaFolha, hoje: string | null, fuso: strin
   if ("evento" in abertura) {
     const e = abertura.evento;
     const minutos =
-      e.startTime && e.endTime ? minutosEntre(e.date, e.startTime, e.endDate, e.endTime) : 60;
+      e.startTime && e.endTime
+        ? minutosEntre(e.date, e.startTime, e.endDate, e.endTime)
+        : DURACAO_PADRAO_DO_EVENTO_MIN;
     return {
       ...vazio,
       tipo: "evento",

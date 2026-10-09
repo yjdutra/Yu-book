@@ -1,3 +1,4 @@
+import { DIAS_CURTOS } from "@yu-book/cliente/agenda";
 import { diasEntre, ehDiaCivil, horaLocal, somarDias } from "@yu-book/shared";
 
 /**
@@ -8,13 +9,15 @@ import { diasEntre, ehDiaCivil, horaLocal, somarDias } from "@yu-book/shared";
  * `somarDias` de `shared`, a única do projeto (contrato §4.5).
  *
  * **A regra do relógio do aparelho:** ele só escolhe a janela de uma consulta
- * antes de a API dizer o hoje (`diaDoAparelho`) ou dá o instante de agora para
- * comparar com outro instante (`proximaHoraCheia`, o fim de um evento). Dia e
- * hora que viram dado ou texto na tela saem sempre pelo fuso do usuário, nunca
- * pelo do navegador.
+ * antes de a API dizer o hoje (`diaDoAparelho`, em `@yu-book/cliente/hoje`) ou
+ * dá o instante de agora para comparar com outro instante (`proximaHoraCheia`,
+ * o fim de um evento). Dia e hora que viram dado ou texto na tela saem sempre
+ * pelo fuso do usuário, nunca pelo do navegador.
+ *
+ * Os dias curtos ("dom" a "sáb") são os de `@yu-book/cliente/agenda`, que o
+ * web também diz; o plural ("1 evento") é `contar`, de `@yu-book/cliente/texto`.
  */
 
-export const DIAS_CURTOS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"] as const;
 export const DIAS_LONGOS = [
   "domingo",
   "segunda-feira",
@@ -146,17 +149,6 @@ export function proximoSabado(hoje: string): string {
 }
 
 /**
- * A data do aparelho, só para escolher a janela da primeira consulta da
- * agenda, antes de a API dizer qual é o hoje do usuário. Nunca vira dado nem
- * "hoje" na tela.
- */
-export function diaDoAparelho(): string {
-  const agora = new Date();
-  const mes = doisDigitos(agora.getMonth() + 1);
-  return `${agora.getFullYear()}-${mes}-${doisDigitos(agora.getDate())}`;
-}
-
-/**
  * A próxima hora cheia de hoje no fuso do usuário ("14:37" → "15:00"), ou
  * `null` depois das 23h, quando ela já seria amanhã. O instante é o do
  * aparelho; a hora de parede, a do fuso que a API devolveu.
@@ -165,11 +157,6 @@ export function proximaHoraCheia(fuso: string): string | null {
   const [h] = horaLocal(new Date(), fuso).split(":").map(Number);
   if (h === undefined || h >= 23) return null;
   return `${doisDigitos(h + 1)}:00`;
-}
-
-/** "1 evento", "2 eventos". */
-export function contar(n: number, singular: string, plural: string): string {
-  return `${n} ${n === 1 ? singular : plural}`;
 }
 
 /** "30 min", "1 h", "1 h 30", "2 d 3 h". */

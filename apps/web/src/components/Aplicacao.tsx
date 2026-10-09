@@ -1,6 +1,7 @@
 import type { Link, LinkKind, NoteDetail } from "@yu-book/shared";
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { PERGUNTA_DO_DIA } from "@yu-book/cliente/agenda";
 import { ApiError } from "@yu-book/cliente/api";
 import { useAtalhosGlobais } from "../lib/atalhosGlobais";
 import { lerFiltros, temFiltroAtivo } from "../lib/filtrosUrl";
@@ -22,6 +23,7 @@ import {
   IconeAjustes,
   IconeAssistente,
   IconeBoard,
+  IconeHoje,
   IconeInicio,
   IconeLink,
   IconeMais,
@@ -313,6 +315,28 @@ export function Aplicacao() {
   const [, setTema] = useTema();
 
   /**
+   * Leva um texto ao assistente: só preenche o campo e abre o painel — não
+   * envia. Uma mensagem são até cinco chamadas pagas ao provedor (INV-47,
+   * INV-56); quem envia é o usuário, com o texto à vista para revisar. A
+   * pergunta livre da paleta e o comando "O que tenho hoje?" passam por aqui.
+   */
+  const perguntar = useCallback(
+    (texto: string) => {
+      // Pergunta nova, conversa nova: entrar na conversa aberta levaria o
+      // histórico dela junto no envio. `novaConversa` limpa o campo antes, e o
+      // texto entra depois.
+      if (emAssistente) {
+        sessao.novaConversa();
+        sessao.focarCampo();
+      } else {
+        sessao.abrirPainel({ nova: true });
+      }
+      sessao.setTexto(texto);
+    },
+    [emAssistente, sessao],
+  );
+
+  /**
    * Os comandos da paleta (redesenho de UI, Etapa 5): o que o trilho e os
    * atalhos já fazem, alcançável também pelo nome. O atalho mostrado é o de
    * `Atalhos.tsx` — a paleta só o exibe, não o registra.
@@ -399,6 +423,15 @@ export function Aplicacao() {
         executar: () => (emAssistente ? sessao.focarCampo() : sessao.alternarPainel()),
       },
       {
+        // Frente de agenda, Fase 6: o web não tem tela de agenda, e o dia se
+        // pergunta ao assistente — a mesma pergunta do rodapé do bloco Hoje do
+        // Início e das sugestões da conversa vazia.
+        id: "o-que-tenho-hoje",
+        rotulo: PERGUNTA_DO_DIA,
+        icone: <IconeHoje />,
+        executar: () => perguntar(PERGUNTA_DO_DIA),
+      },
+      {
         id: "alternar-tema",
         rotulo: "Alternar tema",
         // Lido do `<html>` na hora: assim a lista de comandos não precisa ser
@@ -415,7 +448,7 @@ export function Aplicacao() {
         executar: () => setAtalhosAbertos(true),
       },
     ],
-    [navigate, ultimaListaNotas, novaNota, sessao, emAssistente, setTema],
+    [navigate, ultimaListaNotas, novaNota, sessao, emAssistente, setTema, perguntar],
   );
 
   return (
@@ -609,21 +642,7 @@ export function Aplicacao() {
         onAbrirNota={abrirNota}
         onAbrirCard={(boardId, cardId) => navigate(`/b/${boardId}/c/${cardId}`)}
         comandos={comandos}
-        // Só preenche o campo e abre o painel — não envia. Uma mensagem são até
-        // cinco chamadas pagas ao provedor (INV-47, INV-56); quem envia é o
-        // usuário, com o texto à vista para revisar.
-        onPerguntar={(t) => {
-          // Pergunta nova, conversa nova: entrar na conversa aberta levaria o
-          // histórico dela junto no envio. `novaConversa` limpa o campo antes,
-          // e o texto entra depois.
-          if (emAssistente) {
-            sessao.novaConversa();
-            sessao.focarCampo();
-          } else {
-            sessao.abrirPainel({ nova: true });
-          }
-          sessao.setTexto(t);
-        }}
+        onPerguntar={perguntar}
       />
       <Atalhos aberto={atalhosAbertos} onFechar={() => setAtalhosAbertos(false)} />
     </div>

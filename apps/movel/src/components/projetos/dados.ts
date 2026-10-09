@@ -1,7 +1,7 @@
 import { useTarefas } from "@yu-book/cliente/agenda";
+import { useAgendaAdiante } from "@yu-book/cliente/hoje";
 import type { BoardSummary, EventItem, TaskItem } from "@yu-book/shared";
 import { useMemo } from "react";
-import { useAgendaAdiante } from "../../lib/hoje";
 import { useQuadros } from "../../lib/quadros";
 
 /// Até onde "próximos eventos" de um projeto olham: 31 dias contando hoje,

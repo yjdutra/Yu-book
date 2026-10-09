@@ -10,6 +10,7 @@ import type {
 import { useEffect, useState } from "react";
 import { api, apiStream } from "@yu-book/cliente/api";
 import { CHAVE_CONVERSAS } from "@yu-book/cliente/chat";
+import { CHAVE_AGENTES } from "@yu-book/cliente/ia";
 
 /**
  * Agentes especialistas (Etapa D da frente de IA).
@@ -19,7 +20,6 @@ import { CHAVE_CONVERSAS } from "@yu-book/cliente/chat";
  * schemas e o metadado das ferramentas para a primeira pintura.
  */
 
-export const CHAVE_AGENTES = ["ia", "agentes"] as const;
 export const chaveDoAgente = (id: string) => ["ia", "agente", id] as const;
 
 export function useAgentes() {

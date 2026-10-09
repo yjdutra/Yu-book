@@ -1,5 +1,6 @@
 import { useAuth } from "@yu-book/cliente/auth";
-import { primeiroNome, saudacao } from "../lib/saudacao";
+import { saudacao } from "@yu-book/cliente/texto";
+import { primeiroNome } from "../lib/saudacao";
 import { Conta } from "./Conta";
 
 /**

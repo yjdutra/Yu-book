@@ -1,31 +1,8 @@
-import { useAgenda } from "@yu-book/cliente/agenda";
-import { somarDias } from "@yu-book/shared";
-import { useState } from "react";
-import { diaDoAparelho } from "./datas";
+import { useAgendaAdiante } from "@yu-book/cliente/hoje";
 
-/**
- * A agenda de hoje até `dias` adiante, numa consulta, **sem esperar** saber o
- * hoje do usuário (INV-66). A janela parte da data do aparelho — a única coisa
- * que ela decide —, e a resposta traz o `today` de verdade. Quase sempre os
- * dois coincidem e acabou ali: nenhuma cascata de "primeiro o hoje, depois a
- * semana". Quando não coincidem (aparelho noutro fuso), uma segunda consulta,
- * já pela janela certa, toma o lugar da primeira.
- *
- * A data do aparelho é guardada na montagem, para a chave não mudar à
- * meia-noite no meio do uso.
- */
-export function useAgendaAdiante(dias: number) {
-  const [aparelho] = useState(diaDoAparelho);
-  const primeira = useAgenda(aparelho, somarDias(aparelho, dias));
-  const hoje = primeira.data?.today ?? null;
-  const errada = hoje !== null && hoje !== aparelho;
-  const certa = useAgenda(errada ? hoje : null, errada ? somarDias(hoje, dias) : null);
-  return {
-    hoje,
-    fuso: primeira.data?.timezone ?? null,
-    consulta: errada ? certa : primeira,
-  };
-}
+// `useAgendaAdiante` subiu para o pacote na Fase 6 da frente de agenda: o
+// bloco "Hoje" do Início do web parte da mesma janela, e uma cópia lá seria a
+// segunda implementação da regra do INV-66. O que fica aqui é do móvel.
 
 /// A janela do Início: hoje e os seis dias seguintes. É a mesma consulta de
 /// `useHoje`, de propósito — a casca a mantém quente, e o Início chega com ela.

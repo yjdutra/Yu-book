@@ -1,4 +1,6 @@
 import { useAgenda } from "@yu-book/cliente/agenda";
+import { useAlternarTarefa } from "@yu-book/cliente/concluirTarefa";
+import { diaDoAparelho } from "@yu-book/cliente/hoje";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Calendario } from "../components/agenda/Calendario";
@@ -7,14 +9,12 @@ import type { ItemDoDia } from "../components/agenda/itens";
 import { ListaDoDia } from "../components/agenda/ListaDoDia";
 import { useFolhaItem } from "../components/folha/FolhaItem";
 import {
-  diaDoAparelho,
   diaValido,
   gradeDoMes,
   mesDoDia,
   primeiroDoMes,
   somarMeses,
 } from "../lib/datas";
-import { useAlternarTarefa } from "../lib/concluir";
 import { useHoje } from "../lib/hoje";
 
 /**

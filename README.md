@@ -67,14 +67,33 @@ of project-specific agents and skills that live in this repository.
 
 ![Link drawer with favorites and the read-later queue](.github/assets/links.png)
 
+### Agenda, tasks and the phone app
+
+- **An agenda and a to-do list of their own:** timed and all-day events, and tasks with or without
+  a date, each optionally linked to a board as its project. Days and times are always yours: the
+  server resolves them in your time zone, never in the device's.
+- **A phone app**, an installable PWA separate from the desktop app: the day at a glance, a monthly
+  calendar, tasks grouped by urgency, projects, and one sheet to create or edit an event or a task
+  from any screen.
+- **The assistant on the phone**, with the same chat and agents as on the web and **voice
+  dictation**: "book a meeting with Ana tomorrow at 3 pm", said into the phone, becomes an event you
+  can open, edit or undo. The assistant and the MCP server can read the agenda, book events, add
+  tasks and complete them.
+- **Today on the desktop home page:** overdue tasks and today's events and tasks, with one-click
+  completion. It is re-read when you come back to the tab, so what you did on the phone is already
+  there.
+
+![Three screens of the Yu-book phone app in the dark theme, with demo data: the home screen with summary cards for today, agenda, projects and tasks above the day's list; the monthly calendar with dots marking events, tasks and card due dates; and the task list grouped into overdue, today and the next seven days](.github/assets/mobile.png)
+
 ### AI assistant
 
 - **Chat that reads your knowledge base.** The model calls tools (search notes, open a note, list
-  and open boards, read the dashboard) in a loop of up to five steps per message, answers with
-  streaming and cites every source it used. `@` attaches a note, card or board to a message.
-- **Creates when you ask, and only then:** it can create cards and notes and mark a card as done,
-  but it cannot move, delete or edit. Everything it creates carries an AI-generated mark with the
-  model and the conversation it came from, plus an undo; a card it completes says so too.
+  and open boards, read the dashboard and the agenda) in a loop of up to five steps per message,
+  answers with streaming and cites every source it used. `@` attaches a note, card or board.
+- **Creates when you ask, and only then:** it can create cards, notes, events and tasks ("book
+  the dentist tomorrow at 3 pm"), and mark a card or a task as done, but it cannot move, delete or
+  edit. Everything it creates carries an AI-generated mark with the model and the conversation it
+  came from, plus an undo; a card or task it completes says so too. You can also dictate.
 - **Specialist agents:** each agent has its own instructions, base notes from your knowledge base,
   live sources (a board column read fresh on every message), its own model and its own tool set.
   The editor previews exactly what the model will receive, and at what cost.
@@ -159,7 +178,7 @@ flowchart LR
 |---|---|---|
 | `apps/api` | Fastify 5, Prisma 6, Postgres 16 | REST API, AI orchestration, background runs and scheduler |
 | `apps/web` | React 19, Vite 6, Tailwind v4, TanStack Query | Desktop-only SPA, with no UI or icon library |
-| `apps/movel` | React 19, Vite 6, Tailwind v4, TanStack Query | Phone app, an installable PWA (in progress) |
+| `apps/movel` | React 19, Vite 6, Tailwind v4, TanStack Query | Phone app, an installable PWA |
 | `apps/mcp` | Official MCP TypeScript SDK | MCP server, a client of the API, never of the database |
 | `packages/shared` | Zod 3 | Single source of truth for the contract the other packages share |
 | `packages/cliente` | React 19, TypeScript source (no build step) | What both front ends share: HTTP client, session, UI primitives, icons and theme tokens |
@@ -336,14 +355,14 @@ The product phases (notes, kanban, links, dashboard, refinements), the MCP serve
 features (chat, AI provenance, agents, routines, scheduling, web research, usage dashboards) are
 all delivered and running in production. Kanban cards have since gained a done state and file
 attachments, stored in an S3-compatible bucket that is optional: without one, the rest of the app
-runs unchanged. In progress: an agenda and a to-do list of its own, linked to boards as projects,
-with a companion phone app. The API is in place, and the chat and the MCP server can already read
-the agenda, schedule events and add or complete tasks. The phone app, an installable PWA that
-shares its client code and theme with the web app, now covers the day at a glance, a monthly
-calendar, tasks grouped by urgency and projects, with quick create and edit from anywhere, and the
-assistant: the same chat and agents as on the web, with voice dictation, so "book a meeting with
-Ana tomorrow at 3 pm" said into the phone becomes an event you can open and edit. The web chat got
-the same redesign and the same microphone.
+runs unchanged.
+
+The most recent addition is complete: an agenda and a to-do list of their own, linked to boards as
+projects, that the assistant and the MCP server can read and write; a "Today" block on the desktop
+home page; and a companion phone app with the agenda, tasks, projects and the assistant, voice
+included. The phone app has its Railway config but no hosted service yet, so for now it runs
+locally next to the API.
+
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
 Known limitations, stated on purpose:
@@ -355,6 +374,10 @@ Known limitations, stated on purpose:
 - **The phone app relies on cross-site cookies** when it and the API live on different sites, as
   they do on Railway's default domains. Chrome on Android accepts them; Safari on iOS does not,
   unless both are served under one custom domain. It has no offline mode.
+- **The desktop only reads the agenda.** Tasks can be ticked off from the home page, but events
+  and tasks are created and edited on the phone or by asking the assistant.
+- **No notifications, reminders or recurring events.** The agenda shows up where you look: the
+  phone app, the desktop home page, the assistant. Nothing pings you.
 - **No front-end tests and no CI.** The automated gates are the type check and the API and MCP
   test suites; the UI is verified by hand.
 - **Note content leaves the server for every AI task.** The provider is a cloud one: a local model

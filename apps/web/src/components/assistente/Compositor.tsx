@@ -10,6 +10,7 @@ import { useWorkspaceAtivo } from "../../lib/workspace";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Botao } from "@yu-book/cliente/base/Botao";
 import { alvoDe } from "@yu-book/cliente/chat";
+import { motivoSemChat } from "@yu-book/cliente/motivoSemChat";
 import type { Anexo } from "@yu-book/cliente/chat";
 import { CampoMensagem } from "@yu-book/cliente/chat/CampoMensagem";
 import { IconeFechar, IconeMais } from "@yu-book/cliente/icones";
@@ -49,19 +50,15 @@ function useContextoDaTela(): Anexo | null {
 }
 
 /**
- * RNF-03 da IA: sem provedor, ou sem modelo escolhido para o chat, o campo
- * fica desabilitado e diz por quê — e onde resolver.
- *
- * Agente com modelo próprio (Etapa D) não passa pelo modelo do chat: exigir a
- * escolha da tarefa `chat` dele bloquearia uma conversa que o servidor aceita.
+ * RNF-03 da IA: o campo desabilitado e o porquê — e onde resolver. A regra é
+ * `motivoSemChat`, a mesma do móvel; o modelo do agente que saiu dos favoritos
+ * fica com o bloqueio do agente (abaixo), que leva ao editor dele, e não a
+ * Ajustes.
  */
-function useMotivoSemChat(agente: AgentSummary | null): string | null {
+function useMotivoSemChat(agente: AgentSummary | null) {
   const { data: saude } = useAiSaude();
   const { data: ajustes } = useAiAjustes();
-  if (saude && !saude.configured) return "Nenhum provedor de IA configurado no servidor.";
-  if (agente?.modelId) return null;
-  if (ajustes && !ajustes.taskModels.chat) return "Nenhum modelo escolhido para o chat.";
-  return null;
+  return motivoSemChat(saude, ajustes, agente);
 }
 
 export function Compositor({ placeholder }: { placeholder?: string }) {
@@ -85,7 +82,8 @@ export function Compositor({ placeholder }: { placeholder?: string }) {
     }
   }, [conversaId, agenteId, agentes, escolherAgente]);
 
-  const motivoGeral = useMotivoSemChat(agente.resumo);
+  const semChat = useMotivoSemChat(agente.resumo);
+  const motivoGeral = semChat?.tipo === "modelo-do-agente" ? null : (semChat?.texto ?? null);
   /**
    * Os bloqueios do agente (Etapa D). Os dois viriam do servidor como 422 na
    * hora de enviar; aqui eles aparecem antes, com a saída ao lado. O servidor
@@ -94,7 +92,7 @@ export function Compositor({ placeholder }: { placeholder?: string }) {
    */
   const bloqueioDoAgente: "excluido" | "modelo" | null = agente.excluido
     ? "excluido"
-    : agente.resumo?.modelMissing
+    : semChat?.tipo === "modelo-do-agente"
       ? "modelo"
       : null;
   const motivo = motivoGeral ?? (bloqueioDoAgente ? "O agente não pode responder agora." : null);
@@ -247,11 +245,9 @@ export function Compositor({ placeholder }: { placeholder?: string }) {
             </Botao>
           </div>
         </Aviso>
-      ) : bloqueioDoAgente === "modelo" && agente.resumo ? (
+      ) : bloqueioDoAgente === "modelo" && semChat && agente.resumo ? (
         <Aviso tom="alerta" className="mb-2">
-          <span id={idMotivo}>
-            O modelo de «{agente.resumo.name}» saiu dos favoritos.
-          </span>{" "}
+          <span id={idMotivo}>{semChat.texto}</span>{" "}
           <Link
             to={`/assistente/agentes/${agente.resumo.id}`}
             className="font-medium underline underline-offset-2"

@@ -7,8 +7,7 @@ import { useEffect, useState } from "react";
  * Os quadros da conta, que no móvel são os **projetos** (decisão da frente de
  * agenda). A chave é a do `useBoards(null)` do web, `["boards", null]`: quem
  * invalida `["boards"]` lá alcança esta também.
- */
-/**
+ *
  * `fresca`: a tela que **lista** os projetos pede a lista de novo ao montar,
  * mesmo dentro dos 5 minutos — o quadro criado no web, pelo chat ou pelo MCP
  * apareceria só quando o cache envelhecesse. As demais leem o cache.

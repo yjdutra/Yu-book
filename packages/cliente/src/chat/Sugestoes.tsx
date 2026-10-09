@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { PERGUNTA_DO_DIA } from "../agenda";
 import { IconeBoard, IconeCalendario, IconeHoje, IconeNotas, IconeTarefa } from "../Icones";
 
 export interface Sugestao {
@@ -12,7 +13,7 @@ export interface Sugestao {
  * frente de agenda, e quem não sabe disso não pede.
  */
 export const SUGESTOES_INICIAIS: Sugestao[] = [
-  { texto: "O que tenho hoje?", icone: <IconeHoje className="size-3.5" /> },
+  { texto: PERGUNTA_DO_DIA, icone: <IconeHoje className="size-3.5" /> },
   { texto: "Marca dentista amanhã às 15h", icone: <IconeCalendario className="size-3.5" /> },
   { texto: "Me lembra de pagar o aluguel na sexta", icone: <IconeTarefa className="size-3.5" /> },
   {

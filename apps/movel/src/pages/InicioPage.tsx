@@ -1,4 +1,6 @@
 import { useTarefas } from "@yu-book/cliente/agenda";
+import { useAlternarTarefa } from "@yu-book/cliente/concluirTarefa";
+import { useAgendaAdiante } from "@yu-book/cliente/hoje";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Botao } from "@yu-book/cliente/base/Botao";
 import {
@@ -10,6 +12,7 @@ import {
   IconeTarefa,
 } from "@yu-book/cliente/icones";
 import type { IconeProps } from "@yu-book/cliente/icones";
+import { contar } from "@yu-book/cliente/texto";
 import { horaLocal, somarDias } from "@yu-book/shared";
 import type { AgendaRange, TaskItem } from "@yu-book/shared";
 import { useId, useMemo } from "react";
@@ -19,9 +22,8 @@ import { EstadoVazio, ItemAgenda } from "../components/agenda/ItemAgenda";
 import { indexarPorDia, inicioDe, itemDeTarefa, tituloDe } from "../components/agenda/itens";
 import type { ItemDoDia, ResumoDoDia } from "../components/agenda/itens";
 import { useFolhaItem } from "../components/folha/FolhaItem";
-import { useAlternarTarefa } from "../lib/concluir";
-import { contar, diaCurto, diaRelativo } from "../lib/datas";
-import { DIAS_DA_SEMANA_ADIANTE, useAgendaAdiante } from "../lib/hoje";
+import { diaCurto, diaRelativo } from "../lib/datas";
+import { DIAS_DA_SEMANA_ADIANTE } from "../lib/hoje";
 import { useQuadros } from "../lib/quadros";
 
 interface Resumo {

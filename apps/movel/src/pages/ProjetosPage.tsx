@@ -1,11 +1,12 @@
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { IconeBoard, IconeChevron } from "@yu-book/cliente/icones";
+import { contar } from "@yu-book/cliente/texto";
 import { Link } from "react-router-dom";
 import { TOM_DO_TIPO } from "../components/agenda/Calendario";
 import { EstadoVazio } from "../components/agenda/ItemAgenda";
 import { DIAS_DE_PROJETO, useProjetos } from "../components/projetos/dados";
 import type { Projeto } from "../components/projetos/dados";
-import { contar, diaRelativo } from "../lib/datas";
+import { diaRelativo } from "../lib/datas";
 
 /**
  * Projetos (frente de agenda, Fase 4): os quadros do Yu-book vistos do
