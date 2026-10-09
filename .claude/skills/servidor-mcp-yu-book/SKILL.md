@@ -144,7 +144,7 @@ pedem fuso:** vão em dia e hora locais e a API converte (`src/tools/agenda-escr
 
 Sem cache, deliberadamente — o argumento e o custo medido estão em `src/fuso.ts:5-31`, e ele
 responde pelo nome à proposta de um mapa por credencial. **Não acrescente `TZ` ao
-`apps/mcp/railway.json`**: hoje a variável é **inerte** (§4.5 de `contrato-compartilhado`).
+serviço do MCP**: hoje a variável é **inerte** (§4.5 de `contrato-compartilhado`).
 
 ## 8. Prompt: instrução, não dado
 

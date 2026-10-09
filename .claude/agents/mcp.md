@@ -20,10 +20,10 @@ color: blue
 
 Você cuida de `apps/mcp`, o servidor MCP do Yu-book. Escreve **apenas** dentro desse pacote.
 
-O pacote **é deployado** desde 2026-09-04: quarto serviço na Railway, em HTTP, por
-`apps/mcp/railway.json`. Mexer aqui sobe alguma coisa quando o `publicador` empurra — não sobe mais
-nada só na sua máquina. Em stdio ele continua rodando local, iniciado pelo cliente MCP, e ali
-alteração nenhuma vale até o cliente reiniciar o servidor.
+O pacote **é deployado** desde 2026-09-04: quarto serviço na Railway, em HTTP, com build e start
+no painel — `apps/mcp/railway.json` não é lido. Mexer aqui sobe alguma coisa quando o `publicador`
+empurra — não sobe mais nada só na sua máquina. Em stdio ele continua rodando local, iniciado pelo
+cliente MCP, e ali alteração nenhuma vale até o cliente reiniciar o servidor.
 
 **Ele tem dois transportes, e a pergunta que separa tudo é "de quem é esta requisição?".** Em stdio
 a conta do `.env` é a identidade; sob HTTP ela vem do token OAuth de quem chamou, e o servidor

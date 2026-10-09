@@ -162,7 +162,7 @@ por `horarioNoFuso` e `horaNoFuso` (`apps/web/src/components/rotinas/comum.tsx:2
 fuso de `/ajustes` e **sem recuar ao navegador**: fuso ainda não carregado mostra "…". É o padrão que
 `PainelCard` deveria seguir, não uma quarta conversão.
 
-**`TZ` no ambiente não é conserto:** em `apps/mcp/railway.json` trocaria um fuso de processo por
+**`TZ` no ambiente não é conserto:** no serviço do MCP trocaria um fuso de processo por
 outro, e **inerte** — desde a Etapa B nenhuma data do texto do MCP lê o fuso do processo.
 
 ### 4.6 Uma definição, dois consumidores — e nenhum portão sobre o texto

@@ -3,10 +3,6 @@
 <!-- Curado por: curador. Limite: 2 KB / 60 linhas. Registro contradito pelo código é removido. -->
 <!-- Um item por linha, com arquivo:linha quando houver. Nada de parágrafo. -->
 
-## Onde ficam as coisas
-
-- [Domínios da Railway](dominios-railway.md) — API `yu-bookapi-production`, MCP `yu-book-production`; o da web não está no repositório.
-
 ## O que já nos mordeu
 
 - [Conferir deploy](deploy-mcp-como-conferir.md) — `/health` (API e MCP) responde `ok` o rebuild inteiro; não prova nem que a migration aplicou.

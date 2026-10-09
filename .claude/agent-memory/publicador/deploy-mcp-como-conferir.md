@@ -24,8 +24,9 @@ mesmo assim não pude concluir que a migration rodou.
 
 - A asserção que vale é um **comportamento observável introduzido pelo diff daquele push**, nunca
   o `/health`. Amostre em laço até esse comportamento aparecer; não conclua pelo tempo decorrido.
-- Se todo o diff está atrás de autenticação, **diga que não dá para provar de fora** e passe ao
-  operador: status do deployment e log de boot no painel. Não busque credencial no `.env` para
+- Se todo o diff está atrás de autenticação, **diga que não dá para provar de fora**: o status do
+  deployment sai de `deployments(first: 1, ...)` na API da Railway (seção "Ler e alterar a
+  configuração da Railway" do agente); log de boot, peça ao operador. Não busque credencial no `.env` para
   autenticar contra produção — é decisão dele.
 - No MCP, confirme que é ele pelo campo `transporte` do `/health`
   (`{"status":"ok","transporte":"http","sessoes":N}`, `apps/mcp/src/http.ts:219-220`). `transporte`
@@ -38,4 +39,4 @@ mesmo assim não pude concluir que a migration rodou.
 repositório não tem prova de interface. Quando o diff mexe em cabeçalho ou em fluxo que só um
 navegador executa, a conferência pós-deploy é a primeira prova real.
 
-Ver [[dominios-railway]] para saber qual host é qual.
+Os domínios de cada serviço estão em `.claude/agents/publicador.md`, "Depois de publicar".

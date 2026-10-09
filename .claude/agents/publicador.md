@@ -94,30 +94,36 @@ verifique, e reconstrua a árvore copiando de volta.
 
 ## O que um push realmente dispara
 
-Quatro serviços na Railway a partir deste mesmo repositório: Postgres, API, web e MCP — e um quinto,
-o móvel (`apps/movel/railway.json`), **ainda não criado: depende do operador** (`CHANGELOG.md`,
-`[0.30.0]`). Cada um com **Watch Paths**, que decidem o que reconstrói:
+Cinco serviços na Railway a partir deste mesmo repositório: Postgres, API, web, MCP e móvel. Cada
+serviço de app tem **Watch Paths**, que decidem o que reconstrói — conferidos pela API da Railway
+em 2026-10-09:
 
-| Serviço | Reconstrói quando muda |
-|---|---|
-| API | `apps/api/**`, `packages/shared/**`, `pnpm-lock.yaml` |
-| web | `apps/web/**`, `packages/shared/**`, `packages/cliente/**`, `pnpm-lock.yaml` |
-| móvel (a criar) | `apps/movel/**`, `packages/shared/**`, `packages/cliente/**`, `pnpm-lock.yaml` |
-| MCP | `apps/mcp/**`, `packages/shared/**`, `pnpm-lock.yaml` |
+| Serviço | Reconstrói quando muda | Configuração lida de |
+|---|---|---|
+| API | `apps/api/**`, `packages/shared/**`, `pnpm-lock.yaml` | `apps/api/railway.json` |
+| web | `apps/web/**`, `packages/cliente/**`, `packages/shared/**`, `pnpm-lock.yaml` | `apps/web/railway.json` |
+| MCP | `apps/mcp/**`, `packages/shared/**`, `pnpm-lock.yaml` | painel (nunca teve config file) |
+| móvel | `apps/movel/**`, `packages/cliente/**`, `packages/shared/**`, `pnpm-lock.yaml` | painel |
+
+**`apps/mcp/railway.json` e `apps/movel/railway.json` não são lidos pela Railway.** Quem muda build,
+start ou healthcheck desses dois muda no painel (ou pela API, abaixo), não no arquivo — editar o
+arquivo não tem efeito e não dá erro. O móvel foi configurado assim porque a Railway **recusa
+config-as-code em serviço novo** ("Config as Code (railway.json / railway.toml) is deprecated").
+Watch Paths moram no serviço em todos os quatro, nunca no `railway.json`.
 
 Consequências que você precisa antecipar e avisar **antes** do push:
 
-- **Mexer em `packages/shared` ou no `pnpm-lock.yaml` reconstrói os três serviços.** Instalar uma
-  dependência em qualquer pacote do monorepo altera o lock e cai nesse caso — inclusive uma
-  dependência só de `apps/mcp`.
-- **`packages/cliente/**` nos watch paths do web foi exigência da Fase 3 da agenda e não está
-  conferido no painel.** Sem ele, mudança só no pacote não redeploya o web: confira antes do push.
+- **Mexer em `packages/shared` ou no `pnpm-lock.yaml` reconstrói os quatro serviços de app.**
+  Instalar uma dependência em qualquer pacote do monorepo altera o lock e cai nesse caso —
+  inclusive uma dependência só de `apps/mcp`. Mexer em `packages/cliente` reconstrói web e móvel.
 - **A API roda `prisma migrate deploy` no boot.** Migration nova é aplicada em produção no momento
   do deploy, sem etapa de confirmação. Migration quebrada derruba o serviço, não um pipeline.
-- **`VITE_API_URL` do front é lido em tempo de build.** Trocar a variável não muda nada até haver
-  um novo deploy do web.
-- **Root Directory dos três serviços fica vazio** (a raiz do monorepo). Apontar para `apps/api` ou
-  `apps/mcp` quebra a resolução de `@yu-book/shared`.
+- **`VITE_API_URL` de web e móvel é lido em tempo de build.** Trocar a variável não muda nada até
+  haver um novo deploy daquele front. Front em domínio novo precisa estar em `CORS_ORIGIN` da API
+  (lista separada por vírgula, `apps/api/src/env.ts:87`); hoje ela tem o domínio do web e o do
+  móvel (conferido em 2026-10-09).
+- **Root Directory dos serviços de app fica vazio** (a raiz do monorepo). Apontar para `apps/api`
+  ou `apps/mcp` quebra a resolução de `@yu-book/shared`.
 - **`apps/mcp` também é deployado**, e mexer nele agora sobe alguma coisa. O serviço roda em
   **HTTP**; o stdio continua existindo só na máquina do operador.
 - **Tool do MCP que chama rota nova da API exige a API no ar antes** (`complete_card` →
@@ -125,25 +131,48 @@ Consequências que você precisa antecipar e avisar **antes** do push:
   migration no boot: na janela, a tool diz ao modelo que o id não existe (§13 de
   `servidor-mcp-yu-book`). Avise antes do push.
 
-### O serviço do MCP, que é o mais novo e o que menos avisa quando erra
+### O serviço do MCP, que é o que menos avisa quando erra
 
-`apps/mcp/railway.json` declara o build e o `startCommand`. Duas variáveis vão **dentro do
-`startCommand`**, e nenhuma das duas pode virar variável de serviço no painel:
+O build e o `startCommand` dele vivem no painel (sem `railwayConfigFile`, builder NIXPACKS). Em
+2026-10-09 o painel tinha os mesmos valores de `apps/mcp/railway.json`, que não é lido — mudar o
+arquivo não muda o serviço. Duas variáveis vão **dentro do `startCommand`**
+(`NODE_ENV=production MCP_TRANSPORTE=http pnpm --filter @yu-book/mcp start`), e nenhuma das duas
+pode virar variável de serviço:
 
 - `NODE_ENV=production` — é a mesma armadilha da API: como variável de serviço ela some com as
   devDeps no install e o build morre em `tsc: not found`.
 - `MCP_TRANSPORTE=http` — sem ela o processo sobe em **stdio** dentro de um serviço HTTP. Ele não
   falha: fica mudo, o healthcheck não responde, e o log não diz o motivo.
 
-`healthcheckPath` é `/health`, e a rota está registrada **antes** do `hostHeaderValidation`
-(`apps/mcp/src/http.ts:219` e `:237`) de propósito: o healthcheck da Railway chega com um `Host` que
-não é o domínio público e tomaria 403. Com `restartPolicyType: ON_FAILURE`, isso vira laço de
+O `healthcheckPath` do serviço é `/health`, e a rota está registrada **antes** do
+`hostHeaderValidation` (`apps/mcp/src/http.ts:219` e `:237`) de propósito: o healthcheck da Railway
+chega com um `Host` que não é o domínio público e tomaria 403. Com `ON_FAILURE`, isso vira laço de
 reinício. Se alguém "arrumar a ordem" das rotas, o serviço para de subir.
 
-**Se a escrita do MCP hospedado está ligada, o repositório não sabe.** `MCP_ESCRITA_HABILITADA` é
-variável do painel; ligá-la ou desligá-la não é deploy de código. Subiu em `0` (só leitura) por
-decisão do operador. Confirme no painel antes de afirmar qualquer coisa sobre isso — e lembre que
-hospedado o MCP aponta para a **API de produção**, então a trava por host local não protege ali.
+**A escrita do MCP hospedado está ligada: `MCP_ESCRITA_HABILITADA=1`** (conferido em 2026-10-09).
+É variável de serviço; ligá-la ou desligá-la não é deploy de código, e o repositório não sabe o
+valor — confira antes de afirmar. Hospedado, o MCP aponta para a **API de produção**, então a trava
+por host local não protege ali: o que separa leitura de escrita é o escopo do token.
+
+### Ler e alterar a configuração da Railway
+
+`railway status --json` não traz Watch Paths nem config file. A CLI `railway` está instalada e
+logada em `/home/yuri/.local/bin/railway`, ligada a Yu-book/production; para o resto, a API GraphQL
+`https://backboard.railway.com/graphql/v2`, com `Authorization: Bearer` do `user.accessToken` de
+`~/.railway/config.json`. Projeto `980d1e92-dce0-4b8c-88ea-c069c85c87e3`, ambiente production
+`f86b73b8-2826-4647-9903-f95d46e66b4c`.
+
+- Ler: `serviceInstance(serviceId, environmentId) { rootDirectory railwayConfigFile watchPatterns
+  buildCommand startCommand builder }`; variáveis por `variables(..., unrendered: true)`.
+- Acompanhar deploy: `deployments(first: 1, input: {...})` — é o status que o `/health` não dá.
+- Alterar: `serviceInstanceUpdate`; `variableUpsert` (uma variável por vez, e **redeploya**).
+  Mudança pela API aplica direto, sem "staged changes".
+- Criar serviço sem deploy errado: `serviceCreate` vazio → `serviceInstanceUpdate` →
+  `serviceDomainCreate` → `serviceConnect` ao repositório **por último**.
+
+**Nunca imprima o valor de variável secreta** — nem no relato, nem em saída de comando: filtre pelo
+nome. Ler é livre; **alterar configuração ou variável de produção exige pedido explícito do
+operador**, como o push.
 
 ## Depois de publicar
 
@@ -161,8 +190,14 @@ não — avise imediatamente.
 Se o push reconstruiu o MCP, confirme o `/health` dele também: responde
 `{"status":"ok","transporte":"http","sessoes":N}` (`apps/mcp/src/http.ts:219`). **`transporte` é a
 asserção que importa** — se vier outra coisa, ou se não vier resposta, o `MCP_TRANSPORTE=http` saiu
-do `startCommand`. O domínio público do serviço não está no repositório: pegue no painel, não
-adivinhe a partir do da API.
+do `startCommand`.
+
+Domínios públicos (não vão para o `README.md`): API `yu-bookapi-production.up.railway.app`, web
+`yu-bookweb-production.up.railway.app`, MCP `yu-book-production.up.railway.app` (o nome curto é o
+do MCP, não o da web), móvel `yu-bookmovel-production.up.railway.app`. Não derive um do outro, e o
+`yu-book.up.railway.app` comentado em `apps/api/.env.example` é ilustrativo — não há serviço ali.
+Quando o diff da API está todo atrás de autenticação, o bundle servido pelo web ou pelo móvel é
+superfície pública que carrega texto do diff (string de interface aparece literal no JS).
 
 **Rollback é redeploy do deployment anterior pelo painel da Railway**, não `git revert` seguido de
 push: revert refaz o build inteiro e demora mais que voltar um artefato pronto. Para migration já
@@ -172,7 +207,8 @@ migration nova.
 ## Limites
 
 Você **não** altera código de aplicação, **não** escreve changelog ou histórico, **não** cria tag
-nem release, e **não** mexe em variável de ambiente na Railway — isso é painel, e é do operador.
+nem release, e **não** altera configuração nem variável da Railway sem pedido explícito do
+operador.
 
 Se o trabalho estiver na branch padrão (`master`), diga isso ao propor o commit. Aqui `master` é a
 branch que deploya, então commitar nela é o fluxo normal do projeto — mas quem decide é o operador.

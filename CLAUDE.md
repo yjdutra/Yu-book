@@ -70,9 +70,8 @@ dele — transporte, redutor, Markdown, ditado e os átomos da conversa — subi
 campo, nunca envia), e o móvel conversa com o acervo e os agentes, com a mesma regra de não deixar
 o laço pago rodar sem tela (INV-56). A Fase 6 deu ao Início do web o bloco **Hoje**, só de leitura
 (no desktop a agenda se edita pelo chat; a tela dela é a do celular), e **fechou a frente: Fases 1 a
-6 entregues em 2026-10-09, em commits locais, sem push** — o que depende do operador está abaixo e na
-entrada de 2026-10-09 (Fase 6) de `docs/historico.md`. A Fase 6 de produto (Google Calendar) segue
-sendo o item de menor prioridade.
+6 entregues e publicadas em 2026-10-09**, com a migration da Fase 1 e o móvel como quinto serviço
+da Railway. A Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
 
 **Oito numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
@@ -143,11 +142,10 @@ São os únicos portões automáticos que existem. Rode-os e relate a saída rea
 
 Agentes especialistas em `.claude/agents/`. Só o `curador` escreve em `.claude/`; só o
 `publicador` faz commit e deploy, e nunca dá push sem alguém pedir — aqui push para `master` é
-deploy em produção, e **`apps/mcp` também é deployado**: quarto serviço na Railway, por
-`apps/mcp/railway.json`. `apps/movel` será o quinto, por `apps/movel/railway.json`, mas **depende
-do operador**: criar o serviço (com `VITE_API_URL`, lida no build), pôr o domínio dele em
-`CORS_ORIGIN` da API, incluir `packages/cliente/**` nos watch paths do web e do móvel (moram no
-painel da Railway, não no `railway.json`) e o push, que leva a migration da Fase 1 da agenda. O MCP tem
+deploy em produção, e **`apps/mcp` e `apps/movel` também são deployados**: quarto e quinto
+serviços na Railway. **Só API e web leem o `railway.json` do pacote**; MCP e móvel são configurados
+no painel, e `apps/mcp/railway.json` e `apps/movel/railway.json` não são lidos — mudar build ou
+start desses dois é na Railway, não no arquivo (o `publicador` tem a tabela). O MCP tem
 **dois transportes**: stdio, que roda na máquina do operador, e
 StreamableHTTP, que é o do serviço hospedado — ali ele é servidor OAuth 2.1 próprio e a identidade
 vem de quem chamou. Ele **escreve** desde a Etapa 3, e **o que libera a escrita muda com o
