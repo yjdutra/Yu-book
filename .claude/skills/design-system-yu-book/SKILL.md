@@ -1,6 +1,6 @@
 ---
 name: design-system-yu-book
-description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), o pacote packages/cliente, casa de tokens, ícones e primitivos dos dois fronts (com @source obrigatório por app), os primitivos de base/ (Botao com tamanho g de toque, Bloco, Aviso, Dialogo com foco preso, a folha inferior do móvel e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente), a guarda de saída de formulário com salvar explícito, o gráfico de dados à mão (BarrasPorDia e Indicador, com o número fora do desenho), a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele e do painel do card), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina, e LinhaConclusao, a de quem concluiu o card), a zona de soltar arquivo dos anexos do card, ícones SVG desenhados à mão em Icones.tsx (um desenho, um sentido) e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only do web contra o móvel responsivo (um elemento por layout, toda folha com Fechar e no histórico do Voltar, a guarda de descarte da folha, tom e forma por tipo na agenda) e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web, apps/movel ou packages/cliente.
+description: Design system manual do Yu-book — rampa de cor semântica ink/accent, os dois temas em CSS puro sem usar a variante dark do Tailwind, os tokens do redesenho de UI (fonte, text-miudo, rotulo, raios, sombras por tema, animação com prefers-reduced-motion, inclusive a feita em JS, escala de z), o pacote packages/cliente, casa de tokens, ícones e primitivos dos dois fronts (com @source obrigatório por app), os primitivos de base/ (Botao com tamanho g de toque, Bloco, Aviso, Dialogo com foco preso, a folha inferior do móvel e o que ele deixa de fora, Menu, Etiqueta, Toast, Interruptor, Parte) e os reusáveis fora dela (CampoMarkdown, SeletorDeNota, SeletorColuna, AvatarAgente e as cores de agente, os átomos do chat e o ditado, que nunca envia), a única exceção ao anel de foco, a guarda de saída de formulário com salvar explícito, o gráfico de dados à mão (BarrasPorDia e Indicador, com o número fora do desenho), a casca de trilho e painel contextual recolhível, /ajustes em seções, os quatro arrastes (kanban, favoritos, quadro de modelos e fluxo de rotina) e o foco que sobrevive ao desmonte, o painel do assistente que empurra o conteúdo, não é modal e só some na tela do chat, não nas de agentes e rotinas (e o Esc do Dialogo aberto dentro dele e do painel do card), a marca de conteúdo gerado por IA (MarcaIA e FaixaIA, com o "Ver execução" da rotina, e LinhaConclusao, a de quem concluiu o card), a zona de soltar arquivo dos anexos do card, ícones SVG desenhados à mão em Icones.tsx (um desenho, um sentido) e as siglas unicode que ficam, a paleta com comandos, ausência deliberada de biblioteca de UI, limite desktop-only do web contra o móvel responsivo (um elemento por layout, toda folha com Fechar e no histórico do Voltar, a guarda de descarte da folha, tom e forma por tipo na agenda) e as regras de acessibilidade tratadas como requisito. Use antes de criar ou alterar qualquer componente, cor, sombra, animação, ícone, atalho de teclado ou estado visual em apps/web, apps/movel ou packages/cliente.
 ---
 
 # Design system do Yu-book
@@ -43,14 +43,14 @@ nenhum componente tem condicional de tema. O mecanismo é:
 Consequências obrigatórias:
 
 - **Cor nova exige duas entradas**, no `@theme` e em `:root[data-tema="claro"]`: só uma quebra um tema.
-- **Cada app declara `@source` do pacote** (`apps/web/src/index.css:6`, `apps/movel/src/index.css:6`)
-  logo após importar `tema.css`: o Tailwind só gera a classe que enxerga, e sem ele a classe usada
+- **Cada app declara `@source` do pacote** (`apps/web/src/index.css:8`, `apps/movel/src/index.css:8`)
+  logo após importar `tema.css` e `markdown.css`: o Tailwind só gera a classe que enxerga, e sem ele a classe usada
   só num primitivo some do CSS, calada. App novo que importa o pacote declara o seu.
 - **Sombra não segue essa regra do jeito ingênuo.** O Tailwind v4 **copia** o valor de `--shadow-*`
   para dentro da utilidade no build; redefinir `--shadow-e2` no bloco claro não muda nada. Sombra
   que troca com o tema mora em `--sombra-*` em `:root` **e** no bloco claro, e o `@theme` só aponta
   para ela (`--shadow-e1: var(--sombra-e1)`, `packages/cliente/src/tema.css:69`). Sombra feita só de
-  `color-mix` sobre token de cor (`--sombra-brilho-ia`, `:131-133`) já troca sozinha e fica só em `:root`.
+  `color-mix` sobre token de cor (`--sombra-brilho-ia`, `:147-149`) já troca sozinha e fica só em `:root`.
 - Cores de estado (`red`, `amber`, `emerald`, `sky`, `rose`, `violet`) têm valores próprios no tema
   claro — um vermelho calibrado para fundo escuro reprova em contraste sobre fundo claro.
 
@@ -80,8 +80,9 @@ extenso ao lado (`CartaoCard.tsx:90-92`, `:98-99`): o sinal sem cor (§4). Não 
 
 - **Estado nunca é comunicado só por cor.** Todo status carrega letra ou glifo: tipo de nota tem
   letra (`A/P/T/W/L`), prazo tem símbolo, link quebrado tem sublinhado tracejado **e** `(criar)`.
-- Foco visível é global e incondicional; não remova `outline`. O `:focus-visible` global **não leva
-  `border-radius`** (`tema.css:261`): fora de camada vencia o `rounded-*` e mudava a forma.
+- Foco visível é global; não remova `outline`, e o `:focus-visible` **não leva `border-radius`**
+  (`tema.css:277`), que vencia o `rounded-*`. **Uma exceção, com substituto:** `textarea[data-anel="cartao"]`
+  (`:282-289`) passa o anel ao cartão do `CampoMensagem`; campo novo não a usa sem desenhar o anel.
 - Ícone sem texto leva rótulo `sr-only`.
 - Erro usa `role="alert"`; status de salvamento usa `aria-live="polite"`.
 - Lista de opções usa `role="listbox"`/`role="option"`; item de navegação ativo usa `aria-current`.
@@ -102,10 +103,9 @@ extenso ao lado (`CartaoCard.tsx:90-92`, `:98-99`): o sinal sem cor (§4). Não 
 - **O web é desktop-only por decisão.** `GuardaDesktop` (`apps/web/src/components/Colunas.tsx`)
   bloqueia abaixo de 1024px com um aviso: **em `apps/web`, nada responsivo nem breakpoint de celular.**
   **O móvel (`apps/movel`) é o avesso**: celular primeiro, `lg:` para o desktop. Antes de escrever
-  nele, leia `referencias/movel.md` — um elemento por layout, a folha (Fechar, Voltar, guarda), o toque.
-- `PainelRedimensionavel` é a primitiva de layout: largura persistida em `localStorage`, divisor
-  operável por teclado (`role="separator"`, setas), limites 180–520px por padrão e `min`/`max`
-  por instância — o painel do assistente usa 320–640.
+  nele, leia `referencias/movel.md` — um elemento por layout, a folha (Fechar, Voltar, guarda), o toque, o chat.
+- `PainelRedimensionavel` é a primitiva de layout: largura em `localStorage`, divisor por teclado
+  (`role="separator"`, setas), 180–520px por padrão e `min`/`max` por instância (assistente: 320–640).
 - Seção recolhível usa `Secao`/`useSecao`, e **fechada continua mostrando o que esconde**: o `resumo`
   (filtro de tipo ativo, contagem de tags). Esconder o controle nunca esconde que o filtro vale.
 - **Largura em flex e grade é declarada.** `<fieldset>` nasce com `min-inline-size: min-content`:
@@ -139,9 +139,9 @@ A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 d
   mesma linha flex, **empurra** o conteúdo em vez de cobri-lo e segue aberto enquanto se navega.
   **Não é modal** (RNF-05 da Fase 1): sem véu, sem foco preso, e por isso não é `Dialogo`. O `Esc`
   global (`fecharTudo`) não o fecha; o `Esc` só vale com o foco dentro (`onKeyDown` do `<aside>`,
-  `:60-64`), e quem tem `Esc` próprio lá dentro — menu do `@` no `Compositor`, `Menu`, renomear
-  conversa — para a propagação. **`Dialogo` lá dentro é o avesso**, como no painel do card: INV-65.
-  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:283-292`); `Ctrl+Shift+Y`
+  `:62-66`), e quem tem `Esc` próprio lá dentro — menu do `@` no `Compositor`, ditado, `Menu`,
+  renomear conversa — para a propagação. **`Dialogo` lá dentro é o avesso**, como no painel do card: INV-65.
+  Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:285-302`); `Ctrl+Shift+Y`
   e a paleta alternam, e na tela do chat focam o campo (INV-56). **Conversa abre por id, sem rota**:
   `selecionar(id)` + `abrirPainel()`, e com fluxo em curso o desvio de `ajustes/TabelasUsoIa.tsx:201-210`.
 - **A área Assistente é chat, agentes e rotinas; o painel só não existe no chat** (Etapas D e E):
@@ -187,9 +187,10 @@ atalho existir num modo e não no outro, sem nada acusar.
 
 ## 8. Markdown renderizado
 
-A classe `.preview` em `apps/web/src/index.css` (só do web) é uma escala tipográfica escrita à mão — não há
-`@tailwindcss/typography`. Largura de linha limitada a `72ch`. As cores do realce de sintaxe são
-variáveis `--hljs-*`, definidas nos dois temas.
+A classe `.preview` (`packages/cliente/src/markdown.css`, dos dois fronts, importado logo depois de
+`tema.css`) é uma escala tipográfica escrita à mão — não há `@tailwindcss/typography` —, com linha
+de `72ch`; a fala do chat soma `.preview-fala` (`:170-186`): 15px, entrelinha 1.65, `68ch`. As
+cores do realce de sintaxe são variáveis `--hljs-*`, definidas nos dois temas.
 
 ## 9. Tokens do redesenho de UI
 
@@ -200,28 +201,24 @@ tamanho**. Tela nova usa estes; os valores avulsos antigos migram quando o arqui
 |---|---|
 | `font-sans` / `font-mono` | Inter, com a pilha de sistema como recuo; `mono` para tecla e código |
 | `text-miudo` | 11/16 — o degrau abaixo de `text-xs` |
-| `rotulo` (`@utility`, `tema.css:235`) | Título de seção: miúdo, caixa alta, `ink-400`. Cor própria vai num filho: `text-*` no mesmo nó disputa pela ordem do CSS gerado, não do atributo (§10; `apps/movel/src/components/tarefas/ListaAgrupada.tsx:58-63`) |
+| `rotulo` (`@utility`, `tema.css:251`) | Título de seção: miúdo, caixa alta, `ink-400`. Cor própria vai num filho: `text-*` no mesmo nó disputa pela ordem do CSS gerado, não do atributo (§10; `apps/movel/src/components/tarefas/ListaAgrupada.tsx:58-63`) |
 | `rounded-etiqueta` / `controle` / `cartao` / `dialogo` | Raio por papel |
 | `shadow-e1` … `e4`, `shadow-brilho-ia` | Elevação crescente; o brilho só em área de IA |
 | `ease-saida` / `ease-padrao` | Curvas de entrada e de transição comum |
-| `animate-surgir` / `animate-surgir-veu` | Entrada de caixa flutuante e do véu atrás dela |
-| `animate-deslizar-esquerda` / `-direita` | Painel que surge da direita (assistente) / `Dialogo` lateral que surge da esquerda (gaveta) |
-| `animate-subir` | Entrada de `Toast` na pilha do pé da tela |
+| `animate-surgir` / `-surgir-veu` / `-deslizar-esquerda` / `-direita` / `-subir` / `-digitando` | Caixa flutuante e o véu dela; painel que surge da direita (assistente) e `Dialogo` lateral da esquerda (gaveta); `Toast` na pilha do pé; os três pontos do "pensando" do chat, em laço |
 | `--veu` | Fundo atrás de diálogo — variável em `:root`, fora do `@theme`, porque não é cor de texto |
-| `--z-popover` < `veu` < `dialogo` < `soltura` < `toast` | A escala de camadas (`tema.css:137-141`); `z-(--z-dialogo)`, não `z-50` avulso |
+| `--z-popover` < `veu` < `dialogo` < `soltura` < `toast` | A escala de camadas (`tema.css:153-157`); `z-(--z-dialogo)`, não `z-50` avulso |
 
 - **`text-[10px]` e `text-[11px]` estão proibidos.** São `text-miudo`. 10px fica ilegível em Inter.
-- **Toda animação nova passa pelo bloco `prefers-reduced-motion`** (`tema.css:246`); o `0.01ms`,
+- **Toda animação nova passa pelo bloco `prefers-reduced-motion`** (`tema.css:262`); o `0.01ms`,
   e não `none`, mantém o `animationend` disparando — não "simplifique". **Animação em JS o CSS não
   alcança**: lê `useMovimentoReduzido` (`lib/movimento.ts`; `QuadroDeModelos.tsx:525`).
-- A Inter vem do Google Fonts por `<link>` em `index.html`, **depois** do script de tema: a fonte
-  pode chegar atrasada (`display=swap`), o tema não. Não mova o `<link>` para antes do script.
+- A Inter vem por `<link>` em `index.html`, **depois** do script de tema: a fonte pode atrasar, o tema não.
 
 ## 10. Primitivos em `base/` (`packages/cliente/src/base/`)
 
-**A decisão de manter `Button` e `Modal` inexistentes foi revogada** na Etapa 1 do redesenho: as
-cópias à mão tinham divergido (`Botao.tsx:4-9`). Importa-se `@yu-book/cliente/base/<Nome>`. **Tudo
-ali entra nos dois apps, até variante que um não usa**: variação nova custa bytes no web. Existem:
+Importa-se `@yu-book/cliente/base/<Nome>` (por que existem: `Botao.tsx:4-9`). **Tudo ali entra nos
+dois apps, até variante que um não usa**: variação nova custa bytes no web. Existem:
 
 | Arquivo | Exporta |
 |---|---|
@@ -240,8 +237,11 @@ ali entra nos dois apps, até variante que um não usa**: variação nova custa 
 - **Primitivo só nasce na etapa que tem consumidor.** Campo e Dica não existem — não os antecipe.
 - Botão novo é `Botao`, não `<button>` com classes copiadas. **Fora de `base/` também se reusa**:
   `CampoMarkdown` (textarea com prévia sanitizada), `SeletorDeNota` (combobox sobre `useTitulos()`),
-  `agentes/AvatarAgente` (o único jeito de mostrar um agente) e `SeletorColuna`/`useEscolhaDeColuna`
-  (`agentes/CamposDoAgente.tsx:113-133`; `quadroFixo` prende ao quadro da entrada, RN-04).
+  `SeletorColuna`/`useEscolhaDeColuna` (`agentes/CamposDoAgente.tsx:113-133`; `quadroFixo` prende
+  ao quadro da entrada, RN-04) e, nos dois apps, `packages/cliente/src/chat/`: `AvatarAgente` (o
+  único jeito de mostrar um agente) e os átomos da conversa — fala, balão, status, compositor.
+- **Voz é ditado, nunca envio** (`packages/cliente/src/ditado.ts:10-18`). Quem usa `CampoMensagem`
+  envia o que `onEnviar` recebe — o à vista, parcial incluído —, não o rascunho (`CampoMensagem.tsx:47-51`).
 - **Formulário de salvar explícito usa `useGuardaDeSaida`** (`lib/guardaDeSaida.ts`): sem
   `useBlocker` no `BrowserRouter`, ela intercepta o `navigator`, e o Voltar fica de fora (`:16-20`).
 - **O que a base já define não se varia por `className`.** O Tailwind v4 ordena utilitários da

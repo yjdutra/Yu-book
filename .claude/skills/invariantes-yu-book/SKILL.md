@@ -275,6 +275,13 @@ otimista (`packages/cliente/src/agenda.ts:208-223`); as regras de tela do móvel
 `design-system-yu-book/referencias/movel.md`. A lição é a do INV-40, de novo: o arquivo mudou de
 pacote, e duas referências de `contrato-compartilhado` seguiram no caminho velho sem nada acusar.
 
+A **Fase 5 da frente de agenda** (2026-10-09) subiu o núcleo do chat — transporte, redutor, Markdown,
+ditado e os átomos da conversa — para `packages/cliente`, e pôs o chat no móvel. Nenhuma invariante
+nova: INV-09 ganhou o segundo front, e INV-56 a superfície única do móvel, onde a regra é a mesma e
+os buracos são outros — o `navigate` que vale com a tela desmontada e a chave do `<main>` que
+remontaria a conversa. A lição é a do INV-40 pela terceira vez: `renderMarkdown`, as chaves do
+gasto e o rótulo das ações mudaram de arquivo, e as referências ficaram no caminho velho.
+
 O que ainda não tem código: **busca semântica** (§5.4). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
 **menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece: reconfira
 as referências antes de confiar nelas. Quando a fase vier, duas invariantes ficam na linha de tiro:

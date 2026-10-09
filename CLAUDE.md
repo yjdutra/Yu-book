@@ -9,7 +9,7 @@ Segundo cérebro pessoal, single-user. Monorepo pnpm com seis pacotes:
 | `apps/movel` | React 19 + Vite 6 + Tailwind v4 | PWA responsivo para o celular |
 | `apps/mcp` | SDK MCP + stdio/HTTP | Servidor MCP, cliente da própria API |
 | `packages/shared` | Zod 3 | Schemas e helpers que os outros cinco consomem |
-| `packages/cliente` | React 19 (peer), fonte sem build | Cliente HTTP, sessão, tema, primitivos e ícones de web e móvel |
+| `packages/cliente` | React 19 (peer), fonte sem build | Cliente HTTP, sessão, tema, primitivos, ícones e o núcleo do chat de web e móvel |
 
 **O repositório é público, e `docs/` é local desde 2026-09-28:** está no `.gitignore` e fora do
 índice. Todo caminho `docs/...` citado aqui, em `.claude/` ou num comentário resolve só na máquina
@@ -64,8 +64,12 @@ hora só no turno enviado (INV-52). A Fase 3 fez a fundação do móvel: `apps/m
 e casca, e `packages/cliente`, para onde saíram de `apps/web` o que os dois fronts dividem; a Fase 4
 pôs no móvel **agenda e tarefas** — Início, calendário, listas e uma folha de criar e editar que o
 Voltar do Android fecha —, e os hooks da agenda subiram para `packages/cliente/src/agenda.ts`. O
-hoje do móvel é o da API, não o do aparelho (INV-66). A Fase 6 de produto (Google Calendar) segue
-sendo o item de menor prioridade.
+hoje do móvel é o da API, não o do aparelho (INV-66). A Fase 5 pôs **o chat no celular**: o núcleo
+dele — transporte, redutor, Markdown, ditado e os átomos da conversa — subiu para
+`packages/cliente`, o chat do web foi redesenhado sobre ele e ganhou voz (o ditado preenche o
+campo, nunca envia), e o móvel conversa com o acervo e os agentes, com a mesma regra de não deixar
+o laço pago rodar sem tela (INV-56). A Fase 6 de produto (Google Calendar) segue sendo o item de
+menor prioridade.
 
 **Oito numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e

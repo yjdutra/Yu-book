@@ -6,17 +6,17 @@ Carregue antes de escrever em `apps/movel`. Tokens, primitivos e ícones são os
 ## Layout
 
 - **Responsivo, celular primeiro.** O padrão é a tela de ~390px; `lg:` (1024px) é o desktop. A
-  barra inferior vira coluna lateral (`src/components/Navegacao.tsx:93-100`) e a folha vira a caixa
+  barra inferior vira coluna lateral (`src/components/Navegacao.tsx:95-98`) e a folha vira a caixa
   do centro (`packages/cliente/src/base/Dialogo.tsx:32-34`). Não existe `GuardaDesktop` aqui.
 - **Item em posições diferentes por layout: um elemento por layout, nunca `order`.** Dois nós, um
-  com `hidden lg:flex` e outro com `lg:hidden` (`Navegacao.tsx:102-113`, o `BotaoCriar`): a ordem do
+  com `hidden lg:flex` e outro com `lg:hidden` (`Navegacao.tsx:105-116`, o `BotaoCriar`): a ordem do
   Tab segue o DOM (WCAG 2.4.3), e `order` mudaria só o desenho; o oculto, `display: none`, sai da
   árvore de acessibilidade.
 - **Área segura por `env(safe-area-inset-*)`**, porque a página desce sob a barra de gestos
-  (`viewport-fit=cover`, `index.html:5-9`): a barra (`Navegacao.tsx:93`), o conteúdo da casca
-  (`Casca.tsx:50-52`) e a folha (`pb-[env(safe-area-inset-bottom)]` no `Dialogo`).
-- **Camada própria abaixo do popover:** `--z-navegacao: 30` (`src/index.css:20`) — menu e diálogo
-  passam por cima da barra. O CSS do app só mistura tokens, nunca cor nova (`src/index.css:8-12`).
+  (`viewport-fit=cover`, `index.html:5-9`): a barra (`Navegacao.tsx:96`), o conteúdo da casca
+  (`Casca.tsx:94-95`) e a folha (`pb-[env(safe-area-inset-bottom)]` no `Dialogo`).
+- **Camada própria abaixo do popover:** `--z-navegacao: 30` (`src/index.css:22`) — menu e diálogo
+  passam por cima da barra. O CSS do app só mistura tokens, nunca cor nova (`src/index.css:10-14`).
 
 ## Folhas e toque
 
@@ -35,7 +35,7 @@ Carregue antes de escrever em `apps/movel`. Tokens, primitivos e ícones são os
   concluir com alteração pendente é "Salvar e concluir" — grava, depois conclui (`:411-436`). É o
   par móvel do `useGuardaDeSaida` do web (§10 da skill).
 - **Uma folha só de criar e editar evento e tarefa**, na casca (`ProvedorFolhaItem`,
-  `FolhaItem.tsx:42-47`; `Casca.tsx:42`): o "+" da barra, o "+" do dia e o toque num item a abrem
+  `FolhaItem.tsx:42-47`; `Casca.tsx:67`, `:85`): o "+" da barra, o "+" do dia e o toque num item a abrem
   por `useFolhaItem`. Não monte outra por tela.
 - **Alvo de toque ≥ 44px:** botão de folha e de ação usa `Botao tamanho="g"` (48px,
   `packages/cliente/src/base/Botao.tsx:29-30`). Pelo mesmo motivo o avatar abre **folha**, não
@@ -43,6 +43,17 @@ Carregue antes de escrever em `apps/movel`. Tokens, primitivos e ícones são os
 - Escolha entre poucos continua controle segmentado, como o `SeletorModo` do web (§4 da skill); na
   folha, em pílulas que quebram linha, e a escolhida muda de forma, cheia e com check
   (`GrupoPilulas`, `src/components/folha/Pilulas.tsx:5-11`).
+
+## O chat
+
+- **A conversa é `lazy`** (`src/components/Casca.tsx:13-20`): Markdown e highlight.js só nela. Tela
+  do chunk inicial que mostra o avatar do assistente importa `chat/AvatarIA`, nunca
+  `chat/FalaAssistente`, que arrasta o renderizador (razão em `packages/cliente/src/chat/AvatarIA.tsx:3-8`).
+- **O teclado do Android encolhe só a visual viewport** (Chrome 108+): `dvh` e `fixed` seguem com a
+  tela inteira. O que fica preso ao pé acima do teclado lê `useAreaVisivel` (`src/lib/viewport.ts:10-20`);
+  só a conversa o usa, e a meta `interactive-widget` mexeria em todas as telas.
+- **A conversa é uma rota só, fora do `<main key>`**, e nada depois do `await` navega sem conferir o
+  abortado: INV-56 (`referencias/front.md` de `invariantes-yu-book`).
 
 ## Agenda e listas
 

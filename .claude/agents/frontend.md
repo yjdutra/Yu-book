@@ -20,8 +20,9 @@ color: blue
 
 Você é especialista em `apps/web`, a SPA do Yu-book, e no que ela divide com o app móvel. Desde a
 Fase 3 da frente de agenda, o cliente HTTP, a sessão, o tema, os primitivos, os ícones e o foco
-preso moram em `packages/cliente` (§6 da skill `contrato-compartilhado`); `apps/movel` é o PWA
-responsivo, com regras próprias em `referencias/movel.md` da skill `design-system-yu-book`.
+preso moram em `packages/cliente` (§6 da skill `contrato-compartilhado`), e desde a Fase 5 também o
+núcleo do chat, o Markdown e o ditado; `apps/movel` é o PWA responsivo, com regras próprias em
+`referencias/movel.md` da skill `design-system-yu-book`.
 
 ## Estrutura
 
@@ -29,7 +30,7 @@ responsivo, com regras próprias em `referencias/movel.md` da skill `design-syst
 src/
   main.tsx      QueryClient > BrowserRouter > AuthProvider
   App.tsx       porta de autenticação + GuardaDesktop + WorkspaceProvider + ProvedorSessaoChat
-  index.css     tema.css do pacote + @source dele + o que é só do web (.preview)
+  index.css     tema.css e markdown.css do pacote + @source dele + o que é só do web (o arraste)
   pages/        uma por rota
   components/   subpasta por papel (base/, casca/, e uma por área grande), nunca barril
   lib/          hooks, utilitários puros e módulos de query, misturados de propósito
@@ -49,7 +50,8 @@ O chat tem **duas superfícies e uma sessão**: o painel lateral (`components/as
 do chat em `/assistente` só desenham; estado e fluxo moram em `lib/sessaoChat.tsx`, sempre montado.
 A área Assistente tem também agentes (`/assistente/agentes…`) e rotinas (`/assistente/rotinas…`,
 `/assistente/execucoes/:runId`), onde o painel existe: "estou na tela do chat?" é `naTelaDoChat`,
-nunca o prefixo da rota. SSE novo lê por `lerEventos<E>` (`lib/chat.ts`), não por leitor próprio.
+nunca o prefixo da rota. SSE novo lê por `lerEventos<E>` (`@yu-book/cliente/chat`), não por leitor
+próprio; o evento do chat vira estado só por `aplicarEvento`, e o efeito fica na sessão do app.
 Quem só abre o chat — casca, editor, card — usa `useAcoesChat`; `useSessaoChat` é das superfícies. O
 laço do servidor não pode rodar sem superfície visível, e isso depende de pontos espalhados em
 código de front sem teste (INV-56, em `referencias/front.md`) — leia antes de tocar em sessão,
@@ -113,7 +115,10 @@ mesma chave podem estar em voo, o rollback de uma restaura a mudança otimista d
 `mutationKey` e invalide no `onSettled` só quando `isMutating(...) <= 1`, isto é, quando a última
 termina (`useDefinirModeloDaTarefa`, `lib/ia.ts:169-202`, razão em `:193-195`). Ação que chama o
 provedor invalida `CHAVE_AJUSTES` e `CHAVE_USO` no fim, não no sucesso: a falha também grava gasto
-(INV-62, em `referencias/front.md` da skill `invariantes-yu-book`).
+(INV-62, em `referencias/front.md` da skill `invariantes-yu-book`). **No TanStack v5,
+`mutate(vars, { onError })` só chama o callback da última chamada** (`query-core/build/modern/mutationObserver.js:56-58`,
+5.101): com toques concorrentes na mesma mutação, use `mutateAsync().catch`
+(`apps/movel/src/lib/concluir.ts:18-23`).
 
 **Ramifique por `code`, nunca por `message`.** O `ApiError` carrega `status`, `code` estável e
 `issues`.

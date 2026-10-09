@@ -149,8 +149,9 @@ Duas consequências que economizam busca:
 ## Editor de notas
 
 **INV-09 — Markdown só vira DOM depois do DOMPurify.** `renderMarkdown` em
-`apps/web/src/lib/markdown.ts:83` sanitiza; é a única razão de `dangerouslySetInnerHTML` ser
-aceitável (`Editor.tsx:369`). Nunca contorne.
+`packages/cliente/src/markdown.ts:92-95` sanitiza, para os dois fronts; é a única razão de
+`dangerouslySetInnerHTML` ser aceitável (`Editor.tsx:369`, e a fala do chat em
+`packages/cliente/src/chat/FalaAssistente.tsx:23-27`). Nunca contorne.
 
 O editor ao vivo abriu um **segundo caminho** de Markdown para DOM e não o contorna: as decorações
 escondem, marcam e substituem trechos por elementos construídos no código, com `textContent` e
@@ -240,65 +241,78 @@ uma ação chamada antes do desmonte, não efeito do painel — e o que ela gara
 
 **INV-56 — O laço do servidor não roda sem superfície visível.** Uma mensagem do chat são até cinco
 chamadas ao provedor, cada uma gravando contra o teto do dia (INV-47). Desde a Etapa 3 do redesenho
-de UI o fluxo mora em `ProvedorSessaoChat` (`apps/web/src/lib/sessaoChat.tsx:170`), montado acima da
+de UI o fluxo mora em `ProvedorSessaoChat` (`apps/web/src/lib/sessaoChat.tsx:148`), montado acima da
 casca (`apps/web/src/App.tsx:38-40`) — **desmontar a superfície não solta a conexão.** A garantia
 deixou de ser uma limpeza de efeito e virou cinco pontos, cada um fechando um caminho:
 
 1. **Fechar o painel para o fluxo:** `fecharPainel` chama `parar()` antes de desmontar
-   (`sessaoChat.tsx:283-284`).
-2. **O logout aborta:** sair da sessão desmonta o provedor, e a limpeza aborta (`sessaoChat.tsx:210`).
+   (`sessaoChat.tsx:289-290`).
+2. **O logout aborta:** sair da sessão desmonta o provedor, e a limpeza aborta (`sessaoChat.tsx:188`).
 3. **Sair da tela do chat com fluxo em curso reabre o painel** (`Aplicacao.tsx:185-190`, lendo
-   `temFluxo()`, `sessaoChat.tsx:225`). Sem isso a resposta seguiria em tela nenhuma.
-4. **O `AbortController` nasce antes de criar a conversa** (`sessaoChat.tsx:309-310`, razão em
-   `:189-195`), e enquanto ele existe outro envio não começa (`:307`). Nascido depois do
+   `temFluxo()`, `sessaoChat.tsx:226`). Sem isso a resposta seguiria em tela nenhuma.
+4. **O `AbortController` nasce antes de criar a conversa** (`sessaoChat.tsx:320-321`, razão em
+   `:167-173`), e enquanto ele existe outro envio não começa (`:318`). Nascido depois do
    `criar.mutateAsync` (`:340`), fechar nessa janela chamava um `parar()` sem nada para parar; a
    conferência de `:349` é o que segura o fluxo ali.
 5. **Conversa nova pedida com fluxo em curso não troca a conversa** (Etapa D): mostra a resposta —
-   no painel, ou no campo da tela do chat — e diz por quê (`avisoDeEspera`, `sessaoChat.tsx:112`).
+   no painel, ou no campo da tela do chat — e diz por quê (`avisoDeEspera`, `sessaoChat.tsx:86`).
    Vale para "Conversar" com um agente (`components/agentes/acoesDoAgente.tsx:125-137`), para o
-   pedido que chega à tela do chat (`pages/AssistentePage.tsx:40-64`) e para a conversa aberta das
+   pedido que chega à tela do chat (`pages/AssistentePage.tsx:44-57`) e para a conversa aberta das
    últimas chamadas do AI usage dash (`components/ajustes/TabelasUsoIa.tsx:201-210`).
 
-**"Tela do chat" é `naTelaDoChat` (`sessaoChat.tsx:96`), não a área `/assistente`.** Desde a Etapa D
+**"Tela do chat" é `naTelaDoChat` (`sessaoChat.tsx:70`), não a área `/assistente`.** Desde a Etapa D
 a área tem a galeria e o editor de agentes (`/assistente/agentes…`), e desde a E as rotinas
 (`/assistente/rotinas…`, `/assistente/execucoes/:runId`); em todas elas o painel existe.
 `pathname.startsWith("/assistente")` faria a resposta sumir ao ir do chat para a galeria —
 nenhuma superfície à vista, o laço pagando. Quem decide "o painel existe aqui?" chama a função:
-a casca (`Aplicacao.tsx:177`), o trilho (`casca/Trilho.tsx:254`) e a conversa (`Conversa.tsx:266`).
+a casca (`Aplicacao.tsx:177`), o trilho (`casca/Trilho.tsx:262`) e a conversa (`Conversa.tsx:197`).
 Os três perguntavam pela área até a Etapa D. `areaDe` (`casca/PainelContexto.tsx:18`) continua por
 prefixo, e está certo: ali a pergunta é qual painel contextual mostrar, não se o chat está à vista.
 
 **A conversa nova pedida de fora troca ao chegar, nunca antes do `navigate`.** Ela viaja no `state`
-da navegação (`EstadoRotaChat`, `sessaoChat.tsx:107-109`) e é aplicada por `AssistentePage`. Trocar
+da navegação (`EstadoRotaChat`, `sessaoChat.tsx:81-83`) e é aplicada por `AssistentePage`. Trocar
 antes quebra duas coisas: a guarda de saída do editor de agentes segura o `navigate` e a conversa
 já teria mudado com a pessoa ainda no editor; e um envio feito pelo painel enquanto o diálogo da
 guarda estava aberto sumiria da tela — este invariante.
 
 **Expandir para a tela do chat não toca no fluxo**: trocar de superfície não é fechar
-(`sessaoChat.tsx:275-277`), e a rota não passa por `fecharPainel`. Caminho novo que esconda a
+(`sessaoChat.tsx:280-283`), e a rota não passa por `fecharPainel`. Caminho novo que esconda a
 última superfície visível — outra rota, outro atalho, outro "fechar" — chama `fecharPainel` ou
 entra nesta lista. Nenhum portão executa o front: a quebra aparece como gasto no teto sem resposta
 na tela.
 
 **Defeito aberto, anterior à Etapa D — o ponto 5 ainda não vale em todo sítio.** "Nova conversa" e
 escolher outra conversa chamam `novaConversa`/`selecionar` sem olhar `temFluxo()`: a fala em curso
-só aparece na conversa dela (`components/assistente/Conversa.tsx:744`), e some com o laço pagando.
+só aparece na conversa dela (`components/assistente/Conversa.tsx:626`), e some com o laço pagando.
 Os `selecionar` sem desvio em 2026-09-25: `MarcaIA.tsx:146`, `casca/contexto/ContextoInicio.tsx:83`,
-`assistente/PainelAssistente.tsx:121` e `assistente/ListaConversas.tsx:176`. Quem for fechar, grepe
+`assistente/PainelAssistente.tsx:126` e `assistente/ListaConversas.tsx:160`. Quem for fechar, grepe
 os dois nomes em `apps/web/src` e passe todo chamador pelo desvio de `TabelasUsoIa.tsx:201-210`.
 
 **O avesso: na tela do chat, nada alterna o painel.** Lá o painel não existe, mas `painelAberto`
 continua valendo, e `alternarPainel` com ele `true` é `fecharPainel` — `parar()` na resposta que
 está na tela. Todo caminho que alterna faz o desvio `emAssistente ? focarCampo() : alternarPainel()`:
 o atalho (`Aplicacao.tsx:299`) e o comando da paleta (`:399`); o botão do trilho escapa por não
-existir ali (`casca/Trilho.tsx:254`). Caminho novo que alterne o painel entra nesta lista.
+existir ali (`casca/Trilho.tsx:262`). Caminho novo que alterne o painel entra nesta lista.
 
 A armadilha vizinha: **os dois contextos da sessão não se fundem.** `useAcoesChat`
-(`sessaoChat.tsx:491`) dá as ações e `painelAberto` a quem só abre o chat — casca, editor, card —;
-`useSessaoChat` (`:498`) dá o estado, que muda a cada delta do streaming, e é só das superfícies
-(razão em `:34-38`). Fundir os dois, ou assinar `useSessaoChat` fora de `components/assistente/`,
+(`sessaoChat.tsx:456`) dá as ações e `painelAberto` a quem só abre o chat — casca, editor, card —;
+`useSessaoChat` (`:463`) dá o estado, que muda a cada delta do streaming, e é só das superfícies
+(razão em `:35-39`). Fundir os dois, ou assinar `useSessaoChat` fora de `components/assistente/`,
 faz quadro e editor re-renderizarem dezenas de vezes por segundo durante a resposta. Compila,
 funciona, só fica lento.
+
+**O móvel tem uma superfície só, e a regra mais curta** (frente de agenda, Fase 5). A sessão mora
+na tela da conversa (`useEnvioChat`, `apps/movel/src/lib/sessaoChat.ts:42`), e sair dela aborta na
+limpeza (`:52`). Dois pontos que o web não tem:
+
+1. **Nada depois do `await` age como se a tela existisse.** A conversa nova nasce e o `aoCriar`
+   troca a rota com `replace` (`apps/movel/src/pages/ConversaPage.tsx:229`); a conferência de
+   `aborted` vem **antes** dele (`apps/movel/src/lib/sessaoChat.ts:77-85`). O `navigate` do React
+   Router sem data router vale com a tela desmontada, e puxaria de volta à conversa quem já tinha
+   saído. Callback novo que navegue depois de um `await` passa pela mesma conferência.
+2. **A conversa é uma rota só, fora do `<main key={pathname}>`** (`apps/movel/src/components/Casca.tsx:61-82`):
+   `/assistente/nova` vira `/assistente/:id` no meio da resposta, e dentro do `main` a chave nova
+   remontaria a tela — a limpeza abortaria a resposta que acabou de começar.
 
 ## Enums que a interface precisa percorrer
 
@@ -328,12 +342,12 @@ vendo um modelo marcado conclui que o erro é falso.
 **Não vale para todo enum: vale para o enum cujo membro pede configuração.** `LINK_KINDS` é citado à
 mão de propósito em `apps/web/src/components/ZonasDeSoltura.tsx:131-142` — cada zona tem texto e
 ícone próprios, e ali o enum só discrimina. Enum que rotula ou discrimina pode ser citado (é também
-o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `packages/cliente/src/Icones.tsx:536` já
+o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `packages/cliente/src/Icones.tsx:564` já
 mantém total); enum cujo membro exige um valor que **só a interface** coleta, não. **E citar não é
 ternário** (frente de agenda, Fase 2): `kind === "note" ? … : card` supunha que todo não-nota era
 card, e o evento criado pelo chat teria oferecido "Abrir o card" e o Desfazer por `/cards/:id`, sem
 erro de tipo. Quem discrimina por união que cresce usa `Record` total (`COMO_MOSTRAR`,
-`apps/web/src/components/assistente/Conversa.tsx:143`) ou guarda que nomeia o membro (`:262`).
+`apps/web/src/components/assistente/Conversa.tsx:79`) ou guarda que nomeia o membro (`:193`).
 
 O resto da tela também percorre, e cada um é um `.map` que o typecheck não cobra: os itens "Usar
 para…" do menu de cada favorito (`QuadroDeModelos.tsx:433-438`), as etiquetas de uso do cartão
@@ -388,11 +402,11 @@ funcionando. Nenhum portão executa arraste. Há duas formas certas, e arrastáv
 **INV-62 — Toda ação que chama o provedor invalida o gasto, inclusive quando falha.** A chamada que
 falhou também grava linha em `ai_usage` (INV-51), e as duas leituras dela no front têm `staleTime`
 de 30 s: `CHAVE_AJUSTES`, o gasto do dia, e `CHAVE_USO`, o AI usage dash
-(`apps/web/src/lib/chat.ts:35-38`). Os pontos, cada um no **fim** da ação e não no sucesso:
+(`apps/web/src/lib/chat.ts:16-20`). Os pontos, cada um no **fim** da ação e não no sucesso:
 
 - o formatar, no `onSettled` (`apps/web/src/lib/ia.ts:222-225`, razão em `:214-221`);
-- o chat, no `finally` (`apps/web/src/lib/sessaoChat.tsx:424-436`);
-- a execução de rotina, por `invalidarDepoisDaExecucao` (`apps/web/src/lib/rotinas.ts:202-209`).
+- o chat, no `finally` (`apps/web/src/lib/sessaoChat.tsx:389-398`);
+- a execução de rotina, por `invalidarDepoisDaExecucao` (`apps/web/src/lib/rotinas.ts:203-210`).
 
 `useAtualizarAjustes` invalida `CHAVE_USO` por outro motivo — o fuso muda o `to` do relatório
 (`lib/ia.ts:136-142`). Trocar `onSettled` por `onSuccess` deixa a falha paga fora da tela, e ação
@@ -408,7 +422,7 @@ por fora, com `preventDefault`; o contêiner ignora o `Esc` com `defaultPrevente
 fecharia junto. `stopPropagation` no caminho calaria o ouvinte do próprio diálogo. O wrapper fica
 **fora** do `Dialogo` porque a caixa tem `tabIndex={-1}` (`:74`) e ganha o foco num clique em área
 vazia — um wrapper dentro dela não vê a tecla. Dois pares hoje:
-`assistente/Conversa.tsx:610-620` com `assistente/PainelAssistente.tsx:61`, e
+`assistente/Conversa.tsx:518-522` com `assistente/PainelAssistente.tsx:62-63`, e
 `AnexosDoCard.tsx:263-275` com `PainelCard.tsx:157-159`. Diálogo novo num desses contêineres, ou
 contêiner novo que feche no `Esc` e hospede diálogo, repete as duas metades — **faltar qualquer uma
 compila**, e o sintoma é o `Esc` fechar o diálogo e o painel de uma vez. O `Esc` só chega ao
