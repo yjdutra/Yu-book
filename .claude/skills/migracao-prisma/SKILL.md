@@ -37,6 +37,9 @@ escolhido assim.
 `yubook`, que guarda a conta real do operador — e é nele que a suíte da API roda.
 
 - **`prisma migrate reset` não é seguro**: apaga a conta junto.
+- **Migration nova se prova num banco de rascunho, não em `yubook`:** `CREATE DATABASE` de rascunho
+  (pelo Prisma Client, se não houver `psql` à mão) e `prisma migrate deploy` com o `DATABASE_URL`
+  trocado só no comando — é ali que se confere que ela aplica do zero e que `migrate diff` sai vazio.
 - **Migration já aplicada não se edita** — nem em dev. Mudou de ideia depois de aplicar? Migration
   nova, aditiva: a Etapa E fechou com três (`ia_etapa_e_rotinas`, `_pulso`, `_uma_execucao`), e a
   emenda dela ganhou a quarta (`_pedido`) em vez de editar as três, que nem tinham subido.
@@ -76,10 +79,19 @@ Estes objetos existem só nos arquivos `migration.sql`. O `schema.prisma` não o
 | `note_title_unico_idx` | `20260814004639_notas_fase_1:24` | `UNIQUE (user_id, lower(immutable_unaccent(title))) WHERE deleted_at IS NULL` |
 | Índices GIN trigram em `note.title` e `card.title` | `busca_aproximada`, `kanban_fase_2` | Tolerância a erro de digitação |
 | `ai_routine_run_uma_em_andamento_idx` | `20260924233000_ia_etapa_e_uma_execucao` | `UNIQUE (user_id) WHERE status = 'em_andamento'` — RN-19, uma execução por conta (INV-04) |
+| `event_serie_idx` | `20261010120000_eventos_recorrentes` | `(user_id, starts_at) WHERE "repeat_days" <> '{}'` — só as séries, que a consulta pede sem piso em `starts_at` (`seriesNoPeriodo`) |
 
 **Índice parcial não aparece no `schema.prisma`, e o Prisma 6 nem o introspecta nem o derruba**:
 `prisma migrate diff` sai vazio com ele no banco (conferido ao criar a migration, comentário no
 `migration.sql` dela). Quem lê só o schema não sabe que a regra existe — por isso a tabela acima.
+
+**Índice parcial que uma consulta do Prisma deve usar repete, literal, o predicado que o Prisma
+emite** — o planner só usa o índice se o `WHERE` da consulta implica o dele. `repeatDays: { isEmpty:
+false }` sai `"repeat_days" <> '{}'`, e é esse o predicado de `event_serie_idx`; escrito de outro
+jeito, a consulta cai no índice largo. Confira no log de consultas e no `EXPLAIN`, como registra o
+comentário de `20261010120000_eventos_recorrentes/migration.sql:10-18`. **Coluna de lista**
+(`Int[]`, `DateTime[] @db.Date`) com `@default([])` sai `NOT NULL DEFAULT ARRAY[]` e não gera
+deriva no `migrate diff` (conferido na mesma migration).
 
 **`immutable_unaccent` é o eixo de tudo.** Ele aparece no índice único, nos índices trigram e em
 quase todo SQL cru. E precisa continuar espelhando `normalizarTitulo` de

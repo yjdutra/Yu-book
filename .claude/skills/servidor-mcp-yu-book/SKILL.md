@@ -61,10 +61,8 @@ services.
 Custa uma requisição a mais e herda de graça: escopo por `userId` vindo só do token, posse por
 cadeia no kanban, 404 no lugar de 403, códigos de erro estáveis. Acessar o banco direto exigiria
 reimplementar esse escopo fora dos services — e erro ali não dá exceção, vaza dado em silêncio.
-
 Efeito colateral: apontar para outro ambiente é trocar `YUBOOK_API_URL` — no `.env` local, na
 variável do serviço quando hospedado —, sem uma linha de código.
-
 Sob HTTP muda só **de quem** é o `Bearer`: `src/auth/sessao-api.ts` faz login, refresh e logout
 contra as mesmas rotas do front, com o cookie `yb_refresh` à mão. **A `apps/api` não muda uma linha.**
 
@@ -99,7 +97,6 @@ recusa com erro longo e pouco óbvio. Cometido duas vezes: procure no SDK antes 
 
 **Tool e resource sobre o mesmo dado não são duplicação.** `get_board` e `yubook://board/{id}`
 devolvem o mesmo texto de propósito: a superfície é que se duplica, nunca a implementação.
-
 **Tool é a única primitiva que escreve**, e a escrita tem regras próprias — §9 a §11. Resource e
 prompt não mudam dado, e não passam a mudar. Quarta via, que não é primitiva: a **via de volta**
 (log e progresso), em `src/notificacoes.ts` (§11).
@@ -140,7 +137,7 @@ hospedado, relatando todo prazo um dia à frente, calado.
 usa `exigir: false` — recuar para `FUSO_PADRAO` custa no máximo uma linha com o dia de outro fuso.
 Tool que **monta o instante** (`create_card` com `dueDate`) usa `exigir: true`, antes do POST
 (`src/tools/kanban-escrita.ts:37-47`): recuar gravaria prazo errado, calado. **Evento e tarefa não
-pedem fuso:** vão em dia e hora locais e a API converte (`src/tools/agenda-escrita.ts:17-23`, INV-66).
+pedem fuso:** vão em dia e hora locais e a API converte (`src/tools/agenda-escrita.ts:22-28`, INV-66).
 
 Sem cache, deliberadamente — o argumento e o custo medido estão em `src/fuso.ts:5-31`, e ele
 responde pelo nome à proposta de um mapa por credencial. **Não acrescente `TZ` ao
@@ -219,7 +216,7 @@ descrição fraca custa uma chamada inútil; numa de escrita, custa dado errado 
 
 **O contrapeso: não descreva o que o modelo não pode agir.** A `description` é cobrada em **todo
 turno**, não por chamada. Transformação silenciosa que o modelo não evita sai do texto — a
-normalização de tags saiu por isso (`packages/shared/src/ferramentas.ts:229`). O critério: *sabendo
+normalização de tags saiu por isso (`packages/shared/src/ferramentas.ts:230`). O critério: *sabendo
 disto, o modelo faria algo diferente?* Se não, é custo puro. **Meça o `tools/list`** (§3).
 
 ## 11. A via de volta: log e progresso
@@ -257,9 +254,12 @@ então o MCP fala com uma API que pode ser semanas mais velha que o contrato que
 novo ausente na resposta é **omitido**, não emitido como `undefined` (`src/resources/catalogos.ts`).
 **O formatador de `shared` também tolera, e ali pesa mais:** roda **depois** da escrita, e lançar
 diria ao modelo que falhou um card já criado — ele criaria outro. Campo array novo se lê com `?.`
-apesar do tipo (`files`, `packages/shared/src/formato.ts:348-351`). **Rota nova não se tolera:**
-rota inexistente volta `NOT_FOUND` (`apps/api/src/app.ts:100-101`) e o modelo ouve "não existe esse
-id" — tool em rota nova exige a API no ar, ou traduz o `NOT_FOUND` (`src/tools/agenda.ts:40-55`).
+apesar do tipo (`files`, `packages/shared/src/formato.ts:348-351`). **Chave nova no corpo some
+calada:** a API velha a descarta e responde 201 — quem a manda confere a volta e avisa no texto,
+**sem `isError` nem reenvio** (`repeat`, `src/tools/agenda-escrita.ts:34-41`, `:106-133`). **Rota
+nova não se tolera:** rota inexistente volta `NOT_FOUND` (`apps/api/src/app.ts:100-101`) e o modelo
+ouve "não existe esse id" — tool em rota nova exige a API no ar, ou traduz o `NOT_FOUND`
+(`src/tools/agenda.ts:40-55`).
 
 ## 14. Propagação — o que fazer quando o domínio muda
 

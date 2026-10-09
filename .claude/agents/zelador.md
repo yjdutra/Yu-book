@@ -38,7 +38,7 @@ Dívidas já conhecidas, que você deve continuar listando enquanto existirem:
 | Item | Situação |
 |---|---|
 | Modelo `Company` em `apps/api/prisma/schema.prisma` | Sem rota e sem service. Decisão pendente registrada em `docs/old/PROPOSTA-inicial.md` |
-| `note_id`, `card_id` e `workspace_id` de `event` (`apps/api/prisma/schema.prisma:445`, `:457-458`) | Modeladas no `init`; a agenda da frente de 2026-10-09 (`apps/api/src/modules/eventos/`) não as lê nem grava. Ligar evento a nota e card, ou derrubá-las, é decisão pendente |
+| `note_id`, `card_id` e `workspace_id` de `event` (`apps/api/prisma/schema.prisma:445`, `:466-467`) | Modeladas no `init`; a agenda (`apps/api/src/modules/eventos/`) não as edita — só as copia quando um escopo parte uma série (`eventos.service.ts:88-95`). Ligar evento a nota e card, ou derrubá-las, é decisão pendente |
 | Lixeira que nunca expurga | A Fase 1 prometeu 30 dias; não há rotina de expurgo |
 | Sem script de `pg_dump` e sem export | Risco de lock-in registrado em `docs/old/PROPOSTA-inicial.md` |
 | Caminho `docs/` em arquivo versionado (`git grep -l "docs/" -- ':!docs'`) | `docs/` é local desde 2026-09-28: no GitHub, link do `CHANGELOG.md` é morto e ponteiro em comentário não resolve. Manter como registro ou tirar é decisão do operador |

@@ -266,26 +266,25 @@ união é censo de um** — afirma que o resto é o outro membro, e o tipo novo 
 erro de compilação.
 
 A **Fase 3 da frente de agenda** (2026-10-09) levou de `apps/web` para `packages/cliente` o que os
-dois fronts dividem, e só deslocou referências. A **Fase 4** pôs agenda e tarefas no móvel e moveu
-`apps/web/src/lib/agenda.ts` para `packages/cliente/src/agenda.ts`. Nenhuma invariante nova:
-estreitou INV-66 — o aparelho escolhe a janela, nunca o hoje —, cláusula sem portão, porque o móvel
-também não tem teste de front. Dois cuidados de sítio único ficam no comentário ao lado, não aqui:
-o `back()` da folha (`apps/movel/src/lib/historico.ts:39-44`) e o rollback por campos do concluir
-otimista (hoje em `packages/cliente/src/concluirTarefa.ts:68-83`); as regras de tela do móvel estão em
-`design-system-yu-book/referencias/movel.md`. A lição é a do INV-40, de novo: o arquivo mudou de
-pacote, e duas referências de `contrato-compartilhado` seguiram no caminho velho sem nada acusar.
+dois fronts dividem, e só deslocou referências. A **Fase 4** pôs agenda e tarefas no móvel e estreitou
+INV-66 — o aparelho escolhe a janela, nunca o hoje —, cláusula sem portão: o móvel também não tem
+teste de front. Dois cuidados de sítio único ficam no comentário ao lado, não aqui: o `back()` da
+folha (`apps/movel/src/lib/historico.ts:39-44`) e o rollback por campos do concluir otimista
+(`packages/cliente/src/concluirTarefa.ts:68-83`); as regras de tela do móvel estão em
+`design-system-yu-book/referencias/movel.md`. A **Fase 5** subiu o núcleo do chat para
+`packages/cliente` e o pôs no móvel: INV-09 ganhou o segundo front, e INV-56 a superfície única do
+móvel — o `navigate` que vale com a tela desmontada e a chave do `<main>` que remontaria a conversa.
+A **Fase 6** fechou a frente com o bloco Hoje do web: INV-66 ganhou o segundo front e a releitura ao
+voltar à aba. Nenhuma das quatro trouxe invariante nova, e três repetiram a lição do INV-40: código
+que sobe para `packages/cliente` deixa as referências no caminho velho — uma, num arquivo apagado.
 
-A **Fase 5 da frente de agenda** (2026-10-09) subiu o núcleo do chat — transporte, redutor, Markdown,
-ditado e os átomos da conversa — para `packages/cliente`, e pôs o chat no móvel. Nenhuma invariante
-nova: INV-09 ganhou o segundo front, e INV-56 a superfície única do móvel, onde a regra é a mesma e
-os buracos são outros — o `navigate` que vale com a tela desmontada e a chave do `<main>` que
-remontaria a conversa. A lição é a do INV-40 pela terceira vez: `renderMarkdown`, as chaves do
-gasto e o rótulo das ações mudaram de arquivo, e as referências ficaram no caminho velho.
-
-A **Fase 6 da frente de agenda** (2026-10-09) fechou a frente com o bloco Hoje no Início do web.
-Nenhuma invariante nova: INV-66 ganhou o segundo front e a releitura ao voltar à aba. A lição é a
-do INV-40 pela quarta vez: `useAgendaAdiante`, o foco que sobrevive e o concluir otimista subiram
-para `packages/cliente`, e as referências ficaram no caminho velho — uma, num arquivo apagado.
+A **frente de eventos recorrentes** (2026-10-09, nona numeração: R1 a R3) deu ao evento a série
+semanal — uma linha com a regra, as ocorrências calculadas na leitura. Nenhuma invariante nova:
+estreitou INV-66 (a hora segue o fuso e os dias não, e a limitação que anda a série um dia), INV-04
+(o `updatedAt` lido na escrita que regrava o que leu; apagar a série vazia pela releitura), INV-58
+(a marca copiada quando um escopo parte a série) e INV-52 (o que a `descricao` diz não se repete no
+`system`). A lição é a do INV-04: **posse no `where` protege de quem não é dono, não de quem
+escreveu entre a leitura e a escrita.**
 
 O que ainda não tem código: **busca semântica** (§5.4). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
 **menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece: reconfira

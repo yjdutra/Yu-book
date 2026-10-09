@@ -21,7 +21,7 @@ Carregue antes de escrever em `apps/movel`. Tokens, primitivos e ícones são os
 ## Folhas e toque
 
 - **Folha é `Dialogo posicao="folha"`**, com a `Alca` decorativa no alto (`src/components/Alca.tsx`).
-- **Toda folha tem um "Fechar" visível** (`Alca.tsx:1-8`; `folha/FormularioItem.tsx:872-874`,
+- **Toda folha tem um "Fechar" visível** (`Alca.tsx:1-8`; `folha/FormularioItem.tsx:1257-1259`,
   `Conta.tsx:117-119`): com TalkBack o véu fica fora da árvore (`aria-modal`), e o Voltar não é
   `Esc` nem existe no desktop. Arrastar a alça não fecha.
 - **Toda folha entra no histórico** por `useFolhaNoHistorico` (`src/lib/historico.ts:49`; usos em
@@ -30,10 +30,21 @@ Carregue antes de escrever em `apps/movel`. Tokens, primitivos e ícones são os
   limpeza vai em microtask e só com a entrada no topo: `historico.ts:39-44`.
 - **Folha com formulário tem guarda de descarte, e todo fechamento de fora passa por ela.** Véu,
   `Esc`, Voltar e "Fechar" chamam `pedirFechar` (`FolhaItem.tsx:76-88`, `:100`); `fechar` cru só
-  depois de gravar ou no "Descartar" (`FormularioItem.tsx:402`, `:805`). Ligar `fechar` ao `Dialogo`
-  ou ao hook perde a alteração calado. A pergunta é inline, sem `Dialogo` aninhado (`:787-809`), e
-  concluir com alteração pendente é "Salvar e concluir" — grava, depois conclui (`:421-446`). É o
+  depois de gravar ou no "Descartar" (`FormularioItem.tsx:607`, `:1073`). Ligar `fechar` ao `Dialogo`
+  ou ao hook perde a alteração calado. A pergunta é inline, sem `Dialogo` aninhado (`:1055-1077`), e
+  concluir com alteração pendente é "Salvar e concluir" — grava, depois conclui (`:662-687`). É o
   par móvel do `useGuardaDeSaida` do web (§10 da skill).
+- **Ocorrência de série avisa antes e pergunta o alcance ao gravar** (frente de eventos recorrentes).
+  O cabeçalho diz "Repete … · esta é a de …" (`FormularioItem.tsx:742-752`); salvar e excluir
+  perguntam "só esta / esta e as seguintes / todas" inline no pé, como o descarte, com o foco no
+  alcance menor — um Enter distraído mexe numa só — e sem "só esta" quando a regra mudou
+  (`:1078-1194`). Em "todas" o `date` é o início da série, e o dia da ocorrência aberta não vai nele;
+  as regras de horário estão em `mudancaDoEvento` (`:258-285`).
+- **A seção "Repetir" só aparece no evento que cabe numa série** (`cabeRepetir`, `:209-219`): dias
+  em pílulas com o nome por extenso no `aria-label` e o resumo da regra embaixo (`SecaoRepetir`,
+  `:1376-1382`). Dia exibido sai de `descreverDias`/`NOMES_CURTOS_DOS_DIAS` (`sáb`);
+  `SIGLAS_DOS_DIAS` (`sab`) é só entrada de ferramenta (`packages/shared/src/eventos.ts:401-416`).
+  Não escreva outra lista de nomes de dia.
 - **Uma folha só de criar e editar evento e tarefa**, na casca (`ProvedorFolhaItem`,
   `FolhaItem.tsx:42-47`; `Casca.tsx:67`, `:85`): o "+" da barra, o "+" do dia e o toque num item a abrem
   por `useFolhaItem`. Não monte outra por tela.

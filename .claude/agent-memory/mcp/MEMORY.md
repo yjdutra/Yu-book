@@ -14,14 +14,17 @@
 
 - Limite de login da API — 10 por 5 min por IP (`apps/api/src/modules/auth/auth.routes.ts:58`):
   provas de OAuth em sequência o esgotam, e o sintoma (`invalid_grant`, `Invalid URL`) parece defeito
-  do fluxo. Espace as provas antes de caçar bug.
+  do fluxo.
 - `yubook_mcp` não recebe migration sozinho e fica para trás a cada uma nova: a API da 3334 falha
-  por coluna inexistente. Rode o `db:deploy` de `apps/mcp/README.md:125-127` antes da prova à mão.
+  por coluna inexistente. Rode o `db:deploy` de `apps/mcp/README.md:125-128` antes da prova à mão.
+- `refine` não vai ao JSON Schema publicado: o formato do dia chega ao modelo só pela `describe`
+  (`novoDiaCivilSchema`, `packages/shared/src/eventos.ts:90-91`).
 
 ## Decisões em vigor
 
-- Baseline sobre `dist/` (2026-10-09, conferida pelo curador): `tools/list` 14544 com 15 tools e
-  4275 só leitura (6); `resources/list` 929, `resources/templates/list` 553, `prompts/list` 766.
+- Baseline sobre `dist/` (2026-10-09, eventos recorrentes, conferida pelo curador): `tools/list`
+  15069 com 15 tools e 4275 só leitura (6); `resources/list` 929, `resources/templates/list` 553,
+  `prompts/list` 766.
   Cobrados em todo turno; meça contra eles, não estime.
 - O texto que produz esses bytes mora em `packages/shared/src/ferramentas.ts`: a baseline se move
   por edição **fora** de `apps/mcp`, e nenhum portão acusa (§4.6 de `contrato-compartilhado`).

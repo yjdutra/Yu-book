@@ -61,7 +61,6 @@ verificação feita, não por impressão, e o resultado fica em comentário ao l
 `packages/cliente/src/Icones.tsx` (`@yu-book/cliente/icones`) é a fonte. Grade 16×16, traço único
 `TRACO`, `currentColor` para seguir tema e estado, `aria-hidden` porque todo item tem texto ao lado.
 Ícone novo é desenhado ali, no mesmo estilo. Não instale pacote de ícones.
-
 `TRACO` e `IconeProps` são exportados (`Icones.tsx:13,21`). Desenho de um componente só pode morar
 nele (`SeletorTema.tsx`, `ModoNota.tsx`), mas **importa o `TRACO`, não o redeclara**: diverge calado.
 
@@ -69,7 +68,8 @@ nele (`SeletorTema.tsx`, `ModoNota.tsx`), mas **importa o `TRACO`, não o redecl
 Grepe `export function Icone` antes de desenhar. Ícone que só muda de orientação ganha prop, não
 cópia — `IconeChevron({ direcao })` (`Icones.tsx:396-406`). **Um desenho, um sentido:** clipe é nota
 vinculada e anexo é `IconeAnexo` (`:380-393`); check solto é "feito" e tarefa é `IconeTarefa`
-(`:357`); o "hoje" do móvel é meio sol (`IconeHoje`, `:343-355`), não o sol do `SeletorTema`.
+(`:357`); o "hoje" do móvel é meio sol (`IconeHoje`, `:343-355`), não o sol do `SeletorTema`; o laço
+de duas setas é a série (`IconeRepetir`, `:479-493`), não a seta única de `IconeRecarregar`.
 
 **Glifo unicode que é sigla fica glifo.** As siglas de prazo e prioridade (`!`, `◷`, `▤`, `⬆`, `⬇`)
 de `CartaoCard.tsx:19-30` e `pages/DashboardPage.tsx:65-69` são texto `aria-hidden` com o estado por
@@ -136,10 +136,10 @@ A casca de `components/Aplicacao.tsx` tem duas colunas de navegação (Etapa 2 d
   (`ajustes/comum.ts:9`), não pela página `lazy()` (`:4-8`) — seção nova entra nos dois.
 - **Painel do assistente** (`components/assistente/PainelAssistente.tsx`, Etapa 3): à direita, na
   mesma linha flex, **empurra** o conteúdo em vez de cobri-lo e segue aberto enquanto se navega —
-  confira toda tela com ele aberto (o bloco Hoje fica com ≈270 px: `agenda/BlocoHoje.tsx:90-95`).
+  confira toda tela com ele aberto (o bloco Hoje fica com ≈270 px: `agenda/BlocoHoje.tsx:96-101`).
   **Não é modal** (RNF-05 da Fase 1): sem véu, sem foco preso, e por isso não é `Dialogo`. O `Esc`
   global (`fecharTudo`) não o fecha; o `Esc` só vale com o foco dentro (`onKeyDown` do `<aside>`,
-  `:62-66`), e quem tem `Esc` próprio lá dentro — menu do `@` no `Compositor`, ditado, `Menu`,
+  `PainelAssistente.tsx:62-66`), e quem tem `Esc` próprio lá dentro — menu do `@` no `Compositor`, ditado, `Menu`,
   renomear conversa — para a propagação. **`Dialogo` lá dentro é o avesso**, como no painel do card: INV-65.
   Fechar devolve o foco à origem ou a `ID_BOTAO_PAINEL` (`lib/sessaoChat.tsx:286-303`); `Ctrl+Shift+Y`
   e a paleta alternam, e na tela do chat focam o campo (INV-56). **Conversa abre por id, sem rota**:

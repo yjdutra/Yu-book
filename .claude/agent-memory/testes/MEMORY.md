@@ -4,29 +4,30 @@
 
 ## Onde ficam as coisas
 
-- Arnês JSON-RPC do MCP: `apps/mcp/tests/arnes.ts`.
-- Dublê SSE do provedor: `apps/api/tests/provedor.ts`; turno `segura` (`:71`) para agir no meio.
-- Dublê S3: `apps/api/tests/armazem.ts`; recusa por `falhar.PUT`/`DELETE` (`:39`).
+- Dublê SSE: `apps/api/tests/provedor.ts`; turno `segura` (`:71`) para agir no meio.
+- Dublê S3: `tests/armazem.ts`; porta fixa (`:18`), `EADDRINUSE` pula o arquivo; recusa em `:39`.
 
 ## O que já nos mordeu
 
-- `reconciliarExecucoes()` fecha órfã de qualquer conta: asserir `>= 1` (`rotinas.test.ts:1034`).
-- O dublê repete o último turno (`provedor.ts:200-201`): depois de um `segura`, troque o roteiro.
-- SDK MCP valida antes do handler: `argumentosMinimos` (`escrita.test.ts:71`); o dia sai da `descricao`.
-- `chamar` faz `JSON.parse` (`apoio.ts:63`): não-JSON por `app.inject` (`agentes.test.ts:1135`);
-  SSE no meio, `listen({ port: 0 })` + `fetch` (`rotinas.test.ts:57`).
-- 300/min por IP (`app.ts:54`): 429 no último teste do arquivo; `proximoIp` (`rotinas.test.ts:87`).
+- `reconciliarExecucoes()` fecha órfã de toda conta: asserir `>= 1` (`rotinas.test.ts:1034`).
+- O dublê repete o último turno (`provedor.ts:200-201`): após `segura`, troque o roteiro.
+- SDK MCP valida antes do handler: `argumentosMinimos` (`escrita.test.ts:71`).
+- `chamar` faz `JSON.parse` (`apoio.ts:63`): não-JSON por `app.inject` (`agentes.test.ts:1135`).
+- 300/min por IP (`app.ts:54`): 429 no fim do arquivo; `proximoIp` (`rotinas.test.ts:87`).
 - Board tem nome único: sufixo aleatório (`arquivos.test.ts:167-168`).
-- Chave real do `.env` vai ao dublê (`setup.ts:23`): asserir booleano (`openrouter-painel.test.ts:605`).
+- Chave do `.env` vai ao dublê (`setup.ts:23`): asserir booleano (`openrouter-painel.test.ts:605`).
 - Desempate por texto segue a collation: difira no 1º caractere (`uso-ia.test.ts:394`).
+- `GET /agenda` traz a conta inteira: teste que a lê usa conta própria.
+- Não negue nome de dia na agenda: "hoje é <dia>" segue o relógio (`formato.ts:645`).
+- 422 do Zod: "Dados inválidos" + frase em `issues` (`app.ts:63`); do service, na mensagem.
 
 ## Decisões em vigor
 
-- Não liste à mão: derive (`escrita.test.ts:117`), salvo se a lista é o que se prova (`marca-ia.test.ts:490`).
-- Dublê de resposta tipado por `shared` (`apps/mcp/tests/marca.test.ts:34`, `:113`).
-- Corrida sem tempo: `vi.spyOn(...).mockImplementationOnce` no meio (`agentes.test.ts:1024`).
-- Executor com a guarda de produção: `vi.mock` + `vi.hoisted` (`web.test.ts:68-80`).
-- Dublê S3 cai só no último `describe` (`arquivos.test.ts:940-952`); `fecharArmazem` idempotente.
-- "Hoje" sem relógio falso: Pago_Pago e Kiritimati nunca no mesmo dia (`tarefas.test.ts:370-381`).
-- Relógio real: `toContain` em `[f(antes), f(depois)]` (`agenda-chat.test.ts:603`).
-- "Não reconverte instante" só se prova com dia inteiro e fuso trocado (`eventos.test.ts:519`).
+- Derive, não liste (`escrita.test.ts:117`), salvo se a lista é a prova (`marca-ia.test.ts:490`).
+- Dublê de resposta tipado por `shared` (`apps/mcp/tests/marca.test.ts:34`).
+- Corrida sem tempo: espião que segura as leituras (`eventos-recorrentes.test.ts:1043`).
+- Guarda de produção no executor: `vi.mock` + `vi.hoisted` (`web.test.ts:68-80`).
+- Dublê S3 cai só no último `describe` (`arquivos.test.ts:940-952`).
+- "Hoje" sem relógio falso: Pago_Pago e Kiritimati (`tarefas.test.ts:370-381`).
+- Relógio real: `toContain` em `[f(antes), f(depois)]` (`agenda-chat.test.ts:618`).
+- "Não reconverte" só se prova com dia inteiro e fuso trocado (`eventos.test.ts:519`).

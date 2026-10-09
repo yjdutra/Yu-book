@@ -265,7 +265,7 @@ a área tem a galeria e o editor de agentes (`/assistente/agentes…`), e desde 
 (`/assistente/rotinas…`, `/assistente/execucoes/:runId`); em todas elas o painel existe.
 `pathname.startsWith("/assistente")` faria a resposta sumir ao ir do chat para a galeria —
 nenhuma superfície à vista, o laço pagando. Quem decide "o painel existe aqui?" chama a função:
-a casca (`Aplicacao.tsx:179`), o trilho (`casca/Trilho.tsx:262`) e a conversa (`Conversa.tsx:197`).
+a casca (`Aplicacao.tsx:179`), o trilho (`casca/Trilho.tsx:262`) e a conversa (`Conversa.tsx:206`).
 Os três perguntavam pela área até a Etapa D. `areaDe` (`casca/PainelContexto.tsx:18`) continua por
 prefixo, e está certo: ali a pergunta é qual painel contextual mostrar, não se o chat está à vista.
 
@@ -283,7 +283,7 @@ na tela.
 
 **Defeito aberto, anterior à Etapa D — o ponto 5 ainda não vale em todo sítio.** "Nova conversa" e
 escolher outra conversa chamam `novaConversa`/`selecionar` sem olhar `temFluxo()`: a fala em curso
-só aparece na conversa dela (`components/assistente/Conversa.tsx:626`), e some com o laço pagando.
+só aparece na conversa dela (`components/assistente/Conversa.tsx:636`), e some com o laço pagando.
 Os `selecionar` sem desvio em 2026-09-25: `MarcaIA.tsx:146`, `casca/contexto/ContextoInicio.tsx:83`,
 `assistente/PainelAssistente.tsx:126` e `assistente/ListaConversas.tsx:160`. Quem for fechar, grepe
 os dois nomes em `apps/web/src` e passe todo chamador pelo desvio de `TabelasUsoIa.tsx:201-210`.
@@ -342,12 +342,12 @@ vendo um modelo marcado conclui que o erro é falso.
 **Não vale para todo enum: vale para o enum cujo membro pede configuração.** `LINK_KINDS` é citado à
 mão de propósito em `apps/web/src/components/ZonasDeSoltura.tsx:131-142` — cada zona tem texto e
 ícone próprios, e ali o enum só discrimina. Enum que rotula ou discrimina pode ser citado (é também
-o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `packages/cliente/src/Icones.tsx:564` já
+o caso de `ICONE_TIPO`, que o `Record<NoteKind, …>` de `packages/cliente/src/Icones.tsx:580` já
 mantém total); enum cujo membro exige um valor que **só a interface** coleta, não. **E citar não é
 ternário** (frente de agenda, Fase 2): `kind === "note" ? … : card` supunha que todo não-nota era
 card, e o evento criado pelo chat teria oferecido "Abrir o card" e o Desfazer por `/cards/:id`, sem
 erro de tipo. Quem discrimina por união que cresce usa `Record` total (`COMO_MOSTRAR`,
-`apps/web/src/components/assistente/Conversa.tsx:79`) ou guarda que nomeia o membro (`:193`).
+`apps/web/src/components/assistente/Conversa.tsx:79`) ou guarda que nomeia o membro (`:202`).
 
 O resto da tela também percorre, e cada um é um `.map` que o typecheck não cobra: os itens "Usar
 para…" do menu de cada favorito (`QuadroDeModelos.tsx:433-438`), as etiquetas de uso do cartão
@@ -422,7 +422,7 @@ por fora, com `preventDefault`; o contêiner ignora o `Esc` com `defaultPrevente
 fecharia junto. `stopPropagation` no caminho calaria o ouvinte do próprio diálogo. O wrapper fica
 **fora** do `Dialogo` porque a caixa tem `tabIndex={-1}` (`:74`) e ganha o foco num clique em área
 vazia — um wrapper dentro dela não vê a tecla. Dois pares hoje:
-`assistente/Conversa.tsx:518-522` com `assistente/PainelAssistente.tsx:62-63`, e
+`assistente/Conversa.tsx:528-532` com `assistente/PainelAssistente.tsx:62-63`, e
 `AnexosDoCard.tsx:263-275` com `PainelCard.tsx:157-159`. Diálogo novo num desses contêineres, ou
 contêiner novo que feche no `Esc` e hospede diálogo, repete as duas metades — **faltar qualquer uma
 compila**, e o sintoma é o `Esc` fechar o diálogo e o painel de uma vez. O `Esc` só chega ao

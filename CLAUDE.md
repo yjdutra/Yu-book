@@ -71,9 +71,13 @@ campo, nunca envia), e o móvel conversa com o acervo e os agentes, com a mesma 
 o laço pago rodar sem tela (INV-56). A Fase 6 deu ao Início do web o bloco **Hoje**, só de leitura
 (no desktop a agenda se edita pelo chat; a tela dela é a do celular), e **fechou a frente: Fases 1 a
 6 entregues e publicadas em 2026-10-09**, com a migration da Fase 1 e o móvel como quinto serviço
-da Railway. A Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
+da Railway. A frente seguinte, **eventos recorrentes** (`docs/plano-eventos-recorrentes.md`, R1 a
+R3), deu ao evento a repetição semanal: a série é **uma linha com a regra**, e as ocorrências se
+calculam na leitura, a hora no fuso atual do usuário e os dias como rótulos do calendário (INV-66);
+editar ou excluir uma ocorrência tem alcance — esta, as seguintes ou todas —, e o móvel o pergunta.
+A Fase 6 de produto (Google Calendar) segue sendo o item de menor prioridade.
 
-**Oito numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
+**Nove numerações vivem no repositório e não se convertem uma na outra.** As **fases de produto**
 vão de 0 a 5 e estão fechadas; as **etapas do servidor MCP** são cinco, e a 4 (transporte HTTP e
 identidade) foi entregue em 2026-09-01; o **roteiro de IA aplicada** tem fases próprias, e a 5 dele é
 a frente de IA; dentro dessa frente, o **PRD de IA** tem as suas, de 1 a 4, entregues em etapas com
@@ -82,9 +86,10 @@ dele (§5.5–§5.9); e o **redesenho de UI/UX** de `apps/web` tem cinco etapas 
 em 2026-09-24 e conferidas à mão só no fechamento, por relato (`docs/historico.md`); essa numeração
 está fechada; o **painel de uso** tem duas fases, entregues (acima); e a **frente de cards** tem
 Partes — a 1 (concluído) e a 2 (anexos), entregues em 2026-09-30; e a **frente de agenda** tem
-Fases de 1 a 6 — a 6 dela não é a Fase 6 de produto. "Etapa 4" não é "Fase 4", e o
-mesmo número significa coisas diferentes em cada eixo. Não unifique nem renumere — a
-entrada de 2026-08-26 em `docs/historico.md` diz de onde vêm as quatro primeiras.
+Fases de 1 a 6 — a 6 dela não é a Fase 6 de produto; e a **frente de eventos recorrentes**, R1 a
+R3. "Etapa 4" não é "Fase 4", e o mesmo número significa coisas diferentes em cada eixo. Não
+unifique nem renumere — a entrada de 2026-08-26 em `docs/historico.md` diz de onde vêm as quatro
+primeiras.
 
 **O `RF-xx` do comentário resolve para o PRD da fase daquele código — os números colidem entre
 fases.** `RF-19` é o tema claro em `apps/web/src/lib/tema.ts` e é a colisão pelo ponteiro em

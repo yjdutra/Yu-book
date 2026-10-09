@@ -35,7 +35,7 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    próprios (`cardCompleteSchema`, `kanban.ts:142`), e a marca dela, tipo próprio (`AiCompletion`,
    `marca.ts:50`, que **não** é `AiMark`: segue o estado e some ao reabrir). **Regra que cruza
    campos não roda no schema parcial:** o servidor a reaplica sobre o valor **mesclado** com o
-   gravado — `mesclarHorario` + `resolverHorario` no evento (`eventos.service.ts:251-255`), a mesma
+   gravado — `mesclarHorario` + `resolverSerie` no evento (`eventos.service.ts:531-534`), a mesma
    função de `shared` que o schema de criação chama; "hora só com data" na tarefa, repetida à mão
    (`tarefas.ts:51-54`, `tarefas.service.ts:221-226`).
 6. Se o módulo novo **constrói valor em escopo de módulo** — objeto, array, `z.object(...)` —,
@@ -44,7 +44,7 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    importa como valor — `tarefas.ts` traz `eventos.ts` (`:2`), que traz `agenda.ts`
    (`eventos.ts:2`), que traz `ia.ts` (`agenda.ts:2`). Módulo do front no chunk inicial importa de
    `shared` só `import type` quando o valor traria schema ou metadado
-   (`apps/web/src/lib/agentes.ts:18-20`, `packages/cliente/src/agenda.ts:3-12`), e o valor vem por
+   (`apps/web/src/lib/agentes.ts:18-20`, `packages/cliente/src/agenda.ts:3-13`), e o valor vem por
    rota ou `lazy` (`apps/web/src/pages/DashboardPage.tsx:27-29`). O redutor do chat (`aplicarEvento`,
    `packages/cliente/src/chat.ts:263-270`), no chunk inicial, **não** deduplica fontes por
    `chaveDaFonteDoChat` (medido): quem tira a repetição é `components/assistente/Fontes.tsx:89-96`,
@@ -72,7 +72,6 @@ aparece em `ZodError` (HTTP 422). Nunca formate erro na mão na rota: lance
 
 Lugares onde duas implementações precisam concordar e **divergir não gera erro** — gera
 comportamento errado em silêncio. São o motivo principal desta skill existir.
-
 **Não conte os itens desta seção: ela cresce e encolhe.** O que se confere é o eixo — *existe uma
 segunda implementação desta regra, escrita à mão, e há um portão que acusa se as duas divergirem?*
 Quando a resposta é "não" para a segunda pergunta, o item entra aqui. Quando a regra passa a morar
@@ -83,7 +82,6 @@ só em `packages/shared`, o item sai — salvo o caso invertido do §4.6, uma de
 `packages/shared/src/wikilinks.ts` faz NFD, remove diacríticos e passa para minúsculas. Isso
 **espelha exatamente** `lower(immutable_unaccent(title))`, a expressão do índice
 `note_title_unico_idx`, criado na migration `20260814004639_notas_fase_1`.
-
 Se divergirem: `[[titulo]]` deixa de resolver para a nota certa, e a checagem de título duplicado
 passa a discordar do banco. Alterar um lado obriga a alterar o outro **e** a criar migration.
 
@@ -102,7 +100,6 @@ repetida nem buraco): leia-o antes de mexer em qualquer um dos dois lados.
 `packages/shared/src/links.ts` decide o que é "o mesmo link": descarta fragmento, `www.` e barra
 final, mas **preserva a query string** (`watch?v=A` e `watch?v=B` são links diferentes). O banco tem
 `UNIQUE (user_id, kind, url)` sobre o valor já normalizado.
-
 Se divergirem: o front deixa de detectar duplicata que o banco recusa, ou vice-versa.
 
 ### 4.4 `normalizarTag` ↔ a normalização do card no servidor
@@ -138,7 +135,7 @@ formata por `Intl` com `timeZone`. **O parâmetro `fuso` não tem valor padrão,
 principal** — um padrão traria de volta exatamente o defeito que a Etapa B consertou, o fuso do
 *processo* passando por fuso do usuário. Quem chama declara de qual fuso está falando: o MCP
 pergunta à API (`apps/mcp/src/fuso.ts:43`) e o chat recebe o `fuso` no contexto da ferramenta
-(`apps/api/src/modules/assistente/ferramentas.service.ts:110-113`). **Desde a Etapa F a volta passa por `instanteLocal`**
+(`apps/api/src/modules/assistente/ferramentas.service.ts:113-116`). **Desde a Etapa F a volta passa por `instanteLocal`**
 (`packages/shared/src/agenda.ts:165`), a mesma conversão de relógio de parede em instante que a
 agenda de rotina usa: mexer nela move o prazo e o horário da rotina juntos, e o portão das duas é
 `apps/api/tests/agenda.test.ts` mais `apps/mcp/tests/fuso.test.ts`. **A aritmética de dia
@@ -153,30 +150,27 @@ isto é, o fuso do **navegador**, não `ai_preference.timezone`. Enquanto os doi
 vê nada. Quando divergem — operador viajando, navegador com outro fuso, ou o usuário mudando o fuso
 em `/ajustes` sem mudar o do sistema —, a interface e tudo o que passa por `shared` (MCP, chat)
 passam a discordar sobre qual é o dia do prazo, **e o banco guarda o que o navegador decidiu**.
-
 Quem for mexer nesses dois: promova-os para `diaDoPrazo`/`diaParaPrazo` com o fuso vindo da API e
 apague esta seção. **Não escreva uma terceira conversão de prazo.**
 
 **O front já lê pelo fuso do usuário em outro lugar.** A agenda de rotina (Etapa F) mostra horário
-por `horarioNoFuso` e `horaNoFuso` (`apps/web/src/components/rotinas/comum.tsx:258`, `:281`), com o
-fuso de `/ajustes` e **sem recuar ao navegador**: fuso ainda não carregado mostra "…". É o padrão que
-`PainelCard` deveria seguir, não uma quarta conversão.
-
-**`TZ` no ambiente não é conserto:** no serviço do MCP trocaria um fuso de processo por
-outro, e **inerte** — desde a Etapa B nenhuma data do texto do MCP lê o fuso do processo.
+por `horarioNoFuso` — homônima da de `shared`, que lê o evento — e `horaNoFuso`
+(`apps/web/src/components/rotinas/comum.tsx:272`, `:295`), com o fuso de `/ajustes` e **sem recuar
+ao navegador**: fuso não carregado mostra "…". É o padrão que `PainelCard` deveria seguir, não uma
+quarta conversão. **`TZ` no ambiente não é conserto:** no serviço do MCP trocaria um fuso de
+processo por outro, e **inerte** — desde a Etapa B nenhuma data do texto do MCP lê o fuso do processo.
 
 ### 4.6 Uma definição, dois consumidores — e nenhum portão sobre o texto
 
 O caso invertido: aqui **não** há duas implementações. O metadado das ações do acervo — nome,
 título, `descricao` e schema de entrada — mora só em `packages/shared/src/ferramentas.ts`, e é
 exatamente o que a doutrina manda. O risco mudou de forma, não de tamanho.
-
 **Desde a Etapa G o arquivo tem dois objetos, e só um vai ao MCP.** `FERRAMENTAS_DO_ACERVO` tem os
-dois consumidores abaixo; `FERRAMENTAS_DA_WEB` (`:527`, `open_page`) só o assistente da API (RF-74).
+dois consumidores abaixo; `FERRAMENTAS_DA_WEB` (`:541`, `open_page`) só o assistente da API (RF-74).
 O MCP fica fora dela **só porque registra tool à mão**, módulo por módulo: um laço sobre
 `DEFINICOES_DO_ASSISTENTE` ou `FERRAMENTAS_DO_CHAT` no MCP publicaria `open_page` sem handler, e
 nada falharia — o sinal é o `tools/list` sair da baseline da memória do agente `mcp`. Do outro lado,
-definição de um nome do assistente se lê por `DEFINICOES_DO_ASSISTENTE` (`:568`), total sobre as
+definição de um nome do assistente se lê por `DEFINICOES_DO_ASSISTENTE` (`:582`), total sobre as
 duas origens; nome que chega como `string` passa por uma guarda sobre ele
 (`ehDoAssistente`, `apps/web/src/components/rotinas/ExecucaoRotina.tsx:64-66`). O cast
 `nome as NomeDeFerramenta` compila: sem guarda, `FERRAMENTAS_DO_ACERVO[nome].titulo` lança com
@@ -188,7 +182,7 @@ duas origens; nome que chega como `string` passa por uma guarda sobre ele
   risco, como `kanban.ts:18`) — a `descricao` é o contrato de conversa do servidor MCP com qualquer
   modelo que se conecte;
 - `apps/api` o oferece ao provedor no campo `tools` de **todo turno** do chat
-  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:412`, só as de
+  (`catalogoParaProvedor`, `src/modules/assistente/ferramentas.service.ts:426`, só as de
   `FERRAMENTAS_DO_CHAT`, estreitadas pela lista do agente — e, num passo de rotina, só a leitura dele) — ali a `descricao` é
   contrato **e** custo por turno.
 
@@ -238,7 +232,6 @@ O que se anexa a card é decidido **pelos bytes**, na API: `detectarTipo`
 escrita à mão. `TIPOS_DE_ARQUIVO` (`packages/shared/src/arquivos.ts:25-50`) é a lista que o resto
 lê: o `accept` do seletor (`ACEITA_ARQUIVO`, `:53`), `ehImagem`, e na própria API `nomeCoerente` e
 o tipo do texto por extensão (`mimeDaExtensao`, `arquivos.service.ts:75-78`).
-
 Se divergirem: tipo só em `shared` aparece no seletor e toma 415 (`TIPO_NAO_PERMITIDO`) em todo
 envio; tipo que só `detectarTipo` conhece é gravado sem extensão corrigida e baixa como anexo
 mesmo sendo imagem. **Não há portão**: `apps/api/tests/arquivos.test.ts:888` lista os casos à mão,
@@ -247,15 +240,22 @@ e não percorre `TIPOS_DE_ARQUIVO`. Tipo novo entra nos dois, com a assinatura e
 ### 4.8 O evento no período: `diasDoEvento` e `MAX_DIAS_DO_EVENTO` ↔ a consulta da API
 
 `GET /agenda` e `GET /events` trazem o evento que se sobrepõe à janela, semiaberto em
-`[startsAt, endsAt)` (`apps/api/src/modules/eventos/eventos.service.ts:154-175`). Quem desenha dia a
-dia usa `diasDoEvento` (`packages/shared/src/eventos.ts:314`; o calendário do móvel,
-`apps/movel/src/components/agenda/itens.ts:80`, e o bloco Hoje do web, `BlocoHoje.tsx:53`), a mesma regra em dias locais: o evento
-com hora que acaba às 00:00 traz `endDate` no dia seguinte e não aparece nele. **Não desenhe de
-`date` a `endDate`** — o calendário mostraria o evento num dia que a API desse dia não devolve.
-Portão: `apps/api/tests/eventos.test.ts:635`.
+`[startsAt, endsAt)` (`apps/api/src/modules/eventos/eventos.service.ts:214-246`). Quem desenha dia a
+dia usa `diasDoEvento` (`packages/shared/src/eventos.ts:342`; o calendário do móvel,
+`apps/movel/src/components/agenda/itens.ts:94`, e o bloco Hoje do web, `BlocoHoje.tsx:59`), a mesma
+regra em dias locais: o evento com hora que acaba às 00:00 traz `endDate` no dia seguinte e não
+aparece nele. **Não desenhe de `date` a `endDate`** — o calendário mostraria o evento num dia que a
+API desse dia não devolve. Portão: `apps/api/tests/eventos.test.ts:635`.
 
-O limite também tem dois leitores. `MAX_DIAS_DO_EVENTO` (`eventos.ts:35`) recusa o evento longo e é
-o piso de `startsAt` na consulta (`eventos.service.ts:163-168`), para o índice `(user_id, starts_at)`
+**A série chega expandida, uma ocorrência por item, todas com o `id` dela** (`ocorrenciasNoPeriodo`,
+`eventos.ts:641`, a mesma sobreposição): `diasDoEvento` vale por ocorrência, e a chave na tela é
+`id` + `occurrenceDate` (`chaveDoEvento`, `itens.ts:63-64`; `BlocoHoje.tsx:352`). Na API, o simples
+se pede com `repeatDays: { isEmpty: true }` (`eventos.service.ts:238`), ou a primeira ocorrência,
+que também se sobrepõe pelos instantes gravados, sai duas vezes (`eventos-recorrentes.test.ts:180`);
+a série não tem piso e se acha pelo índice parcial, de predicado literal (`migracao-prisma`, §3).
+
+O limite também tem dois leitores. `MAX_DIAS_DO_EVENTO` (`eventos.ts:42`) recusa o evento longo e é
+o piso de `startsAt` na consulta (`eventos.service.ts:228-233`), para o índice `(user_id, starts_at)`
 cortar dos dois lados. Subi-lo é seguro; **baixá-lo** com eventos mais longos já gravados os tira
 das janelas em que terminam, sem erro — e o portão (`eventos.test.ts:850`) cria o mais longo pelo
 limite novo e segue verde.
@@ -278,17 +278,17 @@ Se tocou num dos espelhamentos do §4, rode também `pnpm --filter @yu-book/api 
 navegador que web e móvel precisam igual** — cliente HTTP e sessão, `tema.css`, `base/`, ícones,
 foco preso (`packages/cliente/src/api.ts:1-9`) e, desde a Fase 5 da agenda, o núcleo do chat, o
 Markdown e o ditado — e as chaves de cache que pacote e apps leem, numa definição só
-(`agenda.ts:33-41`, `ia.ts:1-15`). Cópia num app seria um espelhamento do §4; o de um app só fica nele.
+(`agenda.ts:34-42`, `ia.ts:1-15`). Cópia num app seria um espelhamento do §4; o de um app só fica nele.
 
 - **Fonte, não build:** `exports` aponta para `src/` e o Vite de cada app compila. Não lê
   `import.meta.env`: cada app chama `configurarApi` no `main.tsx`, antes de montar (`api.ts:12-25`).
 - **`"sideEffects": ["*.css"]`** (`packages/cliente/package.json:6`): o TS é podável como o de
   `shared` (§2), o `tema.css` nunca. Não troque por `false`.
-- **React e TanStack Query são `peerDependency`** (`packages/cliente/package.json:30-34`), **e cada
+- **React e TanStack Query são `peerDependency`** (`packages/cliente/package.json:34-38`), **e cada
   `vite.config` os põe em `resolve.dedupe`** (`apps/web/vite.config.ts:7-14`, idem no móvel), sem
   erro de build se faltar: dois Reacts dão "Invalid hook call"; duas Queries, dois contextos, e os
   hooks de `agenda.ts` não acham o `QueryClient` do app.
-- **De `shared`, só `import type`** (`api.ts:10`, `chat.ts:2-11`, `agenda.ts:3-12`): valor levaria
+- **De `shared`, só `import type`** (`api.ts:10`, `chat.ts:2-11`, `agenda.ts:3-13`): valor levaria
   o módulo de `shared` ao chunk inicial (§2, passo 6). Duas exceções, com a razão ao lado: módulo
   que não arrasta nada (`markdown.ts:1-6`) e `hoje.ts:1-7`, que arrasta (`somarDias` é uma só, §4.5)
   e por isso, no web, só tela `lazy` importa.
