@@ -1,6 +1,6 @@
 ---
 name: contrato-compartilhado
-description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto, e a ferramenta da web, que só o assistente consome, e os sítios do front que uma ação de escrita nova no chat exige sem o compilador cobrar, e os tipos de anexo aceitos, listados em shared e detectados pelos bytes à mão na API), o campo novo que o formatador compartilhado lê tolerando ausência, e os schemas não estritos, que descartam chave omitida em vez de recusá-la. Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
+description: Regras do pacote packages/shared do Yu-book — o que vira contrato compartilhado entre API e front, como adicionar schema Zod ou código de erro, por que sideEffects false não se remove, e o catálogo de espelhamentos frágeis que quebram em silêncio se divergirem (normalizarTitulo vs índice SQL, moverNoBoard vs renumeração do servidor, normalizarUrl vs unicidade de link, normalizarTag nos dois lados, o dia do prazo — que o servidor já resolve por shared com o fuso do usuário e o front ainda grava pelo fuso do navegador — e o metadado das ferramentas do acervo, uma definição só com dois consumidores, MCP e o assistente da API (chat e passos de rotina), sem portão sobre o texto, e a ferramenta da web, que só o assistente consome, e os sítios do front que uma ação de escrita nova no chat exige sem o compilador cobrar, e os tipos de anexo aceitos, listados em shared e detectados pelos bytes à mão na API, e os dias em que o evento da agenda aparece contra a consulta do período), o campo novo que o formatador compartilhado lê tolerando ausência, e os schemas não estritos, que descartam chave omitida em vez de recusá-la. Use ao criar ou alterar qualquer schema de validação, tipo de resposta, código de erro, descrição de ferramenta ou função usada pelos dois lados, ao acrescentar módulo a shared, e ao converter data ou prazo em qualquer pacote.
 ---
 
 # O contrato compartilhado
@@ -35,24 +35,27 @@ Não vai: acesso a banco, chamada HTTP, qualquer coisa que importe `@prisma/clie
    estritos:** chave omitida é descartada, não recusada — `origin` junto de `completed` no PATCH do
    card passa com 200 e conclusão humana (INV-63). Ação que precisa do campo ganha schema e rota
    próprios (`cardCompleteSchema`, `kanban.ts:142`), e a marca dela, tipo próprio (`AiCompletion`,
-   `marca.ts:50`, que **não** é `AiMark`: segue o estado e some ao reabrir).
-6. Se o módulo novo **constrói valor em escopo de módulo** — objeto, array, `z.object(...)`,
-   qualquer coisa que não seja só `type`/`interface` —, confira o bundle do front antes de fechar.
-   A flag abaixo só poda o que ninguém importa: **valor importado entra**, com o que o módulo
-   dele constrói. Módulo do front que está no bundle inicial importa de `shared` só `import type`
-   quando o valor traria schema ou metadado — `apps/web/src/lib/agentes.ts:16-18`, lido pelo
-   painel contextual. `agenda.ts` (Etapa F) é o segundo caso: o painel e o Início leem as rotinas
-   por `apps/web/src/components/rotinas/comum.tsx:1-8` e `lib/rotinas.ts`, só com tipo; quem traz
-   valor dele (`Agenda.tsx`, `rascunho.ts`) entra por rota ou bloco `lazy`
-   (`apps/web/src/pages/DashboardPage.tsx:26`). Um import de valor num módulo do painel desfaz isso.
-   `chat.ts` (Etapa G) é o terceiro: `lib/sessaoChat.tsx`, sempre montado, **não** deduplica as
-   fontes por `chaveDaFonteDoChat` (`:368-378`, medido) — quem tira a repetição é
-   `components/assistente/Fontes.tsx:89-96`. Não "conserte" a sessão com o import, nem com uma
-   segunda definição de "a mesma fonte" escrita à mão. **`ia.ts` é o quarto, e o caso aberto:**
+   `marca.ts:50`, que **não** é `AiMark`: segue o estado e some ao reabrir). **Regra que cruza
+   campos não roda no schema parcial:** o servidor a reaplica sobre o valor **mesclado** com o
+   gravado — `mesclarHorario` + `resolverHorario` no evento (`eventos.service.ts:250-254`), a mesma
+   função de `shared` que o schema de criação chama; "hora só com data" na tarefa, repetida à mão
+   (`tarefas.ts:45-48`, `tarefas.service.ts:215-220`).
+6. Se o módulo novo **constrói valor em escopo de módulo** — objeto, array, `z.object(...)` —,
+   confira o bundle do front antes de fechar. A flag abaixo só poda o que ninguém importa: **valor
+   importado entra**, com o que o módulo constrói e o que ele importa como valor — `tarefas.ts`
+   traz `eventos.ts` (`:2`), que traz `agenda.ts` (`eventos.ts:2`), que traz `ia.ts` (`agenda.ts:2`).
+   Módulo do front no bundle inicial importa de `shared` só `import type` quando o valor traria
+   schema ou metadado: `apps/web/src/lib/agentes.ts:16-18` (painel contextual);
+   `components/rotinas/comum.tsx:1-8` e `lib/rotinas.ts`, com o valor de `agenda.ts` por rota ou
+   `lazy` (`pages/DashboardPage.tsx:26`); `lib/sessaoChat.tsx` (`:368-378`), sempre montado, que
+   **não** deduplica fontes por `chaveDaFonteDoChat` de `chat.ts` (medido) — quem tira a
+   repetição é `components/assistente/Fontes.tsx:89-96`; não "conserte" a sessão com o import nem
+   com uma segunda definição de "a mesma fonte". **`ia.ts` é o caso aberto:**
    `casca/contexto/ContextoAjustes.tsx:2` lê `SECOES_DE_AJUSTES` de `components/ajustes/comum.ts`,
-   que importa `microsParaDolares` como valor (`:1`) — e `shared/ia.ts` inteiro, com os `z.object`
-   de nível de módulo, entra no chunk inicial (medido na build em 2026-09-25; dívida de 9b2aec6).
-   Enquanto durar, "a seção é `lazy()`" não justifica import de valor de `shared/ia`.
+   que importa `microsParaDolares` como valor (`:1`), e `shared/ia.ts` entra no chunk inicial
+   (medido em 2026-09-25; dívida de 9b2aec6) — "a seção é `lazy()`" não justifica import de valor
+   dele. `eventos.ts` e `tarefas.ts` ainda não têm consumidor no front: o primeiro import de valor
+   deles no chunk inicial traz a cadeia inteira.
 
 **`"sideEffects": false` no `package.json` de `shared` não é enfeite, e não se remove.** Sem ele o
 bundler não pode presumir que importar `@yu-book/shared` é inócuo, e **todo** módulo do pacote entra
@@ -87,7 +90,8 @@ segunda implementação desta regra, escrita à mão, e há um portão que acusa
 Quando a resposta é "não" para a segunda pergunta, o item entra aqui. Quando a regra passa a morar
 só em `packages/shared`, o item sai. §4.1 a §4.4 já passam por `shared`; §4.5 é o que **ainda não**
 passou inteiro; §4.6 é o caso invertido — uma definição só, dois consumidores, e nenhum portão;
-§4.7 mora metade em `shared` e metade escrita à mão na API.
+§4.7 mora metade em `shared` e metade escrita à mão na API; §4.8 tem portão para os dias e nenhum
+para o limite.
 
 ### 4.1 `normalizarTitulo` ↔ o índice único do Postgres
 
@@ -137,28 +141,27 @@ terceira definição de "mesmo texto" no projeto: `normalizarTag` canoniza para 
 
 ### 4.5 O dia do prazo ↔ as 23:59:59 que o front grava pelo fuso do navegador
 
-**Metade desta dívida fechou na Etapa B, e a metade que sobrou trocou de lado: era "MCP × front",
-agora é "`shared` × front".**
-
 O erro que o espelhamento previne continua o mesmo: **`.slice(0, 10)` sobre o ISO**. O prazo é
 gravado às 23:59:59 de um fuso local; em UTC−3 isso vira 02:59 do dia seguinte em UTC, e fatiar a
 string relata **o dia errado, um dia à frente, em todo card com prazo**. Nada falha. O corte por
-string continua seguro para `createdAt`/`updatedAt`, que são instantes; para prazo, não.
+string continua seguro para `createdAt`/`updatedAt`, que são instantes, e para `task.date`, que é
+`DATE` civil e chega como meia-noite UTC; para prazo, não. Evento e tarefa (frente de agenda) fecham
+este defeito por construção — o cliente não converte fuso, e o eixo está em INV-66.
 
 **O lado do servidor fechou.** A conversão mora em `packages/shared/src/formato.ts`: `diaDoPrazo`
-(`:69`) e `diaParaPrazo` (`:87`), as duas sobre `diaLocal` (`packages/shared/src/ia.ts:39`), que
+(`:69`) e `diaParaPrazo` (`:87`), as duas sobre `diaLocal` (`packages/shared/src/ia.ts:48`), que
 formata por `Intl` com `timeZone`. **O parâmetro `fuso` não tem valor padrão, e é a peça
 principal** — um padrão traria de volta exatamente o defeito que a Etapa B consertou, o fuso do
 *processo* passando por fuso do usuário. Quem chama declara de qual fuso está falando: o MCP
 pergunta à API (`apps/mcp/src/fuso.ts:43`) e o chat recebe o `fuso` no contexto da ferramenta
-(`apps/api/src/modules/assistente/ferramentas.service.ts:87-90`). As quatro funções escritas à mão
-viraram duas, num lugar só. **Desde a Etapa F a volta passa por `instanteLocal`**
+(`apps/api/src/modules/assistente/ferramentas.service.ts:87-90`). **Desde a Etapa F a volta passa por `instanteLocal`**
 (`packages/shared/src/agenda.ts:165`), a mesma conversão de relógio de parede em instante que a
 agenda de rotina usa: mexer nela move o prazo e o horário da rotina juntos, e o portão das duas é
 `apps/api/tests/agenda.test.ts` mais `apps/mcp/tests/fuso.test.ts`. **A aritmética de dia
-`AAAA-MM-DD` é uma só**, `somarDias` (`agenda.ts:210`), que a janela do AI usage dash também usa.
+`AAAA-MM-DD` é uma só**, `somarDias` (`agenda.ts:223`), que a janela do AI usage dash também usa.
 Mora em `agenda.ts` e não em `ia.ts` porque `agenda.ts:2` importa `ia.ts`: o inverso fecharia
-um ciclo. Não escreva uma segunda.
+um ciclo. Não escreva uma segunda. **De instante para hora de parede é `horaLocal`**
+(`agenda.ts:210`), par de `diaLocal`, sobre a mesma conversão da ida: não escreva outra no servidor.
 
 **O lado do front não fechou.** `paraCampoData` (`apps/web/src/components/PainelCard.tsx:22`) e
 `paraData` (`:31`) continuam usando `getMonth()`/`getDate()` e um `new Date("…T23:59:59")` cru —
@@ -227,7 +230,7 @@ em 1 h —, e quem mostra o arquivo pede `GET /cards/:id/files` (`packages/share
 **Terceiro caso: o tipo `Dashboard`.** O Início e `formatarDashboard` (`formato.ts:381`, servido
 pelo `get_dashboard` do MCP e do chat) leem a mesma resposta. Desde a Etapa F ela traz `rotinas`,
 e o formatador **as ignora de propósito** — rotina não entra no MCP (RF-62). O mesmo par explica
-por que `GET /dashboard` **só lê** `runsSeenAt` (`apps/api/src/modules/dashboard/dashboard.service.ts:57`)
+por que `GET /dashboard` **só lê** `runsSeenAt` (`apps/api/src/modules/dashboard/dashboard.service.ts:59`)
 e quem avança o marco é `POST /ai/runs/seen`: um GET que marcasse visto faria o modelo, ao consultar
 o painel, apagar as "novas" que o operador ainda não viu.
 
@@ -258,6 +261,21 @@ Se divergirem: tipo só em `shared` aparece no seletor e toma 415 (`TIPO_NAO_PER
 envio; tipo que só `detectarTipo` conhece é gravado sem extensão corrigida e baixa como anexo
 mesmo sendo imagem. **Não há portão**: `apps/api/tests/arquivos.test.ts:888` lista os casos à mão,
 e não percorre `TIPOS_DE_ARQUIVO`. Tipo novo entra nos dois, com a assinatura e um caso no teste.
+
+### 4.8 O evento no período: `diasDoEvento` e `MAX_DIAS_DO_EVENTO` ↔ a consulta da API
+
+`GET /agenda` e `GET /events` trazem o evento que se sobrepõe à janela, semiaberto em
+`[startsAt, endsAt)` (`apps/api/src/modules/eventos/eventos.service.ts:153-174`). Quem desenha dia a
+dia usa `diasDoEvento` (`packages/shared/src/eventos.ts:301`), a mesma regra em dias locais: o evento
+com hora que acaba às 00:00 traz `endDate` no dia seguinte e não aparece nele. **Não desenhe de
+`date` a `endDate`** — o calendário mostraria o evento num dia que a API desse dia não devolve.
+Portão: `apps/api/tests/eventos.test.ts:635`.
+
+O limite também tem dois leitores. `MAX_DIAS_DO_EVENTO` (`eventos.ts:35`) recusa o evento longo e é
+o piso de `startsAt` na consulta (`eventos.service.ts:162-167`), para o índice `(user_id, starts_at)`
+cortar dos dois lados. Subi-lo é seguro; **baixá-lo** com eventos mais longos já gravados os tira
+das janelas em que terminam, sem erro — e o portão (`eventos.test.ts:850`) cria o mais longo pelo
+limite novo e segue verde.
 
 ## 5. Verificação
 

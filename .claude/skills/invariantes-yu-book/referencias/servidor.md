@@ -177,7 +177,14 @@ regra é "do mesmo quadro" (INV-12). Coberto em `apps/api/tests/rotinas.test.ts:
 workspace da nota de saída entra do mesmo jeito, só quando novo (`rotinas.service.ts:720-732`,
 `rotinas.test.ts:2010`), e `output_workspace_id` **não é FK de propósito**, como as colunas:
 `SetNull` esconderia o workspace excluído, que precisa virar `problems`
-(`apps/api/prisma/schema.prisma:827-829`).
+(`apps/api/prisma/schema.prisma:899-901`).
+
+**A frente de agenda a levou ao quadro de evento e tarefa:** `conferirQuadro`
+(`apps/api/src/modules/tarefas/tarefas.service.ts:33-39`, servindo os dois módulos) na criação,
+no PATCH (só o quadro novo) e no filtro de `GET /tasks` (`:131`). A corrida sai pelo nome da
+constraint, como a do agente: `quadroQueSumiu` (`:47-57`) só traduz `task_board_id_fkey` e
+`event_board_id_fkey`, e outra FK violada sobe como é (`apps/api/tests/tarefas.test.ts:268`,
+`:293`; o alheio em `:557` e `eventos.test.ts:779`).
 
 ## Integridade de dados
 
@@ -230,7 +237,10 @@ são sempre `trim().toLowerCase()`. Renomear tag para nome existente **funde** a
 **INV-21 — Excluir workspace apaga boards e cards, mas não notas.** FK de nota é `SET NULL`; a de
 board é `CASCADE`. É por isso que `Workspace` carrega `boardCount` e `cardCount` — a confirmação
 precisa dizer quanto se perde, e desde a Parte 2 da frente de cards ela cita também os anexos. A
-cascata leva as linhas de `card_file`, não os objetos no bucket: ver INV-64.
+cascata leva as linhas de `card_file`, não os objetos no bucket: ver INV-64. **Evento e tarefa não
+entram na cascata** (frente de agenda): o quadro é o projeto deles, com FK `SetNull`
+(`apps/api/prisma/schema.prisma:480`, `:523`), e excluir o quadro — ou o workspace, que o leva —
+os solta sem apagar (`apps/api/tests/eventos.test.ts:1042`, `tarefas.test.ts:584`).
 
 **INV-22 — Link duplicado devolve o existente, não erro.** Proteção contra clique duplo. A unicidade
 é sobre a URL já normalizada. Só favoritos têm ordem manual; "ver depois" ordena por `createdAt desc`
@@ -238,7 +248,7 @@ e tentar mover dá 422.
 
 **INV-64 — A cascata do banco não alcança o bucket: quem derruba card colhe as chaves antes.** O
 binário do anexo mora no bucket e a linha em `card_file`, com FK `CASCADE` para o card
-(`apps/api/prisma/schema.prisma:371-392`). Toda exclusão que leva card chama `chavesDosCards(onde)`
+(`apps/api/prisma/schema.prisma:376-397`). Toda exclusão que leva card chama `chavesDosCards(onde)`
 (`apps/api/src/modules/arquivos/arquivos.service.ts:259-262`) **antes** do delete, com o mesmo
 recorte de posse, e `apagarObjetos` **depois** do commit. Hoje são quatro, em
 `apps/api/src/modules/kanban/kanban.service.ts` — `excluirCard` (`:740`, `:750`), `excluirColuna`
@@ -251,6 +261,27 @@ lança — a linha já saiu, e a falha vira `warn` pelo logger que `app.ts` entr
 (`armazem.ts:101-105`). A colheita fora da transação deixa janela para um anexo subido no meio; a
 varredura de órfãos é dívida declarada (`armazem.ts:177-181`). Coberto em
 `apps/api/tests/arquivos.test.ts:631-780` e `:943`.
+
+**INV-66 — O evento é instante e a tarefa é dia civil: o fuso move um e não o outro.** Frente de
+agenda (2026-10-09). O cliente não converte fuso: entra e sai dia (`AAAA-MM-DD`) e hora (`HH:MM`)
+locais, e a agenda devolve o `timezone` e o `today` do usuário, não os do aparelho
+(`packages/shared/src/eventos.ts:428-430`). Parece incoerência entre vizinhos da mesma tela;
+"uniformizar" para um dos lados quebra o outro calado.
+
+- **Evento guarda instante** (`apps/api/prisma/schema.prisma:448-453`), e o dia e a hora saem pelo
+  fuso **atual** (`horarioDe`, `apps/api/src/modules/eventos/eventos.service.ts:68-95`): mudar o
+  fuso em `/ajustes` move o evento com hora no relógio (`apps/api/tests/eventos.test.ts:389`). O dia
+  inteiro também se lê assim, e o gravado em São Paulo, lido muito a oeste, recua um dia —
+  limitação aceita e declarada no sítio (`:72-74`).
+- **Só a escrita de horário converte.** `instantesDe` (`eventos.service.ts:119-148`) é o único
+  gravador dos instantes, e o PATCH só o chama quando toca campo de horário (`:241-254`):
+  reconverter num PATCH de título reescreveria `starts_at` pelo fuso de agora
+  (`eventos.test.ts:519`).
+- **`task.date` é `DATE`, civil** (`schema.prisma:498-501`): "para 12/10" é do dia 12 em qualquer
+  fuso. O Prisma a entrega como meia-noite UTC, e ali o corte do ISO é o certo
+  (`apps/api/src/modules/tarefas/tarefas.service.ts:59-72`); passá-la por `diaLocal` a recuaria
+  um dia a oeste de UTC. O fuso só decide o que é **hoje**, e daí `overdue` (`:94-118`;
+  `apps/api/tests/tarefas.test.ts:184`, `:369`).
 
 ---
 
@@ -344,24 +375,24 @@ recusaria uma formatação só por ela ter reagrupado itens — que é exatament
 chamada **já foi paga** quando esta função roda. Prompt é pedido; esta função é a garantia.
 
 **INV-50 — `ai_usage.local_day` é gravado, não calculado na consulta.** A janela do teto é o dia do
-**usuário**: `diaLocal(instante, fuso)` (`packages/shared/src/ia.ts:39`) com o fuso de
-`ai_preference.timezone` (`apps/api/prisma/schema.prisma:477`), nunca `getDate()` do processo nem
+**usuário**: `diaLocal(instante, fuso)` (`packages/shared/src/ia.ts:48`) com o fuso de
+`ai_preference.timezone` (`apps/api/prisma/schema.prisma:547`), nunca `getDate()` do processo nem
 `.slice(0, 10)` do ISO — a API roda em UTC na Railway e o operador não. `garantirTeto` devolve o
 `localDay` que a linha de uso vai gravar (`custo.service.ts:129`), para que o dia do corte e o do
 registro sejam o mesmo, ainda que a chamada atravesse a meia-noite. A coluna é `local_day`
-(`schema.prisma:566`), com índice `(userId, localDay)` (`:584`). Trocar a gravação por um `WHERE`
+(`schema.prisma:636`), com índice `(userId, localDay)` (`:654`). Trocar a gravação por um `WHERE`
 sobre `createdAt` zera o teto três horas cedo, todo dia, sem erro nenhum. **A janela tem dois
 leitores**, e os dois recortam por `localDay`: o teto (`resumoDoDia`, `custo.service.ts:105-106`) e
 o AI usage dash (`uso.service.ts:93`, e o período anterior em `:140`), com portão em
 `apps/api/tests/uso-ia.test.ts:107`. A tela mostra o dia gravado, não o recalculado
 (`AiUsageCall.localDay`, `packages/shared/src/ia.ts:475-478`). Leitor novo entra nesta lista.
 
-**INV-51 — `AiUsage.noteId` é `SetNull`.** `apps/api/prisma/schema.prisma:580`, como em
+**INV-51 — `AiUsage.noteId` é `SetNull`.** `apps/api/prisma/schema.prisma:650`, como em
 `Event.noteId`. Apagar a nota **não** apaga o registro de gasto: com `Cascade`, o teto diário viraria
 contornável por exclusão de nota, e a trilha de auditoria sumiria junto com o que a explica. Coberto
 em `apps/api/tests/assistente.test.ts:488`. O registro é escrito **inclusive quando a chamada falha**
 (`custo.service.ts:246`), porque falhar também pode ter custado. `AiUsage.runId` segue a mesma regra
-(`schema.prisma:582`): excluir a rotina não devolve o gasto do dia (`rotinas.test.ts:1374`).
+(`schema.prisma:652`): excluir a rotina não devolve o gasto do dia (`rotinas.test.ts:1374`).
 
 **INV-52 — A fronteira do chat com o modelo é fechada pelo compilador, nos dois sentidos.** No
 sentido de ida, `EXECUTORES` é `Record<NomeDoAssistente, Executor | undefined>`
@@ -429,7 +460,8 @@ nunca) só entra com `open_page` ou com a busca (`:147-168`, `web.test.ts:1299`)
 (RN-14); a ordem é coberta por `agentes.test.ts:679`.
 
 **INV-58 — A marca de conteúdo gerado é gravada só pelo servidor, e nunca some.** Os campos `ai*` de
-`Note` e `Card` (Etapa C, §5.5 do PRD de IA) nascem na criação por `camposDaOrigem`
+`Note` e `Card` (Etapa C, §5.5 do PRD de IA) — e de `Event` e `Task` desde a frente de agenda, com
+as mesmas colunas e o mesmo `CAMPOS_DA_MARCA` — nascem na criação por `camposDaOrigem`
 (`apps/api/src/lib/marca.ts:52`), e a origem chega ao service **por parâmetro**, nunca pelo corpo.
 `OrigemIA` é **união discriminada por `via`** (`marca.ts:25-46`), não objeto de opcionais: o
 compilador obriga o chat a gravar a conversa e a rotina a gravar a execução — com tudo opcional,
@@ -442,8 +474,10 @@ uma marca de chat sem `conversationId` compilava. O que o assistente monta é `O
   (`origemDoCliente`, `apps/mcp/src/autor.ts:49`); mover e lixeira não têm marca. Tool nova de marca
   que escreva sem ele grava o ato do modelo como humano, e nada acusa;
 - `updateNoteSchema` e `cardUpdateSchema` **omitem** `origin` (`packages/shared/src/notes.ts:42`,
-  `kanban.ts:129`), e as rotas de criação o desestruturam antes do service
-  (`notes.routes.ts:39`, `kanban.routes.ts:89`), porque `origin` não é coluna;
+  `kanban.ts:129`), como `eventUpdateSchema` e `taskUpdateSchema` (`eventos.ts:358-359`,
+  `tarefas.ts:52-53`), e as rotas de criação o desestruturam antes do service
+  (`notes.routes.ts:39`, `kanban.routes.ts:89`, `eventos.routes.ts:21`, `tarefas.routes.ts:26`),
+  porque `origin` não é coluna;
 - o chat monta a origem a partir da conversa (`ContextoDeFerramenta.origem`,
   `ferramentas.service.ts:96`, montado em `chat.service.ts:539-544`, com o `agentName` da sessão
   desde a Etapa D), e "virar nota" tira corpo, modelo e conversa da `AiMessage` **gravada** — do
@@ -454,22 +488,23 @@ uma marca de chat sem `conversationId` compilava. O que o assistente monta é `O
 
 **Nunca some:** nenhuma rota a remove, e editar só preenche `aiRevisedAt` — "gerada · revisada",
 não "deixou de ser gerada". Revisão é **mudança de fato** de título ou corpo na nota
-(`notes.service.ts:305-307`) e de título ou descrição no card (`kanban.service.ts:606-616`): o
+(`notes.service.ts:305-307`) e de título ou descrição no card (`kanban.service.ts:606-616`), no
+evento (`eventos.service.ts:256-260`) e na tarefa (`tarefas.service.ts:224-228`): o
 autosave e o painel reenviam campo inalterado, e mover, favoritar, mudar tag ou concluir não conta.
 Formatar com IA grava pelo autosave e **conta** como revisão — aceito, é edição que o usuário
 iniciou. A marca de **quem concluiu** o card é outra, com a regra oposta: INV-63.
 
 A leitura tem duas fontes e a segunda é frágil: o `select` do Prisma usa `CAMPOS_DA_MARCA`
-(`marca.ts:66`), e as consultas cruas da busca usam `marcaDe("n" | "c")`
+(`marca.ts:69`), e as consultas cruas da busca usam `marcaDe("n" | "c")`
 (`apps/api/src/modules/notes/search.service.ts:28`) nas cinco consultas. O tipo de `$queryRaw` é
 afirmação, não conferência: consulta nova sem `marcaDe` compila e devolve `ai: null` para conteúdo
 gerado — a marca some da busca, calada. Coberto por `apps/api/tests/marca-ia.test.ts`.
 
 **INV-63 — A marca de quem concluiu acompanha o estado, e a decisão de trocá-la mora no `where`.**
 `completedAt` e `aiCompleted*` de `Card` (frente de cards, Parte 1, 2026-09-30;
-`apps/api/prisma/schema.prisma:345-351`) **não** são a marca de geração e têm a regra oposta à do
+`apps/api/prisma/schema.prisma:350-356`) **não** são a marca de geração e têm a regra oposta à do
 INV-58: dizem quem pôs o card no estado **atual**, então concluir à mão ou reabrir zera as três
-(`camposDaConclusao`, `apps/api/src/lib/marca.ts:113`). Parece incoerência com a vizinha; fundir as
+(`camposDaConclusao`, `apps/api/src/lib/marca.ts:117`). Parece incoerência com a vizinha; fundir as
 duas faria o card reaberto seguir "concluído por IA". O que elas dividem é a origem: só o servidor
 a grava, por parâmetro.
 
@@ -482,17 +517,27 @@ a grava, por parâmetro.
 - **Três portas, um gravador.** O front conclui por `PATCH /cards/:id` (`completed` em
   `cardUpdateSchema`, `packages/shared/src/kanban.ts:131`), sem origem, via `atualizarCard`
   (`kanban.service.ts:639`); o MCP por `PATCH /cards/:id/complete`
-  (`apps/api/src/modules/kanban/kanban.routes.ts:105-111`), o **único PATCH que aceita `origin`**
+  (`apps/api/src/modules/kanban/kanban.routes.ts:105-111`), o **único PATCH de card que aceita `origin`**
   (`cardCompleteSchema`, `kanban.ts:142`); o chat chama `concluirCard` com a origem do contexto
   (`ferramentas.service.ts:240`). O schema não é estrito: no PATCH comum, `origin` sozinho dá 422 e
   junto de `completed` é descartado com **200** e conclusão humana (`marca-ia.test.ts:745`) — tool
   que concluísse por ali gravaria o modelo como humano, sem erro.
 - **Concluir não move, não renumera e não é revisão** (`kanban.test.ts:425`,
   `marca-ia.test.ts:797`); card arquivado também se conclui e volta concluído.
-- **Concluído sai de quem cobra.** O dashboard (`apps/api/src/modules/dashboard/dashboard.service.ts:108`)
-  e `ondeElegivel` da rotina (`apps/api/src/modules/assistente/rotinas.service.ts:574`) filtram
-  `completedAt: null` (`dashboard.test.ts:226`, `rotinas.test.ts:728`). Leitor novo que cobre prazo
-  ou escolha card para trabalhar entra nesta lista; nada acusa o que ficou fora.
+- **Concluído sai de quem cobra.** O dashboard (`apps/api/src/modules/dashboard/dashboard.service.ts:110`),
+  `ondeElegivel` da rotina (`apps/api/src/modules/assistente/rotinas.service.ts:574`) e os cards da
+  agenda (`agendaDoPeriodo`, `apps/api/src/modules/eventos/eventos.service.ts:310-316`) filtram
+  `completedAt: null` (`dashboard.test.ts:226`, `rotinas.test.ts:728`, `eventos.test.ts:901`).
+  Leitor novo que cobre prazo ou escolha card para trabalhar entra nesta lista; nada acusa o que
+  ficou fora.
+
+**A tarefa (frente de agenda) tem a mesma regra e uma porta só.** As mesmas colunas e o mesmo
+`camposDaConclusao` (`apps/api/prisma/schema.prisma:505-508`); o gravador é `concluirTarefa`
+(`apps/api/src/modules/tarefas/tarefas.service.ts:257-268`), com o estado esperado no `where`. Ao
+contrário do card, `taskUpdateSchema` **não tem** `completed` (`packages/shared/src/tarefas.ts:50-55`):
+concluir só passa por `PATCH /tasks/:id/complete` (`tarefas.routes.ts:42-47`), com ou sem
+`origin`, e `completed` no PATCH comum é descartado com 200
+(`apps/api/tests/tarefas.test.ts:435`, `:460`).
 
 **INV-60 — O motor de rotina decide pelo banco, nunca pelo `Map`: no deploy a API tem duas
 instâncias.** A execução roda destacada da requisição (RNF-11), e as vivas moram num `Map` de
@@ -535,7 +580,7 @@ horário.** O relógio de 1 minuto (`apps/api/src/modules/assistente/agendador.s
 não tem dono; a exclusão é toda de escrita:
 
 - **Cada horário tem uma linha só**, pelo `@@unique([routineId, scheduledFor])`
-  (`apps/api/prisma/schema.prisma:938`) — é ele que garante RN-20
+  (`apps/api/prisma/schema.prisma:1012`) — é ele que garante RN-20
   (`apps/api/tests/agenda.test.ts:356`). A execução manual tem `scheduledFor` nulo e a rotina
   excluída põe `routineId` nulo (`SetNull`), e nulo não colide.
 - **A linha `pulada` é o estado do horário enquanto ele não roda.** A recusa grava ou soma

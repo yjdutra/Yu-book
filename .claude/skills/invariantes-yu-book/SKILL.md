@@ -1,6 +1,6 @@
 ---
 name: invariantes-yu-book
-description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, as defesas de saída decididas pela origem do alvo (SSRF onde a URL vem do usuário ou do modelo, com a conexão presa ao IP conferido), escopo por usuário, a precisão do arraste do kanban e nenhum controle sob os listeners do arraste (alça única ou controle irmão), o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna impresso num lugar só — hoje em packages/shared —, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda, e a frente de IA — teto de gasto conferido antes de cada conexão e a cada passo do laço de ferramenta, cascata de custo de três degraus, guarda de wikilink por conjunto, o dia local gravado em vez de calculado, a fronteira do chat com o modelo fechada pelo compilador nos dois sentidos, a marca de conteúdo gerado, gravada só pelo servidor e que nunca some, e a de quem concluiu o card, que acompanha o estado, e o motor de rotina, que decide pelo banco e não pelo Map em memória porque o deploy junta duas instâncias da API, e a agenda de rotina que as duas rodam juntas, e a management key do OpenRouter, que só lê por caminhos fixos —, a cascata do banco que não alcança o bucket dos anexos, o Esc de diálogo aberto dentro de painel que fecha no Esc, o id relacionado vindo do cliente conferido contra o usuário, e a montagem condicional de painel no front, que nunca entrega aberto: false, o laço do chat que não roda sem superfície visível, o gasto na tela que toda chamada ao provedor invalida, inclusive a que falha, o enum cuja escolha só existe se a tela o percorrer, e os filtros de notas na URL, que toda navegação em /n precisa carregar. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
+description: Catálogo verificável das invariantes do Yu-book — comportamentos que parecem erro para quem não os conhece e que quebram em silêncio se alterados. Cobre posse por cadeia no kanban, renumeração de posições, unicidade de título sem acento, wikilinks derivados, cirurgia de cache do autosave, as defesas de saída decididas pela origem do alvo (SSRF onde a URL vem do usuário ou do modelo, com a conexão presa ao IP conferido), escopo por usuário, a precisão do arraste do kanban e nenhum controle sob os listeners do arraste (alça única ou controle irmão), o editor Markdown ao vivo (documento sem modelo intermediário, a textarea como mitigação de acessibilidade, os dois mapas de atalho) as assimetrias deliberadas — tag de nota contra tag de card, e estratégia de ordenação ligada nas colunas e desligada nos cards — o id de coluna impresso num lugar só — hoje em packages/shared —, sem o qual as tools de escrita ficam inalcançáveis, e a superfície de autenticação do transporte HTTP do MCP — rótulo de tipo no envelope cifrado, vida de token derivada e não fixada, identidade por requisição, o mapa de sessões que vaza calado, a trava de escrita em duas camadas e a sessão que se encerra quando o escopo do token muda, e a frente de IA — teto de gasto conferido antes de cada conexão e a cada passo do laço de ferramenta, cascata de custo de três degraus, guarda de wikilink por conjunto, o dia local gravado em vez de calculado, a fronteira do chat com o modelo fechada pelo compilador nos dois sentidos, a marca de conteúdo gerado, gravada só pelo servidor e que nunca some, e a de quem concluiu o card, que acompanha o estado, e o motor de rotina, que decide pelo banco e não pelo Map em memória porque o deploy junta duas instâncias da API, e a agenda de rotina que as duas rodam juntas, e a management key do OpenRouter, que só lê por caminhos fixos —, a cascata do banco que não alcança o bucket dos anexos, o evento guardado como instante e a tarefa como dia civil, o Esc de diálogo aberto dentro de painel que fecha no Esc, o id relacionado vindo do cliente conferido contra o usuário, e a montagem condicional de painel no front, que nunca entrega aberto: false, o laço do chat que não roda sem superfície visível, o gasto na tela que toda chamada ao provedor invalida, inclusive a que falha, o enum cuja escolha só existe se a tela o percorrer, e os filtros de notas na URL, que toda navegação em /n precisa carregar. Use ao revisar qualquer diff, ao escrever teste de regressão e antes de alterar código nas áreas citadas.
 ---
 
 # Invariantes do Yu-book
@@ -50,6 +50,7 @@ diz o que sustenta o comportamento nem onde ele mora. Antes de julgar um diff, a
 | INV-21 | Excluir workspace apaga boards e cards, mas não notas |
 | INV-22 | Link duplicado devolve o existente, não erro |
 | INV-64 | A cascata do banco não alcança o bucket: quem derruba card colhe as chaves antes |
+| INV-66 | O evento é instante e a tarefa é dia civil: o fuso move um e não o outro |
 | INV-31 | Duas armadilhas de planner no SQL |
 | INV-32 | Listagem de notas nunca carrega o corpo inteiro |
 | INV-40 | `formatarQuadro` imprime o id de cada coluna, e é o único lugar que imprime |
@@ -248,14 +249,20 @@ por completa — parou na fronteira do banco sem nada acusar. Estreitou INV-08 (
 host do ambiente) e INV-04 (a leitura da chave antes do `deleteMany`). A lição: **dado que mora em
 dois lugares multiplica cada exclusão por dois, e só uma delas o banco faz sozinho.**
 
+A **Fase 1 da frente de agenda** (2026-10-09, oitava numeração: "Fase" dela não é fase de produto)
+deu rota e service ao `Event`, que existia sem eles desde o `init`, e criou a tarefa. Trouxe INV-66 e
+estreitou INV-21 (evento e tarefa soltam do quadro, não morrem com ele), INV-58 (dois tipos novos
+com marca), INV-59 (o quadro como projeto) e INV-63 (a tarefa, com uma porta só, e o terceiro
+leitor que cobra prazo) — onde "o único PATCH que aceita `origin`" era censo de um e passou a ser
+"de card". A lição é a do INV-66: **dois tipos de data na mesma tela, e cada um certo pelo seu
+motivo** — o defeito à espreita é a "correção" que os iguala.
+
 O que ainda não tem código: **busca semântica** (§5.4). A **Fase 6 de produto** (Google Calendar) segue sendo o item de
 **menor prioridade**, e o intervalo até ela é o tempo em que este catálogo mais envelhece: reconfira
-as referências antes de confiar nelas. Quando a fase vier, três invariantes ficam na linha de tiro:
+as referências antes de confiar nelas. Quando a fase vier, duas invariantes ficam na linha de tiro:
 
-- **INV-08.** A agenda abre um ponto de saída novo, e ele nasce com classe a decidir: host do
+- **INV-08.** O Google abre um ponto de saída novo, e ele nasce com classe a decidir: host do
   Google fixado pelo ambiente cai na segunda classe, mas id de calendário vindo do cliente entra no
   **caminho** da URL. Classifique antes de escrever, pela regra do próprio INV-08.
 - **INV-01 a INV-04.** Credencial de terceiro por usuário é dado novo sob escopo: id de calendário
   vindo do cliente cai na mesma regra do `userId`, e a escrita continua sendo condicional.
-- **INV-21.** `Event` já existe em `schema.prisma` sem rota nem service. A regra de cascata que a
-  agenda escolher (evento morre com o card? com a nota?) entra aqui no mesmo diff.

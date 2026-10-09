@@ -258,7 +258,7 @@ novo ausente na resposta é **omitido**, não emitido como `undefined` (`src/res
 **O formatador de `shared` também tolera, e ali pesa mais:** roda **depois** da escrita, e lançar
 diria ao modelo que falhou um card já criado — ele criaria outro. Campo array novo se lê com `?.`
 apesar do tipo (`files`, `packages/shared/src/formato.ts:344-347`).
-**Rota nova não se tolera:** rota inexistente volta `NOT_FOUND` (`apps/api/src/app.ts:98-99`) e o
+**Rota nova não se tolera:** rota inexistente volta `NOT_FOUND` (`apps/api/src/app.ts:100-101`) e o
 modelo ouve "não existe esse id". Tool em rota nova (`complete_card`) exige a API no ar antes.
 
 ## 14. Propagação — o que fazer quando o domínio muda

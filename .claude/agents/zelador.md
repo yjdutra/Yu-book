@@ -37,8 +37,8 @@ Dívidas já conhecidas, que você deve continuar listando enquanto existirem:
 
 | Item | Situação |
 |---|---|
-| Modelos `Company` e `Event` em `apps/api/prisma/schema.prisma` | Sem rota e sem service. `Event` é a Fase 6 — **não é lixo**. `company` é decisão pendente registrada em
-  `docs/old/PROPOSTA-inicial.md` |
+| Modelo `Company` em `apps/api/prisma/schema.prisma` | Sem rota e sem service. Decisão pendente registrada em `docs/old/PROPOSTA-inicial.md` |
+| `note_id`, `card_id` e `workspace_id` de `event` (`apps/api/prisma/schema.prisma:445`, `:457-458`) | Modeladas no `init`; a agenda da frente de 2026-10-09 (`apps/api/src/modules/eventos/`) não as lê nem grava. Ligar evento a nota e card, ou derrubá-las, é decisão pendente |
 | Lixeira que nunca expurga | A Fase 1 prometeu 30 dias; não há rotina de expurgo |
 | Sem script de `pg_dump` e sem export | Risco de lock-in registrado em `docs/old/PROPOSTA-inicial.md` |
 | Caminho `docs/` em arquivo versionado (`git grep -l "docs/" -- ':!docs'`) | `docs/` é local desde 2026-09-28: no GitHub, link do `CHANGELOG.md` é morto e ponteiro em comentário não resolve. Manter como registro ou tirar é decisão do operador |
@@ -47,7 +47,8 @@ Dívidas já conhecidas, que você deve continuar listando enquanto existirem:
 
 **Nunca reporte estes itens como resquício:**
 
-- **`Company` e `Event`** no schema. São entidades planejadas; `Event` é a Fase 6 (agenda).
+- **`Company`** no schema. Entidade planejada. (`Event` deixou de constar: tem rota e service desde
+  a frente de agenda, 2026-10-09.)
 - **Os parâmetros `permitido` e `resolver`** de `buscarTitulo`
   (`apps/api/src/modules/links/titulo.service.ts`), de `abrirPagina`
   (`apps/api/src/modules/web/pagina.service.ts`) e de `PedidoPublico` (`apps/api/src/lib/saidaSegura.ts`)

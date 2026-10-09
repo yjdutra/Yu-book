@@ -51,6 +51,9 @@ escolhido assim.
 - PK `uuid` (`@db.Uuid`, `@default(uuid())`).
 - Coluna em `snake_case` via `@map`; tabela no singular via `@@map` (`user`, `note`, `board_column`).
 - Timestamps `TIMESTAMP(3)` **sem timezone**. Tudo trafega em UTC, serializado com `.toISOString()`.
+- Data civil, sem hora, é `@db.Date` — `task.date` (`20261009120000_agenda_eventos_tarefas`): o
+  Prisma a entrega como meia-noite UTC, e ela não passa por fuso nenhum (INV-66). Prazo que é
+  instante continua timestamp.
 - `user_id` em toda tabela raiz. **`card` e `board_column` são exceção deliberada** — a posse vem da
   cadeia até `board.userId`. Não adicione `user_id` a elas, nem ao que pende de card: `card_file`
   (`20260930180000_frente_cards_anexos`) resolve a posse pela mesma cadeia (INV-03).
