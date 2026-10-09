@@ -12,7 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ComponentType, FormEvent, ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { quandoNaAgenda, useExcluirEvento, useExcluirTarefa } from "../../lib/agenda";
+import { quandoNaAgenda, useExcluirEvento, useExcluirTarefa } from "@yu-book/cliente/agenda";
 import { ApiError } from "@yu-book/cliente/api";
 import { useConversa, useVirarNota } from "../../lib/chat";
 import { carregarCard, useExcluirCard } from "../../lib/kanban";

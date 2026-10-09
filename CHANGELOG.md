@@ -17,6 +17,82 @@ _Nada pendente._
 
 ---
 
+## [0.31.0] — 2026-10-09
+
+**Frente de agenda, tarefas e o Yu-book no celular, Fase 4: a agenda e as tarefas no app móvel.**
+As telas que a `[0.30.0]` deixou "em breve" ganham conteúdo. O Início passa a mostrar números
+reais e o dia do usuário, a Agenda ganha calendário mensal e lista do dia, e Tarefas, Projetos e o
+detalhe de cada projeto passam a existir. Uma folha única cria e edita evento e tarefa, de qualquer
+tela. O Assistente do celular continua "em breve" e chega na próxima fase.
+
+**Três pacotes se movem.** `apps/movel` vai de `0.1.0` para `0.2.0` e `packages/cliente` de `0.1.0`
+para `0.2.0`, com o módulo novo de agenda. `packages/shared` vai de `0.18.0` para `0.19.0` por um
+export aditivo, `minutosEntre`, a aritmética de duração entre dois horários civis que o servidor já
+usava para conferir o evento. Nenhum schema nem tipo mudou, e por isso `apps/api` e `apps/mcp`
+ficam em `0.20.0`. `apps/web` fica em `0.25.0`. Nenhuma migration, nenhuma rota nova.
+
+**O web não mudou, e isso foi medido.** Os hooks de evento e tarefa, que nasceram no web para o
+chat, subiram para `packages/cliente` e passaram a servir os dois fronts. O web só trocou imports, e
+o chunk inicial dele saiu idêntico byte a byte (630.115 bytes, conferido por `cmp`). O
+`@tanstack/react-query` virou `peerDependency` do pacote e entrou no `resolve.dedupe` dos dois
+`vite.config`: duas cópias dele no bundle seriam dois contextos, e o hook do pacote não acharia o
+cliente de cache do app.
+
+**O cliente continua sem converter fuso.** O dia de hoje vem da resposta da API, no fuso do
+usuário. O relógio do aparelho só escolhe qual janela pedir primeiro, e quando ele discorda da API
+uma segunda consulta, já na janela certa, toma o lugar da primeira.
+
+Portões, rodados no fechamento: `pnpm typecheck` limpo nos seis pacotes, e os builds do web e do
+móvel passaram. As suítes da API e do MCP não foram rodadas: a fase não tocou `apps/api` nem
+`apps/mcp`. O móvel continua num chunk só, que foi de 342 kB para 418,7 kB (de 104 kB para
+126,6 kB com gzip).
+
+**A interface foi conferida em navegador headless, contra a API local, e não à mão.** Os roteiros
+cobriram: criar evento pelos atalhos, editar, concluir tarefa com a caixa marcando na hora e
+voltando quando a API respondeu 500, erro 422 aparecendo no campo, excluir, Voltar fechando a folha,
+"Descartar alterações?", o foco quando o item some, o filtro de Tarefas, o detalhe de projeto e o
+projeto inexistente. As contagens do Início foram conferidas contra a API. Houve capturas em
+390×844 e 1280×800, nos dois temas. Ninguém usou o app num celular de verdade, o Voltar foi o do
+histórico do navegador e não o botão do Android, e o leitor de tela não foi usado.
+
+### Adicionado
+- **Início com números reais** no app móvel. Os quatro cartões contam o que há hoje (eventos e
+  tarefas do dia), os eventos dos próximos 7 dias, os projetos com algo aberto e as tarefas abertas,
+  com as atrasadas em destaque. Abaixo vêm "O seu dia", com as atrasadas no topo, e "Próximos dias".
+  O tipo de cada item vai escrito (Evento, Tarefa, Prazo), e a tarefa se conclui com um toque.
+- **Agenda** no app móvel: calendário mensal, com a semana começando no domingo, navegação de mês e
+  "Hoje", e a lista do dia escolhido. No calendário, o tipo vem pela forma e pela cor: o evento é um
+  ponto, a tarefa um anel e o prazo de card um losango, e uma legenda fica sob a grade. A grade
+  anda pelo teclado (setas, Home/End, PageUp/PageDown) e muda de mês pelo deslize. O dia escolhido
+  fica na URL, e recarregar volta a ele. A partir de 1024px, calendário e lista ficam lado a lado.
+- **Tarefas** no app móvel: abas Abertas e Concluídas, com as abertas em grupos (Atrasadas, Hoje,
+  Amanhã, Próximos 7 dias, Depois, Sem data), cada um com a contagem. O filtro por projeto vem em
+  pílulas e fica na URL. A tarefa se conclui com um toque.
+- **Projetos** no app móvel: os quadros, com a contagem de tarefas abertas e o próximo evento de
+  cada um. O detalhe do projeto lista as tarefas abertas e os eventos dos próximos 30 dias, e o "+"
+  dele já cria ligado ao projeto. Projeto apagado ou de outra conta mostra "não encontrado".
+- **Folha de criar e editar evento e tarefa**, a mesma em todo o app, aberta pelo "+" da barra,
+  pelo "+" do dia na Agenda ou pelo toque num item. Tem atalhos de dia (Hoje, Amanhã, o sábado
+  seguinte, escolher, e "Sem data" na tarefa), de hora (dia inteiro ou sem hora, horários
+  sugeridos, escolher) e de duração (30 min, 1 h, 2 h), além de projeto, local e descrição. O erro
+  de validação da API aparece no campo a que se refere. Na edição há Excluir, com confirmação, e,
+  na tarefa, Concluir ou Reabrir; com campos alterados, o botão vira "Salvar e concluir".
+- **Fechar a folha com alteração pergunta antes** ("Descartar alterações?"), seja pelo botão, pelo
+  `Esc`, pelo toque fora ou pelo Voltar.
+- **O Voltar do Android fecha a folha** em vez de sair da tela que está atrás dela.
+- **Falha de carregamento com "Tentar de novo"** em todas as telas novas, e um aviso quando a
+  conclusão de uma tarefa é recusada e a caixa volta ao que era.
+
+### Alterado
+- **O "+" da barra do app móvel cria de verdade.** Abre como evento na Agenda e como tarefa em
+  Tarefas; nas outras telas, abre no último tipo criado. A tarefa criada pela barra nasce sem data,
+  e o evento nasce hoje, na próxima hora cheia.
+- **Concluir uma tarefa marca na hora**, em todas as listas que a mostram, e volta se a API recusar.
+  Ela sai da lista de abertas só quando a lista é recarregada, depois que a caixa marcada já
+  apareceu.
+
+---
+
 ## [0.30.0] — 2026-10-09
 
 **Frente de agenda, tarefas e o Yu-book no celular, Fase 3: a fundação do app móvel.** Nasce

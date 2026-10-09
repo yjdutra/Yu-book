@@ -339,8 +339,9 @@ attachments, stored in an S3-compatible bucket that is optional: without one, th
 runs unchanged. In progress: an agenda and a to-do list of its own, linked to boards as projects,
 with a companion phone app. The API is in place, and the chat and the MCP server can already read
 the agenda, schedule events and add or complete tasks. The phone app, an installable PWA that
-shares its client code and theme with the web app, has its sign-in, navigation and home screen;
-its agenda and task screens come next.
+shares its client code and theme with the web app, now covers the day at a glance, a monthly
+calendar, tasks grouped by urgency and projects, with quick create and edit from anywhere; the
+assistant on the phone comes next.
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
 Known limitations, stated on purpose:

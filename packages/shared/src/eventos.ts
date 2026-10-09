@@ -111,7 +111,13 @@ export function somarMinutos(
   };
 }
 
-function minutosEntre(dia1: string, hora1: string, dia2: string, hora2: string): number {
+/**
+ * Minutos de um relógio de parede a outro, contando os dias entre eles —
+ * aritmética civil, sem fuso. Exportada para a duração gravada que a folha do
+ * móvel mostra (frente de agenda, Fase 4): uma conta só, a mesma que o
+ * servidor usa para conferir o evento.
+ */
+export function minutosEntre(dia1: string, hora1: string, dia2: string, hora2: string): number {
   return diasEntre(dia1, dia2) * 1440 + minutosDaHora(hora2) - minutosDaHora(hora1);
 }
 

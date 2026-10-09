@@ -1,7 +1,8 @@
 import { useAuth } from "@yu-book/cliente/auth";
 import { Botao } from "@yu-book/cliente/base/Botao";
 import { Dialogo } from "@yu-book/cliente/base/Dialogo";
-import { useId, useState } from "react";
+import { useCallback, useId, useState } from "react";
+import { useFolhaNoHistorico } from "../lib/historico";
 import { useTema } from "../lib/tema";
 import type { PreferenciaTema } from "../lib/tema";
 import { iniciais } from "../lib/saudacao";
@@ -39,6 +40,8 @@ export function Conta() {
   const [saindo, setSaindo] = useState(false);
   const idTema = useId();
   const nome = user?.name ?? "";
+  const fechar = useCallback(() => setAberta(false), []);
+  useFolhaNoHistorico(aberta, fechar);
 
   async function sair() {
     setSaindo(true);
@@ -63,7 +66,7 @@ export function Conta() {
 
       <Dialogo
         aberto={aberta}
-        onFechar={() => setAberta(false)}
+        onFechar={fechar}
         rotulo="Conta e tema"
         posicao="folha"
       >
@@ -111,7 +114,7 @@ export function Conta() {
           </p>
 
           <div className="mt-7 grid grid-cols-2 gap-2">
-            <Botao variante="secundario" tamanho="g" onClick={() => setAberta(false)}>
+            <Botao variante="secundario" tamanho="g" onClick={fechar}>
               Fechar
             </Botao>
             <Botao variante="perigo" tamanho="g" carregando={saindo} onClick={sair}>

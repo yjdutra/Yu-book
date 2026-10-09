@@ -71,6 +71,9 @@ async function rawRequest(path: string, init: RequestInit = {}): Promise<Respons
   headers.set("X-Yu-Book-Client", "web");
   // `FormData` leva o próprio `multipart/form-data; boundary=…`, que só o
   // navegador sabe escrever — fixar o tipo aqui quebraria o upload de anexo.
+  // E sem corpo não vai tipo nenhum: o Fastify responde 400 a JSON vazio, e
+  // é isso que mantém de pé todo DELETE. Simplificar a condição quebra a
+  // exclusão em silêncio, sem erro de tipo.
   if (init.body && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }

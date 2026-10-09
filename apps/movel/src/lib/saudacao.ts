@@ -1,7 +1,7 @@
 /**
- * "Bom dia", "Boa tarde", "Boa noite" pela hora do aparelho. É a única leitura
- * do relógio do navegador no móvel, e só serve à saudação: dia e hora de dado
- * (evento, tarefa, prazo) vêm da API, no fuso do usuário (contrato §4.5).
+ * "Bom dia", "Boa tarde", "Boa noite" pela hora do aparelho. Só serve à
+ * saudação: dia e hora de dado (evento, tarefa, prazo) vêm da API, no fuso do
+ * usuário (contrato §4.5). As outras leituras do relógio moram em `datas.ts`.
  */
 export function saudacao(hora: number): string {
   if (hora >= 5 && hora < 12) return "Bom dia";

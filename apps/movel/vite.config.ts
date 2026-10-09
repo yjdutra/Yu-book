@@ -7,8 +7,10 @@ export default defineConfig({
   resolve: {
     // `@yu-book/cliente` é fonte com React como peer: se a versão daqui e a
     // resolvida por ele divergissem, o bundle levaria dois Reacts — "Invalid
-    // hook call" em tempo de execução, sem erro de build.
-    dedupe: ["react", "react-dom"],
+    // hook call" em tempo de execução, sem erro de build. O TanStack Query
+    // também é peer dele (frente de agenda, Fase 4): duas cópias seriam dois
+    // contextos, e o hook do pacote não acharia o `QueryClient` do app.
+    dedupe: ["react", "react-dom", "@tanstack/react-query"],
   },
   server: {
     // 5173 é do web: os dois sobem juntos no `pnpm dev` da raiz.

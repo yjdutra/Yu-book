@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode, RefObject } from "react";
-import { invalidarAgenda } from "./agenda";
+import { invalidarAgenda } from "@yu-book/cliente/agenda";
 import { ApiError } from "@yu-book/cliente/api";
 import {
   CHAVE_AJUSTES,

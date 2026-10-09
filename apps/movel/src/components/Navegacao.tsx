@@ -7,7 +7,8 @@ import {
 } from "@yu-book/cliente/icones";
 import type { IconeProps } from "@yu-book/cliente/icones";
 import type { ReactElement } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
+import { useFolhaItem } from "./folha/FolhaItem";
 
 interface Area {
   para: string;
@@ -58,15 +59,17 @@ function ItemArea({ para, rotulo, Icone }: Area) {
   );
 }
 
-function BotaoCriar({ criando, aoCriar }: { criando: boolean; aoCriar: () => void }) {
+function BotaoCriar() {
+  const { abrirDaBarra, abertaPelaBarra } = useFolhaItem();
+  const { pathname } = useLocation();
   return (
     <button
       type="button"
-      onClick={aoCriar}
+      onClick={() => abrirDaBarra(pathname)}
       aria-label="Criar"
       title="Criar"
       aria-haspopup="dialog"
-      aria-expanded={criando}
+      aria-expanded={abertaPelaBarra}
       className="flex size-14 -translate-y-3 items-center justify-center rounded-full
                  bg-accent-500 text-white shadow-(--sombra-criar) transition duration-150
                  ease-(--ease-padrao) hover:brightness-110 active:scale-95
@@ -83,7 +86,7 @@ function BotaoCriar({ criando, aoCriar }: { criando: boolean; aoCriar: () => voi
  * 1024px vira trilho à esquerda — os mesmos itens, o "+" no topo —, que é o
  * móvel aberto no desktop. Todo alvo tem pelo menos 56px.
  */
-export function Navegacao({ criando, aoCriar }: { criando: boolean; aoCriar: () => void }) {
+export function Navegacao() {
   return (
     <nav
       aria-label="Navegação principal"
@@ -100,13 +103,13 @@ export function Navegacao({ criando, aoCriar }: { criando: boolean; aoCriar: () 
             do Tab segue a da tela (WCAG 2.4.3), o que `order` no CSS não faria.
             O oculto é `display: none` e sai da árvore de acessibilidade. */}
         <li className="mb-3 hidden justify-center lg:flex">
-          <BotaoCriar criando={criando} aoCriar={aoCriar} />
+          <BotaoCriar />
         </li>
         {ANTES.map((area) => (
           <ItemArea key={area.para} {...area} />
         ))}
         <li className="flex flex-1 justify-center lg:hidden">
-          <BotaoCriar criando={criando} aoCriar={aoCriar} />
+          <BotaoCriar />
         </li>
         {DEPOIS.map((area) => (
           <ItemArea key={area.para} {...area} />
