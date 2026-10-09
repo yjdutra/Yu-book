@@ -19,6 +19,11 @@ _Nada pendente._
 
 ## [0.34.0] — 2026-10-09
 
+> **Publicada em produção em 2026-10-09.** Os quatro serviços de app (API, web, MCP e móvel) foram
+> redeployados, e a API aplicou a migration `20261010120000_eventos_recorrentes` no boot. Conferido
+> por fora: saúde da API e do MCP, os bundles do web e do móvel com o código novo e a rota com
+> escopo respondendo. Ninguém criou uma série com a conta real nem usou num Android ainda.
+
 **Eventos recorrentes.** Um evento passa a poder se repetir toda semana, nos dias escolhidos, com
 um último dia opcional. "Aula de inglês segunda, quarta e sexta das 8 às 9" é um compromisso só,
 que aparece em cada um desses dias. Ele se cria pela folha do celular, pedindo ao assistente ou
