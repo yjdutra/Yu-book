@@ -17,6 +17,149 @@ _Nada pendente._
 
 ---
 
+## [0.38.0] — 2026-10-18
+
+**Ritmo no celular: hábitos, ofensivas, humor, skills e foco (frente Ritmo, Ritmo 2 a 6).** A
+área Ritmo do móvel ganha cinco partes. A barra passa a ser Início · Plano · ＋ · Ritmo ·
+Assistente, e Plano junta Agenda e Tarefas. Em Ritmo, as abas Hábitos, Ofensivas, Humor e Skills
+leem o que a Ritmo 1 grava no servidor. O Início mostra o dia de cada parte. Humor e skills **não
+dão pontos**: o humor só acende a ofensiva, e o XP da skill é o número de usos dela. O foco é um
+pomodoro que abre a partir de uma atividade e pontua por ela. **Criar e configurar** hábito e skill
+continua só pelo MCP. A tela registra, mas não monta. As cinco fases entram numa entrada só
+porque movem o mesmo conjunto de pacotes. O plano da Ritmo 7, povoar os dados pelo MCP, ficou
+escrito no PRD e não foi executado.
+
+**Os seis pacotes se movem**, porque o contrato mudou em `packages/shared`: `checkedIn` no evento,
+`pointsPerPomodoro` na atividade, a origem `focus` no registro e os schemas de humor, skill e foco.
+`packages/shared` vai de `0.23.0` para `0.24.0`, `apps/api` e `apps/mcp` de `0.24.0` para `0.25.0`,
+`apps/web` de `0.31.0` para `0.32.0`, e `apps/movel` e `packages/cliente` de `0.8.0` para `0.9.0`.
+O web só se move pelo contrato e pela mudança de casa de `BarrasPorDia` e `Indicador`: nada muda
+na tela dele.
+
+**Três migrations, só aditivas**, aplicadas pela API no boot, nesta ordem:
+- `20261018190000_ritmo_humor` cria a tabela `mood_day`, com um CHECK de 1 a 5 em cada momento;
+- `20261018200000_ritmo_skills` cria as tabelas `skill` e `skill_use`;
+- `20261018210000_ritmo_foco` cria `focus_session` e acrescenta a origem `focus` em
+  `HabitEntryOrigin`. Também acrescenta as colunas `points_per_pomodoro`, opcional, em
+  `habit_activity`, e `focus_session_id`, única, em `habit_entry`.
+
+Os timestamps foram escritos à mão depois do da Ritmo 1, para a ordem no deploy não se inverter.
+Nenhuma linha existente muda.
+
+**Na janela do deploy, a API precisa estar no ar antes do MCP.** Contra uma API anterior a esta,
+as tools novas (`check_in_event`, `get_mood`, `log_mood`, `list_skills`, `upsert_skill` e
+`log_skill_use`) recusam com NOT_FOUND. O formatador lê `checkedIn` e `pointsPerPomodoro` tolerando
+a ausência. Contra a API velha, o texto só omite a linha do check-in e os pontos por pomodoro.
+
+**O que o assistente paga a mais: quase nada.** As seis tools novas são só do MCP. As de leitura
+saem do chat e das rotinas pela bandeira nova `soMcp` do catálogo de ferramentas. O chat continua
+com 15 ferramentas, e o que muda nele é uma frase na descrição de `habitActivityId` em
+`create_event`, de tamanho parecido. A linha "por pomodoro" também aparece em `list_habits`, quando
+a atividade a tem. No MCP, `tools/list` passa de 25 para 31 tools.
+
+Portões: `pnpm typecheck` limpo nos seis pacotes. O MCP passou com **121 testes** (eram 110). A API
+passou com **718 de 719** (eram 681 de 682). A única falha é de ambiente, a mesma das entradas
+anteriores: `web.test.ts › DNS rebinding` sobe um servidor em `127.0.0.2`, endereço que o macOS
+não tem sem alias de loopback. A interface do móvel foi conferida no navegador em 375 px, fase a
+fase. Só a Ritmo 2 foi conferida nos dois temas. Não foram conferidos, por limite do
+navegador de teste, o ditado de verdade e o Wake Lock num celular. O fim do pomodoro também não
+foi conferido com 25 minutos de relógio, mas com o início adiantado à mão.
+
+### Adicionado
+- **Barra nova no celular e a área Ritmo.** A barra é Início · Plano · ＋ · Ritmo · Assistente.
+  Plano acende em `/agenda` e em `/tarefas`, troca entre as duas por um seletor no topo e leva à
+  última aberta. Ritmo (`/ritmo`) tem as abas Hábitos, Ofensivas, Skills e Humor, e cada uma é uma
+  rota que o Voltar desfaz (RF-16, RF-17).
+- **Ritmo › Hábitos.** Mostra o cartão de nível, com o nível, a barra de XP, o XP total e o da
+  semana, e três números da semana. Abaixo vêm a semana em barras, com os pontos de cada dia
+  somados entre os hábitos, e a grade dos hábitos ativos. Cada cartão da grade tem o anel da
+  meta, os pontos e os dias e a faixa da semana (RF-18 a RF-20).
+- **Detalhe do hábito** (`/ritmo/habitos/:id`). Mostra o anel da meta e a frase do que falta. As
+  barras ponderadas da semana mostram o que passou do teto hachurado sobre a linha tracejada. Vêm
+  também as atividades com os usos da semana, os últimos 30 dias e o mapa de 12 semanas (RF-21 a
+  RF-24).
+- **Folha "Registrar fora do plano".** Escolhe a atividade ou "Valor livre" e os pontos, de 5 em
+  5. Antes de gravar, diz quanto conta para a meta de hoje e quanto vira só XP, pela mesma conta
+  do servidor (RF-25, RN-16).
+- **"Hoje no ritmo" no Início.** Lista as tarefas e as ocorrências de evento do dia ligadas a uma
+  atividade. O check conclui a tarefa ou faz o check-in, e desfaz. Ao pontuar, um toast diz "+N",
+  a semana depois do ganho e o próximo passo (RF-26, RF-27).
+- **Check-in de evento na agenda do celular.** No Início e na Agenda, o evento ligado a uma
+  atividade troca a bolha do tipo por uma caixa de check-in, de hoje para trás. `GET /agenda`,
+  `GET /events` e `GET /events/:id` trazem `checkedIn` em cada ocorrência (RF-28, RF-29).
+- **`GET /habits/summary`.** Devolve o hoje do usuário, o XP total, o XP da semana e o nível. O XP
+  é a soma de todo registro, acima do teto inclusive. A curva de nível mora em `packages/shared`:
+  50 XP para o nível 2, 150 para o 3, 300 para o 4 (RF-31, RN-14, RN-15).
+- **Ofensivas e recordes.** A ofensiva geral conta os dias seguidos com registro e segue viva até
+  a meia-noite. A ofensiva de cada hábito conta as semanas seguidas com a meta batida. Os recordes
+  são as cinco maiores de cada tipo e as cinco semanas com mais pontos. Tudo vem em
+  `GET /habits/streaks`, e `GET /habits/summary` ganha `streak` (RF-32 a RF-35).
+- **Ritmo › Ofensivas e a chama do Início.** A aba tem o cartão da chama com a barra até o
+  recorde, o calendário do mês com a faixa dos dias seguidos e o ranking em três abas. O Início
+  mostra a chama e os sete dias da semana. A grade e o detalhe do hábito mostram a ofensiva e os
+  recordes dele (RF-36 a RF-38).
+- **Folha de conquista**, só para marcos raros: a meta da semana batida por um gesto no app, o
+  nível novo e a subida de nível de uma skill. Nunca a cada check (RF-39).
+- **Humor do dia.** Cada dia tem manhã, durante e noite, cada um de 1 a 5, e uma descrição.
+  `PUT /moods` mescla o que vem, e o `null` apaga. `GET /moods` lê um período, e
+  `GET /moods/insights` compara o humor nos dias com e sem cada hábito. O cartão só sai com pelo
+  menos 7 dias de cada lado (RF-40 a RF-42).
+- **Humor no celular.** O Início pergunta "Como você está?" nos três momentos, numa folha com
+  cinco caras e a descrição, que se pode ditar. Ritmo › Humor mostra os últimos 14 dias, com a
+  linha do humor sobre os pontos do dia e o filtro por momento. Mostra também os cartões "O que
+  anda junto" e os registros recentes (RF-44, RF-45).
+- **Skills.** Uma skill tem nome, descrição, "quando usar", emblema e cor. "Usei agora" grava um
+  uso. Os níveis vêm pelo número de usos: Bronze no 1º, Prata com 15, Ouro com 50, Mestre com
+  150. As rotas são `/skills`, `/skills/:id/uses` e `/skill-uses/:id`. Skill arquivada não recebe
+  uso, e nome repetido é 409 (RF-47 a RF-50, RN-32, RN-33).
+- **Ritmo › Skills e a skill do dia.** A aba mostra a skill em destaque, no hexágono do nível,
+  "Seu arsenal" e a legenda dos níveis. Usar mostra um toast com o que falta para o próximo nível.
+  O Início mostra a skill do dia, em rodízio pelo dia do usuário, a mesma em todo aparelho (RF-51,
+  RF-52).
+- **Foco com pomodoro.** A tela é cheia e tem os modos Foco 25, Pausa 5 e Pausa 15. O ciclo de 4
+  pontos diz quantos pomodoros já foram hoje. O foco abre de "Hoje no ritmo" e do detalhe do
+  hábito, com a troca de atividade e a opção "sem atividade". O timer guarda o instante final, e
+  por isso sobrevive à aba dormindo e ao recarregar. Enquanto roda, ele pede a tela acesa e diz se
+  conseguiu. Ao concluir, a folha "Pomodoro N de 4" mostra os pontos e oferece a pausa (RF-54,
+  RF-55, RF-58, RF-59).
+- **Sessões de foco** (`POST /focus-sessions` e `GET /focus-sessions`). Só o foco concluído se
+  grava. Se a atividade tem `pointsPerPomodoro`, a sessão grava na mesma transação um registro de
+  origem `focus`, que entra na semana e no teto como qualquer outro. Repetir o `clientId` não
+  duplica. A duração é conferida pelo servidor (RF-56, RF-57, RN-35, RN-36, RN-39).
+- **No MCP:**
+  - `check_in_event` faz e desfaz o check-in de uma ocorrência;
+  - `get_mood` e `log_mood` leem e gravam o humor;
+  - `list_skills`, `upsert_skill` e `log_skill_use` leem, criam ou editam skills e registram um
+    uso.
+
+  As escritas levam a marca de IA, e as seis ficam fora do chat (RF-30, RF-46, RF-53).
+- **`pointsPerPomodoro` na atividade.** Ele se define por `create_habit` e `update_habit`, no MCP,
+  e `list_habits` o mostra (RF-60).
+
+### Alterado
+- **O dia com humor acende a ofensiva geral**, sem dar pontos nem XP (RF-43, RN-26).
+- **A descrição do vínculo de hábito no evento** dizia "check-in, feito no app". Agora diz
+  "check-in da ocorrência", porque o MCP também o faz. `list_agenda` diz "check-in feito em
+  AAAA-MM-DD" na ocorrência que já o tem.
+- **O prompt de revisão do MCP**, com a escrita liberada, cita o check-in, o humor e as skills
+  entre as ações que ele só propõe.
+
+### Limitações conhecidas
+- **Hábito e skill não se criam nem se editam pela tela.** A configuração segue no MCP. Ligar
+  tarefa ou evento a uma atividade pelo formulário do celular também não existe.
+- **Mudar a meta de um hábito reescreve as semanas passadas.** O registro guarda os pontos, mas
+  não a meta da época, e a ofensiva por semanas segue a meta atual (RN-23).
+- **O calendário das ofensivas vai até 400 dias para trás** (RN-25).
+- **O foco não se conclui antes do tempo.** Só a pausa se pula, porque a conferência de duração
+  do servidor recusaria o foco curto.
+- **A sessão de foco em curso fica no aparelho.** Ela mora em `localStorage`, e outro aparelho
+  não a vê.
+- **Wake Lock e ditado não foram conferidos num celular de verdade.**
+- **Os dados da frente Ritmo ainda não foram povoados.** O plano da Ritmo 7 existe, mas não foi
+  executado.
+
+---
+
 ## [0.37.0] — 2026-10-18
 
 **Hábitos, no servidor (frente Ritmo, Ritmo 1).** Abre a frente Ritmo, que tem numeração própria

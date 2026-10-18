@@ -49,7 +49,7 @@ export function criarServidor({ escrita }: OpcoesDoServidor): McpServer {
   const server = new McpServer(
     {
       name: "yu-book",
-      version: "0.24.0",
+      version: "0.25.0",
     },
     // A capability `logging` precisa ser declarada **aqui**, na construção.
     // Sem ela `sendLoggingMessage` não lança nem avisa: apenas não faz nada, e

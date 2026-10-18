@@ -222,8 +222,8 @@ on purpose.
   deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
   unique index), never through process memory. A run that started is never retried, because a
   retry costs money again.
-- **Tests against real infrastructure:** 682 integration tests boot the whole Fastify app against a
-  real Postgres; 110 more cover the MCP server.
+- **Tests against real infrastructure:** 719 integration tests boot the whole Fastify app against a
+  real Postgres; 121 more cover the MCP server.
 
 ---
 
@@ -383,10 +383,13 @@ included. The phone app runs in production as its own service, next to the web a
 now repeat every week, and so can tasks; events and tasks can be turned into one another, and an
 MCP client can edit and delete them.
 
-Work has started on habits: each one has a weekly goal in points and scored activities, earned by
-ticking off a linked task, checking in to a linked event or logging something done off-plan. A
-daily cap keeps a single day from paying for the whole week. The server side is done and
-reachable through the MCP server and the assistant; the screens come next, on the phone.
+Habits now have a home on the phone. Each habit has a weekly goal in points and scored
+activities, earned by ticking off a linked task, checking in to a linked event, logging something
+done off-plan or finishing a focus session (a pomodoro tied to an activity). A daily cap keeps a
+single day from paying for the whole week. Around the habits come streaks and personal records, a
+daily mood check-in that keeps the streak alive without earning points, and skills: ways of
+acting you practice, which level up with use. Habits and skills are set up through the MCP
+server; the phone records and shows them.
 
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
