@@ -19,11 +19,12 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
  */
 export function registrarPrompts(server: McpServer, { escrita }: { escrita: boolean }): void {
   // Frente de agenda, Fase 2: a agenda também escreve, então a lista de ações
-  // cresce com ela. Fora desta regra o ritual é o mesmo nas duas sessões.
+  // cresce com ela — e com a frente Ritmo (check-in, humor e skills, Ritmo 2 a
+  // 5). Fora desta regra o ritual é o mesmo nas duas sessões.
   const regraDeEscrita = escrita
     ? `- **Você pode criar, mover e concluir cards, criar, alterar, converter e excluir eventos e
-  tarefas, concluir tarefas, criar e alterar hábitos, registrar pontos e mandar notas para a
-  lixeira** — mas só quando eu pedir. Neste ritual, no máximo *proponha* a ação e
+  tarefas, concluir tarefas, criar e alterar hábitos, registrar pontos, fazer check-in em evento,
+  registrar humor, criar e usar skills e mandar notas para a lixeira** — mas só quando eu pedir. Neste ritual, no máximo *proponha* a ação e
   diga qual tool a executa; não chame nenhuma tool de escrita sem eu mandar. Um ritual de revisão
   que mexe no quadro sozinho deixa de ser confiável.`
     : `- **Esta sessão só lê.** Se algo pedir uma ação, diga qual é e que ela se faz no aplicativo;
