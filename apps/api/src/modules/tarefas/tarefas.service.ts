@@ -82,6 +82,17 @@ function conferirHora(hora: string | null): void {
   if (hora !== null && !HORA_DA_AGENDA.test(hora)) throw invalido("Hora no formato HH:MM");
 }
 
+/**
+ * O dia e a hora de uma tarefa nas colunas, conferidos: "hora só com data", a
+ * hora no formato e o dia que exista. Exportado para a conversão de evento em
+ * tarefa (`eventos.service`), que grava a tarefa na própria transação.
+ */
+export function colunasDoQuando(date: string | null, time: string | null) {
+  if (time !== null && date === null) throw invalido("Hora só com data: informe o dia");
+  conferirHora(time);
+  return { date: date === null ? null : paraColunaDate(date), time };
+}
+
 const CAMPOS_TAREFA = {
   id: true,
   title: true,

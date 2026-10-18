@@ -6,6 +6,7 @@ import type {
   EventItem,
   EventRecurrence,
   EventScope,
+  EventToTaskInput,
   EventUpdateInput,
   FieldIssue,
   HorarioDoEvento,
@@ -13,9 +14,12 @@ import type {
   PedidoDeHorario,
   PedidoDeRepeticao,
   SerieDoEvento,
+  TaskItem,
+  TaskToEventInput,
 } from "@yu-book/shared";
 import {
   MAX_DIAS_DO_EVENTO,
+  MAX_TAREFA_DESCRICAO,
   diaDaSemana,
   diaLocal,
   horarioNoFuso,
@@ -30,11 +34,13 @@ import {
 } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
-import { CAMPOS_DA_MARCA, camposDaOrigem, paraMarca } from "../../lib/marca.js";
+import { CAMPOS_DA_MARCA, camposDaOrigem, copiaDaMarca, paraMarca } from "../../lib/marca.js";
 import type { OrigemIA } from "../../lib/marca.js";
 import { preferenciaDe } from "../assistente/preferencias.service.js";
 import { CAMPOS_PRAZO, toPrazo } from "../dashboard/dashboard.service.js";
 import {
+  buscarTarefa,
+  colunasDoQuando,
   conferirQuadro,
   quadroQueSumiu,
   tarefasAtrasadas,
@@ -765,6 +771,180 @@ export async function excluirEvento(userId: string, id: string, escopo: EventSco
   }
   const { count } = await prisma.event.deleteMany({ where: { id, userId } });
   if (count === 0) throw notFound("Evento não encontrado");
+}
+
+/* --------------------------------------------------------- conversão */
+
+/**
+ * O que o evento leva para a descrição da tarefa: local e link não têm campo
+ * nela, e sumir com eles calado perderia o endereço da consulta. Cortado no
+ * teto da descrição da tarefa, que é o mesmo do evento.
+ */
+function descricaoDaTarefa(linha: {
+  description: string | null;
+  location: string | null;
+  url: string | null;
+}) {
+  const extras = [
+    linha.location && `Local: ${linha.location}`,
+    linha.url && `Link: ${linha.url}`,
+  ].filter(Boolean);
+  const base = linha.description ?? "";
+  if (extras.length === 0) return base;
+  return `${base ? `${base}\n\n` : ""}${extras.join("\n")}`.slice(0, MAX_TAREFA_DESCRICAO);
+}
+
+/**
+ * O evento vira tarefa, numa transação: a tarefa nasce e o evento sai. Da
+ * tarefa vêm título, descrição (com local e link anexados), o dia e a hora de
+ * início — nenhuma, no dia inteiro — e o projeto; `input` passa por cima. A
+ * marca de IA vai junto (`copiaDaMarca`, INV-58).
+ *
+ * **Numa série, só uma ocorrência vira tarefa** (`scope=esta`): tarefa não se
+ * repete, e converter `todas` ou `seguintes` produziria uma tarefa e apagaria
+ * o resto calado. A ocorrência sai da série como no "excluir só esta"
+ * (`tirarDaSerie`), e a série que fica vazia é apagada.
+ *
+ * O evento simples sai condicionado ao `updatedAt` lido (INV-04): editado no
+ * meio, a conversão falha com 404 em vez de gravar a tarefa com dados velhos.
+ */
+export async function converterEventoEmTarefa(
+  userId: string,
+  id: string,
+  input: EventToTaskInput,
+  escopo: EventScope,
+): Promise<TaskItem> {
+  const linha = await prisma.event.findFirst({
+    where: { id, userId },
+    select: CAMPOS_DA_COPIA,
+  });
+  if (!linha) throw notFound("Evento não encontrado");
+  const { timezone } = await preferenciaDe(userId);
+
+  const serie = linha.repeatDays.length > 0;
+  if (serie && escopo.scope !== "esta") {
+    throw invalido(
+      "Numa série, converta uma ocorrência por vez: diga o dia dela (scope=esta e occurrenceDate)",
+    );
+  }
+  const tocada = serie ? ocorrenciaTocada(linha, escopo, timezone) : null;
+  const horario = tocada?.ocorrencia ?? horarioNoFuso(linha, timezone);
+
+  const boardId = input.boardId !== undefined ? input.boardId : (linha.board?.id ?? null);
+  if (boardId && boardId !== linha.board?.id) await conferirQuadro(userId, boardId);
+  const date = input.date !== undefined ? input.date : horario.date;
+  // Tirar a data leva a hora junto, como no PATCH da tarefa.
+  const time =
+    input.time !== undefined ? input.time : input.date === null ? null : horario.startTime;
+  const quando = colunasDoQuando(date, time);
+
+  const tarefaId = await prisma
+    .$transaction(async (tx) => {
+      if (tocada) {
+        await tirarDaSerie(tx, userId, tocada, { escopo: "esta" }, timezone);
+      } else {
+        const { count } = await tx.event.deleteMany({
+          where: { id, userId, updatedAt: linha.updatedAt },
+        });
+        if (count === 0) throw notFound("Evento não encontrado");
+      }
+      const tarefa = await tx.task.create({
+        data: {
+          userId,
+          title: (input.title ?? linha.title).trim(),
+          descriptionMd: input.descriptionMd ?? descricaoDaTarefa(linha),
+          ...quando,
+          boardId,
+          ...copiaDaMarca(linha),
+        },
+        select: { id: true },
+      });
+      return tarefa.id;
+    })
+    .catch(quadroQueSumiu);
+  return buscarTarefa(userId, tarefaId);
+}
+
+/**
+ * A tarefa vira evento, numa transação: o evento nasce e a tarefa sai. Do
+ * evento vêm título, descrição e projeto; o horário sai do dia e da hora da
+ * tarefa — com hora, começa nela e dura o padrão; sem hora, é de dia inteiro.
+ * `input` passa por cima de tudo, a repetição inclusive. A marca de IA vai
+ * junto (INV-58).
+ *
+ * **Tarefa sem data pede o dia em `input.date`**: evento sem dia não existe.
+ * **Tarefa concluída é recusada**: o evento não tem onde guardar a conclusão,
+ * e convertê-la apagaria o registro de que foi feita.
+ */
+export async function converterTarefaEmEvento(
+  userId: string,
+  id: string,
+  input: TaskToEventInput,
+): Promise<EventItem> {
+  const tarefa = await prisma.task.findFirst({
+    where: { id, userId },
+    select: {
+      title: true,
+      descriptionMd: true,
+      date: true,
+      time: true,
+      boardId: true,
+      completedAt: true,
+      updatedAt: true,
+      ...CAMPOS_DA_MARCA,
+    },
+  });
+  if (!tarefa) throw notFound("Tarefa não encontrada");
+  if (tarefa.completedAt) {
+    throw invalido("Tarefa concluída não vira evento: reabra-a antes de converter");
+  }
+
+  const date = input.date ?? (tarefa.date ? paraDiaCivil(tarefa.date) : null);
+  if (!date) throw invalido("Informe o dia do evento: a tarefa não tem data");
+  // Hora pedida liga o horário; sem ela, vale a da tarefa, e sem nenhuma o
+  // evento é do dia inteiro.
+  const startTime = input.startTime !== undefined ? input.startTime : tarefa.time;
+  const allDay = input.allDay ?? !startTime;
+  const { horario, recurrence } = resolverOuRecusar(
+    {
+      allDay,
+      date,
+      endDate: input.endDate,
+      startTime: allDay ? null : startTime,
+      endTime: allDay ? null : input.endTime,
+    },
+    input.repeat,
+  );
+  const { timezone } = await preferenciaDe(userId);
+  const instantes = instantesDe(horario, timezone);
+
+  const boardId = input.boardId !== undefined ? input.boardId : tarefa.boardId;
+  if (boardId && boardId !== tarefa.boardId) await conferirQuadro(userId, boardId);
+
+  const eventoId = await prisma
+    .$transaction(async (tx) => {
+      const { count } = await tx.task.deleteMany({
+        where: { id, userId, updatedAt: tarefa.updatedAt, completedAt: null },
+      });
+      if (count === 0) throw notFound("Tarefa não encontrada");
+      const evento = await tx.event.create({
+        data: {
+          userId,
+          title: (input.title ?? tarefa.title).trim(),
+          description: input.description ?? tarefa.descriptionMd,
+          ...instantes,
+          ...colunasDaRegra(recurrence),
+          location: limpo(input.location),
+          url: limpo(input.url),
+          boardId,
+          ...copiaDaMarca(tarefa),
+        },
+        select: { id: true },
+      });
+      return evento.id;
+    })
+    .catch(quadroQueSumiu);
+  return buscarEvento(userId, eventoId);
 }
 
 /* ------------------------------------------------------------- agenda */

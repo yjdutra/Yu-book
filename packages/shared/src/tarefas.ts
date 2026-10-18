@@ -69,6 +69,14 @@ export const taskCompleteSchema = z.object({
   origin: origemMcpSchema.optional(),
 });
 
+/**
+ * O corpo de `POST /events/:id/to-task`: o evento vira tarefa, e o que vier
+ * aqui passa por cima do que se tira dele. Tudo opcional, o corpo vazio
+ * inclusive. Numa série, só uma ocorrência vira tarefa — o alcance vai na
+ * query, como no PATCH do evento (`eventScopeSchema`), e só `esta` é aceito.
+ */
+export const eventToTaskSchema = camposDaTarefa.omit({ origin: true }).partial();
+
 export const tasksQuerySchema = z.object({
   status: z.enum(TASK_STATUSES).default("abertas"),
   boardId: z.string().uuid("Quadro inválido").optional(),
@@ -77,6 +85,7 @@ export const tasksQuerySchema = z.object({
 export type TaskInput = z.input<typeof taskInputSchema>;
 export type TaskUpdateInput = z.input<typeof taskUpdateSchema>;
 export type TaskCompleteInput = z.input<typeof taskCompleteSchema>;
+export type EventToTaskInput = z.input<typeof eventToTaskSchema>;
 export type TasksQuery = z.infer<typeof tasksQuerySchema>;
 
 export interface TaskItem {

@@ -2,6 +2,7 @@ import {
   agendaQuerySchema,
   eventInputSchema,
   eventScopeSchema,
+  eventToTaskSchema,
   eventUpdateSchema,
 } from "@yu-book/shared";
 import type { FastifyInstance } from "fastify";
@@ -39,6 +40,16 @@ export async function eventosRoutes(app: FastifyInstance): Promise<void> {
     const escopo = eventScopeSchema.parse(request.query);
     const input = eventUpdateSchema.parse(request.body);
     return service.atualizarEvento(request.userId, id, input, escopo);
+  });
+
+  // O evento vira tarefa (numa série, só `?scope=esta&occurrenceDate=…`). O
+  // corpo, opcional, passa por cima do que se tira do evento.
+  app.post("/events/:id/to-task", async (request, reply) => {
+    const { id } = paramsSchema.parse(request.params);
+    const escopo = eventScopeSchema.parse(request.query);
+    const input = eventToTaskSchema.parse(request.body ?? {});
+    const tarefa = await service.converterEventoEmTarefa(request.userId, id, input, escopo);
+    return reply.status(201).send(tarefa);
   });
 
   app.delete("/events/:id", async (request, reply) => {

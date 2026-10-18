@@ -770,6 +770,15 @@ export const eventUpdateSchema = camposDoEvento
   .refine((v) => Object.keys(v).length > 0, "Nada para atualizar");
 
 /**
+ * O corpo de `POST /tasks/:id/to-event`: a tarefa vira evento, e o que vier
+ * aqui passa por cima do que se tira dela (título, descrição, dia, hora,
+ * projeto). Tudo opcional, inclusive o corpo vazio — ao contrário do PATCH,
+ * converter sem mudar nada é o caso comum. Sem `origin`: a marca de IA do
+ * evento é a da tarefa, copiada (INV-58).
+ */
+export const taskToEventSchema = camposDoEvento.omit({ origin: true }).partial();
+
+/**
  * O alcance de `PATCH` e `DELETE /events/:id`, pela query string. Sem `scope`,
  * vale `todas` — o que a rota fazia antes da série, e o que o Desfazer do chat
  * (apagar o que criou) quer. `occurrenceDate` é o `EventItem.occurrenceDate`
@@ -808,6 +817,7 @@ export const agendaQuerySchema = z
 
 export type EventInput = z.input<typeof eventInputSchema>;
 export type EventUpdateInput = z.input<typeof eventUpdateSchema>;
+export type TaskToEventInput = z.input<typeof taskToEventSchema>;
 export type EventScope = z.infer<typeof eventScopeSchema>;
 export type AgendaQuery = z.infer<typeof agendaQuerySchema>;
 

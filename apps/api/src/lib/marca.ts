@@ -88,6 +88,24 @@ interface LinhaDaMarca {
   aiRevisedAt: Date | null;
 }
 
+/**
+ * A marca de uma linha, para gravar noutra: a conversão de evento em tarefa e
+ * de tarefa em evento. O item convertido é o mesmo conteúdo com outra forma, e
+ * a marca não nasce nem morre aí (INV-58) — vai junto, revisão inclusive.
+ */
+export function copiaDaMarca(linha: LinhaDaMarca): LinhaDaMarca {
+  return {
+    aiGeneratedAt: linha.aiGeneratedAt,
+    aiVia: linha.aiVia,
+    aiAuthor: linha.aiAuthor,
+    aiConversationId: linha.aiConversationId,
+    aiAgentName: linha.aiAgentName,
+    aiRunId: linha.aiRunId,
+    aiRoutineName: linha.aiRoutineName,
+    aiRevisedAt: linha.aiRevisedAt,
+  };
+}
+
 export function paraMarca(linha: LinhaDaMarca): AiMark | null {
   // `aiGeneratedAt` é a marca; `aiVia` nasce junto com ele e nunca sozinho.
   if (!linha.aiGeneratedAt || !linha.aiVia) return null;
