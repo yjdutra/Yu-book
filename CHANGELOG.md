@@ -17,6 +17,100 @@ _Nada pendente._
 
 ---
 
+## [0.36.0] — 2026-10-18
+
+**Tarefa recorrente.** Uma tarefa passa a poder se repetir toda semana, nos dias escolhidos, com um
+último dia opcional: "mandar candidatura de segunda a sexta" é uma série só. Cada ocorrência é uma
+tarefa de verdade, que se conclui sozinha, e a lista de abertas mostra só a de hoje de cada série.
+Ela se cria pela folha do celular, pedindo ao assistente ou pelo MCP. No celular e no MCP, editar
+ou excluir uma ocorrência pergunta o alcance: só esta ou a série. Um evento recorrente também pode
+agora virar, inteiro, uma tarefa recorrente.
+
+**Os seis pacotes se movem**, porque o contrato da tarefa mudou em `packages/shared` e a descrição
+de `create_task`, que o chat e o MCP dividem, também. `packages/shared` vai de `0.21.0` para
+`0.22.0`, `apps/api` e `apps/mcp` de `0.22.0` para `0.23.0`, `apps/web` de `0.29.0` para `0.30.0`,
+e `apps/movel` e `packages/cliente` de `0.6.0` para `0.7.0`. O web só se move pelo contrato: nada
+muda na tela dele.
+
+**Migration `20261018120000_tarefas_recorrentes`, só aditiva**, aplicada pela API no boot: a tabela
+`task_series`, a coluna `task.series_id` e o índice único `(series_id, date)`. Apagar a série solta
+as tarefas dela (`SET NULL`), e apagar o usuário leva as séries junto. Toda tarefa que já existia
+continua avulsa. A migration foi aplicada do zero num banco de rascunho, e o `migrate diff` contra
+o `schema.prisma` saiu vazio.
+
+**Na janela do deploy, a API precisa estar no ar antes do MCP e do móvel.** Uma API anterior a
+esta não recusa `repeat`: ela descarta a chave e cria uma tarefa avulsa. O MCP percebe isso pela
+resposta e avisa o modelo, sem tentar de novo. No celular, as rotas da série respondem 404 até a
+API nova subir.
+
+**O que o assistente paga a mais.** A descrição de `create_task` cresceu 145 bytes, e o campo
+`repeat` entrou no schema dela. Isso vale para o catálogo do chat, em todo turno, e para o
+`tools/list` do MCP. O total em bytes não foi medido nesta entrega. O número de tools não mudou, e
+o system prompt também não.
+
+Portões: `pnpm typecheck` limpo nos seis pacotes. O MCP passou com **99 testes** (eram 90; dois
+deles são da correção da CSP, abaixo). A API passou com **646 de 647** (eram 632). A única falha é
+de ambiente e não tem relação com a entrega: o teste de DNS rebinding precisa do endereço
+`127.0.0.2`, que o macOS não tem por padrão. Os 15 casos novos da API estão em
+`tests/tarefas-recorrentes.test.ts`.
+
+**A folha do celular foi conferida num navegador, não num Android.** Nenhum portão cobre
+`apps/movel`. À mão, no ambiente local, em viewport de celular, foram feitos quatro caminhos: criar
+uma tarefa com repetição, editar a série toda (as ocorrências futuras mudaram), converter uma série
+de evento inteira e encerrar uma série. Ninguém conferiu o relógio que estende o horizonte rodando
+em produção.
+
+### Adicionado
+- **Tarefa recorrente** (`POST /tasks` com `repeat`). `repeat` leva os dias da semana e um último
+  dia opcional, e `date` passa a ser obrigatório: é o primeiro dia da série. As ocorrências são
+  geradas de hoje até 60 dias à frente.
+- **O horizonte anda sozinho.** Um relógio da API estende as séries abertas na subida e depois de
+  hora em hora. Ele roda nas duas instâncias do deploy, e o índice único `(series_id, date)` impede
+  que um dia seja gerado duas vezes (INV-60).
+- **A série tem rotas próprias.** `GET /task-series/:id` lê a série. `PATCH /task-series/:id` muda
+  título, detalhes, hora, projeto ou dias, e refaz as ocorrências abertas de hoje em diante. As
+  concluídas e as de antes de hoje ficam como estavam. `DELETE /task-series/:id` encerra a série de
+  hoje em diante. As ocorrências já feitas ficam, como tarefas avulsas.
+- **A tarefa mostra de que série veio.** A resposta da tarefa ganhou `series`, que é `null` na
+  avulsa. No texto do MCP e do chat, a tarefa recorrente diz em que dias se repete.
+- **Uma série de eventos vira tarefa recorrente.** Com `POST /events/:id/to-task?scope=todas`, a
+  série vira uma tarefa que se repete nos mesmos dias, de hoje em diante. O evento termina ontem.
+  Se a série ainda nem tinha começado, ele é apagado.
+- **"Repetir" na folha da tarefa, no celular.** Ao criar, escolhem-se os dias. Numa ocorrência,
+  editar pergunta o alcance (Só esta / Toda a série), e excluir também (Excluir só esta / Encerrar
+  a série). Converter uma série de evento em tarefa oferece Só esta / Toda a série.
+- **Tarefa recorrente no MCP e no chat.** `create_task` aceita `repeat`, nas duas superfícies. No
+  MCP, `update_task` e `delete_task` ganharam `scope` (`esta` ou `serie`), e
+  `convert_event_to_task` ganhou `scope: todas`. O chat continua sem editar, excluir e converter.
+
+### Alterado
+- **Concluir, editar e excluir uma ocorrência valem só para ela.** Concluir marca aquele dia.
+  Editar, excluir ou converter uma ocorrência a solta da série, e o dia dela não é gerado de novo.
+- **Ocorrência de série nunca fica atrasada.** Um dia que passou sem ser feito não se acumula na
+  lista. Só a tarefa avulsa atrasa.
+- **Converter uma série de eventos exige dizer o alcance.** Em `POST /events/:id/to-task`, um
+  evento recorrente sem `scope` passou a ser recusado com 400. Não há padrão: `esta`, com
+  `occurrenceDate`, converte uma ocorrência; `todas` converte a série inteira.
+- **Numa tarefa recorrente, o MCP não presume o alcance.** `update_task` e `delete_task` sem
+  `scope` leem a tarefa antes e recusam se ela vem de uma série, como já faziam as tools de evento.
+
+### Corrigido
+- **O login OAuth do MCP voltava ao cliente de aplicativo.** Para uma `redirect_uri` de esquema
+  próprio, como `claude://…`, `URL.origin` é a string `"null"`. Por isso a página de login saía com
+  `form-action 'self' null`, e o navegador bloqueava o retorno ao cliente depois da senha. Agora o
+  esquema entra na CSP como fonte (`claude:`). `javascript:`, `data:`, `blob:`, `file:`, `about:`
+  e `filesystem:` continuam recusados. **Esta correção já está em produção**, publicada antes desta
+  entrada e conferida lá.
+
+### Limitações conhecidas
+- **A repetição da tarefa é só semanal**, como a do evento.
+- **Uma tarefa avulsa não passa a se repetir.** Para isso, cria-se a tarefa de novo, com `repeat`.
+- **Converter uma série de tarefas em evento não existe.** Converte-se uma ocorrência por vez.
+- **O chat do aplicativo cria a série, mas não a edita nem a encerra.** Isso se faz no celular e
+  no MCP.
+
+---
+
 ## [0.35.0] — 2026-10-18
 
 **Controle da agenda: converter e, pelo MCP, editar e excluir.** Um evento pode virar tarefa, e uma

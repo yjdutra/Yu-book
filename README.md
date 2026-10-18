@@ -75,6 +75,9 @@ of project-specific agents and skills that live in this repository.
 - **Weekly recurring events:** pick the days and an optional end date, and the series keeps its
   wall-clock time across daylight-saving changes. Editing or deleting one occurrence asks how far
   it should reach: just this one, this and the following ones, or the whole series.
+- **Recurring tasks, for habits:** "send a job application every weekday" is one series, and each
+  day is a real task you tick off on its own. The list shows only today's, and a missed day never
+  piles up as overdue. A recurring event can become a recurring task in one step.
 - **A phone app**, an installable PWA separate from the desktop app: the day at a glance, a monthly
   calendar, tasks grouped by urgency, projects, and one sheet to create or edit an event or a task
   from any screen. The same sheet turns an event into a task, or a task into an event.
@@ -219,8 +222,8 @@ on purpose.
   deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
   unique index), never through process memory. A run that started is never retried, because a
   retry costs money again.
-- **Tests against real infrastructure:** 632 integration tests boot the whole Fastify app against a
-  real Postgres; 90 more cover the MCP server.
+- **Tests against real infrastructure:** 647 integration tests boot the whole Fastify app against a
+  real Postgres; 99 more cover the MCP server.
 
 ---
 
@@ -377,8 +380,8 @@ The most recent addition is complete: an agenda and a to-do list of their own, l
 projects, that the assistant and the MCP server can read and write; a "Today" block on the desktop
 home page; and a companion phone app with the agenda, tasks, projects and the assistant, voice
 included. The phone app runs in production as its own service, next to the web app. Events can
-now repeat every week, events and tasks can be turned into one another, and an MCP client can
-edit and delete them.
+now repeat every week, and so can tasks; events and tasks can be turned into one another, and an
+MCP client can edit and delete them.
 
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
@@ -395,9 +398,10 @@ Known limitations, stated on purpose:
   and tasks are created and edited on the phone or by asking the assistant.
 - **No notifications or reminders.** The agenda shows up where you look: the phone app, the
   desktop home page, the assistant. Nothing pings you.
-- **Recurrence is weekly only.** No monthly or yearly rules, and a recurring event lasts one day
-  at most. The in-app assistant creates and undoes a series but does not edit it; that is done
-  on the phone or through the MCP server.
+- **Recurrence is weekly only,** for events and tasks alike. No monthly or yearly rules, and a
+  recurring event lasts one day at most. The in-app assistant creates and undoes a recurring
+  event and creates a recurring task, but edits neither; that is done on the phone or through the
+  MCP server.
 - **No front-end tests and no CI.** The automated gates are the type check and the API and MCP
   test suites; the UI is verified by hand.
 - **Note content leaves the server for every AI task.** The provider is a cloud one: a local model
