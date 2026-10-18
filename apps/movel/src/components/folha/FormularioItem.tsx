@@ -2,6 +2,8 @@ import {
   invalidarAgenda,
   useAtualizarEvento,
   useAtualizarTarefa,
+  useConverterEvento,
+  useConverterTarefa,
   useCriarEvento,
   useCriarTarefa,
   useExcluirEvento,
@@ -413,8 +415,27 @@ const ROTULO: Record<TipoItem, { novo: string; editar: string; nome: string }> =
   tarefa: { novo: "Nova tarefa", editar: "Editar tarefa", nome: "tarefa" },
 };
 
+/** O tipo do item aberto para editar; `null` na criação. */
+function tipoAberto(abertura: AberturaFolha): TipoItem | null {
+  if (abertura.modo === "criar") return null;
+  return "evento" in abertura ? "evento" : "tarefa";
+}
+
 export function tituloDaFolha(abertura: AberturaFolha, tipo: TipoItem): string {
-  return abertura.modo === "criar" ? ROTULO[tipo].novo : ROTULO[tipo].editar;
+  if (abertura.modo === "criar") return ROTULO[tipo].novo;
+  // A alternância na edição converte: o nome do diálogo diz o que vai acontecer.
+  return tipo === tipoAberto(abertura) ? ROTULO[tipo].editar : `Converter em ${ROTULO[tipo].nome}`;
+}
+
+/**
+ * A descrição que a tarefa leva quando a pessoa a mexeu antes de converter: o
+ * local do evento não tem campo na tarefa e vai junto no texto, como faz o
+ * servidor quando a descrição não vem.
+ */
+function descricaoConvertida(e: Estado): string {
+  const local = e.local.trim();
+  if (!local) return e.descricao;
+  return `${e.descricao ? `${e.descricao}\n\n` : ""}Local: ${local}`;
 }
 
 /**
@@ -495,12 +516,16 @@ export function FormularioItem({
   const atualizarTarefa = useAtualizarTarefa();
   const excluirTarefa = useExcluirTarefa();
   const concluir = useConcluirTarefa();
+  const converterEvento = useConverterEvento();
+  const converterTarefa = useConverterTarefa();
 
   const salvando =
     criarEvento.isPending ||
     atualizarEvento.isPending ||
     criarTarefa.isPending ||
-    atualizarTarefa.isPending;
+    atualizarTarefa.isPending ||
+    converterEvento.isPending ||
+    converterTarefa.isPending;
   const excluindo = excluirEvento.isPending || excluirTarefa.isPending;
   const evento = e.tipo === "evento";
   const tarefa = "tarefa" in abertura ? abertura.tarefa : null;
@@ -515,6 +540,11 @@ export function FormularioItem({
   const cabe = cabeRepetir(e, longoGravado && inicial.diaInteiro);
   const repete = e.repetir && cabe;
   const regraMudou = !mesmaRegra(regraDo(e, cabe), regraDo(inicial, true));
+  // Na edição, trocar o tipo converte o item: evento vira tarefa e vice-versa.
+  // Tarefa concluída não converte (o evento não guarda conclusão), e a
+  // alternância nem aparece para ela.
+  const convertendo = editando && e.tipo !== tipoAberto(abertura);
+  const podeConverter = editando && !tarefa?.completedAt;
 
   function mudar(parcial: Partial<Estado>, limpar?: Campo) {
     setE((atual) => ({ ...atual, ...parcial }));
@@ -522,7 +552,18 @@ export function FormularioItem({
   }
 
   function trocarTipo(tipo: TipoItem) {
-    mudar({ tipo });
+    if (tipo === e.tipo) return;
+    // Na edição o item muda de forma, e o horário passa de uma para a outra:
+    // o início do evento vira a hora da tarefa (nenhuma no dia inteiro), e a
+    // hora da tarefa vira o início — sem ela, dia inteiro. Na criação as duas
+    // formas guardam o que cada uma tinha, como sempre.
+    if (editando && tipo === "tarefa") {
+      mudar({ tipo, hora: e.diaInteiro ? null : e.inicio });
+    } else if (editando) {
+      mudar({ tipo, dia: e.dia ?? hoje, diaInteiro: e.hora === null, inicio: e.hora ?? e.inicio });
+    } else {
+      mudar({ tipo });
+    }
     onTipo(tipo);
     setErros({});
     setGeral("");
@@ -577,9 +618,43 @@ export function FormularioItem({
     if (campos.titulo) focoTitulo.current?.focus();
   }
 
+  /**
+   * Converte o item aberto no outro tipo, com o que está na tela. O servidor
+   * faz a troca numa transação; numa série, só a ocorrência aberta vira
+   * tarefa. A descrição só vai se a pessoa a mexeu — intocada, o servidor
+   * anexa local e link do evento sozinho.
+   */
+  async function converter() {
+    try {
+      if (eventoAberto) {
+        const { descriptionMd: _descricao, ...corpo } = paraNovaTarefa(e);
+        const mexeu = e.descricao !== inicial.descricao;
+        await converterEvento.mutateAsync({
+          id: eventoAberto.id,
+          corpo: mexeu ? { ...corpo, descriptionMd: descricaoConvertida(e) } : corpo,
+          escopo: serie
+            ? { scope: "esta", occurrenceDate: serie.occurrenceDate ?? serie.date }
+            : undefined,
+        });
+      } else if (tarefa && e.dia) {
+        await converterTarefa.mutateAsync({
+          id: tarefa.id,
+          corpo: paraNovoEvento(e, e.dia, e.inicio, cabe),
+        });
+      }
+      onFechar();
+    } catch (erro) {
+      falhou(erro, serie !== null);
+    }
+  }
+
   async function salvar(ev: FormEvent) {
     ev.preventDefault();
     if (salvando || !conferir()) return;
+    if (convertendo) {
+      await converter();
+      return;
+    }
     try {
       if (abertura.modo === "criar") {
         if (evento && e.dia) {
@@ -690,7 +765,8 @@ export function FormularioItem({
   // já vêm escolhidas, e não são trabalho); na edição, o que o PATCH mandaria.
   const sujo = !editando
     ? e.titulo.trim() !== "" || e.descricao.trim() !== "" || e.local.trim() !== ""
-    : Object.keys(evento ? mudancaDoEvento(e, inicial, { cabe }) : mudancaDaTarefa(e, inicial))
+    : convertendo ||
+      Object.keys(evento ? mudancaDoEvento(e, inicial, { cabe }) : mudancaDaTarefa(e, inicial))
         .length > 0;
   const sujoRef = useRef(sujo);
   sujoRef.current = sujo;
@@ -751,10 +827,10 @@ export function FormularioItem({
           </p>
         )}
 
-        {!editando && (
+        {(!editando || podeConverter) && (
           <div
             role="group"
-            aria-label="Tipo"
+            aria-label={editando ? "Converter em" : "Tipo"}
             className="mt-4 grid grid-cols-2 gap-1 rounded-cartao bg-ink-900 p-1"
           >
             <BotaoTipo ativo={evento} onClick={() => trocarTipo("evento")} Icone={IconeCalendario}>
@@ -764,6 +840,18 @@ export function FormularioItem({
               Tarefa
             </BotaoTipo>
           </div>
+        )}
+        {convertendo && (
+          <p className="mt-2 text-sm text-ink-400">
+            {evento
+              ? "Ao salvar, a tarefa vira evento e sai da lista de tarefas."
+              : serie
+                ? `Ao salvar, só a ocorrência de ${diaCurto(
+                    serie.occurrenceDate ?? serie.date,
+                  )} vira tarefa; as outras continuam na série.`
+                : "Ao salvar, o evento vira tarefa. Local e link vão para os detalhes, e a " +
+                  "duração não fica."}
+          </p>
         )}
 
         <div className="mt-5">
@@ -1223,7 +1311,7 @@ export function FormularioItem({
           </div>
         ) : (
           <>
-            {editando && (
+            {editando && !convertendo && (
               <div className="mb-2 grid grid-cols-2 gap-2">
                 <Botao
                   id={idExcluir}
@@ -1265,7 +1353,11 @@ export function FormularioItem({
                 carregando={salvando && !concluindo}
                 disabled={concluindo}
               >
-                {editando ? "Salvar" : `Criar ${ROTULO[e.tipo].nome}`}
+                {convertendo
+                  ? `Converter em ${ROTULO[e.tipo].nome}`
+                  : editando
+                    ? "Salvar"
+                    : `Criar ${ROTULO[e.tipo].nome}`}
               </Botao>
             </div>
           </>

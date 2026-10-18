@@ -5,10 +5,12 @@ import type {
   EventInput,
   EventItem,
   EventScope,
+  EventToTaskInput,
   EventUpdateInput,
   TaskInput,
   TaskItem,
   TaskStatus,
+  TaskToEventInput,
   TaskUpdateInput,
 } from "@yu-book/shared";
 import { api } from "./api";
@@ -126,11 +128,11 @@ export function useCriarEvento() {
  * `todas`: a série inteira, ou o evento simples — o que o Desfazer do chat
  * quer, e o que estas rotas faziam antes da série.
  */
-function caminhoDoEvento(id: string, escopo?: EventScope): string {
-  if (!escopo) return `/events/${id}`;
+function caminhoDoEvento(id: string, escopo?: EventScope, sufixo = ""): string {
+  if (!escopo) return `/events/${id}${sufixo}`;
   const busca = new URLSearchParams({ scope: escopo.scope });
   if (escopo.occurrenceDate) busca.set("occurrenceDate", escopo.occurrenceDate);
-  return `/events/${id}?${busca.toString()}`;
+  return `/events/${id}${sufixo}?${busca.toString()}`;
 }
 
 /**
@@ -174,6 +176,37 @@ export function useExcluirEvento() {
 }
 
 /* ---------------------------------------------------------------- tarefa */
+
+/**
+ * O evento vira tarefa: a tarefa nasce e o evento sai, numa transação do
+ * servidor. Numa série, só a ocorrência (`escopo` com `scope: "esta"`). O
+ * corpo passa por cima do que se tira do evento; vazio, leva tudo como está.
+ */
+export function useConverterEvento() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      corpo = {},
+      escopo,
+    }: {
+      id: string;
+      corpo?: EventToTaskInput;
+      escopo?: EventScope;
+    }) => api.post<TaskItem>(caminhoDoEvento(id, escopo, "/to-task"), corpo),
+    onSuccess: () => invalidarAgenda(qc),
+  });
+}
+
+/** A tarefa vira evento. Sem data na tarefa, o corpo traz `date`. */
+export function useConverterTarefa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, corpo = {} }: { id: string; corpo?: TaskToEventInput }) =>
+      api.post<EventItem>(`/tasks/${id}/to-event`, corpo),
+    onSuccess: () => invalidarAgenda(qc),
+  });
+}
 
 export function useCriarTarefa() {
   const qc = useQueryClient();
