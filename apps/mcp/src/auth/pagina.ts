@@ -101,6 +101,29 @@ export function paginaDeLogin({ pedido, nomeDoCliente, erro }: DadosDaPagina): s
 </html>`;
 }
 
+/// Esquemas que nunca viram destino de formulário: executam ou embutem
+/// conteúdo em vez de entregar o código a um cliente.
+const ESQUEMAS_RECUSADOS = new Set(["javascript:", "data:", "blob:", "file:", "about:", "filesystem:"]);
+
+/**
+ * A fonte de CSP do destino do redirecionamento, com o espaço na frente, ou
+ * `""` quando nada deve ser liberado.
+ *
+ * **Endereço de esquema próprio não tem origem.** Um cliente MCP de aplicativo
+ * pode registrar `redirect_uri` como `claude://…` ou `cursor://…`, e para esses
+ * esquemas `URL.origin` é a **string** `"null"`. Interpolada, ela produzia
+ * `form-action 'self' null` — que não libera destino nenhum —, e o navegador
+ * bloqueava o retorno ao cliente depois do login, com a mensagem apontando o
+ * POST de `/login`. Para esses, a fonte é o esquema (`claude:`), que o CSP
+ * aceita como *scheme-source*; os que executam ou embutem conteúdo ficam de fora.
+ */
+function fonteDoDestino(url: URL): string {
+  if (url.origin !== "null") return ` ${url.origin}`;
+  const esquema = url.protocol.toLowerCase();
+  if (!/^[a-z][a-z0-9+.-]*:$/.test(esquema) || ESQUEMAS_RECUSADOS.has(esquema)) return "";
+  return ` ${esquema}`;
+}
+
 /** Cabeçalhos da página de senha. Sem script, sem cache, sem embutir em iframe. */
 /**
  * Os cabeçalhos da página de login e consentimento.
@@ -126,7 +149,7 @@ export function paginaDeLogin({ pedido, nomeDoCliente, erro }: DadosDaPagina): s
 export function cabecalhosDaPagina(redirectUri?: string): Record<string, string> {
   let destino = "";
   try {
-    if (redirectUri) destino = ` ${new URL(redirectUri).origin}`;
+    if (redirectUri) destino = fonteDoDestino(new URL(redirectUri));
   } catch {
     // `redirect_uri` que não é URL não vira permissão. Sem pedido válido não há
     // para onde redirecionar de qualquer forma.

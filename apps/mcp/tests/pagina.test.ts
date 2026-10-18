@@ -37,6 +37,20 @@ describe("os cabeçalhos da página de autorização", () => {
     expect(csp("nao-e-uma-url").split("form-action ")[1]).toBe("'self'");
   });
 
+  it("redirect_uri de esquema próprio libera o esquema, nunca a palavra null", () => {
+    // `new URL("claude://…").origin` é a string "null": interpolada, gerava
+    // `form-action 'self' null`, e o navegador bloqueava o retorno ao cliente.
+    const valor = csp("claude://oauth/callback?state=x");
+    expect(valor.split("form-action ")[1]).toBe("'self' claude:");
+    expect(valor).not.toContain("null");
+  });
+
+  it("esquema que executa ou embute conteúdo não vira permissão", () => {
+    for (const perigoso of ["javascript:alert(1)", "data:text/html,oi", "file:///etc/passwd"]) {
+      expect(csp(perigoso).split("form-action ")[1], perigoso).toBe("'self'");
+    }
+  });
+
   it("o resto da política continua fechado", () => {
     // A folga é no `form-action` e em lugar nenhum mais: a página não carrega
     // script, imagem nem fonte, e o estilo é inline por ser o único jeito sem
