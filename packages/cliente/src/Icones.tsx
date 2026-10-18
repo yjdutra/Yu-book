@@ -1,4 +1,4 @@
-import type { EmblemaDoHabito, NoteKind } from "@yu-book/shared";
+import type { EmblemaDaSkill, EmblemaDoHabito, NoteKind } from "@yu-book/shared";
 
 /**
  * Ícones da navegação (RNF-07).
@@ -734,4 +734,109 @@ export const ICONE_EMBLEMA: Record<EmblemaDoHabito, (p: IconeProps) => React.Rea
   sono: EmblemaSono,
   codigo: EmblemaCodigo,
   musica: EmblemaMusica,
+};
+
+/* Os emblemas de skill (Ritmo 5): o catálogo de `EMBLEMAS_DA_SKILL`. O nome
+   da skill sempre vai ao lado (RNF-17). */
+
+function SkillRaio(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8.8 1.8 3 9.2h4.4l-.6 5 5.8-7.4H8.2Z" />
+    </Icone>
+  );
+}
+
+function SkillAmpulheta(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M4.5 2h7M4.5 14h7M5.2 2c0 3.4 5.6 3.4 5.6 6s-5.6 2.6-5.6 6M10.8 2c0 3.4-5.6 3.4-5.6 6s5.6 2.6 5.6 6" />
+    </Icone>
+  );
+}
+
+function SkillFoguete(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8 10 6 8c1-2.7 3-5 6.7-5.3C12.4 6.4 10.7 8.4 8 10Z" />
+      <path d="M6 8H3.4l1.4-2h2.6M8 10v2.6l2-1.4V8.6M4.2 12c-.7.7-1 1.7-1 1.7s1-.3 1.7-1" />
+    </Icone>
+  );
+}
+
+function SkillAlvo(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="8" cy="8" r="6" />
+      <circle cx="8" cy="8" r="3" />
+      <circle cx="8" cy="8" r="0.6" />
+    </Icone>
+  );
+}
+
+function SkillLapis(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M2.7 13.3h2.6l7.3-7.3-2.6-2.6-7.3 7.3Z" />
+      <path d="M9.3 4.1 11.9 6.7" />
+    </Icone>
+  );
+}
+
+function SkillEscudo(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8 2 13.3 4v4c0 3.3-2.3 5.3-5.3 6-3-.7-5.3-2.7-5.3-6V4Z" />
+      <path d="M6 6l4 4M10 6l-4 4" />
+    </Icone>
+  );
+}
+
+function SkillBussola(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M10.4 5.6 9 9 5.6 10.4 7 7Z" />
+    </Icone>
+  );
+}
+
+function SkillCoracao(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8 13.4S2.4 10.2 2.4 6.2A2.9 2.9 0 0 1 8 4.8a2.9 2.9 0 0 1 5.6 1.4c0 4-5.6 7.2-5.6 7.2Z" />
+    </Icone>
+  );
+}
+
+function SkillChave(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="5.4" cy="10.6" r="2.8" />
+      <path d="M7.4 8.6 13.4 2.6M11.4 4.6l1.6 1.6M9.8 6.2l1.2 1.2" />
+    </Icone>
+  );
+}
+
+function SkillBalanca(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8 2.4v11.2M5 13.6h6M3 4.6h10" />
+      <path d="M3 4.6 1.4 8.8a1.8 1.8 0 0 0 3.2 0ZM13 4.6l-1.6 4.2a1.8 1.8 0 0 0 3.2 0Z" />
+    </Icone>
+  );
+}
+
+/** O desenho de cada emblema de skill. `Record` total: chave nova não compila sem desenho. */
+export const ICONE_EMBLEMA_SKILL: Record<EmblemaDaSkill, (p: IconeProps) => React.ReactElement> = {
+  raio: SkillRaio,
+  ampulheta: SkillAmpulheta,
+  foguete: SkillFoguete,
+  alvo: SkillAlvo,
+  lapis: SkillLapis,
+  escudo: SkillEscudo,
+  bussola: SkillBussola,
+  coracao: SkillCoracao,
+  chave: SkillChave,
+  balanca: SkillBalanca,
 };

@@ -112,6 +112,8 @@ model User {
   habits        Habit[]
   habitEntries  HabitEntry[]
   moodDays      MoodDay[]
+  skills        Skill[]
+  skillUses     SkillUse[]
   links         Link[]
   refreshTokens RefreshToken[]
 
@@ -1250,4 +1252,49 @@ model MoodDay {
   /// Uma linha por dia: o `PUT` mescla nela (RF-40).
   @@unique([userId, day])
   @@map("mood_day")
+}
+
+/// Uma skill (frente Ritmo, Ritmo 5): um modo de agir que o usuário quer
+/// internalizar. Não dá pontos de hábito (P4); o nível vem do número de usos.
+model Skill {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  name        String
+  description String    @default("")
+  whenToUse   String    @default("") @map("when_to_use")
+  /// Uma chave de `EMBLEMAS_DA_SKILL` de `packages/shared`.
+  emblem      String
+  /// Uma das `HABIT_COLORS` de `packages/shared`.
+  color       String
+  position    Int       @default(0)
+  archivedAt  DateTime? @map("archived_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  uses SkillUse[]
+
+  /// RN-32: nome único por usuário, comparado depois do `trim` do schema.
+  @@unique([userId, name])
+  @@map("skill")
+}
+
+/// Um "usei agora" de uma skill. `user_id` repetido da skill para a posse sair
+/// num `where` só (como `habit_entry.user_id`).
+model SkillUse {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  skillId     String   @map("skill_id") @db.Uuid
+  usedAt      DateTime @default(now()) @map("used_at")
+  /// Dia civil do usuário (INV-66), resolvido no servidor.
+  day         DateTime @db.Date
+  aiVia       AiVia?   @map("ai_via")
+  aiAuthor    String?  @map("ai_author")
+  aiAgentName String?  @map("ai_agent_name")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@index([userId, skillId])
+  @@map("skill_use")
 }

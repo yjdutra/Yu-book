@@ -35,6 +35,10 @@ interface Ritmo {
   abrirRegistro: (habitId?: string) => void;
   /** RF-27: o toast de pontos. */
   avisarGanho: (habito: HabitItem, ganho: Ganho) => void;
+  /** Um toast qualquer da frente — o uso de skill (Ritmo 5). */
+  avisar: (aviso: Omit<AvisoDeGanho, "id">) => void;
+  /** RF-39: a folha de um marco raro — também o nível novo de skill (RF-52). */
+  celebrar: (conquista: Conquista) => void;
 }
 
 const ContextoRitmo = createContext<Ritmo | null>(null);
@@ -62,11 +66,14 @@ function avisoDe(habito: HabitItem, ganho: Ganho, id: number): AvisoDeGanho {
  * agenda pedem por `useRitmo`.
  */
 /** RF-39: um marco raro — a meta da semana batida ou o nível novo. */
-interface Conquista {
+export interface Conquista {
   titulo: string;
   detalhe: string;
-  /** Com nível, o selo dele; sem, o check. */
+  /** O rótulo pequeno de cima: "Conquista", "Nível novo". */
+  rotulo?: string;
+  /** Com nível, o selo dele; com `emblema`, ele; sem os dois, o check. */
   nivel?: number;
+  emblema?: ReactNode;
 }
 
 export function ProvedorRitmo({ children }: { children: ReactNode }) {
@@ -107,6 +114,11 @@ export function ProvedorRitmo({ children }: { children: ReactNode }) {
     contador.current += 1;
     setAviso(avisoDe(habito, ganho, contador.current));
   }, []);
+  const avisar = useCallback((novo: Omit<AvisoDeGanho, "id">) => {
+    contador.current += 1;
+    setAviso({ ...novo, id: contador.current });
+  }, []);
+  const celebrar = useCallback((nova: Conquista) => setConquista(nova), []);
   const fechar = useCallback(() => setRegistro(null), []);
   const sumir = useCallback(() => setAviso(null), []);
   const fecharConquista = useCallback(() => setConquista(null), []);
@@ -114,7 +126,10 @@ export function ProvedorRitmo({ children }: { children: ReactNode }) {
   useFolhaNoHistorico(registro !== null, fechar);
   useFolhaNoHistorico(conquista !== null, fecharConquista);
 
-  const valor = useMemo(() => ({ abrirRegistro, avisarGanho }), [abrirRegistro, avisarGanho]);
+  const valor = useMemo(
+    () => ({ abrirRegistro, avisarGanho, avisar, celebrar }),
+    [abrirRegistro, avisarGanho, avisar, celebrar],
+  );
 
   return (
     <ContextoRitmo.Provider value={valor}>
@@ -144,8 +159,12 @@ export function ProvedorRitmo({ children }: { children: ReactNode }) {
         {conquista && (
           <div className="flex flex-col items-center gap-3 px-5 pb-5 pt-3 text-center">
             <Alca />
-            <p className="rotulo mt-2 text-ouro-300">{conquista.nivel ? "Nível novo" : "Conquista"}</p>
-            {conquista.nivel ? (
+            <p className="rotulo mt-2 text-ouro-300">
+              {conquista.rotulo ?? (conquista.nivel ? "Nível novo" : "Conquista")}
+            </p>
+            {conquista.emblema ? (
+              conquista.emblema
+            ) : conquista.nivel ? (
               <SeloNivel nivel={conquista.nivel} />
             ) : (
               <span

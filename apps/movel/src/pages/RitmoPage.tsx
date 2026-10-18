@@ -12,22 +12,19 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import { EstadoVazio } from "../components/agenda/ItemAgenda";
 import { AbaHumor } from "../components/ritmo/AbaHumor";
 import { AbaOfensivas } from "../components/ritmo/AbaOfensivas";
+import { AbaSkills } from "../components/ritmo/AbaSkills";
 import { diasDaBarra, milhar, periodoCurto, semanaDeTodos } from "../components/ritmo/semana";
 
 const ABAS = [
-  { chave: "habitos", para: "/ritmo", rotulo: "Hábitos", fase: null },
-  { chave: "ofensivas", para: "/ritmo/ofensivas", rotulo: "Ofensivas", fase: null },
-  { chave: "skills", para: "/ritmo/skills", rotulo: "Skills", fase: "Ritmo 5" },
-  { chave: "humor", para: "/ritmo/humor", rotulo: "Humor", fase: null },
+  { chave: "habitos", para: "/ritmo", rotulo: "Hábitos" },
+  { chave: "ofensivas", para: "/ritmo/ofensivas", rotulo: "Ofensivas" },
+  { chave: "skills", para: "/ritmo/skills", rotulo: "Skills" },
+  { chave: "humor", para: "/ritmo/humor", rotulo: "Humor" },
 ] as const;
 
-const EM_BREVE: Record<string, string> = {
-  skills: "Os modos de agir que você quer internalizar, com emblema e nível.",
-};
-
 /**
- * Ritmo (frente Ritmo, RF-17 a RF-20): quatro abas no topo, e nesta fase só
- * Hábitos tem conteúdo — o cartão de nível, a semana em barras e a grade.
+ * Ritmo (frente Ritmo, RF-17): quatro abas no topo — Hábitos (Ritmo 2),
+ * Ofensivas (Ritmo 3), Skills (Ritmo 5) e Humor (Ritmo 4).
  *
  * As abas são rotas (`/ritmo`, `/ritmo/ofensivas`…): links com
  * `aria-current`, como o seletor de Plano, e não `tablist` — cada uma é uma
@@ -71,12 +68,7 @@ export function RitmoPage() {
       ) : atual.chave === "humor" ? (
         <AbaHumor />
       ) : (
-        <EstadoVazio
-          Icone={IconeRitmo}
-          tom="[--tom:var(--color-chama-600)]"
-          titulo={`${atual.rotulo} chega na ${atual.fase}`}
-          texto={EM_BREVE[atual.chave] ?? ""}
-        />
+        <AbaSkills />
       )}
     </div>
   );

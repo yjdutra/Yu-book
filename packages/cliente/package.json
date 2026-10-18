@@ -27,7 +27,8 @@
     "./habitos": "./src/habitos.ts",
     "./ritmo/*": "./src/ritmo/*.tsx",
     "./humor": "./src/humor.ts",
-    "./ditado": "./src/ditado.ts"
+    "./ditado": "./src/ditado.ts",
+    "./skills": "./src/skills.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

@@ -582,7 +582,93 @@ hábito pela tela — a configuração segue no MCP (RF-13).
 
   Não conferido: o ditado de verdade, porque o navegador do teste não tem microfone.
 
-## 8. Fases seguintes (escopo, detalhado quando cada uma começar)
+## 8. Ritmo 5 — Skills
+
+> Detalhado em 2026-10-18.
+
+### 8.1 Modelo
+
+- **Skill** (`skill`): nome, descrição, "quando usar", emblema (catálogo fechado
+  `EMBLEMAS_DA_SKILL`, separado do de hábitos), cor (a paleta dos hábitos), posição e
+  arquivamento.
+- **Uso** (`skill_use`): "usei esta skill agora", com o instante, o dia civil do usuário e a marca
+  de IA, quando vem do MCP.
+
+### 8.2 Requisitos funcionais
+
+- **RF-47** — `GET /skills` lista as skills ativas com o número de usos, os usos de hoje, o último
+  uso e o nível. `includeArchived` traz as arquivadas.
+- **RF-48** — `POST /skills`, `PATCH /skills/:id` (com arquivar) e `DELETE /skills/:id`.
+- **RF-49** — `POST /skills/:id/uses` grava um uso agora e devolve a skill atualizada e se ela
+  subiu de nível. `DELETE /skill-uses/:id` desfaz um uso.
+- **RF-50** — Níveis pelo número de usos: Bronze no 1º, Prata com 15, Ouro com 50 e Mestre com
+  150. Sem uso, a skill está "Nova".
+- **RF-51** — Skill do dia: uma das ativas, em rodízio pelo dia civil do usuário, igual em todo
+  aparelho no mesmo dia. Aparece no Início e leva à skill.
+- **RF-52** — Ritmo › Skills:
+  - a skill selecionada em destaque, com o emblema no hexágono do nível, a descrição, "Quando
+    usar", a barra até o próximo nível e o botão "Usei agora";
+  - "Seu arsenal", a grade das skills;
+  - a legenda dos níveis.
+
+  Usar dá um toast com o que falta para o próximo nível. Subir de nível abre a folha de conquista.
+- **RF-53** — MCP:
+  - `list_skills` para ler;
+  - `upsert_skill`, que cria sem `skillId` e edita ou arquiva com ele;
+  - `log_skill_use`, que grava um uso com a marca de IA.
+
+  As três ficam fora do chat.
+
+### 8.3 Regras de negócio
+
+- **RN-31** — Skill não dá pontos de hábito nem XP (P4). O XP dela é o próprio número de usos.
+- **RN-32** — O nome da skill é único por usuário, comparado depois do `trim`. Repetir é 409.
+- **RN-33** — Skill arquivada não recebe uso (409) e sai do rodízio do dia.
+- **RN-34** — O rodízio ordena as ativas por posição e criação, e escolhe pelo número do dia
+  (dias desde 1970) módulo a quantidade. Uma skill nova muda a escolha a partir do dia em que
+  entra, e isso é aceito.
+
+### 8.4 Requisitos não funcionais
+
+- **RNF-17** — O emblema é um hexágono com a moldura do nível. As quatro cores de nível são tokens
+  novos nos dois temas. O nome do nível sempre vai escrito: a moldura não é o único sinal.
+- **RNF-18** — Os limiares, o nível e o rodízio moram em `packages/shared` (`nivelDaSkill`,
+  `skillDoDia`).
+
+### 8.5 Critérios de aceite
+
+- **CA-30** — Criar "Pausa tática" com emblema `ampulheta` devolve a skill "Nova" com 0 usos.
+- **CA-31** — O 15º uso devolve `levelUp` com Prata, e o 16º não.
+- **CA-32** — Uso em skill arquivada é 409. Skill de outro usuário é 404.
+- **CA-33** — `skillDoDia` dá a mesma skill para o mesmo dia e passa à seguinte no dia seguinte.
+- **CA-34** — Pelo MCP: `upsert_skill` cria e edita, `log_skill_use` grava com a marca, e as três
+  ficam fora do chat.
+- **CA-35** — No móvel: a aba Skills mostra o destaque, o arsenal e a legenda; "Usei agora" mostra
+  o toast; o Início mostra a skill do dia.
+
+### 8.6 Decisões tomadas na implementação (2026-10-18)
+
+- **`list_skills` no MCP**, além de `upsert_skill` e `log_skill_use`. Sem ela, o modelo não acharia
+  o `skillId`. É leitura com `soMcp`, como `get_mood`, e `marca-ia.test.ts` enumera as duas
+  exceções.
+- **Uma raiz de cache própria (`["skills"]`).** Usar uma skill não mexe em hábito, XP nem ofensiva
+  (RN-31). A resposta do uso já traz a skill atualizada e entra no cache na hora.
+- **Sem criação pela tela.** O protótipo tinha o "+", mas a configuração fica no MCP, como a dos
+  hábitos. A Ritmo 7 povoa as skills por lá.
+- **O emblema é um hexágono por `clip-path`**, com a moldura misturada do token do nível com branco
+  e o miolo no token. Os gradientes do protótipo viraram quatro tokens por tema.
+- **A folha de conquista ficou genérica no `ProvedorRitmo`** (`celebrar`), e o toast também
+  (`avisar`). A subida de nível da skill usa as duas.
+- **A escolha da skill mora na URL (`?skill=`)**, para a skill do dia do Início abrir direto nela.
+- **Migration `20261018200000_ritmo_skills`**, renomeada pelo mesmo motivo da do humor.
+- **Portões:** typecheck limpo; API com 711 de 712 testes passando (a mesma falha de ambiente);
+  MCP com 120 de 120. A interface foi conferida em 375 px:
+  - o destaque, o arsenal e a legenda;
+  - "Usei agora" com o toast;
+  - a subida para Ouro com a folha;
+  - a skill do dia no Início.
+
+## 9. Fases seguintes (escopo, detalhado quando cada uma começar)
 
 ### Ritmo 3 — Ofensivas, níveis e recordes
 

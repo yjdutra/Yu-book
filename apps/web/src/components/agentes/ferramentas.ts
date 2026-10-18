@@ -47,6 +47,9 @@ const EXPLICACAO: Record<NomeDoAssistente, string> = {
   check_in_event: "Marca presença num evento ligado a hábito, e pontua a atividade dele.",
   get_mood: "Vê como você esteve nos últimos dias: manhã, durante e noite.",
   log_mood: "Registra como você está, de péssimo a ótimo, em até três momentos do dia.",
+  list_skills: "Vê as suas skills, com quantas vezes você usou cada uma e o nível.",
+  upsert_skill: "Cria uma skill nova ou muda uma que já existe.",
+  log_skill_use: "Registra que você usou uma skill agora, quando você contar.",
   open_page:
     "Lê o texto de uma página pública, pelo endereço — o seu ou um que a busca achou. " +
     "LinkedIn nunca, nem endereço da rede interna.",

@@ -513,12 +513,12 @@ describe("CA-21 / RN-12: o chat escreve criando e concluindo, nunca movendo nem 
     ]);
     // E o inverso: toda leitura do acervo está lá. A lista do chat é
     // explícita, e uma leitura esquecida fora dela não acusaria noutro lugar.
-    // A exceção é marcada no catálogo (`soMcp`) e enumerada aqui: `get_mood`,
-    // desde a Ritmo 4 (RF-46), é só do MCP.
+    // A exceção é marcada no catálogo (`soMcp`) e enumerada aqui: `get_mood`
+    // (Ritmo 4, RF-46) e `list_skills` (Ritmo 5, RF-53) são só do MCP.
     const soMcp = (Object.keys(FERRAMENTAS_DO_ACERVO) as NomeDeFerramenta[]).filter(
       (n) => (FERRAMENTAS_DO_ACERVO[n] as { soMcp?: true }).soMcp,
     );
-    expect(soMcp).toEqual(["get_mood"]);
+    expect(soMcp).toEqual(["get_mood", "list_skills"]);
     const leituras = (Object.keys(FERRAMENTAS_DO_ACERVO) as NomeDeFerramenta[]).filter(
       (n) => !FERRAMENTAS_DO_ACERVO[n].escrita && !soMcp.includes(n),
     );

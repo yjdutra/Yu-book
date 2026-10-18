@@ -416,6 +416,10 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
   // O humor é do app e do MCP (Ritmo 4, RF-46).
   get_mood: undefined,
   log_mood: undefined,
+  // As skills também (Ritmo 5, RF-53).
+  list_skills: undefined,
+  upsert_skill: undefined,
+  log_skill_use: undefined,
 
   move_card: undefined,
   trash_note: undefined,

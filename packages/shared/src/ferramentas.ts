@@ -26,6 +26,7 @@ import {
   MAX_REGISTRO_NOTA,
 } from "./habitos.js";
 import { MAX_HUMOR_NOTA } from "./humor.js";
+import { EMBLEMAS_DA_SKILL, MAX_SKILL_NOME, MAX_SKILL_TEXTO } from "./skills.js";
 import { MAX_CONTEUDO, noteKindSchema, tituloSchema } from "./notes.js";
 import { MAX_TAREFA_DESCRICAO, MAX_TAREFA_TITULO } from "./tarefas.js";
 
@@ -866,6 +867,63 @@ export const FERRAMENTAS_DO_ACERVO = {
       midday: z.number().int().min(1).max(5).nullable().optional().describe("Durante o dia."),
       evening: z.number().int().min(1).max(5).nullable().optional().describe("Noite."),
       note: z.string().trim().max(MAX_HUMOR_NOTA).nullable().optional().describe("Como foi."),
+    },
+  },
+
+  // Ritmo 5 (docs/prd-ritmo.md, RF-53): as skills. Só o MCP (`soMcp` na leitura).
+  list_skills: {
+    titulo: "Ver as skills",
+    descricao:
+      "Lista as skills — modos de agir que o usuário treina — com id, descrição, quando usar, " +
+      "usos e nível (Bronze 1, Prata 15, Ouro 50, Mestre 150).",
+    escrita: false,
+    soMcp: true,
+    anotacoes: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    entrada: {},
+  },
+
+  upsert_skill: {
+    titulo: "Criar ou alterar uma skill",
+    descricao:
+      "Sem `skillId`, cria uma skill (nome obrigatório). Com ele, altera só o que vier, ou " +
+      "arquiva com `archived`. Skill não dá pontos de hábito.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    entrada: {
+      skillId: z.string().uuid().optional().describe("Id da skill a alterar, de `list_skills`."),
+      name: z.string().trim().min(1).max(MAX_SKILL_NOME).optional().describe("Nome."),
+      description: z.string().trim().max(MAX_SKILL_TEXTO).optional().describe("O que é."),
+      whenToUse: z.string().trim().max(MAX_SKILL_TEXTO).optional().describe("Quando usar."),
+      emblem: z.enum(EMBLEMAS_DA_SKILL).optional().describe("Emblema."),
+      color: z.enum(HABIT_COLORS).optional().describe("Cor."),
+      archived: z.boolean().optional().describe("true arquiva; false desarquiva."),
+    },
+  },
+
+  log_skill_use: {
+    titulo: "Registrar o uso de uma skill",
+    descricao:
+      "Grava que o usuário usou a skill agora, quando ele contar que agiu assim. Um uso por " +
+      "chamada; não registre de novo o mesmo momento.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    entrada: {
+      skillId: z.string().uuid().describe("Id da skill, de `list_skills`."),
     },
   },
 

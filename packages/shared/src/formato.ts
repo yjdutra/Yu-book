@@ -7,6 +7,7 @@ import type { CardComPrazo, Dashboard } from "./dashboard.js";
 import type { HabitActivityRef, HabitEntryItem, HabitItem } from "./habitos.js";
 import { MOMENTOS_DO_HUMOR, NOMES_DO_HUMOR, NOMES_DOS_MOMENTOS } from "./humor.js";
 import type { MoodDayItem } from "./humor.js";
+import type { SkillItem } from "./skills.js";
 import { descreverDias, diasDoEvento } from "./eventos.js";
 import type { AgendaCard, AgendaRange, EventItem } from "./eventos.js";
 import { diaLocal } from "./ia.js";
@@ -778,6 +779,29 @@ export function formatarHumor(dias: MoodDayItem[]): string {
     });
     linhas.push("", `## ${diaComSemana(d.day)}`, momentos.join(" · ") || "sem momentos");
     if (d.note) linhas.push(`descrição: ${d.note}`);
+  }
+  return linhas.join("\n");
+}
+
+/**
+ * As skills (Ritmo 5): é o que `list_skills` e `upsert_skill` devolvem. Cada
+ * uma com o id, o nível e o que falta para o próximo — o modelo tira o
+ * `skillId` daqui. Arquivadas saem marcadas.
+ */
+export function formatarSkills(skills: SkillItem[]): string {
+  if (skills.length === 0) return "Nenhuma skill.";
+  const linhas = ["Skills (não dão pontos de hábito)."];
+  for (const s of skills) {
+    const n = s.level;
+    const falta = n.next !== null ? ` · faltam ${n.next - s.uses} para ${n.nextName}` : "";
+    linhas.push(
+      "",
+      `## ${s.name}${s.archived ? " (arquivada)" : ""}`,
+      `${n.name} · ${s.uses} ${s.uses === 1 ? "uso" : "usos"}${falta}`,
+      `id: ${s.id}`,
+    );
+    if (s.description) linhas.push(`o que é: ${s.description}`);
+    if (s.whenToUse) linhas.push(`quando usar: ${s.whenToUse}`);
   }
   return linhas.join("\n");
 }
