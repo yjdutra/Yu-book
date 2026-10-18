@@ -155,6 +155,12 @@ export function registrarEscritaDeAgenda(server: McpServer): void {
           ...(entrada.time !== undefined && { time: entrada.time }),
           ...(entrada.descriptionMd !== undefined && { descriptionMd: entrada.descriptionMd }),
           ...(entrada.boardId !== undefined && { boardId: entrada.boardId }),
+          ...(entrada.repeat !== undefined && {
+            repeat: {
+              days: diasDasSiglas(entrada.repeat.days),
+              ...(entrada.repeat.until !== undefined && { until: entrada.repeat.until }),
+            },
+          }),
           origin,
         });
       } catch (erro) {
@@ -163,6 +169,9 @@ export function registrarEscritaDeAgenda(server: McpServer): void {
         }
         throw erro;
       }
+      // Como o `repeat` do evento (§13 da skill): a API anterior à tarefa
+      // recorrente descarta a chave e cria uma tarefa avulsa, com 201.
+      const repeticaoPerdida = entrada.repeat !== undefined && !criada.series?.days?.length;
 
       await relato.passo("tarefa criada");
       await relato.registrar("info", {
@@ -173,8 +182,18 @@ export function registrarEscritaDeAgenda(server: McpServer): void {
         author: origin.author,
       });
 
+      const texto = `Tarefa criada.\n\n${formatarTarefa(criada)}`;
+      if (!repeticaoPerdida) return { content: [{ type: "text", text: texto }] };
       return {
-        content: [{ type: "text", text: `Tarefa criada.\n\n${formatarTarefa(criada)}` }],
+        content: [
+          {
+            type: "text",
+            text:
+              `${texto}\n\n**Atenção: a tarefa não se repete.** A API do Yu-book no ar ainda não ` +
+              "tem tarefa recorrente e ignorou `repeat`: só esta tarefa foi criada. Não chame " +
+              "`create_task` de novo; diga ao usuário que a repetição não foi gravada.",
+          },
+        ],
       };
     }),
   );

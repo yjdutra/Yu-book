@@ -343,6 +343,13 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
         ...(entrada.time !== undefined && { time: entrada.time }),
         ...(entrada.descriptionMd !== undefined && { descriptionMd: entrada.descriptionMd }),
         ...(entrada.boardId !== undefined && { boardId: entrada.boardId }),
+        // O modelo escreve siglas; a API só conhece 0–6.
+        ...(entrada.repeat !== undefined && {
+          repeat: {
+            days: diasDasSiglas(entrada.repeat.days),
+            until: entrada.repeat.until ?? null,
+          },
+        }),
       },
       origem,
     );

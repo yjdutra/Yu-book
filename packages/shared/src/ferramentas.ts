@@ -491,7 +491,9 @@ export const FERRAMENTAS_DO_ACERVO = {
     descricao:
       "Cria uma tarefa (um a fazer), com ou sem dia. Não é card: não tem coluna, e o quadro, " +
       "se houver, é só o projeto. Dia e hora são locais do usuário. Compromisso com hora " +
-      "marcada é `create_event`. A tarefa nasce marcada como gerada por IA.",
+      "marcada é `create_event`. A tarefa nasce marcada como gerada por IA. Hábito que se " +
+      "repete (candidatura, estudo): mande `repeat` com `date` — cria UMA série, com uma " +
+      "tarefa por dia escolhido, de hoje em diante.",
     escrita: true,
     anotacoes: {
       readOnlyHint: false,
@@ -520,6 +522,9 @@ export const FERRAMENTAS_DO_ACERVO = {
         .uuid()
         .optional()
         .describe("O projeto: id de um quadro, de `list_boards`. Omita se não houver."),
+      repeat: novaRepeticao()
+        .optional()
+        .describe("Repetição semanal, a partir de `date`, que passa a ser obrigatório."),
     },
   },
 
@@ -609,11 +614,17 @@ export const FERRAMENTAS_DO_ACERVO = {
     descricao:
       "Altera título, detalhes, dia, hora ou projeto de uma tarefa: mande só o que muda. " +
       "`date: null` tira a data, e a hora vai junto. Não conclui (`complete_task`) nem converte " +
-      "(`convert_task_to_event`).",
+      "(`convert_task_to_event`). Tarefa que se repete (\"repete …\" em `list_agenda`): " +
+      "`scope` é obrigatório — `esta` solta só esta ocorrência da série, `serie` muda a série " +
+      "e as abertas de hoje em diante (sem `date`; `repeat` muda os dias).",
     escrita: true,
     anotacoes: ESCRITA_DA_AGENDA,
     entrada: {
       taskId: z.string().uuid().describe("Id da tarefa, de `list_agenda`."),
+      scope: z
+        .enum(["esta", "serie"])
+        .optional()
+        .describe("Numa tarefa que se repete: esta ocorrência, ou a série."),
       title: z.string().trim().min(1).max(MAX_TAREFA_TITULO).optional().describe("Novo título."),
       descriptionMd: z
         .string()
@@ -631,6 +642,7 @@ export const FERRAMENTAS_DO_ACERVO = {
         .nullable()
         .optional()
         .describe("O projeto, de `list_boards`; null tira."),
+      repeat: novaRepeticao().optional().describe("Com `scope: serie`: os novos dias da série."),
     },
   },
 
@@ -638,11 +650,17 @@ export const FERRAMENTAS_DO_ACERVO = {
     titulo: "Excluir uma tarefa",
     descricao:
       "Exclui uma tarefa, sem desfazer. Só exclua o que o usuário pediu. Tarefa feita se " +
-      "conclui (`complete_task`), não se exclui.",
+      "conclui (`complete_task`), não se exclui. Tarefa que se repete: `scope` é obrigatório — " +
+      "`esta` tira só esta ocorrência, `serie` encerra a série (as abertas de hoje em diante " +
+      "saem; as feitas ficam).",
     escrita: true,
     anotacoes: EXCLUSAO_DA_AGENDA,
     entrada: {
       taskId: z.string().uuid().describe("Id da tarefa, de `list_agenda`."),
+      scope: z
+        .enum(["esta", "serie"])
+        .optional()
+        .describe("Numa tarefa que se repete: esta ocorrência, ou a série inteira."),
     },
   },
 
@@ -650,9 +668,10 @@ export const FERRAMENTAS_DO_ACERVO = {
     titulo: "Transformar um evento em tarefa",
     descricao:
       "O evento vira tarefa com o título, os detalhes, o dia, a hora de início e o projeto dele, " +
-      "e some da agenda. Local e link vão para os detalhes; a duração se perde. Numa série, só " +
-      "a ocorrência de `occurrenceDate` (obrigatório) vira tarefa, e as outras ficam. Os campos " +
-      "opcionais substituem o que vem do evento.",
+      "e some da agenda. Local e link vão para os detalhes; a duração se perde. Numa série, " +
+      "diga o alcance: `occurrenceDate` converte só aquela ocorrência, e as outras ficam; " +
+      "`scope: todas` faz da série inteira uma tarefa que se repete nos mesmos dias, de hoje " +
+      "em diante (o passado do evento fica). Os campos opcionais substituem o que vem do evento.",
     escrita: true,
     anotacoes: ESCRITA_DA_AGENDA,
     entrada: {
@@ -660,6 +679,10 @@ export const FERRAMENTAS_DO_ACERVO = {
       occurrenceDate: novoDiaCivilSchema()
         .describe("Numa série, o dia da ocorrência, AAAA-MM-DD.")
         .optional(),
+      scope: z
+        .enum(["todas"])
+        .optional()
+        .describe("Numa série: `todas` converte a série inteira em tarefa que se repete."),
       title: z.string().trim().min(1).max(MAX_TAREFA_TITULO).optional().describe("Outro título."),
       date: novoDiaCivilSchema()
         .nullable()

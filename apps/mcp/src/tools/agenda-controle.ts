@@ -7,7 +7,13 @@ import {
   formatarEvento,
   formatarTarefa,
 } from "@yu-book/shared";
-import type { EscopoDoEvento, EventItem, SiglaDoDia, TaskItem } from "@yu-book/shared";
+import type {
+  EscopoDoEvento,
+  EventItem,
+  SiglaDoDia,
+  TaskItem,
+  TaskSeriesItem,
+} from "@yu-book/shared";
 import { api, ErroDaApi } from "../cliente.js";
 import { comErroDeEscrita } from "../erros.js";
 import { relatar } from "../notificacoes.js";
@@ -92,6 +98,41 @@ async function alcanceDe(
 }
 
 const ehRecusa = (valor: object): valor is CallToolResult => "content" in valor;
+
+/**
+ * O alcance de uma escrita numa tarefa: a trava da série, como a do evento.
+ * Sem `scope`, a tarefa é lida, e a ocorrência de série é recusada antes de
+ * tocar em nada — `esta` a solta da série, `serie` mexe em todas as abertas.
+ */
+async function alcanceDaTarefa(
+  taskId: string,
+  scope: "esta" | "serie" | undefined,
+): Promise<{ serieId: string | null; scope: "esta" | "serie" } | CallToolResult> {
+  let atual: TaskItem;
+  try {
+    atual = await api.get<TaskItem>(`/tasks/${taskId}`);
+  } catch (erro) {
+    if (erro instanceof ErroDaApi && erro.code === "NOT_FOUND") return recusa(TAREFA_NAO_ENCONTRADA);
+    throw erro;
+  }
+  // `?.`: a API anterior à tarefa recorrente nem manda a chave.
+  const serieId = atual.series?.id ?? null;
+  if (!serieId) {
+    if (scope === "serie") {
+      return recusa("**Nada foi alterado.** Esta tarefa não se repete: não há série. Omita `scope`.");
+    }
+    return { serieId: null, scope: "esta" };
+  }
+  if (!scope) {
+    return recusa(
+      `**Nada foi alterado.** **${atual.title}** se repete (${descreverDias(
+        atual.series?.days ?? [],
+      )}). Diga o alcance em \`scope\`: \`esta\` (só esta ocorrência, que sai da série) ou ` +
+        "`serie` (a série e as abertas de hoje em diante). Na dúvida, pergunte ao usuário.",
+    );
+  }
+  return { serieId, scope };
+}
 
 function semIndefinidos<T extends Record<string, unknown>>(objeto: T): Partial<T> {
   return Object.fromEntries(
@@ -210,11 +251,55 @@ export function registrarControleDaAgenda(server: McpServer): void {
       annotations: alterarTarefa.anotacoes,
       inputSchema: alterarTarefa.entrada,
     },
-    comErroDeEscrita(async ({ taskId, ...campos }, extra) => {
-      const relato = relatar(server, extra, "update_task", 1);
+    comErroDeEscrita(async ({ taskId, scope, repeat, ...campos }, extra) => {
+      const relato = relatar(server, extra, "update_task", 2);
       const mudanca = semIndefinidos(campos);
-      if (Object.keys(mudanca).length === 0) {
+      if (Object.keys(mudanca).length === 0 && repeat === undefined) {
         return recusa("**Nada foi alterado.** Mande pelo menos um campo para mudar.");
+      }
+      const conferido = await alcanceDaTarefa(taskId, scope);
+      if (ehRecusa(conferido)) return conferido;
+      await relato.passo("alcance conferido");
+
+      if (conferido.scope === "serie" && conferido.serieId) {
+        if (mudanca.date !== undefined) {
+          return recusa(
+            "**Nada foi alterado.** O dia é de uma ocorrência, não da série: para mudar os " +
+              "dias, mande `repeat`; para mover só esta, use `scope: esta`.",
+          );
+        }
+        let serie: TaskSeriesItem;
+        try {
+          serie = await api.patch<TaskSeriesItem>(`/task-series/${conferido.serieId}`, {
+            ...mudanca,
+            ...(repeat !== undefined && { repeat: repeticaoDaApi(repeat) }),
+          });
+        } catch (erro) {
+          if (erro instanceof ErroDaApi && erro.code === "NOT_FOUND") {
+            return recusa(TAREFA_NAO_ENCONTRADA);
+          }
+          throw erro;
+        }
+        await relato.passo("série alterada");
+        await relato.registrar("info", { acao: "série de tarefa alterada", seriesId: serie.id });
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                `Série alterada: **${serie.title}**, repete ${descreverDias(serie.days)}` +
+                `${serie.until ? ` até ${serie.until}` : ""}${serie.time ? ` · ${serie.time}` : ""}.` +
+                " As ocorrências abertas de hoje em diante foram refeitas; as feitas ficaram.",
+            },
+          ],
+        };
+      }
+
+      if (repeat !== undefined) {
+        return recusa(
+          "**Nada foi alterado.** `repeat` muda a série: use `scope: serie`. Para fazer uma " +
+            "tarefa avulsa se repetir, crie-a de novo com `create_task` e `repeat`.",
+        );
       }
       let atual: TaskItem;
       try {
@@ -244,8 +329,33 @@ export function registrarControleDaAgenda(server: McpServer): void {
       annotations: excluirTarefa.anotacoes,
       inputSchema: excluirTarefa.entrada,
     },
-    comErroDeEscrita(async ({ taskId }, extra) => {
-      const relato = relatar(server, extra, "delete_task", 1);
+    comErroDeEscrita(async ({ taskId, scope }, extra) => {
+      const relato = relatar(server, extra, "delete_task", 2);
+      const conferido = await alcanceDaTarefa(taskId, scope);
+      if (ehRecusa(conferido)) return conferido;
+      await relato.passo("alcance conferido");
+      if (conferido.scope === "serie" && conferido.serieId) {
+        try {
+          await api.remover(`/task-series/${conferido.serieId}`);
+        } catch (erro) {
+          if (erro instanceof ErroDaApi && erro.code === "NOT_FOUND") {
+            return recusa(TAREFA_NAO_ENCONTRADA);
+          }
+          throw erro;
+        }
+        await relato.passo("série encerrada");
+        await relato.registrar("info", { acao: "série de tarefa encerrada", seriesId: conferido.serieId });
+        return {
+          content: [
+            {
+              type: "text",
+              text:
+                "Série encerrada. As ocorrências abertas de hoje em diante saíram; as feitas e as " +
+                "de dias passados ficaram, como tarefas avulsas.",
+            },
+          ],
+        };
+      }
       try {
         await api.remover(`/tasks/${taskId}`);
       } catch (erro) {
@@ -269,11 +379,23 @@ export function registrarControleDaAgenda(server: McpServer): void {
       annotations: paraTarefa.anotacoes,
       inputSchema: paraTarefa.entrada,
     },
-    comErroDeEscrita(async ({ eventId, occurrenceDate, ...campos }, extra) => {
+    comErroDeEscrita(async ({ eventId, occurrenceDate, scope, ...campos }, extra) => {
       const relato = relatar(server, extra, "convert_event_to_task", 1);
-      // Com o dia, é uma ocorrência (`esta`); sem ele, a API recusa a série
-      // com a frase que pede o dia — num evento simples, o escopo não conta.
-      const alcance = occurrenceDate ? { scope: "esta" as const, occurrenceDate } : null;
+      // `todas` faz da série uma tarefa recorrente; com o dia, é uma ocorrência
+      // (`esta`); sem nenhum dos dois, a API recusa a série com a frase que
+      // pede o alcance — num evento simples, o escopo não conta.
+      if (scope === "todas" && occurrenceDate) {
+        return recusa(
+          "**Nada foi alterado.** Escolha um alcance: `occurrenceDate` (uma ocorrência) ou " +
+            "`scope: todas` (a série inteira), não os dois.",
+        );
+      }
+      const alcance =
+        scope === "todas"
+          ? { scope: "todas" as const }
+          : occurrenceDate
+            ? { scope: "esta" as const, occurrenceDate }
+            : null;
       let tarefa: TaskItem;
       try {
         tarefa = await api.post<TaskItem>(

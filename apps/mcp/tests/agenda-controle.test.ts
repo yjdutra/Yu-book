@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatarEvento, formatarTarefa } from "@yu-book/shared";
-import type { EventItem, TaskItem } from "@yu-book/shared";
+import type { EventItem, TaskItem, TaskSeriesItem } from "@yu-book/shared";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { abrirCliente, identidade } from "./arnes.js";
 import type { ToolAnunciada } from "./arnes.js";
@@ -71,6 +71,27 @@ const TAREFA: TaskItem = {
   updatedAt: AGORA,
 };
 
+const SERIE_DE_TAREFA_ID = "55555555-5555-4555-8555-555555555555";
+const OCORRENCIA_ID = "66666666-6666-4666-8666-666666666666";
+
+const OCORRENCIA: TaskItem = {
+  ...TAREFA,
+  id: OCORRENCIA_ID,
+  title: "Duolingo",
+  series: { id: SERIE_DE_TAREFA_ID, days: [1, 2, 3, 4, 5], until: null },
+};
+
+const SERIE_DE_TAREFA: TaskSeriesItem = {
+  id: SERIE_DE_TAREFA_ID,
+  title: "Duolingo + Google",
+  descriptionMd: "",
+  time: null,
+  startDate: "2026-10-19",
+  days: [1, 2, 3, 4, 5],
+  until: null,
+  board: null,
+};
+
 const json = (corpo: unknown, status = 200) =>
   new Response(JSON.stringify(corpo), { status, headers: { "Content-Type": "application/json" } });
 
@@ -99,6 +120,14 @@ beforeEach(() => {
     if (caminho === `/tasks/${TAREFA_ID}`) {
       if (metodo === "DELETE") return new Response(null, { status: 204 });
       return json(TAREFA);
+    }
+    if (caminho === `/tasks/${OCORRENCIA_ID}`) {
+      if (metodo === "DELETE") return new Response(null, { status: 204 });
+      return json(OCORRENCIA);
+    }
+    if (caminho === `/task-series/${SERIE_DE_TAREFA_ID}`) {
+      if (metodo === "DELETE") return new Response(null, { status: 204 });
+      return json(SERIE_DE_TAREFA);
     }
     if (metodo === "POST" && caminho.endsWith("/to-task")) return json(TAREFA, 201);
     if (metodo === "POST" && caminho.endsWith("/to-event")) {
@@ -252,20 +281,20 @@ describe("delete_event", () => {
 });
 
 describe("update_task e delete_task", () => {
-  it("update_task manda só o que muda, null inclusive", async () => {
+  it("update_task lê a tarefa e manda só o que muda, null inclusive", async () => {
     const r = await chamar("update_task", { taskId: TAREFA_ID, date: null });
     expect(r.isError, texto(r)).toBeFalsy();
-    expect(chamadas).toEqual([
-      expect.objectContaining({ metodo: "PATCH", caminho: `/tasks/${TAREFA_ID}`, corpo: { date: null } }),
-    ]);
+    expect(chamadas.map((c) => c.metodo)).toEqual(["GET", "PATCH"]);
+    expect(chamadas[1]).toMatchObject({ caminho: `/tasks/${TAREFA_ID}`, corpo: { date: null } });
     expect(texto(r)).toBe(`Tarefa alterada.\n\n${formatarTarefa(TAREFA)}`);
   });
 
   it("delete_task exclui pela rota da tarefa", async () => {
     const r = await chamar("delete_task", { taskId: TAREFA_ID });
     expect(r.isError, texto(r)).toBeFalsy();
-    expect(chamadas).toEqual([
-      expect.objectContaining({ metodo: "DELETE", caminho: `/tasks/${TAREFA_ID}` }),
+    expect(chamadas.map((c) => `${c.metodo} ${c.caminho}`)).toEqual([
+      `GET /tasks/${TAREFA_ID}`,
+      `DELETE /tasks/${TAREFA_ID}`,
     ]);
   });
 
@@ -276,7 +305,86 @@ describe("update_task e delete_task", () => {
   });
 });
 
+describe("tarefa que se repete", () => {
+  it("ocorrência sem scope é recusada, sem PATCH nem DELETE", async () => {
+    const alterar = await chamar("update_task", { taskId: OCORRENCIA_ID, title: "x" });
+    const excluir = await chamar("delete_task", { taskId: OCORRENCIA_ID });
+    expect(alterar.isError).toBe(true);
+    expect(excluir.isError).toBe(true);
+    expect(texto(alterar)).toContain("`scope`");
+    expect(chamadas.every((c) => c.metodo === "GET")).toBe(true);
+  });
+
+  it("scope esta solta a ocorrência pelo PATCH da tarefa", async () => {
+    const r = await chamar("update_task", { taskId: OCORRENCIA_ID, scope: "esta", time: "08:00" });
+    expect(r.isError, texto(r)).toBeFalsy();
+    expect(chamadas[1]).toMatchObject({
+      metodo: "PATCH",
+      caminho: `/tasks/${OCORRENCIA_ID}`,
+      corpo: { time: "08:00" },
+    });
+  });
+
+  it("scope serie muda a série, com os dias em números", async () => {
+    const r = await chamar("update_task", {
+      taskId: OCORRENCIA_ID,
+      scope: "serie",
+      title: "Duolingo + Google",
+      repeat: { days: ["seg", "qua"] },
+    });
+    expect(r.isError, texto(r)).toBeFalsy();
+    expect(chamadas[1]).toMatchObject({
+      metodo: "PATCH",
+      caminho: `/task-series/${SERIE_DE_TAREFA_ID}`,
+      corpo: { title: "Duolingo + Google", repeat: { days: [1, 3] } },
+    });
+    expect(texto(r)).toContain("Série alterada");
+  });
+
+  it("scope serie com date é recusado: o dia é da ocorrência", async () => {
+    const r = await chamar("update_task", {
+      taskId: OCORRENCIA_ID,
+      scope: "serie",
+      date: "2026-10-20",
+    });
+    expect(r.isError).toBe(true);
+    expect(chamadas.some((c) => c.metodo === "PATCH")).toBe(false);
+  });
+
+  it("delete_task com scope serie encerra a série", async () => {
+    const r = await chamar("delete_task", { taskId: OCORRENCIA_ID, scope: "serie" });
+    expect(r.isError, texto(r)).toBeFalsy();
+    expect(chamadas[1]).toMatchObject({
+      metodo: "DELETE",
+      caminho: `/task-series/${SERIE_DE_TAREFA_ID}`,
+    });
+    expect(texto(r)).toContain("Série encerrada");
+  });
+});
+
 describe("conversões", () => {
+  it("convert_event_to_task com scope todas converte a série inteira", async () => {
+    const r = await chamar("convert_event_to_task", { eventId: SERIE_ID, scope: "todas" });
+    expect(r.isError, texto(r)).toBeFalsy();
+    expect(chamadas).toEqual([
+      expect.objectContaining({
+        metodo: "POST",
+        caminho: `/events/${SERIE_ID}/to-task`,
+        busca: "?scope=todas",
+      }),
+    ]);
+  });
+
+  it("scope todas com occurrenceDate é recusado sem chamar a API", async () => {
+    const r = await chamar("convert_event_to_task", {
+      eventId: SERIE_ID,
+      scope: "todas",
+      occurrenceDate: "2026-10-21",
+    });
+    expect(r.isError).toBe(true);
+    expect(chamadas).toHaveLength(0);
+  });
+
   it("convert_event_to_task com o dia da ocorrência usa scope=esta", async () => {
     const r = await chamar("convert_event_to_task", {
       eventId: SERIE_ID,
