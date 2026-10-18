@@ -24,6 +24,7 @@ import type { ItemDoDia, ResumoDoDia } from "../components/agenda/itens";
 import { useFolhaItem } from "../components/folha/FolhaItem";
 import { ChamaDoInicio } from "../components/ritmo/ChamaDoInicio";
 import { HojeNoRitmo } from "../components/ritmo/HojeNoRitmo";
+import { HumorDoInicio } from "../components/ritmo/HumorDoInicio";
 import { useMarcarAtividade } from "../components/ritmo/marcar";
 import { diaCurto, diaRelativo } from "../lib/datas";
 import { DIAS_DA_SEMANA_ADIANTE } from "../lib/hoje";
@@ -286,9 +287,10 @@ export function InicioPage() {
       </section>
 
       {/* Frente Ritmo, RF-26: logo depois dos números, antes do dia inteiro. */}
-      {/* A chama e o dia do ritmo (RF-37, RF-26); cada um some sem hábito. */}
+      {/* A chama, o humor e o dia do ritmo (RF-37, RF-44, RF-26). */}
       <div className="mt-6 space-y-4 empty:hidden">
         <ChamaDoInicio />
+        <HumorDoInicio />
         {hoje && porDia && <HojeNoRitmo hoje={hoje} itens={porDia.get(hoje)?.itens ?? []} />}
       </div>
 

@@ -45,6 +45,8 @@ const EXPLICACAO: Record<NomeDoAssistente, string> = {
   create_habit: "Cria um hábito com meta semanal e atividades pontuadas.",
   update_habit: "Muda a meta, as atividades ou arquiva um hábito.",
   check_in_event: "Marca presença num evento ligado a hábito, e pontua a atividade dele.",
+  get_mood: "Vê como você esteve nos últimos dias: manhã, durante e noite.",
+  log_mood: "Registra como você está, de péssimo a ótimo, em até três momentos do dia.",
   open_page:
     "Lê o texto de uma página pública, pelo endereço — o seu ou um que a busca achou. " +
     "LinkedIn nunca, nem endereço da rede interna.",

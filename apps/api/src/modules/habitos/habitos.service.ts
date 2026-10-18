@@ -35,6 +35,7 @@ import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
 import type { OrigemIA } from "../../lib/marca.js";
 import { conferirOcorrencia } from "../eventos/eventos.service.js";
+import { diasComHumor } from "../humor/humor.service.js";
 import { camposDoRegistro, hojeDoUsuario, paraColunaDia } from "./vinculo.service.js";
 
 /**
@@ -190,14 +191,19 @@ export async function resumirRitmo(userId: string): Promise<HabitsSummary> {
   };
 }
 
-/** Os dias com registro, com os pontos somados. Uma consulta agrupada (RNF-13). */
+/**
+ * Os dias ativos, com os pontos somados: os de registro de hábito, numa
+ * consulta agrupada (RNF-13), e os de humor (Ritmo 4, RF-43), que entram com
+ * zero ponto — acendem a ofensiva sem dar XP (RN-26).
+ */
 async function diasAtivos(userId: string): Promise<Map<string, number>> {
-  const linhas = await prisma.habitEntry.groupBy({
-    by: ["day"],
-    where: { userId },
-    _sum: { points: true },
-  });
-  return new Map(linhas.map((l) => [paraDia(l.day), l._sum.points ?? 0]));
+  const [linhas, humor] = await Promise.all([
+    prisma.habitEntry.groupBy({ by: ["day"], where: { userId }, _sum: { points: true } }),
+    diasComHumor(userId),
+  ]);
+  const dias = new Map(linhas.map((l) => [paraDia(l.day), l._sum.points ?? 0]));
+  for (const dia of humor) if (!dias.has(dia)) dias.set(dia, 0);
+  return dias;
 }
 
 /**

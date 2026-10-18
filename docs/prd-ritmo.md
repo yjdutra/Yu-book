@@ -500,7 +500,89 @@ hábito pela tela — a configuração segue no MCP (RF-13).
   - os recordes do detalhe;
   - a folha de conquista, ao fechar a meta de Corpo.
 
-## 7. Fases seguintes (escopo, detalhado quando cada uma começar)
+## 7. Ritmo 4 — Humor
+
+> Detalhado em 2026-10-18.
+
+### 7.1 Modelo
+
+- **Humor do dia** (`mood_day`): uma linha por usuário e dia civil, com `morning`, `midday` e
+  `evening`, cada um de 1 a 5 ou nulo, e `note`. Tem a marca de IA (`aiVia`, `aiAuthor`,
+  `aiAgentName`) quando vem do MCP.
+
+### 7.2 Requisitos funcionais
+
+- **RF-40** — `PUT /moods`: grava o humor de um dia (o padrão é hoje no fuso do usuário). Mescla o
+  que vem: o campo omitido fica como está, e o `null` apaga. A descrição pode ser ditada no app, mas
+  o ditado só preenche o campo (`useDitado`) e nunca grava sozinho.
+- **RF-41** — `GET /moods?from&to`: os dias com humor no período. Sem período, os últimos 30 dias.
+- **RF-42** — `GET /moods/insights`: para cada hábito ativo, a média do humor nos dias com registro
+  do hábito e nos dias sem, nos últimos 30 dias, com o `n` de cada lado. Só sai o cartão com pelo
+  menos 7 dias de cada lado.
+- **RF-43** — O dia com qualquer momento de humor entra na ofensiva geral (RF-32).
+- **RF-44** — Início: "Como você está?", com os três momentos. Tocar abre a folha de humor: as
+  cinco caras, a descrição com o botão de ditar, e salvar.
+- **RF-45** — Ritmo › Humor:
+  - o gráfico dos últimos 14 dias, com a linha do humor sobre as barras dos pontos do dia e o
+    filtro Média, Manhã, Durante e Noite;
+  - os cartões "O que anda junto";
+  - os registros recentes, com as três caras e a descrição.
+- **RF-46** — MCP: `log_mood`, para gravar, e `get_mood`, para ler um período. Ficam fora do chat.
+
+### 7.3 Regras de negócio
+
+- **RN-26** — Humor nunca dá pontos (P4). Não entra em `habit_entry` nem no XP, só na ofensiva.
+- **RN-27** — O dia do humor vai de 30 dias atrás até hoje, como o registro avulso (RN-06). No
+  futuro é 422.
+- **RN-28** — Um `PUT` que deixa os três momentos e a nota vazios apaga a linha do dia.
+- **RN-29** — A média de um dia é a dos momentos preenchidos. O cartão de RF-42 compara médias de
+  dias, e não de momentos.
+- **RN-30** — O texto do cartão diz "anda junto", nunca "causa".
+
+### 7.4 Requisitos não funcionais
+
+- **RNF-15** — As cinco cores do humor são tokens novos (`humor-1` a `humor-5`) nos dois temas, e
+  a cara muda de boca, não só de cor. O nome ("Péssimo"…"Ótimo") vai no rótulo.
+- **RNF-16** — As contas do insight são uma função pura de `packages/shared` (`humorComESem`).
+
+### 7.5 Critérios de aceite
+
+- **CA-24** — `PUT /moods` com `morning: 4` e depois com `evening: 2` deixa os dois no mesmo dia.
+  Mandar `morning: null` apaga só a manhã.
+- **CA-25** — Humor amanhã é 422; humor de 31 dias atrás também.
+- **CA-26** — Um dia só com humor acende a ofensiva geral do dia.
+- **CA-27** — Com 7 dias com o hábito e 6 sem, o cartão não sai; com 7 e 7, sai, com os dois `n`.
+- **CA-28** — Pelo MCP, `log_mood` grava com a marca de IA, e `get_mood` lê o período.
+- **CA-29** — No móvel: o Início grava os três momentos, a aba Humor desenha o gráfico com o
+  filtro, e o ditado só preenche o campo.
+
+### 7.6 Decisões tomadas na implementação (2026-10-18)
+
+- **`soMcp` no catálogo de ferramentas.** Toda leitura entrava no chat e nas rotinas sozinha
+  (`FERRAMENTAS_DE_LEITURA`). A bandeira nova tira `get_mood` dos dois, e o teste de
+  `marca-ia.test.ts` enumera a exceção. O chat não grava humor.
+- **Mescla com `PUT /moods`, e não um `POST` por momento.** A linha do dia é uma só, e o `null`
+  apaga. A marca de IA é a de quem gravou por último: um ajuste humano depois do MCP a limpa, como
+  em quem conclui o card.
+- **CHECK no banco para 1 a 5**, fora do `schema.prisma`, além do Zod.
+- **A migration ganhou o timestamp `20261018190000`**, depois da Ritmo 1 (`…180000`, escrita
+  adiantada à mão). O gerado pelo Prisma cairia antes dela, e a ordem no deploy ficaria trocada.
+- **O cruzamento traz os pontos por dia da janela** (`points`), para o gráfico do humor não pedir
+  uma terceira leitura.
+- **O widget de humor do Início aparece mesmo sem hábito.** Humor não depende de hábito, ao
+  contrário da chama e de "Hoje no ritmo".
+- **`ditado` passou a ser exportado por `packages/cliente`**, porque a folha de humor é o segundo
+  uso dele, depois do chat.
+- **Portões:** typecheck limpo; API com 703 de 705 testes passando antes do ajuste de
+  `marca-ia.test.ts` e 704 de 705 depois (fica só a falha de ambiente de `web.test.ts`); MCP com
+  117 de 117. A interface foi conferida em 375 px:
+  - o Início gravando a noite;
+  - a ofensiva contando os dias de humor;
+  - a aba Humor com o gráfico (inclusive o filtro "Noite"), os cartões e os registros.
+
+  Não conferido: o ditado de verdade, porque o navegador do teste não tem microfone.
+
+## 8. Fases seguintes (escopo, detalhado quando cada uma começar)
 
 ### Ritmo 3 — Ofensivas, níveis e recordes
 

@@ -25,7 +25,9 @@
     "./base/*": "./src/base/*.tsx",
     "./graficos/*": "./src/graficos/*.tsx",
     "./habitos": "./src/habitos.ts",
-    "./ritmo/*": "./src/ritmo/*.tsx"
+    "./ritmo/*": "./src/ritmo/*.tsx",
+    "./humor": "./src/humor.ts",
+    "./ditado": "./src/ditado.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

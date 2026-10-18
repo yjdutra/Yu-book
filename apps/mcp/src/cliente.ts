@@ -202,5 +202,7 @@ export const api = {
     requisitar<T>("POST", caminho, { corpo }),
   patch: <T>(caminho: string, corpo: unknown): Promise<T> =>
     requisitar<T>("PATCH", caminho, { corpo }),
+  put: <T>(caminho: string, corpo: unknown): Promise<T> =>
+    requisitar<T>("PUT", caminho, { corpo }),
   remover: (caminho: string): Promise<void> => requisitar<void>("DELETE", caminho),
 };

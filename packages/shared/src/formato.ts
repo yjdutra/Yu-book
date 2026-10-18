@@ -5,6 +5,8 @@ import { formatarBytes } from "./arquivos.js";
 import type { CardFile } from "./arquivos.js";
 import type { CardComPrazo, Dashboard } from "./dashboard.js";
 import type { HabitActivityRef, HabitEntryItem, HabitItem } from "./habitos.js";
+import { MOMENTOS_DO_HUMOR, NOMES_DO_HUMOR, NOMES_DOS_MOMENTOS } from "./humor.js";
+import type { MoodDayItem } from "./humor.js";
 import { descreverDias, diasDoEvento } from "./eventos.js";
 import type { AgendaCard, AgendaRange, EventItem } from "./eventos.js";
 import { diaLocal } from "./ia.js";
@@ -757,5 +759,25 @@ export function formatarRegistroDeHabito(registro: HabitEntryItem, habito: strin
   partes.push(diaComSemana(registro.day));
   const linhas = [partes.join(" · "), `id: ${registro.id}`];
   if (registro.note) linhas.push(`nota: ${registro.note}`);
+  return linhas.join("\n");
+}
+
+/**
+ * O humor por dia (Ritmo 4): é o que `get_mood` e `log_mood` devolvem. Cada
+ * momento sai com o número e o nome ("4 bem"), para o modelo não inverter a
+ * escala; o que não foi registrado nem aparece.
+ */
+export function formatarHumor(dias: MoodDayItem[]): string {
+  if (dias.length === 0) return "Nenhum humor registrado no período.";
+  const linhas = ["Humor por dia (1 péssimo … 5 ótimo). Não dá pontos."];
+  for (const d of dias) {
+    const momentos = MOMENTOS_DO_HUMOR.flatMap((m) => {
+      const v = d[m];
+      if (!v) return [];
+      return [`${NOMES_DOS_MOMENTOS[m].toLowerCase()} ${v} ${NOMES_DO_HUMOR[v - 1]?.toLowerCase()}`];
+    });
+    linhas.push("", `## ${diaComSemana(d.day)}`, momentos.join(" · ") || "sem momentos");
+    if (d.note) linhas.push(`descrição: ${d.note}`);
+  }
   return linhas.join("\n");
 }

@@ -111,6 +111,7 @@ model User {
   taskSeries    TaskSeries[]
   habits        Habit[]
   habitEntries  HabitEntry[]
+  moodDays      MoodDay[]
   links         Link[]
   refreshTokens RefreshToken[]
 
@@ -1224,4 +1225,29 @@ model HabitEntry {
   @@index([userId, day])
   @@index([habitId, day])
   @@map("habit_entry")
+}
+
+/// O humor de um dia (frente Ritmo, Ritmo 4): três momentos de 1 a 5 e uma
+/// descrição. Nunca dá pontos (P4) — só acende a ofensiva geral (RF-43).
+model MoodDay {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  /// Dia civil do usuário (INV-66), resolvido no servidor.
+  day         DateTime @db.Date
+  morning     Int?
+  midday      Int?
+  evening     Int?
+  note        String?
+  /// A marca de quem gravou, quando foi o MCP (RN-12 da Ritmo 1).
+  aiVia       AiVia?   @map("ai_via")
+  aiAuthor    String?  @map("ai_author")
+  aiAgentName String?  @map("ai_agent_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Uma linha por dia: o `PUT` mescla nela (RF-40).
+  @@unique([userId, day])
+  @@map("mood_day")
 }

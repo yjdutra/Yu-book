@@ -21,3 +21,4 @@ export * from "./eventos.js";
 export * from "./tarefas.js";
 export * from "./habitos.js";
 export * from "./ofensivas.js";
+export * from "./humor.js";

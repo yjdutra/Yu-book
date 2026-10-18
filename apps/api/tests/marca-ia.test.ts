@@ -513,10 +513,17 @@ describe("CA-21 / RN-12: o chat escreve criando e concluindo, nunca movendo nem 
     ]);
     // E o inverso: toda leitura do acervo está lá. A lista do chat é
     // explícita, e uma leitura esquecida fora dela não acusaria noutro lugar.
+    // A exceção é marcada no catálogo (`soMcp`) e enumerada aqui: `get_mood`,
+    // desde a Ritmo 4 (RF-46), é só do MCP.
+    const soMcp = (Object.keys(FERRAMENTAS_DO_ACERVO) as NomeDeFerramenta[]).filter(
+      (n) => (FERRAMENTAS_DO_ACERVO[n] as { soMcp?: true }).soMcp,
+    );
+    expect(soMcp).toEqual(["get_mood"]);
     const leituras = (Object.keys(FERRAMENTAS_DO_ACERVO) as NomeDeFerramenta[]).filter(
-      (n) => !FERRAMENTAS_DO_ACERVO[n].escrita,
+      (n) => !FERRAMENTAS_DO_ACERVO[n].escrita && !soMcp.includes(n),
     );
     expect(leituras.every((n) => oferecidas.has(n))).toBe(true);
+    expect(oferecidas.has("get_mood")).toBe(false);
   });
 
   test("ação de escrita sem executor responde como desconhecida", async () => {

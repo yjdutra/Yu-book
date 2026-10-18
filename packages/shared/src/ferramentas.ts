@@ -25,6 +25,7 @@ import {
   MAX_PONTOS,
   MAX_REGISTRO_NOTA,
 } from "./habitos.js";
+import { MAX_HUMOR_NOTA } from "./humor.js";
 import { MAX_CONTEUDO, noteKindSchema, tituloSchema } from "./notes.js";
 import { MAX_TAREFA_DESCRICAO, MAX_TAREFA_TITULO } from "./tarefas.js";
 
@@ -78,6 +79,13 @@ export interface DefinicaoDeFerramenta {
    * explícita para cada nome deste objeto.
    */
   escrita: boolean;
+  /**
+   * Só o servidor MCP publica, mesmo sendo leitura (frente Ritmo, Ritmo 4): a
+   * leitura entra no chat e nas rotinas sozinha (`FERRAMENTAS_DE_LEITURA`), e
+   * cada descrição é paga em todo turno (RNF-03). Sem isto, `get_mood` iria
+   * junto.
+   */
+  soMcp?: true;
   anotacoes?: AnotacoesDeFerramenta;
 }
 
@@ -819,6 +827,48 @@ export const FERRAMENTAS_DO_ACERVO = {
     },
   },
 
+  // Ritmo 4 (docs/prd-ritmo.md, RF-46): o humor. Só o MCP — `soMcp` tira a
+  // leitura do chat e das rotinas, que pagariam a descrição em todo turno.
+  get_mood: {
+    titulo: "Ver o humor",
+    descricao:
+      "Lista o humor por dia num período: manhã, durante e noite, de 1 (péssimo) a 5 (ótimo), e " +
+      "a descrição. Padrão: os últimos 30 dias.",
+    escrita: false,
+    soMcp: true,
+    anotacoes: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    entrada: {
+      from: novoDiaCivilSchema().describe("Primeiro dia, AAAA-MM-DD.").optional(),
+      to: novoDiaCivilSchema().describe("Último dia, AAAA-MM-DD. Padrão: hoje.").optional(),
+    },
+  },
+
+  log_mood: {
+    titulo: "Registrar o humor",
+    descricao:
+      "Grava o humor de um dia, de 1 (péssimo) a 5 (ótimo), em até três momentos, e a descrição. " +
+      "Mescla: o que você não mandar fica; `null` apaga. Humor não dá pontos. Dia padrão: hoje.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    entrada: {
+      day: novoDiaCivilSchema().describe("Dia, AAAA-MM-DD, até 30 dias atrás.").optional(),
+      morning: z.number().int().min(1).max(5).nullable().optional().describe("Manhã."),
+      midday: z.number().int().min(1).max(5).nullable().optional().describe("Durante o dia."),
+      evening: z.number().int().min(1).max(5).nullable().optional().describe("Noite."),
+      note: z.string().trim().max(MAX_HUMOR_NOTA).nullable().optional().describe("Como foi."),
+    },
+  },
+
   create_habit: {
     titulo: "Criar um hábito",
     descricao:
@@ -902,7 +952,10 @@ export type NomeDeFerramenta = keyof typeof FERRAMENTAS_DO_ACERVO;
 /** Os nomes das que **não** mudam o acervo. */
 export const FERRAMENTAS_DE_LEITURA = (
   Object.keys(FERRAMENTAS_DO_ACERVO) as NomeDeFerramenta[]
-).filter((nome) => !FERRAMENTAS_DO_ACERVO[nome].escrita);
+).filter((nome) => {
+  const definicao: DefinicaoDeFerramenta = FERRAMENTAS_DO_ACERVO[nome];
+  return !definicao.escrita && !definicao.soMcp;
+});
 
 /**
  * Ferramentas **fora do acervo** (Etapa G da frente de IA): hoje só abrir uma

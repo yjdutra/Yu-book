@@ -10,6 +10,7 @@ import type { HabitItem, HabitsSummary } from "@yu-book/shared";
 import { useId } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { EstadoVazio } from "../components/agenda/ItemAgenda";
+import { AbaHumor } from "../components/ritmo/AbaHumor";
 import { AbaOfensivas } from "../components/ritmo/AbaOfensivas";
 import { diasDaBarra, milhar, periodoCurto, semanaDeTodos } from "../components/ritmo/semana";
 
@@ -17,12 +18,11 @@ const ABAS = [
   { chave: "habitos", para: "/ritmo", rotulo: "Hábitos", fase: null },
   { chave: "ofensivas", para: "/ritmo/ofensivas", rotulo: "Ofensivas", fase: null },
   { chave: "skills", para: "/ritmo/skills", rotulo: "Skills", fase: "Ritmo 5" },
-  { chave: "humor", para: "/ritmo/humor", rotulo: "Humor", fase: "Ritmo 4" },
+  { chave: "humor", para: "/ritmo/humor", rotulo: "Humor", fase: null },
 ] as const;
 
 const EM_BREVE: Record<string, string> = {
   skills: "Os modos de agir que você quer internalizar, com emblema e nível.",
-  humor: "Como você está em três momentos do dia, ao lado dos seus hábitos.",
 };
 
 /**
@@ -68,6 +68,8 @@ export function RitmoPage() {
         <AbaHabitos />
       ) : atual.chave === "ofensivas" ? (
         <AbaOfensivas />
+      ) : atual.chave === "humor" ? (
+        <AbaHumor />
       ) : (
         <EstadoVazio
           Icone={IconeRitmo}

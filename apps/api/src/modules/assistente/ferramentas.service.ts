@@ -413,6 +413,9 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
   update_habit: undefined,
   // O check-in é do app e do MCP (Ritmo 2, RF-30): no chat, só `log_habit`.
   check_in_event: undefined,
+  // O humor é do app e do MCP (Ritmo 4, RF-46).
+  get_mood: undefined,
+  log_mood: undefined,
 
   move_card: undefined,
   trash_note: undefined,

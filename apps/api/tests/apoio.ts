@@ -33,7 +33,7 @@ export async function subirApp(): Promise<FastifyInstance> {
 }
 
 interface Requisicao {
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   url: string;
   token: string;
   body?: unknown;

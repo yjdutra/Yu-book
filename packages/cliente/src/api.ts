@@ -157,6 +157,9 @@ export const api = {
     apiRequest<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body: unknown) =>
     apiRequest<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
+  /// Frente Ritmo, Ritmo 4: o humor do dia se grava por mescla (`PUT /moods`).
+  put: <T>(path: string, body: unknown) =>
+    apiRequest<T>(path, { method: "PUT", body: JSON.stringify(body) }),
   delete: <T>(path: string) => apiRequest<T>(path, { method: "DELETE" }),
   /// Frente de cards, Parte 2. A mesma `FormData` serve à repetição depois do
   /// 401: `File` se relê, ao contrário de um stream.
