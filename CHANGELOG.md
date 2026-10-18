@@ -17,6 +17,113 @@ _Nada pendente._
 
 ---
 
+## [0.37.0] — 2026-10-18
+
+**Hábitos, no servidor (frente Ritmo, Ritmo 1).** Abre a frente Ritmo, que tem numeração própria
+(Ritmo 1 a 7) e não se confunde com as fases de produto, a frente de agenda nem R1–R3. Um hábito
+tem uma meta semanal em pontos, os dias-alvo da semana e atividades pontuadas. Os pontos vêm de
+três gestos: concluir uma tarefa ligada a uma atividade, fazer check-in numa ocorrência de evento
+ligado a uma, ou registrar fora do plano. A semana é **ponderada**: cada dia conta no máximo
+`ceil(meta / dias-alvo)` para a meta, e o resto fica à parte, para que um dia só não pague a semana
+inteira. Tudo se calcula na leitura, sem tabela de agregado nem relógio novo. **Esta entrega não
+tem tela**: hábitos se criam e se configuram pelo MCP, e o chat lê e registra. A área Ritmo do
+celular é a Ritmo 2.
+
+**Os seis pacotes se movem**, porque o contrato de tarefa e de evento mudou em `packages/shared`
+(`habitActivityId` na entrada, `habitActivity` na resposta), e as descrições de `create_task` e de
+`create_event`, que o chat e o MCP dividem, também. `packages/shared` vai de `0.22.0` para
+`0.23.0`, `apps/api` e `apps/mcp` de `0.23.0` para `0.24.0`, `apps/web` de `0.30.0` para `0.31.0`,
+e `apps/movel` e `packages/cliente` de `0.7.0` para `0.8.0`. No web, o que se vê é o editor de
+agente, com as duas ferramentas novas, e o rótulo delas no chat. No móvel, só o rótulo no chat.
+
+**Migration `20261018180000_ritmo_habitos`, só aditiva**, aplicada pela API no boot: as tabelas
+`habit`, `habit_activity` e `habit_entry`, o enum `HabitEntryOrigin` e a coluna
+`habit_activity_id`, opcional, em `task`, `task_series` e `event`. Excluir um hábito leva as
+atividades e os registros. Excluir uma atividade solta os vínculos e deixa os registros. Excluir
+uma tarefa ou um evento não apaga o registro que eles renderam. Nenhuma linha existente muda.
+
+**Na janela do deploy, a API precisa estar no ar antes do MCP.** Contra uma API anterior a esta,
+as tools de hábito recusam com a frase "a API no ar ainda não tem hábitos". `create_task` e
+`create_event` com `habitActivityId` são outro caso: a API velha descarta a chave e cria o item
+**sem vínculo**, sem erro, e o MCP não confere. Quem nota é a falta da linha "hábito:" no texto
+da resposta.
+
+**O que o assistente paga a mais.** O chat passa de 13 para 15 ferramentas: `list_habits` (183
+bytes de descrição) e `log_habit` (256). `create_task` e `create_event` ganharam o campo
+`habitActivityId`, com 62 e 76 bytes de descrição. Isso vale para todo turno. Quando `log_habit`
+está ligado, o system prompt ganha um bloco de duas linhas. No MCP, `tools/list` passa de 21 para
+25 tools. O total do catálogo em bytes não foi medido.
+
+Portões: `pnpm typecheck` limpo nos seis pacotes. O MCP passou com **110 testes** (eram 99). A API
+passou com **681 de 682** (eram 647). A única falha é de ambiente, a mesma da entrada anterior: o
+teste de DNS rebinding precisa do endereço `127.0.0.2`, que o macOS não tem por padrão. Nenhuma
+conferência de interface à mão, porque não há tela nova. O rótulo do chat e o editor de agente do
+web também não foram conferidos.
+
+### Adicionado
+- **Hábitos e atividades** (`/habits`, `/habit-activities`). Um hábito tem nome, cor, emblema,
+  meta semanal (de 1 a 5000 pontos) e dias-alvo (de 1 a 7). Ele se cria já com as atividades,
+  numa transação só, e se edita, arquiva, desarquiva, reordena e exclui. A atividade tem nome e
+  pontos, de 1 a 500. O nome do hábito é único por usuário, o da atividade é único dentro do
+  hábito, e nome repetido é 409 (RF-01 a RF-05, RN-01, RN-02).
+- **A semana ponderada vem em cada hábito** (`week`). Ela vai de segunda a domingo, no fuso do
+  usuário. Traz o teto diário, o que entrou e o que contou em cada dia, o progresso, o que passou
+  do teto, os dias ativos e se a meta foi batida. A conta mora em `packages/shared`, para web e
+  móvel contarem igual (RF-10).
+- **Concluir uma tarefa ligada a uma atividade pontua.** O registro se grava na mesma transação da
+  conclusão, com os pontos da atividade naquele momento e o dia de hoje do usuário. Concluir de
+  novo não duplica, nem entre as duas instâncias da API. Reabrir a tarefa apaga o registro, também
+  na mesma transação (RF-07, RN-04).
+- **O vínculo `habitActivityId` em tarefa, série de tarefas e evento**, na criação e na edição. A
+  série copia o vínculo para cada ocorrência que gera, e editar a série reescreve o vínculo das
+  ocorrências abertas de hoje em diante. Converter evento em tarefa, ou o contrário, leva o vínculo
+  junto. A resposta de tarefa e de evento ganhou `habitActivity`, com o nome da atividade, os
+  pontos e o hábito (RF-06).
+- **Check-in numa ocorrência de evento** (`POST /events/:id/check-in` com `{ day }`, e `DELETE
+  /events/:id/check-in?day=`). O dia precisa ser uma ocorrência real do evento e não pode estar no
+  futuro. Repetir o check-in não duplica, e o `DELETE` desfaz. Quando a ocorrência sai da série,
+  por "esta" ou por "esta e as seguintes", o check-in vai junto para o evento novo, na mesma
+  transação (RF-08, RN-13).
+- **Registro fora do plano** (`POST /habits/:id/entries`). Com uma atividade, os pontos vêm dela,
+  a menos que o pedido diga outro valor. Sem atividade, o pedido traz os pontos. O dia padrão é
+  hoje, até 30 dias atrás. O registro avulso se exclui por `DELETE /habit-entries/:id`. O de tarefa
+  ou de check-in se desfaz pela origem, a menos que ela tenha sido excluída (RF-09, RN-06, RN-10).
+- **Histórico de registros por período** (`GET /habits/:id/entries?from&to`), até 400 dias por
+  consulta, para a linha do tempo da Ritmo 2 (RF-11).
+- **Hábitos no MCP.** `list_habits` mostra os hábitos, as atividades com id e a semana. Com a
+  escrita liberada, `create_habit` cria o hábito com as atividades, `update_habit` muda o hábito e
+  cria, edita ou arquiva atividades, e `log_habit` registra fora do plano. `create_task`,
+  `update_task`, `create_event` e `update_event` aceitam `habitActivityId` (RF-12 a RF-14).
+- **Hábitos no chat.** O assistente lê os hábitos e registra pontos fora do plano, quando
+  pedido. Ele não cria nem configura hábito: isso fica só no MCP. As duas ferramentas aparecem no
+  editor de agente e têm rótulo próprio na conversa, no web e no celular (RF-15).
+
+### Alterado
+- **O registro guarda os pontos do momento.** Mudar os pontos de uma atividade depois não
+  reescreve os registros antigos (RN-03).
+- **Hábito ou atividade arquivados não pontuam.** Registro avulso e check-in neles são recusados
+  com 409. Concluir uma tarefa ligada a eles conclui a tarefa, mas não gera pontos. Uma atividade
+  arquivada ainda se vincula a tarefa e evento (RN-07).
+- **O registro feito pelo MCP ou pelo chat leva a marca de quem registrou**, gravada só pelo
+  servidor, como a marca de conclusão da tarefa (RN-12).
+- **Num 404 de edição ou criação na agenda, o MCP aponta também para `habitActivityId`.** Antes
+  apontava só para o quadro. A atividade de outra conta é 404, como a inexistente (RN-11).
+
+### Limitações conhecidas
+- **Não há tela de hábitos.** Nem no web nem no celular: a área Ritmo do móvel é a Ritmo 2.
+- **O check-in de evento só se faz pela rota.** Nenhuma tool do MCP nem do chat o faz. A
+  descrição do vínculo nos eventos diz "check-in, feito no app", para o modelo não usar
+  `log_habit` no lugar, o que escaparia da unicidade por ocorrência. A tool fica para a Ritmo 2.
+- **A resposta do evento ainda não diz se uma ocorrência já teve check-in.** Isso entra com a
+  tela, na Ritmo 2.
+- **`update_habit` não é atômico.** O hábito e cada atividade são rotas próprias. Se uma escrita
+  falha no meio, a tool devolve o que foi aplicado e o que falhou, em vez de desfazer.
+- **Pelo MCP e pelo chat, hábito e atividade não se excluem.** Só se arquivam. Excluir se faz pela
+  API, e o registro avulso também.
+- **Ofensivas, XP, níveis e recordes ainda não existem.** São a Ritmo 3.
+
+---
+
 ## [0.36.0] — 2026-10-18
 
 **Tarefa recorrente.** Uma tarefa passa a poder se repetir toda semana, nos dias escolhidos, com um

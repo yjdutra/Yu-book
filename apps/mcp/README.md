@@ -149,6 +149,7 @@ Leitura:
 | `get_board` | Colunas na ordem **com o id de cada uma**, e a face dos cards | Médio |
 | `get_dashboard` | O agregado da tela inicial numa requisição só | Médio |
 | `list_agenda` | Até 31 dias, dia a dia: eventos, tarefas, cards com prazo; atrasadas e sem data à parte | Médio; o período é recusado antes da rede |
+| `list_habits` | Hábitos ativos com as atividades (id e pontos) e a semana ponderada | Baixo |
 
 Escrita — em stdio só contra API local; em HTTP, com escopo `yubook:write`:
 
@@ -169,6 +170,9 @@ Escrita — em stdio só contra API local; em HTTP, com escopo `yubook:write`:
 | `delete_task` | Exclui uma tarefa, **sem desfazer**; numa recorrente, `scope: serie` encerra a série de hoje em diante | — |
 | `convert_event_to_task` | O evento vira tarefa; numa série, a ocorrência de `occurrenceDate`, ou com `scope: todas` a série inteira vira tarefa recorrente | `convert_task_to_event` |
 | `convert_task_to_event` | A tarefa aberta vira evento (com hora, de uma hora; sem, de dia inteiro) | `convert_event_to_task` |
+| `create_habit` | Cria um hábito com meta semanal, dias-alvo e atividades pontuadas | `update_habit` com `archived: true` |
+| `update_habit` | Altera o hábito e cria, edita ou arquiva atividades; **não é atômico** — numa falha no meio, diz o que passou | outro `update_habit` |
+| `log_habit` | Registra pontos fora do plano, marcado como feito por IA | só pela API (`DELETE /habit-entries/:id`) |
 
 **As exclusões da agenda são a exceção ao critério abaixo, e de propósito.** Excluir evento e
 tarefa é irreversível como excluir card, mas o operador pediu controle total da agenda pelo MCP

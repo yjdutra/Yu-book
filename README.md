@@ -134,7 +134,7 @@ of project-specific agents and skills that live in this repository.
 
 ### MCP server
 
-`apps/mcp` exposes the knowledge base to any MCP client: 21 tools (6 read, 15 write), 6 resources
+`apps/mcp` exposes the knowledge base to any MCP client: 25 tools (7 read, 18 write), 6 resources
 and 2 prompts. It runs over **stdio** on your machine or over **Streamable HTTP** as a hosted
 service, where it is its own **OAuth 2.1** authorization server and every request acts as whoever
 presented the token. Writing is locked behind two independent layers. Details in
@@ -222,8 +222,8 @@ on purpose.
   deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
   unique index), never through process memory. A run that started is never retried, because a
   retry costs money again.
-- **Tests against real infrastructure:** 647 integration tests boot the whole Fastify app against a
-  real Postgres; 99 more cover the MCP server.
+- **Tests against real infrastructure:** 682 integration tests boot the whole Fastify app against a
+  real Postgres; 110 more cover the MCP server.
 
 ---
 
@@ -382,6 +382,11 @@ home page; and a companion phone app with the agenda, tasks, projects and the as
 included. The phone app runs in production as its own service, next to the web app. Events can
 now repeat every week, and so can tasks; events and tasks can be turned into one another, and an
 MCP client can edit and delete them.
+
+Work has started on habits: each one has a weekly goal in points and scored activities, earned by
+ticking off a linked task, checking in to a linked event or logging something done off-plan. A
+daily cap keeps a single day from paying for the whole week. The server side is done and
+reachable through the MCP server and the assistant; the screens come next, on the phone.
 
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
