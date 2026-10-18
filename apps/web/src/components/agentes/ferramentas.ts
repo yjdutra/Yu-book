@@ -39,6 +39,11 @@ const EXPLICACAO: Record<NomeDoAssistente, string> = {
   delete_task: "Exclui uma tarefa, sem desfazer.",
   convert_event_to_task: "Transforma um evento em tarefa.",
   convert_task_to_event: "Transforma uma tarefa em evento.",
+  // Frente Ritmo. Criar e alterar hábito são só do MCP; o chat lê e registra.
+  list_habits: "Vê seus hábitos, as atividades e como está a semana de cada um.",
+  log_habit: "Registra pontos num hábito pelo que você fez fora do plano, quando você pedir.",
+  create_habit: "Cria um hábito com meta semanal e atividades pontuadas.",
+  update_habit: "Muda a meta, as atividades ou arquiva um hábito.",
   open_page:
     "Lê o texto de uma página pública, pelo endereço — o seu ou um que a busca achou. " +
     "LinkedIn nunca, nem endereço da rede interna.",

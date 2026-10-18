@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { HabitActivityRef } from "./habitos.js";
 import { HORA_DA_AGENDA, diaDaSemana, horaLocal, instanteLocal, somarDias } from "./agenda.js";
 import type { CardComPrazo } from "./dashboard.js";
 import type { FieldIssue } from "./errors.js";
@@ -741,6 +742,9 @@ const camposDoEvento = z.object({
   url: urlDoEventoSchema.nullable().default(null),
   /// O projeto. Quadro de outra conta é 404, como inexistente.
   boardId: z.string().uuid("Quadro inválido").nullable().default(null),
+  /// A atividade de hábito que o check-in da ocorrência pontua (frente Ritmo,
+  /// RF-06/RF-08). De outra conta é 404, como o quadro (RN-11).
+  habitActivityId: z.string().uuid("Atividade inválida").nullable().default(null),
   /// Repetição semanal. `null` ou ausente: não repete. No PATCH, `null` faz da
   /// série um evento simples (na primeira ocorrência).
   repeat: repeticaoSchema.nullable().optional(),
@@ -862,6 +866,9 @@ export interface EventItem {
   location: string | null;
   url: string | null;
   board: BoardRef | null;
+  /// A atividade de hábito que o check-in da ocorrência pontua (frente Ritmo,
+  /// RF-08).
+  habitActivity: HabitActivityRef | null;
   ai: AiMark | null;
   createdAt: string;
   updatedAt: string;

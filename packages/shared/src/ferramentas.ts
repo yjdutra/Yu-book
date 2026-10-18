@@ -15,6 +15,16 @@ import {
   MAX_CARD_TITULO,
   MAX_TAGS_CARD,
 } from "./kanban.js";
+import {
+  EMBLEMAS_DO_HABITO,
+  HABIT_COLORS,
+  MAX_ATIVIDADE_NOME,
+  MAX_ATIVIDADES_NA_CRIACAO,
+  MAX_HABITO_NOME,
+  MAX_META_SEMANAL,
+  MAX_PONTOS,
+  MAX_REGISTRO_NOTA,
+} from "./habitos.js";
 import { MAX_CONTEUDO, noteKindSchema, tituloSchema } from "./notes.js";
 import { MAX_TAREFA_DESCRICAO, MAX_TAREFA_TITULO } from "./tarefas.js";
 
@@ -119,6 +129,23 @@ const ALCANCE_DA_SERIE =
   "Numa série, `scope` é obrigatório: `esta` (só a ocorrência), `seguintes` ou `todas`; " +
   "`esta` e `seguintes` pedem `occurrenceDate`, o dia em que a ocorrência aparece em " +
   "`list_agenda`.";
+
+/**
+ * O vínculo com uma atividade de hábito (frente Ritmo, RF-14), nas quatro tools
+ * de agenda que gravam tarefa ou evento — uma instância por campo, pela regra
+ * do `$ref`. Curto: `create_event` e `create_task` estão no chat, que paga a
+ * frase em todo turno.
+ */
+function novoVinculoDeHabito(gesto: "tarefa" | "evento") {
+  return z
+    .string()
+    .uuid()
+    .describe(
+      gesto === "tarefa"
+        ? "Atividade de hábito que pontua ao concluir, de `list_habits`."
+        : "Atividade de hábito que pontua no check-in, feito no app, de `list_habits`.",
+    );
+}
 
 const ESCRITA_DA_AGENDA = {
   readOnlyHint: false,
@@ -472,6 +499,7 @@ export const FERRAMENTAS_DO_ACERVO = {
         .uuid()
         .optional()
         .describe("O projeto: id de um quadro, de `list_boards`. Omita se não houver."),
+      habitActivityId: novoVinculoDeHabito("evento").optional(),
       /// Frente de eventos recorrentes, R2. Siglas, não números (ver
       /// `SIGLAS_DOS_DIAS`); quem chama converte por `diasDasSiglas` antes da
       /// API, que só conhece 0–6. O `until` é instância própria, pela regra do
@@ -522,6 +550,7 @@ export const FERRAMENTAS_DO_ACERVO = {
         .uuid()
         .optional()
         .describe("O projeto: id de um quadro, de `list_boards`. Omita se não houver."),
+      habitActivityId: novoVinculoDeHabito("tarefa").optional(),
       repeat: novaRepeticao()
         .optional()
         .describe("Repetição semanal, a partir de `date`, que passa a ser obrigatório."),
@@ -586,6 +615,7 @@ export const FERRAMENTAS_DO_ACERVO = {
         .nullable()
         .optional()
         .describe("O projeto, de `list_boards`; null tira."),
+      habitActivityId: novoVinculoDeHabito("evento").nullable().optional(),
       repeat: novaRepeticao()
         .nullable()
         .optional()
@@ -642,6 +672,7 @@ export const FERRAMENTAS_DO_ACERVO = {
         .nullable()
         .optional()
         .describe("O projeto, de `list_boards`; null tira."),
+      habitActivityId: novoVinculoDeHabito("tarefa").nullable().optional(),
       repeat: novaRepeticao().optional().describe("Com `scope: serie`: os novos dias da série."),
     },
   },
@@ -722,6 +753,121 @@ export const FERRAMENTAS_DO_ACERVO = {
         .optional()
         .describe("Outro projeto, de `list_boards`; null tira."),
       repeat: novaRepeticao().optional().describe("Repetição semanal, a partir do dia."),
+    },
+  },
+
+  // Frente Ritmo, Ritmo 1 (docs/prd-ritmo.md, RF-12 e RF-13). `list_habits` é
+  // leitura e entra no chat sozinha (`FERRAMENTAS_DE_LEITURA`); `log_habit`
+  // entra por lista (RF-15). Criar e alterar hábito é configuração: só o MCP
+  // (RNF-03) — o chat não paga essas descrições.
+  list_habits: {
+    titulo: "Ver os hábitos e a semana",
+    descricao:
+      "Lista os hábitos ativos com as atividades (id e pontos) e a semana atual: pontos que " +
+      "contam para a meta, o teto por dia e o que passou dele. É de onde vêm `habitId` e " +
+      "`activityId`.",
+    escrita: false,
+    entrada: {},
+  },
+
+  log_habit: {
+    titulo: "Registrar pontos num hábito",
+    descricao:
+      "Registra pontos feitos fora do plano: com `activityId` valem os pontos dela, salvo " +
+      "`points`. Atividade agendada pontua ao concluir a tarefa (`complete_task`): não registre " +
+      "de novo. Dia padrão é hoje, até 30 dias atrás. Não cria hábito nem atividade.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    entrada: {
+      habitId: z.string().uuid().describe("Id do hábito, de `list_habits`."),
+      activityId: z.string().uuid().optional().describe("Id da atividade, de `list_habits`."),
+      points: z
+        .number()
+        .int()
+        .min(1)
+        .max(MAX_PONTOS)
+        .optional()
+        .describe("Pontos; obrigatório sem `activityId`."),
+      day: novoDiaCivilSchema().describe("Dia, AAAA-MM-DD. Omita para hoje.").optional(),
+      note: z.string().trim().max(MAX_REGISTRO_NOTA).optional().describe("O que foi feito."),
+    },
+  },
+
+  create_habit: {
+    titulo: "Criar um hábito",
+    descricao:
+      "Cria um hábito com meta semanal em pontos, os dias-alvo por semana e as atividades " +
+      "pontuadas. Cada dia conta no máximo meta ÷ dias-alvo para a meta; o resto vira só XP. " +
+      "Para agendar uma atividade, crie tarefa ou evento com `habitActivityId`.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    entrada: {
+      name: z.string().trim().min(1).max(MAX_HABITO_NOME).describe("Nome do hábito."),
+      weeklyGoal: z
+        .number()
+        .int()
+        .min(1)
+        .max(MAX_META_SEMANAL)
+        .describe("Meta da semana, em pontos."),
+      targetDays: z.number().int().min(1).max(7).describe("Em quantos dias da semana, de 1 a 7."),
+      color: z.enum(HABIT_COLORS).optional().describe("Cor."),
+      emblem: z.enum(EMBLEMAS_DO_HABITO).optional().describe("Emblema."),
+      activities: z
+        .array(
+          z.object({
+            name: z.string().trim().min(1).max(MAX_ATIVIDADE_NOME),
+            points: z.number().int().min(1).max(MAX_PONTOS),
+          }),
+        )
+        .max(MAX_ATIVIDADES_NA_CRIACAO)
+        .optional()
+        .describe("Atividades, cada uma com nome e pontos."),
+    },
+  },
+
+  update_habit: {
+    titulo: "Alterar um hábito",
+    descricao:
+      "Altera um hábito: mande só o que muda. Em `activities`, item com `id` edita ou arquiva " +
+      "a atividade; sem `id` cria uma (nome e pontos). Não exclui hábito nem atividade — " +
+      "arquive. Mudar pontos não reescreve registros antigos.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
+    entrada: {
+      habitId: z.string().uuid().describe("Id do hábito, de `list_habits`."),
+      name: z.string().trim().min(1).max(MAX_HABITO_NOME).optional().describe("Novo nome."),
+      weeklyGoal: z.number().int().min(1).max(MAX_META_SEMANAL).optional().describe("Nova meta."),
+      targetDays: z.number().int().min(1).max(7).optional().describe("Novos dias-alvo."),
+      color: z.enum(HABIT_COLORS).optional().describe("Nova cor."),
+      emblem: z.enum(EMBLEMAS_DO_HABITO).optional().describe("Novo emblema."),
+      archived: z.boolean().optional().describe("true arquiva; false desarquiva."),
+      activities: z
+        .array(
+          z.object({
+            id: z.string().uuid().optional(),
+            name: z.string().trim().min(1).max(MAX_ATIVIDADE_NOME).optional(),
+            points: z.number().int().min(1).max(MAX_PONTOS).optional(),
+            archived: z.boolean().optional(),
+          }),
+        )
+        .max(MAX_ATIVIDADES_NA_CRIACAO)
+        .optional()
+        .describe("Atividades a criar, editar ou arquivar."),
     },
   },
   /// `satisfies`, e não uma anotação de tipo: a anotação apagaria a forma
@@ -819,6 +965,7 @@ export const FERRAMENTAS_DO_CHAT: readonly NomeDoAssistente[] = [
   "create_event",
   "create_task",
   "complete_task",
+  "log_habit",
   "open_page",
 ];
 
@@ -838,4 +985,5 @@ export const FERRAMENTAS_SEM_AGENTE: readonly NomeDeFerramenta[] = [
   "create_event",
   "create_task",
   "complete_task",
+  "log_habit",
 ];

@@ -534,10 +534,12 @@ export function EditorAgente({ id }: { id: string | null }) {
           // crie entra nesta lista, ou o texto diria "o que criar".
           f.nome === "complete_card" || f.nome === "complete_task"
             ? `${f.explicacao} A conclusão fica marcada como feita por IA, com o nome do agente.`
-            : f.escrita
-              ? `${f.explicacao} O que criar fica marcado como gerado por IA, ` +
-                "com o nome do agente."
-              : f.explicacao
+            : f.nome === "log_habit"
+              ? `${f.explicacao} O registro fica marcado como feito por IA, com o nome do agente.`
+              : f.escrita
+                ? `${f.explicacao} O que criar fica marcado como gerado por IA, ` +
+                  "com o nome do agente."
+                : f.explicacao
         }
         extra={
           f.escrita ? (

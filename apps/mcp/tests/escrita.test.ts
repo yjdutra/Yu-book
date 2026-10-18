@@ -73,7 +73,9 @@ function argumentosMinimos(tool: ToolAnunciada): Record<string, unknown> {
   for (const nome of tool.inputSchema.required ?? []) {
     const campo = tool.inputSchema.properties?.[nome];
     if (campo?.enum?.length) args[nome] = campo.enum[0];
-    else if (campo?.type === "integer" || campo?.type === "number") args[nome] = 0;
+    // O mínimo do schema, quando há: a meta do hábito (frente Ritmo) começa em
+    // 1, e um 0 seria recusado pela validação antes de chegar à trava.
+    else if (campo?.type === "integer" || campo?.type === "number") args[nome] = campo.minimum ?? 0;
     else if (campo?.type === "boolean") args[nome] = false;
     else if (campo?.type === "array") args[nome] = [];
     else if (campo?.format === "uuid") args[nome] = randomUUID();

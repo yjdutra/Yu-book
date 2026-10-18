@@ -99,8 +99,10 @@ export function instrucoesPara(
   const leitura = ordem.filter((n) => !DEFINICOES_DO_ASSISTENTE[n].escrita && n !== "open_page");
   /// Concluir é escrita que não cria: card e, desde a Fase 2 da frente de
   /// agenda, tarefa. As duas ficam fora do bloco de criação.
+  /// Registrar pontos (frente Ritmo) também: não cria item que se abra.
+  const naoCria: readonly NomeDoAssistente[] = ["complete_card", "complete_task", "log_habit"];
   const criacao = ordem.filter(
-    (n) => DEFINICOES_DO_ASSISTENTE[n].escrita && n !== "complete_card" && n !== "complete_task",
+    (n) => DEFINICOES_DO_ASSISTENTE[n].escrita && !naoCria.includes(n),
   );
   const conclui = [tem("complete_card") && "card", tem("complete_task") && "tarefa"]
     .filter(Boolean)
@@ -231,6 +233,18 @@ export function instrucoesPara(
           "registrado como feito por IA.",
       );
     }
+  }
+
+  // Frente Ritmo, RF-15. A linha que importa é a de não registrar de novo o
+  // que a conclusão da tarefa já pontuou: sem ela, "fiz o app hoje" vira dois
+  // registros.
+  if (tem("log_habit")) {
+    linhas.push(
+      "",
+      "Hábitos (`log_habit`):",
+      "- Atividade que tem tarefa se pontua concluindo a tarefa; `log_habit` é só o que foi " +
+        "feito fora do plano, e fica registrado como feito por IA.",
+    );
   }
 
   if (buscaNaWeb || tem("open_page")) {

@@ -29,6 +29,12 @@ import {
 } from "../../lib/marca.js";
 import type { OrigemIA } from "../../lib/marca.js";
 import { preferenciaDe } from "../assistente/preferencias.service.js";
+import {
+  CAMPOS_DO_VINCULO,
+  conferirAtividade,
+  paraVinculo,
+  pontuarConclusao,
+} from "../habitos/vinculo.service.js";
 
 /**
  * Tarefas — frente de agenda, Fase 1.
@@ -68,6 +74,20 @@ export function quadroQueSumiu(erro: unknown): never {
       erro.meta?.constraint === "event_board_id_fkey")
   ) {
     throw notFound("Quadro não encontrado");
+  }
+  // A atividade de hábito (frente Ritmo, RN-11) pode sumir do mesmo jeito.
+  if (
+    erro instanceof Prisma.PrismaClientKnownRequestError &&
+    erro.code === "P2003" &&
+    typeof erro.meta?.constraint === "string" &&
+    (erro.meta.constraint.endsWith("_habit_activity_id_fkey") ||
+      // O hábito ou a atividade excluídos entre a leitura e o registro da
+      // conclusão (RF-07): a transação desfaz, e a próxima tentativa já não
+      // acha o vínculo.
+      erro.meta.constraint === "habit_entry_activity_id_fkey" ||
+      erro.meta.constraint === "habit_entry_habit_id_fkey")
+  ) {
+    throw notFound("Atividade não encontrada");
   }
   throw erro;
 }
@@ -113,6 +133,7 @@ const CAMPOS_TAREFA = {
   updatedAt: true,
   board: { select: { id: true, name: true } },
   series: { select: { id: true, repeatDays: true, repeatUntil: true } },
+  habitActivity: CAMPOS_DO_VINCULO,
   ...CAMPOS_DA_MARCA,
   ...CAMPOS_DA_CONCLUSAO,
 } satisfies Prisma.TaskSelect;
@@ -142,6 +163,7 @@ function paraTarefa(linha: LinhaTarefa, hoje: string): TaskItem {
           until: linha.series.repeatUntil ? daColunaDate(linha.series.repeatUntil) : null,
         }
       : null,
+    habitActivity: paraVinculo(linha.habitActivity),
     createdAt: linha.createdAt.toISOString(),
     updatedAt: linha.updatedAt.toISOString(),
   };
@@ -225,6 +247,7 @@ export async function criarTarefa(
   conferirHora(time);
   const dataDaColuna = date === null ? null : paraColunaDate(date);
   if (input.boardId) await conferirQuadro(userId, input.boardId);
+  if (input.habitActivityId) await conferirAtividade(userId, input.habitActivityId);
 
   const { id } = await prisma.task
     .create({
@@ -235,6 +258,7 @@ export async function criarTarefa(
         date: dataDaColuna,
         time,
         boardId: input.boardId ?? null,
+        habitActivityId: input.habitActivityId ?? null,
         ...camposDaOrigem(origem),
       },
       select: { id: true },
@@ -261,6 +285,7 @@ export async function atualizarTarefa(
   });
   if (!atual) throw notFound("Tarefa não encontrada");
   if (input.boardId) await conferirQuadro(userId, input.boardId);
+  if (input.habitActivityId) await conferirAtividade(userId, input.habitActivityId);
 
   // "Hora só com data" sobre o valor mesclado — o schema parcial não o vê.
   // Tirar a data leva a hora junto, em vez de recusar: hora sem dia não tem
@@ -294,6 +319,7 @@ export async function atualizarTarefa(
             time,
           }),
           ...(input.boardId !== undefined && { boardId: input.boardId }),
+          ...(input.habitActivityId !== undefined && { habitActivityId: input.habitActivityId }),
           ...(revisou && { aiRevisedAt: new Date() }),
         },
       });
@@ -317,10 +343,16 @@ export async function concluirTarefa(
   completed: boolean,
   origem?: OrigemIA,
 ): Promise<TaskItem> {
-  await prisma.task.updateMany({
-    where: { id, userId, completedAt: completed ? null : { not: null } },
-    data: camposDaConclusao(completed, origem),
-  });
+  const hoje = await hojeDe(userId);
+  await prisma.$transaction(async (tx) => {
+    const { count } = await tx.task.updateMany({
+      where: { id, userId, completedAt: completed ? null : { not: null } },
+      data: camposDaConclusao(completed, origem),
+    });
+    // Frente Ritmo (RF-07): o registro do hábito acompanha a mudança de
+    // estado, na mesma transação — e só ela; concluir de novo não pontua.
+    if (count > 0) await pontuarConclusao(tx, { userId, taskId: id, completed, hoje, origem });
+  }).catch(quadroQueSumiu);
   return buscarTarefa(userId, id);
 }
 
@@ -418,6 +450,7 @@ const CAMPOS_SERIE = {
   repeatUntil: true,
   exdates: true,
   generatedThrough: true,
+  habitActivityId: true,
   aiGeneratedAt: true,
   aiVia: true,
   aiAuthor: true,
@@ -442,6 +475,7 @@ type MoldeDaSerie = Pick<
   | "repeatDays"
   | "repeatUntil"
   | "exdates"
+  | "habitActivityId"
   | "aiGeneratedAt"
   | "aiVia"
   | "aiAuthor"
@@ -502,6 +536,7 @@ async function gerarOcorrencias(
         descriptionMd: serie.descriptionMd,
         date: paraColunaDate(dia),
         time: serie.time,
+        habitActivityId: serie.habitActivityId,
         aiGeneratedAt: serie.aiGeneratedAt,
         aiVia: serie.aiVia,
         aiAuthor: serie.aiAuthor,
@@ -541,6 +576,8 @@ export interface PedidoDeSerie {
   startDate: string;
   recurrence: EventRecurrence;
   exdates?: string[];
+  /// A atividade de hábito que cada ocorrência leva (frente Ritmo, RF-06).
+  habitActivityId?: string | null;
 }
 
 /**
@@ -574,6 +611,7 @@ export async function gravarSerie(
       repeatUntil: pedido.recurrence.until ? paraColunaDate(pedido.recurrence.until) : null,
       exdates: (pedido.exdates ?? []).map(paraColunaDate),
       generatedThrough: paraColunaDate(somarDias(de, -1)),
+      habitActivityId: pedido.habitActivityId ?? null,
       aiGeneratedAt: marca.aiGeneratedAt ?? null,
       aiVia: marca.aiVia ?? null,
       aiAuthor: marca.aiAuthor ?? null,
@@ -629,6 +667,7 @@ async function criarSerie(
   const recurrence = { days: input.repeat.days, until: input.repeat.until ?? null };
   conferirRegra(recurrence, date);
   if (input.boardId) await conferirQuadro(userId, input.boardId);
+  if (input.habitActivityId) await conferirAtividade(userId, input.habitActivityId);
   const hoje = await hojeDe(userId);
   const origemDaSerie = camposDaOrigem(origem);
 
@@ -644,6 +683,7 @@ async function criarSerie(
           boardId: input.boardId ?? null,
           startDate: date,
           recurrence,
+          habitActivityId: input.habitActivityId ?? null,
         },
         {
           aiGeneratedAt: origemDaSerie.aiGeneratedAt ?? null,
@@ -705,6 +745,7 @@ export async function atualizarSerie(
     : null;
   if (recurrence) conferirRegra(recurrence, daColunaDate(atual.startDate));
   if (input.boardId) await conferirQuadro(userId, input.boardId);
+  if (input.habitActivityId) await conferirAtividade(userId, input.habitActivityId);
   const hoje = await hojeDe(userId);
   const revisou =
     atual.aiGeneratedAt !== null &&
@@ -720,6 +761,7 @@ export async function atualizarSerie(
           ...(input.descriptionMd !== undefined && { descriptionMd: input.descriptionMd }),
           ...(input.time !== undefined && { time }),
           ...(input.boardId !== undefined && { boardId: input.boardId }),
+          ...(input.habitActivityId !== undefined && { habitActivityId: input.habitActivityId }),
           ...(recurrence && {
             repeatDays: [...recurrence.days].sort((a, b) => a - b),
             repeatUntil: recurrence.until ? paraColunaDate(recurrence.until) : null,

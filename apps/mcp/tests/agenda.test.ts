@@ -65,6 +65,7 @@ function evento(corpo: Record<string, unknown>): EventItem {
     location: null,
     url: null,
     board: null,
+    habitActivity: null,
     ai,
     createdAt: AGORA,
     updatedAt: AGORA,
@@ -84,6 +85,7 @@ function tarefa(completedAt: string | null, autor: string | null): TaskItem {
     board: null,
     ai: null,
     series: null,
+    habitActivity: null,
     createdAt: AGORA,
     updatedAt: AGORA,
   };

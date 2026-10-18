@@ -32,7 +32,7 @@ export interface ToolAnunciada {
   inputSchema: {
     properties?: Record<
       string,
-      { type?: string; format?: string; enum?: unknown[]; description?: string }
+      { type?: string; format?: string; enum?: unknown[]; description?: string; minimum?: number }
     >;
     required?: string[];
   };

@@ -56,6 +56,20 @@ const TAREFA_NAO_ENCONTRADA =
   "**Nada foi alterado.** Não existe tarefa com esse id nesta conta — o id vem de " +
   "`list_agenda`, e as tarefas sem data aparecem no fim dela.";
 
+/**
+ * O `NOT_FOUND` de uma edição pode ser do vínculo, e não do item: o quadro de
+ * `boardId` ou a atividade de `habitActivityId` (frente Ritmo) de outra conta
+ * dão o mesmo 404. Sem esta frase o modelo relista a agenda e repete o id
+ * errado do vínculo.
+ */
+function comVinculos(base: string, mudanca: Record<string, unknown>): string {
+  const ids = [
+    mudanca["boardId"] && "`boardId` (de `list_boards`)",
+    mudanca["habitActivityId"] && "`habitActivityId` (de `list_habits`)",
+  ].filter(Boolean);
+  return ids.length ? `${base} Se o id existe, confira ${ids.join(" e ")}.` : base;
+}
+
 function caminhoComAlcance(
   base: string,
   alcance: { scope: EscopoDoEvento; occurrenceDate?: string | undefined } | null,
@@ -182,7 +196,7 @@ export function registrarControleDaAgenda(server: McpServer): void {
         );
       } catch (erro) {
         if (erro instanceof ErroDaApi && erro.code === "NOT_FOUND") {
-          return recusa(EVENTO_NAO_ENCONTRADO);
+          return recusa(comVinculos(EVENTO_NAO_ENCONTRADO, mudanca));
         }
         throw erro;
       }
@@ -276,7 +290,7 @@ export function registrarControleDaAgenda(server: McpServer): void {
           });
         } catch (erro) {
           if (erro instanceof ErroDaApi && erro.code === "NOT_FOUND") {
-            return recusa(TAREFA_NAO_ENCONTRADA);
+            return recusa(comVinculos(TAREFA_NAO_ENCONTRADA, mudanca));
           }
           throw erro;
         }
@@ -306,7 +320,7 @@ export function registrarControleDaAgenda(server: McpServer): void {
         atual = await api.patch<TaskItem>(`/tasks/${taskId}`, mudanca);
       } catch (erro) {
         if (erro instanceof ErroDaApi && erro.code === "NOT_FOUND") {
-          return recusa(TAREFA_NAO_ENCONTRADA);
+          return recusa(comVinculos(TAREFA_NAO_ENCONTRADA, mudanca));
         }
         throw erro;
       }

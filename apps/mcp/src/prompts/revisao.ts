@@ -22,7 +22,8 @@ export function registrarPrompts(server: McpServer, { escrita }: { escrita: bool
   // cresce com ela. Fora desta regra o ritual é o mesmo nas duas sessões.
   const regraDeEscrita = escrita
     ? `- **Você pode criar, mover e concluir cards, criar, alterar, converter e excluir eventos e
-  tarefas, concluir tarefas e mandar notas para a lixeira** — mas só quando eu pedir. Neste ritual, no máximo *proponha* a ação e
+  tarefas, concluir tarefas, criar e alterar hábitos, registrar pontos e mandar notas para a
+  lixeira** — mas só quando eu pedir. Neste ritual, no máximo *proponha* a ação e
   diga qual tool a executa; não chame nenhuma tool de escrita sem eu mandar. Um ritual de revisão
   que mexe no quadro sozinho deixa de ser confiável.`
     : `- **Esta sessão só lê.** Se algo pedir uma ação, diga qual é e que ela se faz no aplicativo;

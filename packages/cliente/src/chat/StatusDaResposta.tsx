@@ -36,6 +36,9 @@ export const ROTULO_DA_ACAO: Record<string, string> = {
   create_event: "agendando",
   create_task: "criando tarefa",
   complete_task: "concluindo tarefa",
+  // Frente Ritmo: registrar pontos grava sem criar item.
+  list_habits: "vendo seus hábitos",
+  log_habit: "registrando pontos",
   // Etapa G: a única que sai do Yu-book. A espera é a rede de um terceiro, e
   // pode chegar a segundos.
   open_page: "abrindo página",
@@ -55,6 +58,8 @@ const ICONE_DA_ACAO: Record<string, ComponentType<IconeProps>> = {
   create_event: IconeCalendario,
   create_task: IconeTarefa,
   complete_task: IconeCheck,
+  list_habits: IconeTarefa,
+  log_habit: IconeCheck,
   open_page: IconeGlobo,
 };
 

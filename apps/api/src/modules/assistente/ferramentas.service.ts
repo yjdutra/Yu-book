@@ -13,10 +13,12 @@ import {
   formatarCardDetalhe,
   formatarDashboard,
   formatarEvento,
+  formatarHabitos,
   formatarListaDeQuadros,
   formatarNota,
   formatarNotaBreve,
   formatarQuadro,
+  formatarRegistroDeHabito,
   formatarTarefa,
   periodoDeListAgenda,
 } from "@yu-book/shared";
@@ -25,6 +27,7 @@ import { AppError } from "../../lib/errors.js";
 import type { OrigemDoAssistente } from "../../lib/marca.js";
 import * as dashboard from "../dashboard/dashboard.service.js";
 import * as eventos from "../eventos/eventos.service.js";
+import * as habitos from "../habitos/habitos.service.js";
 import * as kanban from "../kanban/kanban.service.js";
 import * as notes from "../notes/notes.service.js";
 import * as search from "../notes/search.service.js";
@@ -313,6 +316,7 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
         ...(entrada.location !== undefined && { location: entrada.location }),
         ...(entrada.description !== undefined && { description: entrada.description }),
         ...(entrada.boardId !== undefined && { boardId: entrada.boardId }),
+        ...(entrada.habitActivityId !== undefined && { habitActivityId: entrada.habitActivityId }),
         ...(entrada.repeat !== undefined && {
           repeat: {
             days: diasDasSiglas(entrada.repeat.days),
@@ -343,6 +347,7 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
         ...(entrada.time !== undefined && { time: entrada.time }),
         ...(entrada.descriptionMd !== undefined && { descriptionMd: entrada.descriptionMd }),
         ...(entrada.boardId !== undefined && { boardId: entrada.boardId }),
+        ...(entrada.habitActivityId !== undefined && { habitActivityId: entrada.habitActivityId }),
         // O modelo escreve siglas; a API só conhece 0–6.
         ...(entrada.repeat !== undefined && {
           repeat: {
@@ -377,6 +382,35 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
     );
     return { texto: formatarTarefa(tarefa), fontes: [], criados: [] };
   },
+
+  /// Frente Ritmo, RF-15: o chat lê os hábitos e registra fora do plano, com
+  /// a marca de quem registrou (RN-12). Não entra em `criados`: o registro não
+  /// abre como item, e a tela de hábitos (Ritmo 2) é quem o mostra.
+  list_habits: async (argumentos, { userId }) => {
+    conferir(FERRAMENTAS_DO_ACERVO.list_habits.entrada, argumentos);
+    const lista = await habitos.listarHabitos(userId, false);
+    return { texto: formatarHabitos(lista), fontes: [], criados: [] };
+  },
+
+  log_habit: async (argumentos, { userId, origem }) => {
+    const { habitId, ...entrada } = conferir(FERRAMENTAS_DO_ACERVO.log_habit.entrada, argumentos);
+    const registro = await habitos.registrarAvulso(
+      userId,
+      habitId,
+      {
+        ...(entrada.activityId !== undefined && { activityId: entrada.activityId }),
+        ...(entrada.points !== undefined && { points: entrada.points }),
+        ...(entrada.day !== undefined && { day: entrada.day }),
+        ...(entrada.note !== undefined && { note: entrada.note }),
+      },
+      origem,
+    );
+    const habito = await habitos.buscarHabito(userId, habitId);
+    return { texto: formatarRegistroDeHabito(registro, habito.name), fontes: [], criados: [] };
+  },
+  // Configuração de hábito é do MCP (RNF-03): o chat registra, não monta.
+  create_habit: undefined,
+  update_habit: undefined,
 
   move_card: undefined,
   trash_note: undefined,

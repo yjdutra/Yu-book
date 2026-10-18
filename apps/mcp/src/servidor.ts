@@ -5,6 +5,8 @@ import { registrarConteudo } from "./resources/conteudo.js";
 import { registrarToolsDeAgenda } from "./tools/agenda.js";
 import { registrarControleDaAgenda } from "./tools/agenda-controle.js";
 import { registrarEscritaDeAgenda } from "./tools/agenda-escrita.js";
+import { registrarEscritaDeHabitos } from "./tools/habitos-escrita.js";
+import { registrarToolsDeHabitos } from "./tools/habitos.js";
 import { registrarEscritaDeKanban } from "./tools/kanban-escrita.js";
 import { registrarToolsDeKanban } from "./tools/kanban.js";
 import { registrarEscritaDeNotas } from "./tools/notas-escrita.js";
@@ -57,6 +59,7 @@ export function criarServidor({ escrita }: OpcoesDoServidor): McpServer {
   registrarToolsDeNotas(server);
   registrarToolsDeKanban(server);
   registrarToolsDeAgenda(server);
+  registrarToolsDeHabitos(server);
   registrarCatalogos(server);
   registrarConteudo(server);
   registrarPrompts(server, { escrita });
@@ -66,6 +69,7 @@ export function criarServidor({ escrita }: OpcoesDoServidor): McpServer {
     registrarEscritaDeNotas(server);
     registrarEscritaDeAgenda(server);
     registrarControleDaAgenda(server);
+    registrarEscritaDeHabitos(server);
   }
 
   return server;

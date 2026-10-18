@@ -20,6 +20,7 @@ import { linksRoutes } from "./modules/links/links.routes.js";
 import { notesRoutes } from "./modules/notes/notes.routes.js";
 import { organizacaoRoutes } from "./modules/organizacao/organizacao.routes.js";
 import { tarefasRoutes } from "./modules/tarefas/tarefas.routes.js";
+import { habitosRoutes } from "./modules/habitos/habitos.routes.js";
 
 export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
@@ -112,6 +113,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(dashboardRoutes);
   await app.register(eventosRoutes);
   await app.register(tarefasRoutes);
+  await app.register(habitosRoutes);
   await app.register(assistenteRoutes);
 
   return app;

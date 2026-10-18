@@ -4,6 +4,7 @@ import type { SearchResponse, SearchResult } from "./busca.js";
 import { formatarBytes } from "./arquivos.js";
 import type { CardFile } from "./arquivos.js";
 import type { CardComPrazo, Dashboard } from "./dashboard.js";
+import type { HabitActivityRef, HabitEntryItem, HabitItem } from "./habitos.js";
 import { descreverDias, diasDoEvento } from "./eventos.js";
 import type { AgendaCard, AgendaRange, EventItem } from "./eventos.js";
 import { diaLocal } from "./ia.js";
@@ -580,6 +581,9 @@ export function formatarEvento(evento: EventItem): string {
   if (repete) linhas.push(repete);
   linhas.push(`id: ${evento.id}`);
   if (evento.board?.name) linhas.push(`projeto: ${evento.board.name}`);
+  // Por verdade, e não `!== null`: campo da frente Ritmo, e a API no ar pode
+  // ser mais velha e nem mandar a chave (§13 da skill do MCP).
+  if (evento.habitActivity) linhas.push(linhaDoVinculo(evento.habitActivity, "check-in"));
   if (evento.location) linhas.push(`local: ${evento.location}`);
   if (evento.url) linhas.push(`link: ${evento.url}`);
   if (evento.ai) linhas.push(linhaDaMarcaSemDia(evento.ai, "o"));
@@ -610,6 +614,7 @@ export function formatarTarefa(tarefa: TaskItem): string {
   }
   linhas.push(`id: ${tarefa.id}`);
   if (tarefa.board?.name) linhas.push(`projeto: ${tarefa.board.name}`);
+  if (tarefa.habitActivity) linhas.push(linhaDoVinculo(tarefa.habitActivity, "concluir"));
   if (tarefa.ai) linhas.push(linhaDaMarcaSemDia(tarefa.ai, "a"));
   if (tarefa.completedAt) {
     const ia = tarefa.completion;
@@ -697,5 +702,55 @@ export function formatarAgenda(agenda: AgendaRange): string {
       linhas.push(`_As ${semData.length} mais recentes; pode haver mais._`);
     }
   }
+  return linhas.join("\n");
+}
+
+/* ---------------------------------------------------------------
+   Hábitos (frente Ritmo, Ritmo 1 — RF-12, RNF-04)
+   --------------------------------------------------------------- */
+
+/** O vínculo de tarefa ou evento, numa linha: o que pontua e em que hábito. */
+function linhaDoVinculo(vinculo: HabitActivityRef, gesto: "concluir" | "check-in"): string {
+  return `hábito: ${vinculo.habitName} › ${vinculo.name} · +${vinculo.points} ao ${gesto}`;
+}
+
+/**
+ * Os hábitos com a semana: é o que `list_habits` devolve. Cada hábito diz o
+ * que conta para a meta, o teto e os dias; cada atividade ativa, o id e os
+ * pontos — é daqui que o modelo tira `habitId` e `activityId`. Arquivadas
+ * ficam de fora: não recebem registro (RN-07), e listá-las só convidaria ao erro.
+ */
+export function formatarHabitos(habitos: HabitItem[]): string {
+  if (habitos.length === 0) return "Nenhum hábito ativo.";
+  const semana = habitos[0]?.week;
+  const linhas = [
+    semana ? `Hábitos · semana de ${semana.start} a ${semana.end}.` : "Hábitos.",
+  ];
+  for (const h of habitos) {
+    const w = h.week;
+    const pct = Math.min(100, Math.round((w.progress / Math.max(1, h.weeklyGoal)) * 100));
+    const cabeca = [
+      `## ${h.name}`,
+      `${w.progress}/${h.weeklyGoal} pts (${pct}%)`,
+      `teto ${w.cap}/dia`,
+      `${w.activeDays} de ${h.targetDays} dias`,
+    ];
+    if (w.goalMet) cabeca.push("meta batida");
+    linhas.push("", cabeca.join(" · "), `id: ${h.id}`);
+    if (w.extra > 0) linhas.push(`acima do teto (só XP): ${w.extra} pts`);
+    const ativas = (h.activities ?? []).filter((a) => !a.archived);
+    for (const a of ativas) linhas.push(`- ${a.name} · ${a.points} pts · id: ${a.id}`);
+    if (ativas.length === 0) linhas.push("- sem atividades: registre com `points`");
+  }
+  return linhas.join("\n");
+}
+
+/** Um registro: é a confirmação de `log_habit`. */
+export function formatarRegistroDeHabito(registro: HabitEntryItem, habito: string): string {
+  const partes = [`+${registro.points} pts em **${habito}**`];
+  if (registro.activity) partes.push(registro.activity.name);
+  partes.push(diaComSemana(registro.day));
+  const linhas = [partes.join(" · "), `id: ${registro.id}`];
+  if (registro.note) linhas.push(`nota: ${registro.note}`);
   return linhas.join("\n");
 }

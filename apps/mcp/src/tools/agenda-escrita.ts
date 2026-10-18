@@ -51,14 +51,27 @@ function naoEncontrado(texto: string): CallToolResult {
   return { content: [{ type: "text", text: texto }], isError: true };
 }
 
-/** O `NOT_FOUND` de uma criação: o quadro, se veio um, ou a rota. */
-function naoEncontradoNaCriacao(boardId: string | undefined): CallToolResult {
+/**
+ * O `NOT_FOUND` de uma criação: o quadro ou a atividade de hábito, se vieram,
+ * ou a rota.
+ */
+function naoEncontradoNaCriacao(
+  boardId: string | undefined,
+  habitActivityId?: string | undefined,
+): CallToolResult {
+  const ids = [
+    boardId && "o quadro de `boardId` (de `list_boards`)",
+    habitActivityId && "a atividade de `habitActivityId` (de `list_habits`)",
+  ].filter(Boolean);
+  if (ids.length === 0) {
+    return naoEncontrado(
+      "**Nada foi criado.** A API do Yu-book no ar ainda não tem a agenda: tentar de novo " +
+        "não resolve.",
+    );
+  }
   return naoEncontrado(
-    boardId
-      ? "**Nada foi criado.** O quadro de `boardId` não existe nesta conta — o id do projeto " +
-          "vem de `list_boards` —, ou a API no ar ainda não tem a agenda."
-      : "**Nada foi criado.** A API do Yu-book no ar ainda não tem a agenda: tentar de novo " +
-          "não resolve.",
+    `**Nada foi criado.** Não existe nesta conta ${ids.join(" ou ")}, ou a API no ar ainda ` +
+      "não tem esse recurso.",
   );
 }
 
@@ -88,6 +101,9 @@ export function registrarEscritaDeAgenda(server: McpServer): void {
           ...(entrada.location !== undefined && { location: entrada.location }),
           ...(entrada.description !== undefined && { description: entrada.description }),
           ...(entrada.boardId !== undefined && { boardId: entrada.boardId }),
+          ...(entrada.habitActivityId !== undefined && {
+            habitActivityId: entrada.habitActivityId,
+          }),
           ...(entrada.repeat !== undefined && {
             repeat: {
               days: diasDasSiglas(entrada.repeat.days),
@@ -98,7 +114,7 @@ export function registrarEscritaDeAgenda(server: McpServer): void {
         });
       } catch (erro) {
         if (erro instanceof ErroDaApi && erro.code === "NOT_FOUND") {
-          return naoEncontradoNaCriacao(entrada.boardId);
+          return naoEncontradoNaCriacao(entrada.boardId, entrada.habitActivityId);
         }
         throw erro;
       }
@@ -155,6 +171,9 @@ export function registrarEscritaDeAgenda(server: McpServer): void {
           ...(entrada.time !== undefined && { time: entrada.time }),
           ...(entrada.descriptionMd !== undefined && { descriptionMd: entrada.descriptionMd }),
           ...(entrada.boardId !== undefined && { boardId: entrada.boardId }),
+          ...(entrada.habitActivityId !== undefined && {
+            habitActivityId: entrada.habitActivityId,
+          }),
           ...(entrada.repeat !== undefined && {
             repeat: {
               days: diasDasSiglas(entrada.repeat.days),
@@ -165,7 +184,7 @@ export function registrarEscritaDeAgenda(server: McpServer): void {
         });
       } catch (erro) {
         if (erro instanceof ErroDaApi && erro.code === "NOT_FOUND") {
-          return naoEncontradoNaCriacao(entrada.boardId);
+          return naoEncontradoNaCriacao(entrada.boardId, entrada.habitActivityId);
         }
         throw erro;
       }

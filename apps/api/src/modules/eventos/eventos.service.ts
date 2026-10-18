@@ -39,6 +39,7 @@ import { CAMPOS_DA_MARCA, camposDaOrigem, copiaDaMarca, paraMarca } from "../../
 import type { OrigemIA } from "../../lib/marca.js";
 import { preferenciaDe } from "../assistente/preferencias.service.js";
 import { CAMPOS_PRAZO, toPrazo } from "../dashboard/dashboard.service.js";
+import { CAMPOS_DO_VINCULO, conferirAtividade, paraVinculo } from "../habitos/vinculo.service.js";
 import {
   buscarTarefa,
   colunasDoQuando,
@@ -90,6 +91,7 @@ const CAMPOS_EVENTO = {
   createdAt: true,
   updatedAt: true,
   board: { select: { id: true, name: true } },
+  habitActivity: CAMPOS_DO_VINCULO,
   ...CAMPOS_DA_MARCA,
 } satisfies Prisma.EventSelect;
 
@@ -160,6 +162,7 @@ function paraEvento(linha: LinhaEvento, fuso: string, ocorrencia?: OcorrenciaDoE
     location: linha.location,
     url: linha.url,
     board: linha.board,
+    habitActivity: paraVinculo(linha.habitActivity),
     ai: paraMarca(linha),
     createdAt: linha.createdAt.toISOString(),
     updatedAt: linha.updatedAt.toISOString(),
@@ -351,6 +354,7 @@ export async function criarEvento(
   );
   const instantes = instantesDe(horario, timezone);
   if (input.boardId) await conferirQuadro(userId, input.boardId);
+  if (input.habitActivityId) await conferirAtividade(userId, input.habitActivityId);
 
   const { id } = await prisma.event
     .create({
@@ -363,6 +367,7 @@ export async function criarEvento(
         location: limpo(input.location),
         url: limpo(input.url),
         boardId: input.boardId ?? null,
+        habitActivityId: input.habitActivityId ?? null,
         ...camposDaOrigem(origem),
       },
       select: { id: true },
@@ -452,6 +457,7 @@ export async function atualizarEvento(
   const atual = await prisma.event.findFirst({ where: { id, userId }, select: CAMPOS_DA_COPIA });
   if (!atual) throw notFound("Evento não encontrado");
   if (input.boardId) await conferirQuadro(userId, input.boardId);
+  if (input.habitActivityId) await conferirAtividade(userId, input.habitActivityId);
 
   const precisaDoFuso =
     tocouHorario(input) || input.repeat !== undefined || escopo.scope !== "todas";
@@ -504,6 +510,7 @@ async function atualizarTodas(
           ...(input.location !== undefined && { location: limpo(input.location) }),
           ...(input.url !== undefined && { url: limpo(input.url) }),
           ...(input.boardId !== undefined && { boardId: input.boardId }),
+          ...(input.habitActivityId !== undefined && { habitActivityId: input.habitActivityId }),
           ...(revisouTexto(atual, input) && { aiRevisedAt: new Date() }),
         },
       })
@@ -572,6 +579,10 @@ function copiaDaSerie(atual: LinhaDaCopia, input: EventUpdateInput) {
     location: input.location !== undefined ? limpo(input.location) : atual.location,
     url: input.url !== undefined ? limpo(input.url) : atual.url,
     boardId: input.boardId !== undefined ? input.boardId : (atual.board?.id ?? null),
+    habitActivityId:
+      input.habitActivityId !== undefined
+        ? input.habitActivityId
+        : (atual.habitActivity?.id ?? null),
     workspaceId: atual.workspaceId,
     noteId: atual.noteId,
     cardId: atual.cardId,
@@ -655,6 +666,25 @@ async function tirarDaSerie(
 }
 
 /**
+ * Frente Ritmo, RN-04: o check-in é da ocorrência, gravado como
+ * `(event_id, day)`. Quando a ocorrência muda de linha — o avulso de `esta`, a
+ * série nova de `seguintes` —, o registro vai junto; sem isso, um check-in no
+ * evento novo pontuaria o mesmo dia de novo, e o antigo não se desfaria mais.
+ */
+async function levarCheckIns(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  de: string,
+  para: string,
+  dias: Pick<Prisma.HabitEntryWhereInput, "day">,
+): Promise<void> {
+  await tx.habitEntry.updateMany({
+    where: { userId, eventId: de, origin: "event", ...dias },
+    data: { eventId: para },
+  });
+}
+
+/**
  * `esta`: a ocorrência sai da série (`exdates`) e nasce um evento avulso com o
  * horário dela e o PATCH por cima. A repetição não se muda numa ocorrência só.
  */
@@ -672,11 +702,17 @@ async function atualizarEsta(
 
   const id = await prisma
     .$transaction(async (tx) => {
-      await tirarDaSerie(tx, userId, tocada, { escopo: "esta" }, fuso);
+      // O avulso nasce antes de a ocorrência sair: o check-in dela (frente
+      // Ritmo, RF-08) muda de dono antes que a série, ficando vazia, seja
+      // apagada e a FK o solte.
       const avulso = await tx.event.create({
         data: { userId, ...copiaDaSerie(tocada.linha, input), ...instantes },
         select: { id: true },
       });
+      await levarCheckIns(tx, userId, tocada.linha.id, avulso.id, {
+        day: deDiaCivil(tocada.ocorrencia.occurrenceDate),
+      });
+      await tirarDaSerie(tx, userId, tocada, { escopo: "esta" }, fuso);
       return avulso.id;
     })
     .catch(quadroQueSumiu);
@@ -719,7 +755,6 @@ async function atualizarSeguintes(
 
   const id = await prisma
     .$transaction(async (tx) => {
-      await tirarDaSerie(tx, userId, tocada, { escopo: "seguintes", corte }, fuso);
       const nova = await tx.event.create({
         data: {
           userId,
@@ -730,6 +765,12 @@ async function atualizarSeguintes(
         },
         select: { id: true },
       });
+      // Os check-ins do corte em diante vão para a série nova, como as
+      // ocorrências (frente Ritmo, RF-08) — antes de a original encolher.
+      await levarCheckIns(tx, userId, tocada.linha.id, nova.id, {
+        day: { gte: deDiaCivil(corte) },
+      });
+      await tirarDaSerie(tx, userId, tocada, { escopo: "seguintes", corte }, fuso);
       return nova.id;
     })
     .catch(quadroQueSumiu);
@@ -778,6 +819,39 @@ export async function excluirEvento(userId: string, id: string, escopo: EventSco
 }
 
 /* --------------------------------------------------------- conversão */
+
+/// O vínculo com o hábito vai junto na conversão, como o projeto (frente
+/// Ritmo, RF-06); o que vier no pedido passa por cima.
+function vinculoDaConversao(
+  pedido: string | null | undefined,
+  atual: string | null | undefined,
+): string | null {
+  return pedido !== undefined ? pedido : (atual ?? null);
+}
+
+/**
+ * Frente Ritmo, RF-08: confere que `dia` é uma ocorrência de verdade do evento
+ * — o dia do evento simples, ou um dia vivo da série — e devolve o vínculo
+ * dele com o hábito. Mora aqui porque é aqui que se sabe ler série e fuso.
+ */
+export async function conferirOcorrencia(
+  userId: string,
+  id: string,
+  dia: string,
+): Promise<{ habitActivityId: string | null }> {
+  const linha = await prisma.event.findFirst({
+    where: { id, userId },
+    select: { ...CAMPOS_EVENTO, habitActivityId: true },
+  });
+  if (!linha) throw notFound("Evento não encontrado");
+  const { timezone } = await preferenciaDe(userId);
+  const recurrence = regraDe(linha);
+  const existe = recurrence
+    ? ocorrenciaDoDia(serieDe(linha, recurrence), dia, timezone) !== null
+    : horarioNoFuso(linha, timezone).date === dia;
+  if (!existe) throw invalido("O evento não acontece nesse dia");
+  return { habitActivityId: linha.habitActivityId };
+}
 
 /**
  * O que o evento leva para a descrição da tarefa: local e link não têm campo
@@ -842,6 +916,10 @@ export async function converterEventoEmTarefa(
 
   const boardId = input.boardId !== undefined ? input.boardId : (linha.board?.id ?? null);
   if (boardId && boardId !== linha.board?.id) await conferirQuadro(userId, boardId);
+  const habitActivityId = vinculoDaConversao(input.habitActivityId, linha.habitActivity?.id);
+  if (habitActivityId && habitActivityId !== linha.habitActivity?.id) {
+    await conferirAtividade(userId, habitActivityId);
+  }
   const date = input.date !== undefined ? input.date : horario.date;
   // Tirar a data leva a hora junto, como no PATCH da tarefa.
   const time =
@@ -865,6 +943,7 @@ export async function converterEventoEmTarefa(
           descriptionMd: input.descriptionMd ?? descricaoDaTarefa(linha),
           ...quando,
           boardId,
+          habitActivityId,
           ...copiaDaMarca(linha),
         },
         select: { id: true },
@@ -901,6 +980,10 @@ async function converterSerieEmTarefas(
   if (boardId && boardId !== linha.board?.id) await conferirQuadro(userId, boardId);
   const time = input.time !== undefined ? input.time : primeiro.startTime;
   colunasDoQuando(startDate, time);
+  const habitActivityId = vinculoDaConversao(input.habitActivityId, linha.habitActivity?.id);
+  if (habitActivityId && habitActivityId !== linha.habitActivity?.id) {
+    await conferirAtividade(userId, habitActivityId);
+  }
   const marca = copiaDaMarca(linha);
 
   const tarefaId = await prisma
@@ -932,6 +1015,7 @@ async function converterSerieEmTarefas(
           startDate,
           recurrence,
           exdates: serieDe(linha, recurrence).exdates.filter((d) => d >= hoje),
+          habitActivityId,
         },
         {
           aiGeneratedAt: marca.aiGeneratedAt,
@@ -977,6 +1061,7 @@ export async function converterTarefaEmEvento(
       completedAt: true,
       updatedAt: true,
       seriesId: true,
+      habitActivityId: true,
       ...CAMPOS_DA_MARCA,
     },
   });
@@ -1006,6 +1091,10 @@ export async function converterTarefaEmEvento(
 
   const boardId = input.boardId !== undefined ? input.boardId : tarefa.boardId;
   if (boardId && boardId !== tarefa.boardId) await conferirQuadro(userId, boardId);
+  const habitActivityId = vinculoDaConversao(input.habitActivityId, tarefa.habitActivityId);
+  if (habitActivityId && habitActivityId !== tarefa.habitActivityId) {
+    await conferirAtividade(userId, habitActivityId);
+  }
 
   const eventoId = await prisma
     .$transaction(async (tx) => {
@@ -1027,6 +1116,7 @@ export async function converterTarefaEmEvento(
           location: limpo(input.location),
           url: limpo(input.url),
           boardId,
+          habitActivityId,
           ...copiaDaMarca(tarefa),
         },
         select: { id: true },

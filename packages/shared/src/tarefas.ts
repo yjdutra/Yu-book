@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { HabitActivityRef } from "./habitos.js";
 import { diaCivilSchema, horaCivilSchema, repeticaoSchema } from "./eventos.js";
 import type { EventRecurrence } from "./eventos.js";
 import type { BoardRef } from "./kanban.js";
@@ -45,6 +46,9 @@ const camposDaTarefa = z.object({
   time: horaCivilSchema.nullable().default(null),
   /// O projeto. Quadro de outra conta é 404, como inexistente.
   boardId: z.string().uuid("Quadro inválido").nullable().default(null),
+  /// A atividade de hábito que a conclusão pontua (frente Ritmo, RF-06/RF-07).
+  /// De outra conta é 404, como o quadro (RN-11).
+  habitActivityId: z.string().uuid("Atividade inválida").nullable().default(null),
   /// Só o servidor MCP envia — ver `createNoteSchema.origin`.
   origin: origemMcpSchema.optional(),
 });
@@ -99,6 +103,8 @@ export const taskSeriesUpdateSchema = z
     descriptionMd: z.string().max(MAX_TAREFA_DESCRICAO, "Descrição grande demais"),
     time: horaCivilSchema.nullable(),
     boardId: z.string().uuid("Quadro inválido").nullable(),
+    /// Reescreve o vínculo das ocorrências regeneradas (frente Ritmo, RF-06).
+    habitActivityId: z.string().uuid("Atividade inválida").nullable(),
     repeat: repeticaoSchema,
   })
   .partial()
@@ -149,6 +155,8 @@ export interface TaskItem {
   /// A série de onde veio (tarefa recorrente), ou `null` na tarefa avulsa.
   /// Ocorrência de série nunca fica atrasada: hábito perdido não se acumula.
   series: TaskSeriesRef | null;
+  /// A atividade de hábito que a conclusão pontua (frente Ritmo, RF-06).
+  habitActivity: HabitActivityRef | null;
   createdAt: string;
   updatedAt: string;
 }

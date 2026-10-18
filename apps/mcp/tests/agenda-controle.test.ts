@@ -49,6 +49,7 @@ function evento(id: string, serie: boolean): EventItem {
     location: null,
     url: null,
     board: null,
+    habitActivity: null,
     ai: null,
     createdAt: AGORA,
     updatedAt: AGORA,
@@ -67,6 +68,7 @@ const TAREFA: TaskItem = {
   board: null,
   ai: null,
   series: null,
+  habitActivity: null,
   createdAt: AGORA,
   updatedAt: AGORA,
 };

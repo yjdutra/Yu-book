@@ -109,6 +109,8 @@ model User {
   events        Event[]
   tasks         Task[]
   taskSeries    TaskSeries[]
+  habits        Habit[]
+  habitEntries  HabitEntry[]
   links         Link[]
   refreshTokens RefreshToken[]
 
@@ -470,6 +472,9 @@ model Event {
   /// O projeto do evento (frente de agenda, Fase 1). Quadro excluído solta o
   /// evento, não o apaga.
   boardId     String?  @map("board_id") @db.Uuid
+  /// A atividade de hábito que o check-in de uma ocorrência pontua (frente
+  /// Ritmo, RF-08). Atividade excluída solta o evento (RN-08).
+  habitActivityId String? @map("habit_activity_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -491,6 +496,8 @@ model Event {
   board          Board?          @relation(fields: [boardId], references: [id], onDelete: SetNull)
   aiConversation AiConversation? @relation("EventosGerados", fields: [aiConversationId], references: [id], onDelete: SetNull)
   aiRun          AiRoutineRun?   @relation("EventosDaRotina", fields: [aiRunId], references: [id], onDelete: SetNull)
+  habitActivity  HabitActivity?  @relation(fields: [habitActivityId], references: [id], onDelete: SetNull)
+  habitEntries   HabitEntry[]
 
   @@index([userId, startsAt])
   @@index([userId, boardId])
@@ -533,6 +540,9 @@ model Task {
   /// entra nos `exdates` dela, para não ser gerado de novo. Série encerrada
   /// solta as que ficaram, não as apaga.
   seriesId  String?  @map("series_id") @db.Uuid
+  /// A atividade de hábito que a conclusão pontua (frente Ritmo, RF-07). A
+  /// série copia a dela para cada ocorrência que gera.
+  habitActivityId String? @map("habit_activity_id") @db.Uuid
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -542,6 +552,8 @@ model Task {
   aiConversation AiConversation? @relation("TarefasGeradas", fields: [aiConversationId], references: [id], onDelete: SetNull)
   aiRun          AiRoutineRun?   @relation("TarefasDaRotina", fields: [aiRunId], references: [id], onDelete: SetNull)
   series         TaskSeries?     @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  habitActivity  HabitActivity?  @relation(fields: [habitActivityId], references: [id], onDelete: SetNull)
+  habitEntry     HabitEntry?
 
   /// Uma ocorrência por dia da série: é o que torna a geração idempotente
   /// entre as duas instâncias da API (INV-60) — quem insere primeiro leva.
@@ -571,6 +583,8 @@ model TaskSeries {
   exdates       DateTime[] @default([]) @db.Date
   /// Até onde as ocorrências já foram geradas, inclusive.
   generatedThrough DateTime @map("generated_through") @db.Date
+  /// O vínculo que cada ocorrência gerada recebe (frente Ritmo, RF-06).
+  habitActivityId  String?  @map("habit_activity_id") @db.Uuid
 
   /// A marca de IA que as ocorrências herdam (INV-58), sem conversa nem
   /// execução: essas apontam para linhas que podem sumir antes da próxima
@@ -588,6 +602,7 @@ model TaskSeries {
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   board Board? @relation(fields: [boardId], references: [id], onDelete: SetNull)
   tasks Task[]
+  habitActivity HabitActivity? @relation(fields: [habitActivityId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([generatedThrough])
@@ -1109,4 +1124,104 @@ model AiRoutineRunStep {
 
   @@unique([runId, position])
   @@map("ai_routine_run_step")
+}
+
+/* ---------------------------------------------------------------
+   Frente Ritmo (docs/prd-ritmo.md), Ritmo 1: hábito → atividades pontuadas →
+   registros. Semana, XP e ofensivas se calculam na leitura (P3): não há
+   agregado gravado.
+   --------------------------------------------------------------- */
+
+enum HabitEntryOrigin {
+  task
+  event
+  manual
+}
+
+/// O hábito. Arquivar tira da lista e fecha para registro novo, sem apagar o
+/// histórico (RN-07); excluir leva atividades e registros (RN-08).
+model Habit {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  name       String
+  /// Uma das `HABIT_COLORS` de `packages/shared`.
+  color      String
+  /// Uma chave de `EMBLEMAS_DO_HABITO` de `packages/shared`.
+  emblem     String
+  /// Pontos por semana. O teto diário é `ceil(weekly_goal / target_days)`.
+  weeklyGoal Int       @map("weekly_goal")
+  targetDays Int       @map("target_days")
+  position   Int       @default(0)
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activities HabitActivity[]
+  entries    HabitEntry[]
+
+  /// RN-02: nome único por usuário, comparado depois do `trim` do schema.
+  @@unique([userId, name])
+  @@map("habit")
+}
+
+/// A atividade pontuada de um hábito. `user_id` repetido do hábito para a
+/// posse sair num `where` só, sem join (como `task.user_id`).
+model HabitActivity {
+  id         String    @id @default(uuid()) @db.Uuid
+  habitId    String    @map("habit_id") @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  name       String
+  points     Int
+  position   Int       @default(0)
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  habit      Habit        @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  entries    HabitEntry[]
+  tasks      Task[]
+  taskSeries TaskSeries[]
+  events     Event[]
+
+  @@unique([habitId, name])
+  @@index([userId])
+  @@map("habit_activity")
+}
+
+/// "Ganhei N pontos no dia D." Os pontos são os do momento (RN-03, P5): mudar
+/// a atividade depois não reescreve o histórico.
+model HabitEntry {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  habitId     String           @map("habit_id") @db.Uuid
+  activityId  String?          @map("activity_id") @db.Uuid
+  points      Int
+  /// Dia **civil** do usuário (INV-66), resolvido no servidor pelo fuso de
+  /// `ai_preference` (RN-05).
+  day         DateTime         @db.Date
+  origin      HabitEntryOrigin
+  note        String?
+  /// Uma tarefa rende um registro só (RN-04). Tarefa excluída não leva o
+  /// ponto: o vínculo vira nulo (RN-09).
+  taskId      String?          @unique @map("task_id") @db.Uuid
+  /// Com `day`, a ocorrência do evento que rendeu o check-in (RN-04).
+  eventId     String?          @map("event_id") @db.Uuid
+  /// Quem registrou, quando foi o assistente (RN-12), como a marca de
+  /// conclusão da tarefa (INV-63). Gravada só pelo servidor.
+  aiVia       AiVia?           @map("ai_via")
+  aiAuthor    String?          @map("ai_author")
+  aiAgentName String?          @map("ai_agent_name")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit    Habit          @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  activity HabitActivity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  task     Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  event    Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, day])
+  @@index([userId, day])
+  @@index([habitId, day])
+  @@map("habit_entry")
 }

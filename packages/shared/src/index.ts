@@ -19,3 +19,4 @@ export * from "./rotinas.js";
 export * from "./agenda.js";
 export * from "./eventos.js";
 export * from "./tarefas.js";
+export * from "./habitos.js";

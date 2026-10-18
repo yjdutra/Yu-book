@@ -493,8 +493,9 @@ describe("CA-21 / RN-12: o chat escreve criando e concluindo, nunca movendo nem 
     // não pode entrar no chat só por existir lá (RN-12). Derivar esta lista de
     // `FERRAMENTAS_DO_CHAT` a tornaria tautologia — o catálogo já é filtrado
     // por ela. Nota e card desde a Etapa C, `complete_card` desde a Parte 1 da
-    // frente de cards, e evento, tarefa e `complete_task` desde a Fase 2 da
-    // frente de agenda.
+    // frente de cards, evento, tarefa e `complete_task` desde a Fase 2 da
+    // frente de agenda, e `log_habit` desde a Ritmo 1 (RF-15 de
+    // docs/prd-ritmo.md) — criar e alterar hábito ficam fora, só no MCP.
     const oferecidas = new Set(catalogoParaProvedor(FERRAMENTAS_DO_CHAT).map((f) => f.function.name));
     const escritas = (Object.keys(FERRAMENTAS_DO_ACERVO) as NomeDeFerramenta[]).filter(
       (n) => FERRAMENTAS_DO_ACERVO[n].escrita,
@@ -508,6 +509,7 @@ describe("CA-21 / RN-12: o chat escreve criando e concluindo, nunca movendo nem 
       "create_event",
       "create_note",
       "create_task",
+      "log_habit",
     ]);
     // E o inverso: toda leitura do acervo está lá. A lista do chat é
     // explícita, e uma leitura esquecida fora dela não acusaria noutro lugar.

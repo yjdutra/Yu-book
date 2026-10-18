@@ -967,7 +967,7 @@ describe("as siglas dos dias: a única conversão entre o modelo e a API", () =>
 /* --------------------------------------------------- tolerância do MCP */
 
 describe("formatarAgenda tolera a API mais velha que o pacote", () => {
-  const CAMPOS_COMUNS = { ai: null, board: null, createdAt: "", updatedAt: "" };
+  const CAMPOS_COMUNS = { ai: null, board: null, habitActivity: null, createdAt: "", updatedAt: "" };
   const evento: EventItem = {
     id: "evento-1",
     title: "Reunião",
