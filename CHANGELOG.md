@@ -17,6 +17,92 @@ _Nada pendente._
 
 ---
 
+## [0.35.0] — 2026-10-18
+
+**Controle da agenda: converter e, pelo MCP, editar e excluir.** Um evento pode virar tarefa, e uma
+tarefa pode virar evento, sem apagar um e recriar o outro à mão. No celular, isso se faz na folha de
+editar. Pela API, são duas rotas novas. Pelo MCP, a agenda passa a se editar, excluir e converter
+por seis tools novas. O chat do aplicativo não ganha nenhuma delas: ele continua criando evento e
+tarefa e concluindo tarefa (RN-03).
+
+**Os seis pacotes se movem**, porque `packages/shared` ganhou os corpos das conversões e as seis
+definições de tool. `packages/shared` vai de `0.20.0` para `0.21.0`, `apps/api` e `apps/mcp` de
+`0.21.0` para `0.22.0`, `apps/web` de `0.28.0` para `0.29.0`, e `apps/movel` e `packages/cliente`
+de `0.5.0` para `0.6.0`. O web só se move pelo contrato: nada muda na tela dele. **Sem migration.**
+
+**Na janela do deploy, a API precisa estar no ar antes do MCP e do móvel.** Uma API anterior a
+esta não tem as rotas de conversão e responde 404. O MCP lê esse 404 como item que não existe e diz
+ao modelo que nada foi alterado, e no celular a conversão falha com erro. Editar e excluir pelo MCP
+usam rotas que já existiam.
+
+**O que o MCP publica a mais.** O `tools/list` com a escrita liberada vai de 15 para 21 tools, e as
+seis novas somam 8.278 bytes ao JSON das tools (de 15.025 para 23.303, medidos nesta entrega, com o
+mesmo método nos dois números). A sessão só de leitura não muda. **O chat não paga nada a mais**:
+as seis ficam fora do catálogo dele, e o system prompt não mudou.
+
+Portões: `pnpm typecheck` limpo nos seis pacotes. O MCP passou com **90 testes** (eram 74). A API
+passou com **631 de 632** (eram 619). A única falha é de ambiente e não tem relação com a entrega: o
+teste de DNS rebinding precisa do endereço `127.0.0.2`, que o macOS não tem por padrão. Os 13 casos
+novos da API cobrem as duas conversões, a ocorrência de uma série, a marca de IA copiada, a posse e a
+recusa da tarefa concluída. Os 16 do MCP cobrem as seis tools e a trava da série.
+
+**A folha do celular foi conferida num navegador, não num Android.** Nenhum portão cobre
+`apps/movel`; a conversão foi feita à mão no ambiente local, em viewport de celular, nas duas
+direções (evento com hora virou tarefa às 23:30; tarefa sem hora virou evento de dia inteiro) e
+numa ocorrência de série, que saiu sozinha enquanto as outras ficaram.
+
+### Adicionado
+- **Evento vira tarefa** (`POST /events/:id/to-task`). A tarefa leva o título, a descrição, o dia,
+  a hora de início e o projeto do evento. Um evento de dia inteiro vira tarefa sem hora. O local e
+  o link não têm campo na tarefa e vão para o fim da descrição, como "Local: …" e "Link: …". A
+  duração se perde. O corpo, opcional, troca o que vem do evento. **Numa série, só uma ocorrência
+  converte**, com `?scope=esta&occurrenceDate=…`: ela sai da série como num "excluir só esta", e as
+  outras ficam. Qualquer outro alcance numa série é recusado com 400.
+- **Tarefa vira evento** (`POST /tasks/:id/to-event`). O evento leva o título, os detalhes, o dia e
+  o projeto da tarefa. Com hora, ele começa nela e dura uma hora. Sem hora, é de dia inteiro. O
+  corpo, opcional, troca qualquer campo e aceita até a repetição semanal. Uma tarefa sem data exige
+  `date`, e **uma tarefa concluída é recusada**: o evento não guarda a conclusão, e convertê-la
+  apagaria o registro de que foi feita.
+- **Converter na folha de editar do celular.** Ao editar, a alternância Evento/Tarefa reaparece.
+  Trocar o tipo converte o item ao salvar: a folha passa a se chamar "Converter em …", diz o que vai
+  acontecer e esconde Excluir e Concluir. O horário passa de uma forma para a outra: o início do
+  evento vira a hora da tarefa, e a hora da tarefa vira o início do evento. Numa série, só a
+  ocorrência aberta vira tarefa, e a folha diz qual dia. Uma tarefa concluída não mostra a
+  alternância.
+- **Seis tools de controle da agenda no MCP**, com a escrita liberada: `update_event`,
+  `delete_event`, `update_task`, `delete_task`, `convert_event_to_task` e `convert_task_to_event`.
+  Nenhuma manda `origin`: editar, excluir e converter não geram conteúdo.
+
+### Alterado
+- **Excluir na agenda passou a ser tool do MCP.** Até aqui, o critério do servidor deixava fora
+  toda operação irreversível, que só se fazia no aplicativo, com alguém confirmando. A agenda é a
+  exceção declarada, a pedido do operador, para reorganizar o que já estava marcado. `delete_event`
+  e `delete_task` são anunciadas com `destructiveHint`, e a descrição manda conferir o título em
+  `list_agenda` antes. Excluir card e excluir nota em definitivo continuam fora.
+- **Numa série, o MCP não presume o alcance.** `update_event` e `delete_event` sem `scope` leem o
+  evento antes e recusam se ele se repete. A API trata o alcance ausente como "todas", e um modelo
+  que esquecesse o campo mudaria ou apagaria a série inteira sem perceber.
+- O prompt de revisão do MCP, com a escrita liberada, passa a listar alterar, converter e excluir
+  eventos e tarefas entre as ações que só se fazem a pedido.
+
+### Segurança
+- **A marca de IA passa ao item convertido** (INV-58). O evento que nasce de uma tarefa gerada por
+  IA, ou a tarefa que nasce de um evento gerado por IA, levam a mesma marca, revisão inclusive. A
+  conversão não cria marca nem a apaga, e os corpos das duas rotas não aceitam `origin`.
+- **A conversão acontece numa transação, condicionada à versão lida.** Se o original foi editado
+  ou apagado no meio, a API responde 404 e não grava o novo com os dados velhos (INV-04). Um
+  projeto que sumiu no meio também é recusado.
+
+### Limitações conhecidas
+- **Converter uma série inteira não existe.** Tarefa não se repete, então se converte uma ocorrência
+  por vez.
+- **A duração do evento se perde ao virar tarefa.** De volta a evento, ele dura uma hora, a menos
+  que o corpo diga outra.
+- **O chat do aplicativo não edita, não exclui e não converte.** Para isso há o celular e o MCP.
+- **O desktop continua só lendo a agenda.**
+
+---
+
 ## [0.34.0] — 2026-10-09
 
 > **Publicada em produção em 2026-10-09.** Os quatro serviços de app (API, web, MCP e móvel) foram

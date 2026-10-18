@@ -77,12 +77,13 @@ of project-specific agents and skills that live in this repository.
   it should reach: just this one, this and the following ones, or the whole series.
 - **A phone app**, an installable PWA separate from the desktop app: the day at a glance, a monthly
   calendar, tasks grouped by urgency, projects, and one sheet to create or edit an event or a task
-  from any screen.
+  from any screen. The same sheet turns an event into a task, or a task into an event.
 - **The assistant on the phone**, with the same chat and agents as on the web and **voice
   dictation**: "book a meeting with Ana tomorrow at 3 pm", said into the phone, becomes an event you
   can open, edit or undo. "English class Monday, Wednesday and Friday from 8 to 9" becomes one
   recurring event, not one per week. The assistant and the MCP server can read the agenda, book
-  events, add tasks and complete them.
+  events, add tasks and complete them; through the MCP server the agenda can also be edited,
+  converted and cleaned up.
 - **Today on the desktop home page:** overdue tasks and today's events and tasks, with one-click
   completion. It is re-read when you come back to the tab, so what you did on the phone is already
   there.
@@ -130,7 +131,7 @@ of project-specific agents and skills that live in this repository.
 
 ### MCP server
 
-`apps/mcp` exposes the knowledge base to any MCP client: 15 tools (6 read, 9 write), 6 resources
+`apps/mcp` exposes the knowledge base to any MCP client: 21 tools (6 read, 15 write), 6 resources
 and 2 prompts. It runs over **stdio** on your machine or over **Streamable HTTP** as a hosted
 service, where it is its own **OAuth 2.1** authorization server and every request acts as whoever
 presented the token. Writing is locked behind two independent layers. Details in
@@ -218,8 +219,8 @@ on purpose.
   deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
   unique index), never through process memory. A run that started is never retried, because a
   retry costs money again.
-- **Tests against real infrastructure:** 619 integration tests boot the whole Fastify app against a
-  real Postgres; 74 more cover the MCP server.
+- **Tests against real infrastructure:** 632 integration tests boot the whole Fastify app against a
+  real Postgres; 90 more cover the MCP server.
 
 ---
 
@@ -376,7 +377,8 @@ The most recent addition is complete: an agenda and a to-do list of their own, l
 projects, that the assistant and the MCP server can read and write; a "Today" block on the desktop
 home page; and a companion phone app with the agenda, tasks, projects and the assistant, voice
 included. The phone app runs in production as its own service, next to the web app. Events can
-now repeat every week.
+now repeat every week, events and tasks can be turned into one another, and an MCP client can
+edit and delete them.
 
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
@@ -394,8 +396,8 @@ Known limitations, stated on purpose:
 - **No notifications or reminders.** The agenda shows up where you look: the phone app, the
   desktop home page, the assistant. Nothing pings you.
 - **Recurrence is weekly only.** No monthly or yearly rules, and a recurring event lasts one day
-  at most. The assistant creates and undoes a series but does not edit it; that is done on the
-  phone.
+  at most. The in-app assistant creates and undoes a series but does not edit it; that is done
+  on the phone or through the MCP server.
 - **No front-end tests and no CI.** The automated gates are the type check and the API and MCP
   test suites; the UI is verified by hand.
 - **Note content leaves the server for every AI task.** The provider is a cloud one: a local model
