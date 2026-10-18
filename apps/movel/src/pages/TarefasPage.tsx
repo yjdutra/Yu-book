@@ -15,6 +15,7 @@ import { itemDeTarefa } from "../components/agenda/itens";
 import type { ItemDoDia } from "../components/agenda/itens";
 import { useFolhaItem } from "../components/folha/FolhaItem";
 import { Pilula } from "../components/folha/Pilulas";
+import { SeletorPlano } from "../components/plano/SeletorPlano";
 import { ListaAgrupada } from "../components/tarefas/ListaAgrupada";
 import { diaCurto, diaRelativo } from "../lib/datas";
 import { useHoje } from "../lib/hoje";
@@ -146,6 +147,7 @@ export function TarefasPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
+      <SeletorPlano />
       <div className="flex items-center gap-3">
         <div
           ref={abasRef}

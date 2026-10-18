@@ -10,9 +10,9 @@ import { ApiError } from "@yu-book/cliente/api";
 import type { useOpenRouterConta, useOpenRouterMetricas } from "../../lib/ia";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Bloco, Esqueleto, Vazio } from "@yu-book/cliente/base/Bloco";
-import { BarrasPorDia, diaCurto } from "./BarrasPorDia";
+import { BarrasPorDia, diaCurto } from "@yu-book/cliente/graficos/BarrasPorDia";
 import { duracao, emDolares } from "./comum";
-import { Indicador } from "./Indicador";
+import { Indicador } from "@yu-book/cliente/graficos/Indicador";
 
 /**
  * Os blocos que dependem da management key: saldo da conta, os últimos 30

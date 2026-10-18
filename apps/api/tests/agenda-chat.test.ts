@@ -983,6 +983,7 @@ describe("formatarAgenda tolera a API mais velha que o pacote", () => {
     recurrence: null,
     location: null,
     url: null,
+    checkedIn: false,
     ...CAMPOS_COMUNS,
   };
   const tarefaSemDia: TaskItem = {

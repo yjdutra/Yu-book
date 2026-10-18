@@ -66,6 +66,7 @@ function evento(corpo: Record<string, unknown>): EventItem {
     url: null,
     board: null,
     habitActivity: null,
+    checkedIn: false,
     ai,
     createdAt: AGORA,
     updatedAt: AGORA,

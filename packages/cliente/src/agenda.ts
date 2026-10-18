@@ -45,6 +45,10 @@ import { api } from "./api";
  */
 export const CHAVE_AGENDA = ["agenda"] as const;
 export const CHAVE_TAREFAS = ["tarefas"] as const;
+/// Os hábitos (frente Ritmo, Ritmo 2) moram em `habitos.ts`; a chave mora aqui
+/// porque concluir uma tarefa ligada pontua, e quem invalida a agenda precisa
+/// invalidá-los também sem importar aquele módulo.
+export const CHAVE_HABITOS = ["habitos"] as const;
 
 /**
  * Evento ou tarefa mudou: tudo que os mostra fica velho — o bloco "Hoje" do
@@ -56,6 +60,10 @@ export const CHAVE_TAREFAS = ["tarefas"] as const;
 export function invalidarAgenda(qc: QueryClient): void {
   void qc.invalidateQueries({ queryKey: CHAVE_AGENDA });
   void qc.invalidateQueries({ queryKey: CHAVE_TAREFAS });
+  // A tarefa ligada a uma atividade pontua ao concluir, e reabrir desfaz
+  // (RF-07 da frente Ritmo): a semana e o XP ficam velhos. No web, que não
+  // lê hábitos, não há query com esta raiz e isto não custa nada.
+  void qc.invalidateQueries({ queryKey: CHAVE_HABITOS });
 }
 
 /**

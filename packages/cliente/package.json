@@ -3,7 +3,9 @@
   "version": "0.8.0",
   "private": true,
   "type": "module",
-  "sideEffects": ["*.css"],
+  "sideEffects": [
+    "*.css"
+  ],
   "exports": {
     "./agenda": "./src/agenda.ts",
     "./api": "./src/api.ts",
@@ -20,7 +22,10 @@
     "./motivoSemChat": "./src/motivoSemChat.ts",
     "./texto": "./src/texto.ts",
     "./tema.css": "./src/tema.css",
-    "./base/*": "./src/base/*.tsx"
+    "./base/*": "./src/base/*.tsx",
+    "./graficos/*": "./src/graficos/*.tsx",
+    "./habitos": "./src/habitos.ts",
+    "./ritmo/*": "./src/ritmo/*.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

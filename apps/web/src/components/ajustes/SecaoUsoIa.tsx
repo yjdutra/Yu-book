@@ -7,9 +7,9 @@ import { useUsoIa } from "../../lib/ia";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Bloco, Esqueleto, Vazio } from "@yu-book/cliente/base/Bloco";
 import { nomeDoFuso } from "../rotinas/comum";
-import { BarrasPorDia, diaCurto } from "./BarrasPorDia";
+import { BarrasPorDia, diaCurto } from "@yu-book/cliente/graficos/BarrasPorDia";
 import { duracao, emDolares } from "./comum";
-import { Indicador } from "./Indicador";
+import { Indicador } from "@yu-book/cliente/graficos/Indicador";
 import {
   INTEIRO,
   PORCENTAGEM,

@@ -320,3 +320,74 @@ export function semanaPonderada(
     days,
   };
 }
+
+/**
+ * RN-16 (Ritmo 2): de `pontos` que entram hoje, quanto conta para a meta e
+ * quanto vira só XP, dado o que o dia já tem. A mesma conta de `semanaPonderada`
+ * — o teto é por dia, sobre a soma do dia —, para o aviso da folha bater com o
+ * que o servidor mostra depois.
+ */
+export function quantoConta(
+  pontos: number,
+  cap: number,
+  jaNoDia: number,
+): { conta: number; extra: number } {
+  const conta = Math.max(0, Math.min(pontos, cap - jaNoDia));
+  return { conta, extra: pontos - conta };
+}
+
+/* ------------------------------------------------------------- nível */
+
+/** RN-15: os nomes do nível, por faixa. O primeiro nível de cada faixa. */
+const FAIXAS_DE_NIVEL: ReadonlyArray<readonly [number, string]> = [
+  [1, "Iniciante"],
+  [3, "Aprendiz"],
+  [5, "Constante"],
+  [8, "Dedicado"],
+  [11, "Disciplinado"],
+  [15, "Mestre"],
+];
+
+/** RN-15: o XP total que leva ao nível `nivel` (o 1 começa no zero). */
+export function xpDoNivel(nivel: number): number {
+  const n = Math.max(1, Math.floor(nivel)) - 1;
+  return 25 * n * (n + 1);
+}
+
+export interface NivelDoRitmo {
+  level: number;
+  /** "Constante" — o nome da faixa. */
+  name: string;
+  /** O XP total em que este nível começou. */
+  from: number;
+  /** O XP total em que o próximo começa. */
+  to: number;
+}
+
+/**
+ * RN-15: o nível de um XP total. Chegar ao nível `n + 1` custa
+ * `25 · n · (n + 1)` — 50 para o 2, 150 para o 3, 300 para o 4: cada nível pede
+ * 50 XP a mais que o anterior, para o começo andar rápido e o resto não voar.
+ */
+export function nivelDoXp(xp: number): NivelDoRitmo {
+  const total = Math.max(0, xp);
+  // A inversa de `xpDoNivel`, arredondada para baixo; o laço corrige o erro de
+  // ponto flutuante na borda exata.
+  let level = Math.max(1, Math.floor((1 + Math.sqrt(1 + (4 * total) / 25)) / 2));
+  while (xpDoNivel(level + 1) <= total) level++;
+  while (level > 1 && xpDoNivel(level) > total) level--;
+  let name = FAIXAS_DE_NIVEL[0]?.[1] ?? "";
+  for (const [inicio, nome] of FAIXAS_DE_NIVEL) if (level >= inicio) name = nome;
+  return { level, name, from: xpDoNivel(level), to: xpDoNivel(level + 1) };
+}
+
+/** RF-31 (Ritmo 2): `GET /habits/summary`. */
+export interface HabitsSummary {
+  /** O dia de hoje do usuário (RN-05). */
+  today: string;
+  /** A soma de todo registro, acima do teto inclusive (RN-14). */
+  xp: number;
+  /** O XP que entrou de segunda a hoje. */
+  weekXp: number;
+  level: NivelDoRitmo;
+}

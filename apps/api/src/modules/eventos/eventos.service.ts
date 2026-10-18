@@ -140,12 +140,18 @@ function serieDe(linha: LinhaDaSerie, recurrence: EventRecurrence): SerieDoEvent
  * A linha como a resposta a mostra. Sem `ocorrencia`, o horário é o gravado —
  * o evento simples, ou a série pela primeira ocorrência (`GET /events/:id`).
  */
-function paraEvento(linha: LinhaEvento, fuso: string, ocorrencia?: OcorrenciaDoEvento): EventItem {
+function paraEvento(
+  linha: LinhaEvento,
+  fuso: string,
+  ocorrencia?: OcorrenciaDoEvento,
+  checados?: ReadonlySet<string>,
+): EventItem {
   const horario = ocorrencia ?? {
     ...horarioNoFuso(linha, fuso),
     startsAt: linha.startsAt,
     endsAt: linha.endsAt,
   };
+  const occurrenceDate = ocorrencia?.occurrenceDate ?? horario.date;
   return {
     id: linha.id,
     title: linha.title,
@@ -157,16 +163,48 @@ function paraEvento(linha: LinhaEvento, fuso: string, ocorrencia?: OcorrenciaDoE
     endTime: horario.endTime,
     startsAt: horario.startsAt.toISOString(),
     endsAt: horario.endsAt.toISOString(),
-    occurrenceDate: ocorrencia?.occurrenceDate ?? horario.date,
+    occurrenceDate,
     recurrence: regraDe(linha),
     location: linha.location,
     url: linha.url,
     board: linha.board,
     habitActivity: paraVinculo(linha.habitActivity),
+    checkedIn: checados?.has(chaveDoCheckIn(linha.id, occurrenceDate)) ?? false,
     ai: paraMarca(linha),
     createdAt: linha.createdAt.toISOString(),
     updatedAt: linha.updatedAt.toISOString(),
   };
+}
+
+const chaveDoCheckIn = (eventId: string, dia: string) => `${eventId}|${dia}`;
+
+/**
+ * RF-28 (Ritmo 2): as ocorrências que já têm check-in, entre os eventos com
+ * atividade de `linhas`, de `de` a `ate`. Uma consulta para a leitura inteira
+ * (RNF-11), não uma por evento; evento sem atividade nem entra no `in`. O
+ * registro de check-in só existe com `origin = event` e o dia da ocorrência
+ * (RF-08), e é por esse par que a chave se monta.
+ */
+async function checkInsNoPeriodo(
+  userId: string,
+  linhas: ReadonlyArray<Pick<LinhaEvento, "id" | "habitActivity">>,
+  de: string,
+  ate: string,
+): Promise<Set<string>> {
+  const ids = [...new Set(linhas.filter((l) => l.habitActivity).map((l) => l.id))];
+  if (ids.length === 0) return new Set();
+  const registros = await prisma.habitEntry.findMany({
+    where: {
+      userId,
+      origin: "event",
+      eventId: { in: ids },
+      day: { gte: deDiaCivil(de), lte: deDiaCivil(ate) },
+    },
+    select: { eventId: true, day: true },
+  });
+  return new Set(
+    registros.flatMap((r) => (r.eventId ? [chaveDoCheckIn(r.eventId, paraDiaCivil(r.day))] : [])),
+  );
 }
 
 /** A primeira queixa vira a mensagem do 422 — o formato de erro tem uma só. */
@@ -258,12 +296,20 @@ async function eventosNoPeriodo(userId: string, de: string, ate: string, fuso: s
     seriesNoPeriodo(userId, de, fim),
   ]);
 
-  const eventos = simples.map((linha) => paraEvento(linha, fuso));
+  // O evento simples que atravessa a borda de `de` tem a ocorrência (o dia em
+  // que começa) antes da janela: daí a folga do piso também aqui.
+  const checados = await checkInsNoPeriodo(
+    userId,
+    [...simples, ...series],
+    somarDias(de, -(MAX_DIAS_DO_EVENTO + 1)),
+    ate,
+  );
+  const eventos = simples.map((linha) => paraEvento(linha, fuso, undefined, checados));
   for (const linha of series) {
     const recurrence = regraDe(linha);
     if (!recurrence) continue;
     for (const ocorrencia of ocorrenciasNoPeriodo(serieDe(linha, recurrence), de, ate, fuso)) {
-      eventos.push(paraEvento(linha, fuso, ocorrencia));
+      eventos.push(paraEvento(linha, fuso, ocorrencia, checados));
     }
   }
   // ISO de `toISOString` ordena como texto.
@@ -321,10 +367,15 @@ export async function buscarEvento(userId: string, id: string): Promise<EventIte
   ]);
   if (!linha) throw notFound("Evento não encontrado");
   const recurrence = regraDe(linha);
-  if (!recurrence) return paraEvento(linha, timezone);
+  if (!recurrence) {
+    const dia = horarioNoFuso(linha, timezone).date;
+    const checados = await checkInsNoPeriodo(userId, [linha], dia, dia);
+    return paraEvento(linha, timezone, undefined, checados);
+  }
   const primeira = primeiraOcorrenciaViva(serieDe(linha, recurrence), timezone);
   if (!primeira) throw notFound("Evento não encontrado");
-  return paraEvento(linha, timezone, primeira);
+  const dia = primeira.occurrenceDate;
+  return paraEvento(linha, timezone, primeira, await checkInsNoPeriodo(userId, [linha], dia, dia));
 }
 
 /**

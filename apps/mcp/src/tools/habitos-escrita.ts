@@ -13,10 +13,12 @@ import { relatar } from "../notificacoes.js";
 
 /**
  * As tools que mudam hábitos (frente Ritmo, Ritmo 1 — RF-13): `create_habit`,
- * `update_habit` e `log_habit`. Registradas só com a escrita liberada
+ * `update_habit` e `log_habit`, e, desde a Ritmo 2 (RF-30), `check_in_event`.
+ * Registradas só com a escrita liberada
  * (`criarServidor`), com `comErroDeEscrita` reperguntando na chamada (INV-45).
  *
- * **Só `log_habit` manda `origin`**: o registro guarda quem registrou (RN-12),
+ * **Só `log_habit` e `check_in_event` mandam `origin`**: o registro guarda quem
+ * registrou (RN-12),
  * como a conclusão da tarefa (INV-63). Hábito e atividade não têm marca de IA —
  * são configuração, não conteúdo do acervo.
  *
@@ -246,6 +248,70 @@ export function registrarEscritaDeHabitos(server: McpServer): void {
             type: "text",
             text:
               `Registrado.\n\n${formatarRegistroDeHabito(registro, habito.name)}\n` +
+              `semana: ${semana.progress}/${habito.weeklyGoal} pts` +
+              (semana.extra > 0 ? ` · ${semana.extra} acima do teto` : ""),
+          },
+        ],
+      };
+    }),
+  );
+
+  const checkIn = FERRAMENTAS_DO_ACERVO.check_in_event;
+  server.registerTool(
+    "check_in_event",
+    {
+      title: checkIn.titulo,
+      description: checkIn.descricao,
+      annotations: checkIn.anotacoes,
+      inputSchema: checkIn.entrada,
+    },
+    comErroDeEscrita(async ({ eventId, day, done = true }, extra) => {
+      const relato = relatar(server, extra, "check_in_event", done ? 2 : 1);
+      const semEvento = recusa(
+        `**Nada foi ${done ? "registrado" : "desfeito"}.** Não existe evento com esse id nesta ` +
+          "conta — o id vem de `list_agenda` —, ou a API no ar ainda não tem check-in.",
+      );
+      if (!done) {
+        try {
+          // Idempotente na API: sem check-in naquele dia, nada a desfazer.
+          await api.remover(`/events/${eventId}/check-in?day=${day}`);
+        } catch (erro) {
+          if (erro instanceof ErroDaApi && erro.code === "NOT_FOUND") return semEvento;
+          throw erro;
+        }
+        await relato.passo("check-in desfeito");
+        await relato.registrar("info", { acao: "check-in desfeito", eventId, day });
+        const texto = `Check-in de ${day} desfeito (ou não havia).`;
+        return { content: [{ type: "text", text: texto }] };
+      }
+
+      const origin = await origemDoCliente(server, extra);
+      let registro: HabitEntryItem;
+      try {
+        registro = await api.post<HabitEntryItem>(`/events/${eventId}/check-in`, { day, origin });
+      } catch (erro) {
+        if (erro instanceof ErroDaApi && erro.code === "NOT_FOUND") return semEvento;
+        throw erro;
+      }
+      await relato.passo("check-in feito");
+      // Como em `log_habit`: o nome do hábito e a semana não vêm no registro.
+      const habito = await api.get<HabitItem>(`/habits/${registro.habitId}`);
+      await relato.passo("hábito relido");
+      await relato.registrar("info", {
+        acao: "check-in feito",
+        eventId,
+        day,
+        entryId: registro.id,
+        points: registro.points,
+        author: origin.author,
+      });
+      const semana = habito.week;
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              `Check-in feito.\n\n${formatarRegistroDeHabito(registro, habito.name)}\n` +
               `semana: ${semana.progress}/${habito.weeklyGoal} pts` +
               (semana.extra > 0 ? ` · ${semana.extra} acima do teto` : ""),
           },

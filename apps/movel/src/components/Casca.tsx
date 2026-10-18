@@ -5,10 +5,14 @@ import { AssistentePage } from "../pages/AssistentePage";
 import { InicioPage } from "../pages/InicioPage";
 import { ProjetoPage } from "../pages/ProjetoPage";
 import { ProjetosPage } from "../pages/ProjetosPage";
+import { HabitoPage } from "../pages/HabitoPage";
+import { RitmoPage } from "../pages/RitmoPage";
 import { TarefasPage } from "../pages/TarefasPage";
 import { Cabecalho } from "./Cabecalho";
 import { ProvedorFolhaItem } from "./folha/FolhaItem";
 import { Navegacao } from "./Navegacao";
+import { ProvedorRitmo } from "./ritmo/Ritmo";
+import { lembrarDoPlano } from "../lib/plano";
 
 /**
  * A conversa do chat em chunk próprio (Fase 5 da frente de agenda): traz o
@@ -25,12 +29,14 @@ export function naConversa(pathname: string): boolean {
 }
 
 // Projetos não está na barra (cinco posições é o teto do polegar): chega-se
-// a ele pelo cartão do Início.
+// a ele pelo cartão do Início. Agenda e Tarefas são as duas metades de Plano
+// (frente Ritmo, RF-16), e o cabeçalho diz a área; o seletor diz a metade.
 const TITULOS: Record<string, string> = {
   "/": "Início",
-  "/agenda": "Agenda",
-  "/tarefas": "Tarefas",
+  "/agenda": "Plano",
+  "/tarefas": "Plano",
   "/projetos": "Projetos",
+  "/ritmo": "Ritmo",
   "/assistente": "Assistente",
 };
 
@@ -41,16 +47,21 @@ const TITULOS: Record<string, string> = {
  * dela.
  */
 export function Casca() {
-  const { pathname } = useLocation();
-  // O detalhe do projeto (`/projetos/:id`) fica sob o nome da área.
+  const { pathname, search } = useLocation();
+  // O detalhe do projeto (`/projetos/:id`) e o do hábito (`/ritmo/…`) ficam
+  // sob o nome da área.
   const titulo =
     TITULOS[pathname] ??
     (pathname.startsWith("/projetos/")
       ? "Projetos"
       : pathname.startsWith("/assistente/")
         ? "Assistente"
-        : "Início");
+        : pathname.startsWith("/ritmo/")
+          ? "Ritmo"
+          : "Início");
   const conversa = naConversa(pathname);
+
+  useEffect(() => lembrarDoPlano(pathname, search), [pathname, search]);
 
   useEffect(() => {
     document.title = pathname === "/" ? "Yu-book" : `${titulo} · Yu-book`;
@@ -83,35 +94,40 @@ export function Casca() {
 
   return (
     <ProvedorFolhaItem>
-      <div className="relative isolate min-h-dvh">
-        <div aria-hidden="true" className="veu-topo absolute inset-x-0 top-0 -z-10 h-80" />
+      <ProvedorRitmo>
+        <div className="relative isolate min-h-dvh">
+          <div aria-hidden="true" className="veu-topo absolute inset-x-0 top-0 -z-10 h-80" />
 
-        <Navegacao />
+          <Navegacao />
 
-        <div className="lg:pl-28">
-          <div
-            className="mx-auto max-w-5xl px-5
-                       pb-[calc(var(--altura-barra)+env(safe-area-inset-bottom)+1rem)]
-                       pt-[calc(env(safe-area-inset-top)+1.25rem)]
-                       lg:px-8 lg:pb-10 lg:pt-8"
-          >
-            <Cabecalho titulo={titulo} inicio={pathname === "/"} />
-            {/* `key`: cada área entra com a própria animação curta. */}
-            <main key={pathname} className="animate-surgir">
-              <Routes>
-                <Route path="/" element={<InicioPage />} />
-                <Route path="/agenda" element={<AgendaPage />} />
-                <Route path="/tarefas" element={<TarefasPage />} />
-                <Route path="/projetos" element={<ProjetosPage />} />
-                <Route path="/projetos/:id" element={<ProjetoPage />} />
-                <Route path="/assistente" element={<AssistentePage />} />
-                {/* Inclui o `/login` de onde se acabou de entrar. */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </main>
+          <div className="lg:pl-28">
+            <div
+              className="mx-auto max-w-5xl px-5
+                         pb-[calc(var(--altura-barra)+env(safe-area-inset-bottom)+1rem)]
+                         pt-[calc(env(safe-area-inset-top)+1.25rem)]
+                         lg:px-8 lg:pb-10 lg:pt-8"
+            >
+              <Cabecalho titulo={titulo} inicio={pathname === "/"} />
+              {/* `key`: cada área entra com a própria animação curta. */}
+              <main key={pathname} className="animate-surgir">
+                <Routes>
+                  <Route path="/" element={<InicioPage />} />
+                  <Route path="/agenda" element={<AgendaPage />} />
+                  <Route path="/tarefas" element={<TarefasPage />} />
+                  <Route path="/projetos" element={<ProjetosPage />} />
+                  <Route path="/projetos/:id" element={<ProjetoPage />} />
+                  <Route path="/ritmo" element={<RitmoPage />} />
+                  <Route path="/ritmo/habitos/:id" element={<HabitoPage />} />
+                  <Route path="/ritmo/:aba" element={<RitmoPage />} />
+                  <Route path="/assistente" element={<AssistentePage />} />
+                  {/* Inclui o `/login` de onde se acabou de entrar. */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </main>
+            </div>
           </div>
         </div>
-      </div>
+      </ProvedorRitmo>
     </ProvedorFolhaItem>
   );
 }

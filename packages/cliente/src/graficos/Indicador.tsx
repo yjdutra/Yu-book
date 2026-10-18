@@ -9,13 +9,16 @@ export function Indicador({
   rotulo,
   valor,
   detalhe,
+  className = "",
 }: {
   rotulo: ReactNode;
   valor: ReactNode;
   detalhe?: ReactNode;
+  /** O cartão em volta, quando há: o `div` é o filho direto do `<dl>`. */
+  className?: string;
 }) {
   return (
-    <div className="min-w-0">
+    <div className={`min-w-0 ${className}`}>
       <dt className="rotulo">{rotulo}</dt>
       <dd className="mt-1 text-lg font-semibold tabular-nums text-titulo">{valor}</dd>
       {detalhe && <dd className="mt-0.5 text-miudo text-ink-400">{detalhe}</dd>}

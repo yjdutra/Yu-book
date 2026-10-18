@@ -9,6 +9,7 @@ import type {
   HabitEntryItem,
   HabitInput,
   HabitItem,
+  HabitsSummary,
   HabitUpdateInput,
 } from "@yu-book/shared";
 import {
@@ -18,6 +19,7 @@ import {
   diasEntre,
   ehDiaCivil,
   inicioDaSemana,
+  nivelDoXp,
   semanaPonderada,
   somarDias,
 } from "@yu-book/shared";
@@ -153,6 +155,24 @@ export async function buscarHabito(userId: string, id: string): Promise<HabitIte
   if (!linha) throw notFound("Hábito não encontrado");
   const [item] = await comSemana(userId, [linha]);
   return item as HabitItem;
+}
+
+/**
+ * RF-31 (Ritmo 2): o XP total, o da semana e o nível. Duas somas no banco, sem
+ * agregado gravado (P3). Entra todo registro do usuário, de hábito arquivado
+ * também (RN-14); o de hábito excluído já saiu com ele (RN-08).
+ */
+export async function resumirRitmo(userId: string): Promise<HabitsSummary> {
+  const hoje = await hojeDoUsuario(userId);
+  const [total, semana] = await Promise.all([
+    prisma.habitEntry.aggregate({ where: { userId }, _sum: { points: true } }),
+    prisma.habitEntry.aggregate({
+      where: { userId, day: { gte: paraColunaDia(inicioDaSemana(hoje)) } },
+      _sum: { points: true },
+    }),
+  ]);
+  const xp = total._sum.points ?? 0;
+  return { today: hoje, xp, weekXp: semana._sum.points ?? 0, level: nivelDoXp(xp) };
 }
 
 /* ------------------------------------------------------------- hábitos */

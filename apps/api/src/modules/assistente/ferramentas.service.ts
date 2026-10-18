@@ -411,6 +411,8 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
   // Configuração de hábito é do MCP (RNF-03): o chat registra, não monta.
   create_habit: undefined,
   update_habit: undefined,
+  // O check-in é do app e do MCP (Ritmo 2, RF-30): no chat, só `log_habit`.
+  check_in_event: undefined,
 
   move_card: undefined,
   trash_note: undefined,

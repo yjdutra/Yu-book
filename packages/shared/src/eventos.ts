@@ -869,6 +869,9 @@ export interface EventItem {
   /// A atividade de hábito que o check-in da ocorrência pontua (frente Ritmo,
   /// RF-08).
   habitActivity: HabitActivityRef | null;
+  /// Se esta ocorrência já teve check-in (frente Ritmo, RF-28 da Ritmo 2).
+  /// Sem `habitActivity`, sempre `false`. A API da janela do deploy não manda.
+  checkedIn: boolean;
   ai: AiMark | null;
   createdAt: string;
   updatedAt: string;

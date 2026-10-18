@@ -22,6 +22,8 @@ import { EstadoVazio, ItemAgenda } from "../components/agenda/ItemAgenda";
 import { indexarPorDia, inicioDe, itemDeTarefa, tituloDe } from "../components/agenda/itens";
 import type { ItemDoDia, ResumoDoDia } from "../components/agenda/itens";
 import { useFolhaItem } from "../components/folha/FolhaItem";
+import { HojeNoRitmo } from "../components/ritmo/HojeNoRitmo";
+import { useMarcarAtividade } from "../components/ritmo/marcar";
 import { diaCurto, diaRelativo } from "../lib/datas";
 import { DIAS_DA_SEMANA_ADIANTE } from "../lib/hoje";
 import { useQuadros } from "../lib/quadros";
@@ -214,7 +216,14 @@ export function InicioPage() {
   const abertas = useTarefas({ status: "abertas" });
   const quadros = useQuadros();
   const { abrir } = useFolhaItem();
-  const { alternar, aviso, limparAviso } = useAlternarTarefa();
+  const { alternar, aviso: avisoDaTarefa, limparAviso: limparAvisoDaTarefa } = useAlternarTarefa();
+  const { marcarEvento, aviso: avisoDoCheckIn, limparAviso: limparAvisoDoCheckIn } =
+    useMarcarAtividade();
+  const aviso = avisoDaTarefa ?? avisoDoCheckIn;
+  const limparAviso = () => {
+    limparAvisoDaTarefa();
+    limparAvisoDoCheckIn();
+  };
   const idResumo = useId();
   const idDia = useId();
   const idProximos = useId();
@@ -274,6 +283,13 @@ export function InicioPage() {
           </Aviso>
         )}
       </section>
+
+      {/* Frente Ritmo, RF-26: logo depois dos números, antes do dia inteiro. */}
+      {hoje && porDia && (
+        <div className="mt-6">
+          <HojeNoRitmo hoje={hoje} itens={porDia.get(hoje)?.itens ?? []} />
+        </div>
+      )}
 
       {aviso && (
         <Aviso tom="erro" onFechar={limparAviso} className="mt-6">
@@ -342,7 +358,13 @@ export function InicioPage() {
                   />
                 ))}
                 {doDia.map((item) => (
-                  <ItemAgenda key={item.id} item={item} onAbrir={abrirItem} onConcluir={alternar} />
+                  <ItemAgenda
+                    key={item.id}
+                    item={item}
+                    onAbrir={abrirItem}
+                    onConcluir={alternar}
+                    onCheckIn={marcarEvento}
+                  />
                 ))}
               </ul>
             )}

@@ -143,7 +143,7 @@ function novoVinculoDeHabito(gesto: "tarefa" | "evento") {
     .describe(
       gesto === "tarefa"
         ? "Atividade de hábito que pontua ao concluir, de `list_habits`."
-        : "Atividade de hábito que pontua no check-in, feito no app, de `list_habits`.",
+        : "Atividade de hábito que pontua no check-in da ocorrência, de `list_habits`.",
     );
 }
 
@@ -795,6 +795,27 @@ export const FERRAMENTAS_DO_ACERVO = {
         .describe("Pontos; obrigatório sem `activityId`."),
       day: novoDiaCivilSchema().describe("Dia, AAAA-MM-DD. Omita para hoje.").optional(),
       note: z.string().trim().max(MAX_REGISTRO_NOTA).optional().describe("O que foi feito."),
+    },
+  },
+
+  // Ritmo 2 (docs/prd-ritmo.md, RF-30): o check-in da ocorrência. Só o MCP —
+  // o chat já tem `log_habit` e não paga mais uma descrição (RNF-03).
+  check_in_event: {
+    titulo: "Fazer check-in num evento",
+    descricao:
+      "Marca presença numa ocorrência de evento ligado a hábito, e pontua a atividade dele. " +
+      "Use no lugar de `log_habit` para evento. Não vale no futuro; repetir não duplica.",
+    escrita: true,
+    anotacoes: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    entrada: {
+      eventId: z.string().uuid().describe("Id do evento, de `list_agenda`."),
+      day: novoDiaCivilSchema().describe("Dia da ocorrência, AAAA-MM-DD, como em `list_agenda`."),
+      done: z.boolean().optional().describe("false desfaz o check-in. Omita para fazer."),
     },
   },
 

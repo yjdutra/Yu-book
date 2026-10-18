@@ -1,60 +1,81 @@
 import {
   IconeAssistente,
-  IconeCalendario,
   IconeInicio,
   IconeMais,
-  IconeTarefa,
+  IconePlano,
+  IconeRitmo,
 } from "@yu-book/cliente/icones";
 import type { IconeProps } from "@yu-book/cliente/icones";
 import type { ReactElement } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { noPlano, ultimaDoPlano } from "../lib/plano";
 import { useFolhaItem } from "./folha/FolhaItem";
 
 interface Area {
-  para: string;
+  /** Para onde o toque leva; uma função quando depende da sessão (Plano). */
+  para: string | ((pathname: string, busca: string) => string);
   rotulo: string;
   Icone: (p: IconeProps) => ReactElement;
+  /** O item acende neste pathname. */
+  ativo: (pathname: string) => boolean;
 }
 
 // O "+" fica entre as duas metades: no centro da barra, ao alcance do polegar.
+// Plano junta Agenda e Tarefas e Ritmo é a área dos hábitos (frente Ritmo,
+// RF-16): cinco posições continua sendo o teto do polegar.
 const ANTES: Area[] = [
-  { para: "/", rotulo: "Início", Icone: IconeInicio },
-  { para: "/agenda", rotulo: "Agenda", Icone: IconeCalendario },
+  { para: "/", rotulo: "Início", Icone: IconeInicio, ativo: (p) => p === "/" },
+  {
+    // Já em Plano, o toque fica onde está; fora, volta à última das duas.
+    para: (pathname, busca) => (noPlano(pathname) ? `${pathname}${busca}` : ultimaDoPlano()),
+    rotulo: "Plano",
+    Icone: IconePlano,
+    ativo: noPlano,
+  },
 ];
 const DEPOIS: Area[] = [
-  { para: "/tarefas", rotulo: "Tarefas", Icone: IconeTarefa },
-  { para: "/assistente", rotulo: "Assistente", Icone: IconeAssistente },
+  {
+    para: "/ritmo",
+    rotulo: "Ritmo",
+    Icone: IconeRitmo,
+    ativo: (p) => p === "/ritmo" || p.startsWith("/ritmo/"),
+  },
+  {
+    para: "/assistente",
+    rotulo: "Assistente",
+    Icone: IconeAssistente,
+    ativo: (p) => p === "/assistente" || p.startsWith("/assistente/"),
+  },
 ];
 
-function ItemArea({ para, rotulo, Icone }: Area) {
+function ItemArea({ para, rotulo, Icone, ativo }: Area) {
+  const { pathname, search } = useLocation();
+  const aceso = ativo(pathname);
   return (
     <li className="flex flex-1 justify-center lg:w-full lg:flex-none">
-      {/* `NavLink` põe `aria-current="page"` no ativo. O ativo tem forma além
-          da cor — a pílula atrás do ícone e o rótulo em negrito (RNF-09). */}
-      <NavLink
-        to={para}
-        end={para === "/"}
-        className={({ isActive }) =>
-          `group flex min-h-14 w-full max-w-20 flex-col items-center justify-center gap-1
-           rounded-cartao text-miudo transition-colors duration-150 ease-(--ease-padrao) ${
-             isActive ? "font-semibold text-accent-400" : "font-medium text-ink-400 hover:text-ink-200"
-           }`
-        }
+      {/* `Link` com o `aria-current` à mão: o `NavLink` só sabe casar um
+          caminho, e Plano acende em dois. O ativo tem forma além da cor — a
+          pílula atrás do ícone e o rótulo em negrito (RNF-09). */}
+      <Link
+        to={typeof para === "function" ? para(pathname, search) : para}
+        aria-current={aceso ? "page" : undefined}
+        className={`group flex min-h-14 w-full max-w-20 flex-col items-center justify-center gap-1
+                    rounded-cartao text-miudo transition-colors duration-150 ease-(--ease-padrao) ${
+                      aceso
+                        ? "font-semibold text-accent-400"
+                        : "font-medium text-ink-400 hover:text-ink-200"
+                    }`}
       >
-        {({ isActive }) => (
-          <>
-            <span
-              className={`flex h-8 w-14 items-center justify-center rounded-full transition-colors
-                          duration-200 ease-(--ease-padrao) ${
-                            isActive ? "bg-accent-500/15" : "group-active:bg-ink-800"
-                          }`}
-            >
-              <Icone className="size-5" />
-            </span>
-            {rotulo}
-          </>
-        )}
-      </NavLink>
+        <span
+          className={`flex h-8 w-14 items-center justify-center rounded-full transition-colors
+                      duration-200 ease-(--ease-padrao) ${
+                        aceso ? "bg-accent-500/15" : "group-active:bg-ink-800"
+                      }`}
+        >
+          <Icone className="size-5" />
+        </span>
+        {rotulo}
+      </Link>
     </li>
   );
 }
@@ -109,13 +130,13 @@ export function Navegacao({ soTrilho = false }: { soTrilho?: boolean }) {
           <BotaoCriar />
         </li>
         {ANTES.map((area) => (
-          <ItemArea key={area.para} {...area} />
+          <ItemArea key={area.rotulo} {...area} />
         ))}
         <li className="flex flex-1 justify-center lg:hidden">
           <BotaoCriar />
         </li>
         {DEPOIS.map((area) => (
-          <ItemArea key={area.para} {...area} />
+          <ItemArea key={area.rotulo} {...area} />
         ))}
       </ul>
     </nav>

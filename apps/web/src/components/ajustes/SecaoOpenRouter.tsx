@@ -15,7 +15,7 @@ import { IconeRecarregar } from "@yu-book/cliente/icones";
 import { horaNoFuso } from "../rotinas/comum";
 import { emDolares } from "./comum";
 import { ContaOpenRouter, MetricasOpenRouter, mensagemDeErro } from "./ContaOpenRouter";
-import { Indicador } from "./Indicador";
+import { Indicador } from "@yu-book/cliente/graficos/Indicador";
 
 /**
  * Dashboard OpenRouter: o que **o provedor** diz sobre a chave e a conta. Só

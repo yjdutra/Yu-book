@@ -44,6 +44,7 @@ const EXPLICACAO: Record<NomeDoAssistente, string> = {
   log_habit: "Registra pontos num hábito pelo que você fez fora do plano, quando você pedir.",
   create_habit: "Cria um hábito com meta semanal e atividades pontuadas.",
   update_habit: "Muda a meta, as atividades ou arquiva um hábito.",
+  check_in_event: "Marca presença num evento ligado a hábito, e pontua a atividade dele.",
   open_page:
     "Lê o texto de uma página pública, pelo endereço — o seu ou um que a busca achou. " +
     "LinkedIn nunca, nem endereço da rede interna.",

@@ -5,11 +5,13 @@ import {
   IconeChevron,
   IconeRelogio,
   IconeRepetir,
+  IconeRitmo,
 } from "@yu-book/cliente/icones";
 import type { IconeProps } from "@yu-book/cliente/icones";
 import { useFocoQueSobrevive } from "@yu-book/cliente/focoQueSobrevive";
-import type { TaskItem } from "@yu-book/shared";
+import type { EventItem, TaskItem } from "@yu-book/shared";
 import type { ReactElement, ReactNode } from "react";
+import { useHoje } from "../../lib/hoje";
 import { TOM_DO_TIPO } from "./Calendario";
 import { repeticaoDe, tituloDe } from "./itens";
 import type { ItemDoDia } from "./itens";
@@ -63,6 +65,10 @@ export function EstadoVazio({
  * Prazo), além do tom; a tarefa tem a caixa de concluir com um toque; evento e
  * tarefa abrem a folha de edição; o prazo do card é só leitura, e mostra de
  * que quadro e coluna ele é.
+ *
+ * O evento ligado a um hábito (frente Ritmo, RF-29) troca a bolha do tipo pela
+ * caixa de check-in, na ocorrência de hoje ou de antes — no futuro o check-in
+ * não vale (RF-08), e a bolha fica. Só quando a tela passa `onCheckIn`.
  */
 export function ItemAgenda({
   item,
@@ -70,6 +76,7 @@ export function ItemAgenda({
   rodape,
   onAbrir,
   onConcluir,
+  onCheckIn,
 }: {
   item: ItemDoDia;
   /** A tarefa vencida, em destaque: glifo e palavra, não só a cor. */
@@ -78,8 +85,25 @@ export function ItemAgenda({
   rodape?: ReactNode;
   onAbrir: (item: ItemDoDia) => void;
   onConcluir: (tarefa: TaskItem) => void;
+  onCheckIn?: (evento: EventItem) => void;
 }) {
   const ref = useFocoQueSobrevive();
+  // O hoje do usuário, da consulta que a casca já mantém (INV-66).
+  const { hoje } = useHoje();
+  const vinculo =
+    item.tipo === "evento"
+      ? item.evento.habitActivity
+      : item.tipo === "tarefa"
+        ? item.tarefa.habitActivity
+        : null;
+  const checkIn =
+    item.tipo === "evento" &&
+    item.evento.habitActivity &&
+    onCheckIn &&
+    hoje !== null &&
+    item.evento.occurrenceDate <= hoje
+      ? { evento: item.evento, onCheckIn }
+      : null;
   const tom = TOM_DO_TIPO[item.tipo];
   const concluida = item.tipo === "tarefa" && item.tarefa.completedAt !== null;
   const titulo = tituloDe(item);
@@ -137,6 +161,16 @@ export function ItemAgenda({
           <span className="truncate">{projeto}</span>
         </span>
       )}
+      {/* O hábito que o gesto pontua: o nome e os pontos, não só a caixa. */}
+      {vinculo && (
+        <span className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-ink-400">
+          <IconeRitmo className="size-3 shrink-0 text-chama-300" />
+          <span className="truncate">
+            {vinculo.habitName} · +{vinculo.points}
+            {checkIn?.evento.checkedIn ? " · check-in feito" : ""}
+          </span>
+        </span>
+      )}
       {rodape && <span className="mt-0.5 block text-xs text-ink-400">{rodape}</span>}
     </>
   );
@@ -151,6 +185,8 @@ export function ItemAgenda({
     >
       {item.tipo === "tarefa" ? (
         <CaixaConcluir tarefa={item.tarefa} onConcluir={onConcluir} />
+      ) : checkIn ? (
+        <CaixaCheckIn evento={checkIn.evento} onCheckIn={checkIn.onCheckIn} />
       ) : (
         <Bolha Icone={item.tipo === "evento" ? IconeCalendario : IconeRelogio} />
       )}
@@ -169,6 +205,39 @@ export function ItemAgenda({
         </button>
       )}
     </li>
+  );
+}
+
+/**
+ * O check-in da ocorrência (RF-29), com a mesma forma da caixa de concluir:
+ * `checkbox` de verdade, cheia e com o check quando feita.
+ */
+function CaixaCheckIn({
+  evento,
+  onCheckIn,
+}: {
+  evento: EventItem;
+  onCheckIn: (evento: EventItem) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={evento.checkedIn}
+      aria-label={`Check-in em “${evento.title}”`}
+      onClick={() => onCheckIn(evento)}
+      className="flex size-11 shrink-0 items-center justify-center rounded-full"
+    >
+      <span
+        aria-hidden="true"
+        className={`flex size-7 items-center justify-center rounded-full border-2 border-(--tom)
+                    transition duration-150 ease-(--ease-padrao) ${
+                      evento.checkedIn ? "bg-(--tom) text-white" : "text-transparent"
+                    }`}
+      >
+        <IconeCheck className="size-4" />
+      </span>
+    </button>
   );
 }
 

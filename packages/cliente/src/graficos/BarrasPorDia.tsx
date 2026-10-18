@@ -30,7 +30,9 @@ export function diaCurto(dia: string): string {
 
 /**
  * Barras por dia, uma série só — o custo diário do painel do OpenRouter e,
- * no painel de uso sobre `ai_usage`, o uso por dia no fuso do usuário. Por
+ * no painel de uso sobre `ai_usage`, o uso por dia no fuso do usuário. Subiu
+ * de `apps/web` na Ritmo 2 (RNF-06 de `docs/prd-ritmo.md`): o móvel desenha
+ * com ele os últimos 30 dias de um hábito. Por
  * isso não sabe de dinheiro nem de fuso: recebe os dias prontos e o
  * formatador do valor.
  *

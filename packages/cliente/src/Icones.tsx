@@ -1,4 +1,4 @@
-import type { NoteKind } from "@yu-book/shared";
+import type { EmblemaDoHabito, NoteKind } from "@yu-book/shared";
 
 /**
  * Ícones da navegação (RNF-07).
@@ -583,4 +583,155 @@ export const ICONE_TIPO: Record<NoteKind, (p: IconeProps) => React.ReactElement>
   trilha: IconeTrilha,
   trabalho: IconeTrabalho,
   livre: IconeLivre,
+};
+
+/* ---------------------------------------------------------------
+   Frente Ritmo, Ritmo 2 (docs/prd-ritmo.md)
+   --------------------------------------------------------------- */
+
+/** O calendário com o check — Plano, a área que junta agenda e tarefas (RF-16). */
+export function IconePlano(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="2.5" y="3.2" width="11" height="10.3" rx="2" />
+      <path d="M2.5 6.6h11M5.6 2v2.2M10.4 2v2.2M6 10l1.4 1.4L10.2 8.6" />
+    </Icone>
+  );
+}
+
+/** A chama — Ritmo, a área dos hábitos (RF-16), e o ganho de pontos. */
+export function IconeRitmo(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8.4 1.8c.7 2.4 3.7 3.7 3.7 7a4.1 4.1 0 0 1-8.2 0c0-1.6.8-2.8 1.7-3.6 0 1.5.7 2.4 1.6 2.4 0-2.3-.6-3.8 1.2-5.8Z" />
+    </Icone>
+  );
+}
+
+/* Os emblemas do hábito: o catálogo fechado de `EMBLEMAS_DO_HABITO`, um
+   desenho por chave. O nome do hábito sempre vai ao lado (RNF-08). */
+
+function EmblemaEstrela(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="8" cy="8" r="6" />
+      <path d="M8 4.6l1 2.1 2.3.3-1.7 1.6.4 2.3L8 9.8l-2 1.1.4-2.3-1.7-1.6 2.3-.3Z" />
+    </Icone>
+  );
+}
+
+function EmblemaIdioma(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M2 3.5h6M5 2v1.5M3.5 3.5c0 2.6 1.8 4.4 4.3 5M6.6 3.5c-.6 2.6-2.4 4.4-4.6 5" />
+      <path d="M8.6 14l2.4-5.6 2.4 5.6M9.4 12.2h3.2" />
+    </Icone>
+  );
+}
+
+function EmblemaCasa(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M2.5 7.2 8 2.6l5.5 4.6V13a.6.6 0 0 1-.6.6H3.1a.6.6 0 0 1-.6-.6Z" />
+      <path d="M6.5 13.6V10h3v3.6" />
+    </Icone>
+  );
+}
+
+function EmblemaLivro(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8 4.2C6.7 3.2 4.7 2.9 2.6 3.2v8.9c2.1-.3 4.1 0 5.4 1 1.3-1 3.3-1.3 5.4-1V3.2c-2.1-.3-4.1 0-5.4 1Z" />
+      <path d="M8 4.2v8.9" />
+    </Icone>
+  );
+}
+
+function EmblemaCorpo(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="9.2" cy="2.9" r="1.2" />
+      <path d="M5.4 13.6 7.2 10l1.8 1.2v2.4M5 7.2l2.2-2 2 1.7 2.2.3M7.2 10 6.4 5.6" />
+    </Icone>
+  );
+}
+
+function EmblemaFoco(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="8" cy="8" r="5.6" />
+      <circle cx="8" cy="8" r="2.8" />
+      <circle cx="8" cy="8" r="0.6" />
+    </Icone>
+  );
+}
+
+function EmblemaMente(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M6.2 13.4V11.6H4.8a1 1 0 0 1-1-1V9.2L2.6 8.6l1.2-2A4.4 4.4 0 0 1 8.4 2.4a4.4 4.4 0 0 1 2.8 7.8v3.2" />
+      <path d="M7.4 6.2a1.3 1.3 0 0 1 2.4.6c0 .9-1.2 1.1-1.2 2" />
+    </Icone>
+  );
+}
+
+function EmblemaDinheiro(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="8" cy="8" r="5.8" />
+      <path d="M9.9 5.9c-.3-.6-1-1-1.9-1-1.1 0-1.9.6-1.9 1.4 0 1.9 3.8 1 3.8 3 0 .8-.8 1.4-1.9 1.4-.9 0-1.6-.4-1.9-1M8 3.8v.9M8 11.3v.9" />
+    </Icone>
+  );
+}
+
+function EmblemaAgua(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8 2.2c2.2 2.8 4 5 4 7.2a4 4 0 0 1-8 0c0-2.2 1.8-4.4 4-7.2Z" />
+      <path d="M6 9.8a2 2 0 0 0 1.6 1.8" />
+    </Icone>
+  );
+}
+
+function EmblemaSono(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M12.8 9.6A5.2 5.2 0 0 1 6.4 3.2a5.2 5.2 0 1 0 6.4 6.4Z" />
+      <path d="M10 2.4h2.4L10 5h2.4" />
+    </Icone>
+  );
+}
+
+function EmblemaCodigo(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M5.4 4.6 2 8l3.4 3.4M10.6 4.6 14 8l-3.4 3.4M9 3.2 7 12.8" />
+    </Icone>
+  );
+}
+
+function EmblemaMusica(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M6 11.6V3.4l7-1.4v8.2" />
+      <circle cx="4.4" cy="11.6" r="1.6" />
+      <circle cx="11.4" cy="10.2" r="1.6" />
+    </Icone>
+  );
+}
+
+/** O desenho de cada emblema de hábito. `Record` total: chave nova não compila sem desenho. */
+export const ICONE_EMBLEMA: Record<EmblemaDoHabito, (p: IconeProps) => React.ReactElement> = {
+  estrela: EmblemaEstrela,
+  idioma: EmblemaIdioma,
+  casa: EmblemaCasa,
+  livro: EmblemaLivro,
+  corpo: EmblemaCorpo,
+  foco: EmblemaFoco,
+  mente: EmblemaMente,
+  dinheiro: EmblemaDinheiro,
+  agua: EmblemaAgua,
+  sono: EmblemaSono,
+  codigo: EmblemaCodigo,
+  musica: EmblemaMusica,
 };

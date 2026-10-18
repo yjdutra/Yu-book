@@ -8,6 +8,8 @@ import { indexarPorDia } from "../components/agenda/itens";
 import type { ItemDoDia } from "../components/agenda/itens";
 import { ListaDoDia } from "../components/agenda/ListaDoDia";
 import { useFolhaItem } from "../components/folha/FolhaItem";
+import { SeletorPlano } from "../components/plano/SeletorPlano";
+import { useMarcarAtividade } from "../components/ritmo/marcar";
 import {
   diaValido,
   gradeDoMes,
@@ -33,7 +35,14 @@ export function AgendaPage() {
   const { abrir } = useFolhaItem();
   const { hoje: hojeConhecido, erro: erroDoHoje, tentar: tentarHoje } = useHoje();
   const [diaDePartida] = useState(diaDoAparelho);
-  const { alternar, aviso, limparAviso } = useAlternarTarefa();
+  const { alternar, aviso: avisoDaTarefa, limparAviso: limparAvisoDaTarefa } = useAlternarTarefa();
+  const { marcarEvento, aviso: avisoDoCheckIn, limparAviso: limparAvisoDoCheckIn } =
+    useMarcarAtividade();
+  const aviso = avisoDaTarefa ?? avisoDoCheckIn;
+  const limparAviso = () => {
+    limparAvisoDaTarefa();
+    limparAvisoDoCheckIn();
+  };
 
   const diaDaUrl = diaValido(params.get("dia"));
   const mes = mesDoDia(diaDaUrl ?? hojeConhecido ?? diaDePartida);
@@ -71,38 +80,42 @@ export function AgendaPage() {
   }
 
   return (
-    <div
-      className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start
-                 lg:gap-8"
-    >
-      <div className="rounded-dialogo border border-ink-800 bg-superficie p-3 shadow-e2 sm:p-4">
-        <Calendario
-          mes={mes}
+    <>
+      <SeletorPlano />
+      <div
+        className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-start
+                   lg:gap-8"
+      >
+        <div className="rounded-dialogo border border-ink-800 bg-superficie p-3 shadow-e2 sm:p-4">
+          <Calendario
+            mes={mes}
+            hoje={hoje}
+            selecionado={selecionado}
+            porDia={porDia}
+            carregando={agenda.isPending}
+            onSelecionar={selecionar}
+            onMes={mudarMes}
+            onHoje={() => hoje && selecionar(hoje)}
+          />
+        </div>
+        <ListaDoDia
+          dia={selecionado}
           hoje={hoje}
-          selecionado={selecionado}
-          porDia={porDia}
+          itens={itens}
           carregando={agenda.isPending}
-          onSelecionar={selecionar}
-          onMes={mudarMes}
-          onHoje={() => hoje && selecionar(hoje)}
+          erro={agenda.isError || (erroDoHoje && !selecionado)}
+          aviso={aviso}
+          onTentar={() => {
+            if (agenda.isError) void agenda.refetch();
+            if (erroDoHoje) tentarHoje();
+          }}
+          onFecharAviso={limparAviso}
+          onCriar={() => selecionado && abrir({ modo: "criar", tipo: "evento", dia: selecionado })}
+          onAbrir={abrirItem}
+          onConcluir={alternar}
+          onCheckIn={marcarEvento}
         />
       </div>
-      <ListaDoDia
-        dia={selecionado}
-        hoje={hoje}
-        itens={itens}
-        carregando={agenda.isPending}
-        erro={agenda.isError || (erroDoHoje && !selecionado)}
-        aviso={aviso}
-        onTentar={() => {
-          if (agenda.isError) void agenda.refetch();
-          if (erroDoHoje) tentarHoje();
-        }}
-        onFecharAviso={limparAviso}
-        onCriar={() => selecionado && abrir({ modo: "criar", tipo: "evento", dia: selecionado })}
-        onAbrir={abrirItem}
-        onConcluir={alternar}
-      />
-    </div>
+    </>
   );
 }

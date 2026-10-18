@@ -50,6 +50,7 @@ function evento(id: string, serie: boolean): EventItem {
     url: null,
     board: null,
     habitActivity: null,
+    checkedIn: false,
     ai: null,
     createdAt: AGORA,
     updatedAt: AGORA,

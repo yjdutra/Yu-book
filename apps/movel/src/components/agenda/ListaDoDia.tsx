@@ -1,7 +1,7 @@
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Botao } from "@yu-book/cliente/base/Botao";
 import { IconeCalendario, IconeMais } from "@yu-book/cliente/icones";
-import type { TaskItem } from "@yu-book/shared";
+import type { EventItem, TaskItem } from "@yu-book/shared";
 import { useId } from "react";
 import { diaLongo, diaPorExtenso, diaRelativo } from "../../lib/datas";
 import { TOM_DO_TIPO } from "./Calendario";
@@ -27,6 +27,7 @@ export function ListaDoDia({
   onCriar,
   onAbrir,
   onConcluir,
+  onCheckIn,
 }: {
   dia: string | null;
   hoje: string | null;
@@ -40,6 +41,8 @@ export function ListaDoDia({
   onCriar: () => void;
   onAbrir: (item: ItemDoDia) => void;
   onConcluir: (tarefa: TaskItem) => void;
+  /** O check-in do evento ligado a hábito (frente Ritmo, RF-29). */
+  onCheckIn?: (evento: EventItem) => void;
 }) {
   const idTitulo = useId();
   const relativo = dia ? diaRelativo(dia, hoje) : null;
@@ -129,7 +132,13 @@ export function ListaDoDia({
         ) : (
           <ul className="space-y-2">
             {itens.map((item) => (
-              <ItemAgenda key={item.id} item={item} onAbrir={onAbrir} onConcluir={onConcluir} />
+              <ItemAgenda
+                key={item.id}
+                item={item}
+                onAbrir={onAbrir}
+                onConcluir={onConcluir}
+                onCheckIn={onCheckIn}
+              />
             ))}
           </ul>
         )}

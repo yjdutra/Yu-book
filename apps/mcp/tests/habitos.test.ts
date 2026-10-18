@@ -26,6 +26,7 @@ const HOJE = "2026-10-18";
 const HABITO_ID = "11111111-1111-4111-8111-111111111111";
 const ATIVIDADE_ID = "22222222-2222-4222-8222-222222222222";
 const ATIVIDADE_QUE_FALHA = "33333333-3333-4333-8333-333333333333";
+const EVENTO_ID = "55555555-5555-4555-8555-555555555555";
 
 const COMPLETO = identidade(["yubook:read", "yubook:write"]);
 
@@ -101,6 +102,10 @@ beforeEach(() => {
     if (metodo === "POST" && caminho === `/habits/${HABITO_ID}/entries`) {
       return json(registro(corpo ?? {}), 201);
     }
+    if (caminho === `/events/${EVENTO_ID}/check-in`) {
+      if (metodo === "DELETE") return new Response(null, { status: 204 });
+      return json({ ...registro({ activityId: ATIVIDADE_ID, ...corpo }), origin: "event" }, 201);
+    }
     return json({ error: { code: "NOT_FOUND", message: "Não encontrado" } }, 404);
   });
 });
@@ -120,7 +125,7 @@ describe("o registro dos hábitos", () => {
       const semEscrita = (await sem.listarTools()).map((t) => t.name);
       const comEscrita = (await com.listarTools()).map((t) => t.name);
       expect(semEscrita).toContain("list_habits");
-      for (const nome of ["create_habit", "update_habit", "log_habit"]) {
+      for (const nome of ["create_habit", "update_habit", "log_habit", "check_in_event"]) {
         expect(semEscrita, `${nome} vazou para a leitura`).not.toContain(nome);
         expect(comEscrita, `${nome} não foi registrada`).toContain(nome);
       }
@@ -293,6 +298,56 @@ describe("log_habit", () => {
       const r = await cliente.chamarTool("log_habit", { habitId: HABITO_ID });
       expect(r.isError).toBe(true);
       expect(chamadas).toHaveLength(0);
+    } finally {
+      await cliente.encerrar();
+    }
+  });
+});
+
+describe("check_in_event (Ritmo 2, RF-30)", () => {
+  it("faz o check-in com origin e o dia da ocorrência (CA-17)", async () => {
+    const cliente = await abrirCliente({ escrita: true }, COMPLETO);
+    try {
+      const r = await cliente.chamarTool("check_in_event", { eventId: EVENTO_ID, day: HOJE });
+      expect(r.isError).toBeFalsy();
+      const post = chamadas.find((c) => c.caminho === `/events/${EVENTO_ID}/check-in`);
+      expect(post).toMatchObject({ metodo: "POST", corpo: { day: HOJE, origin: { via: "mcp" } } });
+      expect(texto(r)).toContain("Check-in feito.");
+      expect(texto(r)).toContain("+10 pts em **Inglês**");
+    } finally {
+      await cliente.encerrar();
+    }
+  });
+
+  it("com `done: false` desfaz pelo DELETE, com o dia na query", async () => {
+    const cliente = await abrirCliente({ escrita: true }, COMPLETO);
+    try {
+      const r = await cliente.chamarTool("check_in_event", {
+        eventId: EVENTO_ID,
+        day: HOJE,
+        done: false,
+      });
+      expect(r.isError).toBeFalsy();
+      expect(chamadas).toHaveLength(1);
+      expect(chamadas[0]).toMatchObject({
+        metodo: "DELETE",
+        caminho: `/events/${EVENTO_ID}/check-in`,
+      });
+      expect(texto(r)).toContain("desfeito");
+    } finally {
+      await cliente.encerrar();
+    }
+  });
+
+  it("evento que não existe é recusa clara, sem escrita", async () => {
+    const cliente = await abrirCliente({ escrita: true }, COMPLETO);
+    try {
+      const r = await cliente.chamarTool("check_in_event", {
+        eventId: "66666666-6666-4666-8666-666666666666",
+        day: HOJE,
+      });
+      expect(r.isError).toBe(true);
+      expect(texto(r)).toContain("Nada foi registrado");
     } finally {
       await cliente.encerrar();
     }

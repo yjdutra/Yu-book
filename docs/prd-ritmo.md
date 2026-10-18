@@ -39,7 +39,7 @@ Single-user. Tudo configurável pelo MCP, para que o assistente organize a frent
 | Fase | Entrega | Pacotes |
 |---|---|---|
 | **Ritmo 1** | Hábitos no servidor: modelos, vínculo com tarefa e evento, registro avulso, semana ponderada, MCP e chat | api, shared, mcp |
-| Ritmo 2 | Hábitos no móvel: área Ritmo, barra nova, lista, detalhe, folha de registro, feedback | movel, cliente |
+| Ritmo 2 | Hábitos no móvel: área Ritmo, barra nova, lista, detalhe, folha de registro, feedback; check-in por ocorrência, XP e nível | movel, cliente, api, shared, mcp |
 | Ritmo 3 | Ofensivas, níveis e recordes, calculados na leitura, com tela e chama no Início | shared, api, movel |
 | Ritmo 4 | Humor: check-in no Início, ditado, histórico, correlação | api, shared, mcp, movel |
 | Ritmo 5 | Skills: catálogo de emblemas, "usei agora", níveis, skill do dia | api, shared, mcp, movel |
@@ -237,25 +237,192 @@ mesclado ao original, elas são a entrada da Ritmo 1 no histórico.
   `habitActivityId` calada, e o MCP não confere o vínculo na resposta, ao contrário do que faz com
   `repeat` desde a `[0.36.0]`.
 
-## 5. Fases seguintes (escopo, detalhado quando cada uma começar)
+## 5. Ritmo 2 — Hábitos no móvel
 
-### Ritmo 2 — Hábitos no móvel
+> Detalhado em 2026-10-18, ao começar a fase. Os `RF-xx` daqui continuam a numeração da Ritmo 1
+> (RF-16 em diante), para o comentário do código não colidir dentro do mesmo PRD.
 
-- A barra passa a ser Início · Plano (Agenda + Tarefas, com seletor) · ＋ · Ritmo · Assistente.
-- Ritmo › Hábitos: um cartão de nível, a semana em barras e uma grade de hábitos com anel.
-- Detalhe do hábito: anel da meta, barras ponderadas com a linha do teto, atividades, os últimos 30
-  dias, o mapa de 12 semanas e recordes.
-- Folha "Registrar fora do plano", com seletor de pontos, avisando quanto conta e quanto vira XP.
-- Início ganha "Hoje no ritmo" (as atividades do dia com o check) e o toast de pontos.
-- `BarrasPorDia` e `Indicador` sobem para `packages/cliente`, e o kit novo nasce em
-  `packages/cliente/src/ritmo/`.
+### 5.1 Escopo
+
+A primeira fase com tela. Tudo é do móvel (`apps/movel`) e do pacote que os fronts dividem
+(`packages/cliente`); o servidor só ganha o que a tela não consegue calcular sozinha: o estado do
+check-in por ocorrência e o XP total.
+
+Fica para depois, mesmo aparecendo no protótipo: ofensivas, recordes e a ofensiva por hábito
+(Ritmo 3), humor (Ritmo 4), skill do dia (Ritmo 5), o "play" do foco (Ritmo 6), e criar ou editar
+hábito pela tela — a configuração segue no MCP (RF-13).
+
+### 5.2 Requisitos funcionais
+
+**Navegação**
+
+- **RF-16** — A barra do móvel passa a ser Início · Plano · ＋ · Ritmo · Assistente. Plano reúne
+  Agenda e Tarefas: as duas rotas continuam (`/agenda`, `/tarefas`), o item Plano fica ativo nas
+  duas, e um seletor no topo troca entre elas. O item leva à última das duas aberta na sessão.
+- **RF-17** — A área Ritmo (`/ritmo`) tem quatro abas no topo: Hábitos, Ofensivas, Skills e Humor.
+  Nesta fase só Hábitos tem conteúdo; as outras três dizem em que fase chegam.
+
+**Ritmo › Hábitos**
+
+- **RF-18** — Cartão de nível: o nível, o nome dele, a barra de XP até o próximo, o XP total e o da
+  semana, e três números da semana (meta em %, XP ganho e dias ativos).
+- **RF-19** — A semana em barras: os pontos de cada dia, somados entre os hábitos ativos, de
+  segunda a domingo, com hoje em destaque e os dias por vir vazios. O cabeçalho diz o período e
+  "N de M pts" (o que conta para as metas sobre a soma das metas).
+- **RF-20** — A grade de hábitos: um cartão por hábito ativo, com o emblema na cor dele, o anel da
+  meta com a porcentagem, "N de M pts · D/A dias" e uma faixa dos sete dias. Tocar abre o detalhe.
+
+**Detalhe do hábito** (`/ritmo/habitos/:id`)
+
+- **RF-21** — O anel da meta com os pontos que contam, uma frase do que falta ("Faltam 40 pts — em
+  pelo menos 2 dias", "Meta da semana batida", ou "Não fecha mais nesta semana") e as pílulas dos
+  dias-alvo e do teto.
+- **RF-22** — Barras ponderadas da semana: a parte que conta, cheia; o que passou do teto,
+  hachurado em cima; a linha tracejada do teto; a legenda das duas partes.
+- **RF-23** — As atividades ativas, com os pontos e quantas vezes entraram nesta semana, e o botão
+  "Registrar fora do plano".
+- **RF-24** — Os últimos 30 dias em barras (pontos por dia) e o mapa de 12 semanas (uma coluna por
+  semana, de segunda a domingo, quatro tons com legenda). Os dois saem de uma consulta só de
+  registros (RF-11).
+
+**Registrar fora do plano**
+
+- **RF-25** — Uma folha inferior: o hábito (quando aberta do Início), a atividade ou "Valor livre",
+  e um seletor de pontos de 5 em 5. Antes de registrar, ela diz quanto conta para a meta de hoje e
+  quanto vira só XP. Registrar grava pelo `POST /habits/:id/entries` (RF-09) e mostra o toast.
+
+**Início › Hoje no ritmo**
+
+- **RF-26** — Uma seção com as atividades de hoje: as tarefas do dia e as ocorrências de evento do
+  dia ligadas a uma atividade, com o hábito, a hora e os pontos. O check conclui a tarefa ou faz o
+  check-in, e desfaz. Uma pílula "N de M" e uma barra fina dizem quanto do dia já foi. O botão
+  "Registrar fora do plano" abre a folha de RF-25.
+- **RF-27** — O toast de pontos: "+N", o hábito e a semana depois do ganho ("110 de 120"), e o
+  próximo passo ("Falta 1 dia para a meta", "Meta da semana batida", "10 viraram XP extra"). Some
+  sozinho em 2,6 s e é `role="status"`.
+
+**Check-in de evento** (pendência de §4.7)
+
+- **RF-28** — `EventItem` ganha `checkedIn`: se a ocorrência (`id` + `occurrenceDate`) já tem
+  check-in. Vale em `GET /agenda`, `GET /events` e `GET /events/:id`. Evento sem atividade traz
+  `false`.
+- **RF-29** — No item da agenda do móvel (Início, Agenda, projeto), o evento com atividade troca a
+  bolha do tipo por uma caixa de check-in, no dia de hoje ou antes. Num dia futuro a caixa não
+  aparece.
+- **RF-30** — MCP: `check_in_event` faz e desfaz o check-in de uma ocorrência. Fica fora do chat.
+
+**Servidor**
+
+- **RF-31** — `GET /habits/summary`: o hoje do usuário, o XP total (a soma de todo registro, acima
+  do teto inclusive), o XP da semana e o nível calculado.
+
+### 5.3 Regras de negócio
+
+- **RN-14** — XP é a soma dos pontos de todo registro do usuário, de hábito arquivado também. O
+  registro de hábito excluído some com ele (RN-08), e o XP cai junto: calcular na leitura (P3) é
+  isso.
+- **RN-15** — A curva de nível mora em `packages/shared` (`nivelDoXp`): chegar ao nível `n + 1`
+  custa `25 · n · (n + 1)` XP no total — 50 para o 2, 150 para o 3, 300 para o 4. Os nomes vão por
+  faixa (Iniciante, Aprendiz, Constante, Dedicado, Disciplinado, Mestre).
+- **RN-16** — O aviso da folha usa a mesma conta do servidor: o que entra hoje conta até
+  `cap − pontos de hoje`, e o resto vira só XP. A função é de `packages/shared` (`quantoConta`).
+- **RN-17** — "Hoje" é sempre o do usuário (`AgendaRange.today` ou `summary.today`), nunca o do
+  aparelho (INV-66). Até a API responder, a tela espera.
+- **RN-18** — O check de "Hoje no ritmo" é o mesmo gesto da agenda: concluir a tarefa (RF-07) ou o
+  check-in (RF-08). A tela não grava registro avulso no lugar.
+- **RN-19** — Hábito sem atividade ativa abre a folha direto no "Valor livre". Sem nenhum hábito
+  ativo, "Hoje no ritmo" não aparece, e a aba Hábitos explica que o hábito se cria pelo assistente
+  ou pelo MCP.
+- **RN-20** — `check_in_event` manda `origin`: o registro leva a marca de quem registrou (RN-12).
+
+### 5.4 Requisitos não funcionais
+
+- **RNF-06** — `BarrasPorDia` e `Indicador` sobem de `apps/web` para `packages/cliente`, sem mudar
+  de desenho. O kit novo nasce em `packages/cliente/src/ritmo/`.
+- **RNF-07** — Sem biblioteca de UI nem de gráfico. Os gráficos são SVG ou HTML à mão, com o número
+  fora do desenho e um resumo acessível; os emblemas e os ícones novos são SVG em `Icones.tsx`.
+- **RNF-08** — Cor nunca é o único sinal: o anel traz o número, o dia de hoje é negrito, o
+  hachurado tem legenda, o mapa tem legenda e o título de cada célula.
+- **RNF-09** — Sem a variante `dark:`. As cores novas (chama, ouro e sucesso) entram no `@theme` e
+  em `:root[data-tema="claro"]`. A cor do hábito é a do agente da mesma chave.
+- **RNF-10** — Com `prefers-reduced-motion`, o estado final aparece direto: anel e barra sem
+  transição, toast sem subir.
+- **RNF-11** — O estado do check-in custa uma consulta de registros por leitura da agenda, não uma
+  por evento.
+
+### 5.5 Rotas novas ou alteradas
+
+| Método e caminho | O que muda |
+|---|---|
+| `GET /habits/summary` | Novo (RF-31) |
+| `GET /agenda`, `GET /events`, `GET /events/:id` | `checkedIn` em cada evento (RF-28) |
+
+### 5.6 Critérios de aceite
+
+- **CA-11** — A barra mostra Início, Plano, ＋, Ritmo e Assistente. Plano fica ativo em `/agenda` e
+  em `/tarefas`, e o seletor troca entre as duas.
+- **CA-12** — Com "Inglês" (120, 4 dias) e 40 pts hoje, o detalhe mostra 30 que contam, 10
+  hachurados acima da linha do teto, e "+10 XP extra".
+- **CA-13** — A folha, com 20 pts hoje e teto 30, avisa "10 contam para a meta; 10 viram XP extra"
+  para 20 pts. Registrar soma 20 ao XP e 10 à semana.
+- **CA-14** — Concluir em "Hoje no ritmo" uma tarefa ligada a "App" (10) mostra o toast "+10" e
+  move o anel do hábito. Desmarcar desfaz.
+- **CA-15** — Check-in numa ocorrência de hoje marca a caixa no Início e na Agenda; a agenda
+  recarregada traz `checkedIn: true` só naquela ocorrência, e não nas outras da série.
+- **CA-16** — `GET /habits/summary` com 60 pts em registros devolve `xp: 60` e o nível 2.
+- **CA-17** — Pelo MCP, `check_in_event` faz o check-in e, com `done: false`, desfaz.
+- **CA-18** — Os dois temas, em 390 px, sem rolagem lateral; as abas Ofensivas, Skills e Humor dizem
+  quando chegam.
+
+### 5.7 Decisões tomadas na implementação (2026-10-18)
+
+- **A curva de nível veio para a Ritmo 2.** O cartão de nível é desta fase, e sem a curva ele não
+  teria número. Ofensiva e recorde, que o protótipo põe no mesmo cartão, ficam para a Ritmo 3: no
+  lugar deles entram o XP da semana e os dias ativos.
+- **`GET /habits/summary`, e não um campo novo em `GET /habits`.** A lista é um array, e mudar a
+  forma dela quebraria o MCP no ar. O caminho fixo casa antes de `/habits/:id` no Fastify.
+- **`checkedIn: boolean`, sem o id do registro.** A tela só precisa saber se a caixa está marcada,
+  e desfazer vai pelo `DELETE /events/:id/check-in?day=`. A janela da consulta recua
+  `MAX_DIAS_DO_EVENTO + 1` dias antes de `from`, porque o evento simples que atravessa a borda tem a
+  ocorrência no dia em que começa.
+- **`check_in_event` está no MCP e fora do chat.** O chat já tem `log_habit`, e mais uma descrição
+  seria paga em todo turno (RNF-03). O texto do vínculo nos eventos passou de "check-in, feito no
+  app" para "check-in da ocorrência", porque agora o MCP também faz. `list_agenda` diz "check-in
+  feito em AAAA-MM-DD".
+- **Plano não é uma rota nova.** `/agenda` e `/tarefas` continuam, para não quebrar os links do
+  Início e do histórico. O item da barra acende nas duas e leva à última aberta, guardada na memória
+  do módulo (`lib/plano.ts`), sem `sessionStorage`.
+- **As abas do Ritmo e o seletor de Plano são links com `aria-current`, não `tablist`.** Cada aba é
+  uma rota que o Voltar desfaz.
+- **`invalidarAgenda` também invalida `["habitos"]`.** Concluir uma tarefa ligada pontua, e quem
+  conclui não deveria precisar saber disso. No web, que não lê hábitos, não custa nada.
+- **O toast calcula o ganho antes da resposta** (`ganhoNaSemana`, pela mesma `quantoConta` do
+  servidor), e aparece só depois que a API confirma. Desfazer não tem toast. Registro fora da
+  semana corrente também não, porque a conta da semana não vale para ele.
+- **O check-in no `ItemAgenda` é opt-in por tela (`onCheckIn`).** Início e Agenda passam. Projeto
+  não passa, porque mostra os próximos dias, que estão no futuro.
+- **Cores novas:** `chama-500/600/300`, `ouro-500/300` e `sucesso-500/300`, nos dois temas. O
+  selo do nível usa `chama-600`, porque o gradiente ouro→chama do protótipo não passa 3:1 com o
+  número branco. O toast fica sobre `superficie`, sem inverter, para o "+N" em `chama-300` passar
+  4,5:1.
+- **Ficou de fora:** criar e editar hábito pela tela, ligar tarefa ou evento a uma atividade pelo
+  formulário do móvel, a linha "Evento · ter e qui, 19:00" de cada atividade (pediria uma consulta
+  reversa do vínculo), recordes e a ofensiva do hábito (Ritmo 3), e o "play" do foco (Ritmo 6).
+- **Portões:** `pnpm typecheck` limpo. API com 689 de 690 testes passando: a falha é
+  `web.test.ts › DNS rebinding`, que sobe um servidor em `127.0.0.2`, endereço que o macOS não tem
+  sem alias de loopback (`EADDRNOTAVAIL`), e não toca nesta fase. MCP com 113 de 113. A interface
+  foi conferida no navegador em 375 px, nos dois temas: Início com "Hoje no ritmo" (concluir,
+  check-in e toast), Ritmo, as abas "em breve", o detalhe, a folha (aviso do teto e registro) e o
+  seletor de Plano.
+
+## 6. Fases seguintes (escopo, detalhado quando cada uma começar)
 
 ### Ritmo 3 — Ofensivas, níveis e recordes
 
 - **Ofensiva geral:** dias seguidos com qualquer registro de hábito ou check-in de humor.
 - **Ofensiva do hábito:** semanas seguidas com `goalMet`.
 - **Recordes:** as 5 maiores sequências de cada tipo, mais as melhores semanas por pontos.
-- **XP e nível:** uma curva sobre o XP total, definida em `packages/shared`.
+- **XP e nível:** a curva veio antes, na Ritmo 2 (RN-15), porque o cartão de nível é dela.
 - Tudo calculado na leitura (P3). Há uma folha de conquista só para os marcos raros.
 
 ### Ritmo 4 — Humor

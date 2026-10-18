@@ -583,7 +583,12 @@ export function formatarEvento(evento: EventItem): string {
   if (evento.board?.name) linhas.push(`projeto: ${evento.board.name}`);
   // Por verdade, e não `!== null`: campo da frente Ritmo, e a API no ar pode
   // ser mais velha e nem mandar a chave (§13 da skill do MCP).
-  if (evento.habitActivity) linhas.push(linhaDoVinculo(evento.habitActivity, "check-in"));
+  if (evento.habitActivity) {
+    // `checkedIn` é da Ritmo 2: a API mais velha não o manda, e ausente lê
+    // como sem check-in.
+    const feito = evento.checkedIn ? ` · check-in feito em ${evento.occurrenceDate}` : "";
+    linhas.push(linhaDoVinculo(evento.habitActivity, "check-in") + feito);
+  }
   if (evento.location) linhas.push(`local: ${evento.location}`);
   if (evento.url) linhas.push(`link: ${evento.url}`);
   if (evento.ai) linhas.push(linhaDaMarcaSemDia(evento.ai, "o"));

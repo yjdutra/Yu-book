@@ -47,6 +47,21 @@
   --color-agente-rosa: #c2336f;
   --color-agente-cinza: #5f6b82;
 
+  /* Frente Ritmo, Ritmo 2: as cores de jogo. `chama` é a recompensa (hoje, o
+     ganho, o nível) e `ouro` o XP; as duas `-500` são só de desenho (barra,
+     anel, hachurado) e nunca levam texto por cima. Texto vai em `-300`, que
+     passa 4,5:1 sobre `superficie` nos dois temas; o selo do nível, com o
+     número branco em 28px, vai em `chama-600` (4,1 no escuro, 5,2 no claro —
+     acima dos 3:1 de texto grande). `sucesso-500` é o fundo da caixa marcada,
+     com o check branco por cima: 3,6 no escuro e 5,0 no claro (3:1 de ícone). */
+  --color-chama-500: #ff7a1a;
+  --color-chama-600: #e0451f;
+  --color-chama-300: #ffa463;
+  --color-ouro-500: #f5c044;
+  --color-ouro-300: #f5c044;
+  --color-sucesso-500: #1f9a5a;
+  --color-sucesso-300: #5fd497;
+
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -196,6 +211,14 @@
   --color-agente-rosa: #b02660;
   --color-agente-cinza: #566178;
 
+  --color-chama-500: #f56a0a;
+  --color-chama-600: #c2410c;
+  --color-chama-300: #b4470a;
+  --color-ouro-500: #e0a210;
+  --color-ouro-300: #8a5f00;
+  --color-sucesso-500: #15803d;
+  --color-sucesso-300: #13723f;
+
   --veu: rgb(27 33 48 / 0.28);
 
   /* No claro a sombra é tingida de ink, não preta: preto puro sobre branco
@@ -255,6 +278,16 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--color-ink-400);
+}
+
+/* O que passou do teto diário de um hábito (frente Ritmo, RF-22): listras
+   em `ouro-500`. Nunca sozinho — a legenda diz "acima do teto: só XP". */
+@utility hachurado {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--color-ouro-500) 0 3px,
+    transparent 3px 6px
+  );
 }
 
 /* Quem pede menos movimento ao sistema não vê animação nenhuma. A duração

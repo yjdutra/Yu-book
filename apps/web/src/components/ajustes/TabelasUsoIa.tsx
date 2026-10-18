@@ -15,7 +15,7 @@ import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
 import { IconeAlerta, IconeCheck } from "@yu-book/cliente/icones";
 import { horaNoFuso } from "../rotinas/comum";
-import { diaCurto } from "./BarrasPorDia";
+import { diaCurto } from "@yu-book/cliente/graficos/BarrasPorDia";
 import { duracao, emDolares, ROTULO_DA_TAREFA } from "./comum";
 
 /**

@@ -26,6 +26,10 @@ export async function habitosRoutes(app: FastifyInstance): Promise<void> {
     return service.listarHabitos(request.userId, includeArchived);
   });
 
+  // Caminho fixo: o Fastify o casa antes de `/habits/:id`, e "summary" nunca
+  // chega ao `uuid()` do parâmetro.
+  app.get("/habits/summary", async (request) => service.resumirRitmo(request.userId));
+
   app.post("/habits", async (request, reply) => {
     const input = habitInputSchema.parse(request.body);
     return reply.status(201).send(await service.criarHabito(request.userId, input));
