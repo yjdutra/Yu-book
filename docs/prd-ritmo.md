@@ -415,7 +415,92 @@ hábito pela tela — a configuração segue no MCP (RF-13).
   check-in e toast), Ritmo, as abas "em breve", o detalhe, a folha (aviso do teto e registro) e o
   seletor de Plano.
 
-## 6. Fases seguintes (escopo, detalhado quando cada uma começar)
+## 6. Ritmo 3 — Ofensivas, níveis e recordes
+
+> Detalhado em 2026-10-18. A curva de nível já veio na Ritmo 2 (RN-15); aqui entram as
+> sequências e os recordes, tudo calculado na leitura (P3).
+
+### 6.1 Requisitos funcionais
+
+- **RF-32** — Ofensiva geral: dias civis seguidos com pelo menos um registro de hábito, terminando
+  hoje ou ontem. Se hoje ainda não tem registro, a ofensiva segue viva até a meia-noite, e a tela
+  avisa que hoje está pendente. A Ritmo 4 soma o check-in de humor a estes dias.
+- **RF-33** — Ofensiva do hábito: semanas seguidas com `goalMet`. A semana corrente só entra quando
+  já bateu a meta; antes disso, a sequência que fechou na semana passada continua viva.
+- **RF-34** — Recordes: as 5 maiores sequências de dias, as 5 maiores sequências de semanas
+  (entre todos os hábitos, cada uma com o nome do hábito) e as 5 semanas com mais pontos (somando
+  os hábitos). Cada item diz o período e se ainda está em andamento.
+- **RF-35** — `GET /habits/streaks` devolve tudo isso numa leitura, mais os dias ativos dos
+  últimos 400 dias, que o calendário usa. `GET /habits/summary` ganha `streak`, com a ofensiva
+  geral, o recorde dela e se hoje já conta.
+- **RF-36** — Ritmo › Ofensivas: o cartão da chama com a ofensiva geral e a barra até o recorde, o
+  calendário do mês com a faixa contínua dos dias seguidos e a contagem de dias ativos e perdidos,
+  e o ranking pessoal com três abas (Dias seguidos, Hábitos, Semanas).
+- **RF-37** — Início: o cartão da chama, com a ofensiva, a frase do recorde e os sete dias da
+  semana (feito, hoje, por vir).
+- **RF-38** — Hábitos: a grade mostra a ofensiva de cada hábito ("5 semanas" ou "comece hoje"), e
+  o detalhe mostra a ofensiva e dois recordes do hábito: a melhor semana em pontos e a maior
+  sequência de semanas.
+- **RF-39** — Folha de conquista, só para marcos raros: a meta da semana de um hábito batida por
+  um gesto do app e o nível novo. Nunca a cada check.
+
+### 6.2 Regras de negócio
+
+- **RN-21** — Os dias e as semanas são civis, no fuso do usuário (INV-66), e as semanas vão de
+  segunda a domingo, como em RF-10.
+- **RN-22** — Em sequências do mesmo tamanho, a mais recente fica na frente.
+- **RN-23** — A semana passada é avaliada com a meta e os dias-alvo **atuais** do hábito. O
+  registro guarda os pontos (P5), mas não a meta da época, e mudar a meta reescreve as semanas que
+  já contavam. É a troca consciente por não gravar agregado (P3).
+- **RN-24** — A semana com mais pontos soma `points`, não `counted`: é recorde de XP, e não de meta.
+- **RN-25** — O calendário vai até 400 dias para trás (`MAX_DIAS_DO_HISTORICO`). Antes disso, a tela
+  não navega.
+
+### 6.3 Requisitos não funcionais
+
+- **RNF-12** — As sequências saem de funções puras de `packages/shared` (`sequenciasDeDias`,
+  `sequenciasDeSemanas`), testáveis sem banco.
+- **RNF-13** — `GET /habits/streaks` faz duas consultas agrupadas: dias ativos e pontos por hábito
+  e dia. Nenhuma consulta por hábito.
+- **RNF-14** — O cartão da chama é o único de cor cheia. O texto branco vai sobre `chama-600` ou
+  mais escuro, para passar o contraste de texto grande.
+
+### 6.4 Critérios de aceite
+
+- **CA-19** — Registros em hoje, ontem e anteontem, com um buraco antes, dão uma ofensiva de 3 com
+  `todayDone`. Sem o de hoje, ela é 2 e continua viva.
+- **CA-20** — Um hábito com a meta batida nas duas semanas anteriores e não na corrente tem
+  ofensiva 2; batendo a corrente, 3.
+- **CA-21** — O ranking põe a sequência viva com `alive: true` e ordena pelo tamanho.
+- **CA-22** — A semana com mais pontos soma acima do teto.
+- **CA-23** — No móvel, a aba Ofensivas mostra o calendário com a faixa, os dias perdidos e o
+  ranking nas três abas. O Início mostra a chama.
+
+### 6.5 Decisões tomadas na implementação (2026-10-18)
+
+- **Uma rota de leitura, `GET /habits/streaks`, e a ofensiva geral também no resumo.** O resumo é
+  barato e serve ao MCP numa fase futura; a tela lê a rota inteira, porque o calendário e a semana
+  da chama precisam dos dias ativos.
+- **Sem tool no MCP nesta fase.** O PRD não pedia (§3: shared, api, movel). `list_habits` segue sem
+  ofensiva.
+- **Recordes incluem hábitos arquivados.** O recorde é do usuário. `habits[]` traz `archived`, para
+  a tela decidir.
+- **A meta antiga não é guardada (RN-23).** Mudar a meta reescreve as semanas passadas. Gravar a
+  meta da época pediria um agregado, e P3 não deixa.
+- **A medalha do pódio é um anel de token** (ouro, `ink-400`, `chama-600`) com o número em
+  `titulo`, e não os gradientes do protótipo, que não passavam contraste com o número branco.
+- **A folha de conquista** abre no gesto que fecha a meta da semana (no lugar do toast) e quando o
+  nível sobe com o app aberto. O primeiro nível lido na sessão é o ponto de partida, não uma
+  conquista. Bater recorde não abre folha: a lista já sobe na hora.
+- **Portões:** typecheck limpo; API com 695 de 696 testes passando (a mesma falha de ambiente de
+  `web.test.ts`, §5.7); MCP com 113 de 113. A interface foi conferida em 375 px:
+  - Ofensivas: chama, calendário com a faixa e os dias perdidos, e o ranking;
+  - a chama do Início acendendo ao concluir;
+  - a pílula da grade;
+  - os recordes do detalhe;
+  - a folha de conquista, ao fechar a meta de Corpo.
+
+## 7. Fases seguintes (escopo, detalhado quando cada uma começar)
 
 ### Ritmo 3 — Ofensivas, níveis e recordes
 

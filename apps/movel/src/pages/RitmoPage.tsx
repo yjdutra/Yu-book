@@ -1,6 +1,6 @@
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Indicador } from "@yu-book/cliente/graficos/Indicador";
-import { useHabitos, useResumoRitmo } from "@yu-book/cliente/habitos";
+import { useHabitos, useOfensivas, useResumoRitmo } from "@yu-book/cliente/habitos";
 import { IconeAssistente, IconeRitmo } from "@yu-book/cliente/icones";
 import { AnelProgresso } from "@yu-book/cliente/ritmo/AnelProgresso";
 import { BarrasPonderadas } from "@yu-book/cliente/ritmo/BarrasPonderadas";
@@ -10,17 +10,17 @@ import type { HabitItem, HabitsSummary } from "@yu-book/shared";
 import { useId } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { EstadoVazio } from "../components/agenda/ItemAgenda";
+import { AbaOfensivas } from "../components/ritmo/AbaOfensivas";
 import { diasDaBarra, milhar, periodoCurto, semanaDeTodos } from "../components/ritmo/semana";
 
 const ABAS = [
-  { chave: "habitos", para: "/ritmo", rotulo: "Hábitos" },
-  { chave: "ofensivas", para: "/ritmo/ofensivas", rotulo: "Ofensivas", fase: "Ritmo 3" },
+  { chave: "habitos", para: "/ritmo", rotulo: "Hábitos", fase: null },
+  { chave: "ofensivas", para: "/ritmo/ofensivas", rotulo: "Ofensivas", fase: null },
   { chave: "skills", para: "/ritmo/skills", rotulo: "Skills", fase: "Ritmo 5" },
   { chave: "humor", para: "/ritmo/humor", rotulo: "Humor", fase: "Ritmo 4" },
 ] as const;
 
 const EM_BREVE: Record<string, string> = {
-  ofensivas: "Os dias seguidos, as semanas com a meta batida e os seus recordes.",
   skills: "Os modos de agir que você quer internalizar, com emblema e nível.",
   humor: "Como você está em três momentos do dia, ao lado dos seus hábitos.",
 };
@@ -66,6 +66,8 @@ export function RitmoPage() {
 
       {atual.chave === "habitos" ? (
         <AbaHabitos />
+      ) : atual.chave === "ofensivas" ? (
+        <AbaOfensivas />
       ) : (
         <EstadoVazio
           Icone={IconeRitmo}
@@ -81,6 +83,9 @@ export function RitmoPage() {
 function AbaHabitos() {
   const habitos = useHabitos();
   const resumo = useResumoRitmo();
+  // A ofensiva de cada hábito (Ritmo 3, RF-38). Não segura a tela: a pílula
+  // só aparece quando chega.
+  const ofensivas = useOfensivas();
   const idSemana = useId();
   const idGrade = useId();
 
@@ -176,7 +181,11 @@ function AbaHabitos() {
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {lista.map((h) => (
                 <li key={h.id}>
-                  <CartaoHabito habito={h} hoje={hoje} />
+                  <CartaoHabito
+                    habito={h}
+                    hoje={hoje}
+                    semanas={ofensivas.data?.habits.find((o) => o.habitId === h.id)?.current}
+                  />
                 </li>
               ))}
             </ul>
@@ -243,7 +252,16 @@ function CartaoNivel({
 }
 
 /** RF-20: um hábito na grade. O nome do link diz o que o cartão mostra. */
-function CartaoHabito({ habito, hoje }: { habito: HabitItem; hoje: string }) {
+function CartaoHabito({
+  habito,
+  hoje,
+  semanas,
+}: {
+  habito: HabitItem;
+  hoje: string;
+  /** Semanas seguidas com a meta batida (RF-38); `undefined` enquanto carrega. */
+  semanas: number | undefined;
+}) {
   const { week, weeklyGoal, targetDays } = habito;
   const pct = Math.min(100, Math.round((week.progress / Math.max(1, weeklyGoal)) * 100));
   return (
@@ -274,6 +292,17 @@ function CartaoHabito({ habito, hoje }: { habito: HabitItem; hoje: string }) {
           {week.progress} de {weeklyGoal} pts · {week.activeDays}/{targetDays} dias
         </span>
       </span>
+      {semanas !== undefined && (
+        <span
+          className={`self-start whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+            semanas > 0
+              ? "bg-[color-mix(in_srgb,var(--color-chama-500)_16%,transparent)] text-chama-300"
+              : "bg-ink-800 text-ink-400"
+          }`}
+        >
+          {semanas > 0 ? `${semanas} ${semanas === 1 ? "semana" : "semanas"}` : "comece hoje"}
+        </span>
+      )}
       <span aria-hidden="true" className="mt-auto flex gap-1">
         {week.days.map((d) => (
           <span

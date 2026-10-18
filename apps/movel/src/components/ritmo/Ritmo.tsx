@@ -9,13 +9,22 @@ import {
   useResumoRitmo,
 } from "@yu-book/cliente/habitos";
 import type { Ganho } from "@yu-book/cliente/habitos";
-import { IconeFechar } from "@yu-book/cliente/icones";
+import { IconeCheck, IconeFechar } from "@yu-book/cliente/icones";
+import { SeloNivel } from "@yu-book/cliente/ritmo/Nivel";
 import { SeletorPontos } from "@yu-book/cliente/ritmo/SeletorPontos";
 import { ToastGanho } from "@yu-book/cliente/ritmo/ToastGanho";
 import type { AvisoDeGanho } from "@yu-book/cliente/ritmo/ToastGanho";
 import { MAX_PONTOS, quantoConta } from "@yu-book/shared";
 import type { HabitItem } from "@yu-book/shared";
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { FormEvent, ReactNode } from "react";
 import { useFolhaNoHistorico } from "../../lib/historico";
 import { Alca } from "../Alca";
@@ -52,22 +61,58 @@ function avisoDe(habito: HabitItem, ganho: Ganho, id: number): AvisoDeGanho {
  * a folha de item (`ProvedorFolhaItem`). O Início, o detalhe do hábito e a
  * agenda pedem por `useRitmo`.
  */
+/** RF-39: um marco raro — a meta da semana batida ou o nível novo. */
+interface Conquista {
+  titulo: string;
+  detalhe: string;
+  /** Com nível, o selo dele; sem, o check. */
+  nivel?: number;
+}
+
 export function ProvedorRitmo({ children }: { children: ReactNode }) {
   const [registro, setRegistro] = useState<{ habitId: string | null } | null>(null);
   const [aviso, setAviso] = useState<AvisoDeGanho | null>(null);
+  const [conquista, setConquista] = useState<Conquista | null>(null);
   const contador = useRef(0);
+
+  // O nível novo (RF-39): só quando ele sobe com o app aberto — o primeiro
+  // nível que chega é o ponto de partida, não uma conquista.
+  const resumo = useResumoRitmo();
+  const nivelVisto = useRef<number | null>(null);
+  const nivel = resumo.data?.level;
+  useEffect(() => {
+    if (!nivel) return;
+    if (nivelVisto.current !== null && nivel.level > nivelVisto.current) {
+      setConquista({
+        titulo: `Nível ${nivel.level} · ${nivel.name}`,
+        detalhe: "Cada ponto entrou nisto, até os que passaram do teto.",
+        nivel: nivel.level,
+      });
+    }
+    nivelVisto.current = nivel.level;
+  }, [nivel]);
 
   const abrirRegistro = useCallback((habitId?: string) => {
     setRegistro({ habitId: habitId ?? null });
   }, []);
   const avisarGanho = useCallback((habito: HabitItem, ganho: Ganho) => {
+    // RF-39: o gesto que fecha a meta da semana vira folha, não toast.
+    if (habito.week.progress < ganho.meta && ganho.progresso >= ganho.meta) {
+      setConquista({
+        titulo: `Meta de ${habito.name} batida`,
+        detalhe: `${ganho.progresso} de ${ganho.meta} pts nesta semana. O que vier agora é XP.`,
+      });
+      return;
+    }
     contador.current += 1;
     setAviso(avisoDe(habito, ganho, contador.current));
   }, []);
   const fechar = useCallback(() => setRegistro(null), []);
   const sumir = useCallback(() => setAviso(null), []);
+  const fecharConquista = useCallback(() => setConquista(null), []);
 
   useFolhaNoHistorico(registro !== null, fechar);
+  useFolhaNoHistorico(conquista !== null, fecharConquista);
 
   const valor = useMemo(() => ({ abrirRegistro, avisarGanho }), [abrirRegistro, avisarGanho]);
 
@@ -87,6 +132,36 @@ export function ProvedorRitmo({ children }: { children: ReactNode }) {
             onFechar={fechar}
             onRegistrado={avisarGanho}
           />
+        )}
+      </Dialogo>
+      <Dialogo
+        aberto={conquista !== null}
+        onFechar={fecharConquista}
+        rotulo={conquista?.titulo ?? "Conquista"}
+        posicao="folha"
+        largura="max-w-md"
+      >
+        {conquista && (
+          <div className="flex flex-col items-center gap-3 px-5 pb-5 pt-3 text-center">
+            <Alca />
+            <p className="rotulo mt-2 text-ouro-300">{conquista.nivel ? "Nível novo" : "Conquista"}</p>
+            {conquista.nivel ? (
+              <SeloNivel nivel={conquista.nivel} />
+            ) : (
+              <span
+                aria-hidden="true"
+                className="grid size-16 place-items-center rounded-[20px] bg-sucesso-500 text-white
+                           shadow-[0_3px_0_0_rgb(0_0_0/0.25)]"
+              >
+                <IconeCheck className="size-8" />
+              </span>
+            )}
+            <h2 className="text-xl font-extrabold text-titulo">{conquista.titulo}</h2>
+            <p className="text-sm text-ink-400">{conquista.detalhe}</p>
+            <Botao variante="primario" tamanho="g" onClick={fecharConquista} className="mt-2 w-full">
+              Continuar
+            </Botao>
+          </div>
         )}
       </Dialogo>
       <ToastGanho aviso={aviso} onSumir={sumir} />

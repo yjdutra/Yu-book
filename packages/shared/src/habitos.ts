@@ -3,6 +3,7 @@ import type { AgentColor } from "./agentes.js";
 import { diaDaSemana, somarDias } from "./agenda.js";
 import { diaCivilSchema, diasEntre, ehDiaCivil } from "./eventos.js";
 import type { AiCompletion } from "./marca.js";
+import type { StreakSummary } from "./ofensivas.js";
 import { origemMcpSchema } from "./marca.js";
 
 /* ---------------------------------------------------------------
@@ -390,4 +391,6 @@ export interface HabitsSummary {
   /** O XP que entrou de segunda a hoje. */
   weekXp: number;
   level: NivelDoRitmo;
+  /** A ofensiva geral (Ritmo 3, RF-35). A API da janela do deploy não manda. */
+  streak: StreakSummary;
 }

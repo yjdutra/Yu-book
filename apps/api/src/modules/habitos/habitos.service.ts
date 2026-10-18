@@ -9,6 +9,7 @@ import type {
   HabitEntryItem,
   HabitInput,
   HabitItem,
+  HabitsStreaks,
   HabitsSummary,
   HabitUpdateInput,
 } from "@yu-book/shared";
@@ -19,8 +20,15 @@ import {
   diasEntre,
   ehDiaCivil,
   inicioDaSemana,
+  maiores,
+  melhoresSemanas,
   nivelDoXp,
+  ofensivaViva,
+  resumoDaOfensiva,
   semanaPonderada,
+  semanasComMeta,
+  sequenciasDeDias,
+  sequenciasDeSemanas,
   somarDias,
 } from "@yu-book/shared";
 import { prisma } from "../../db.js";
@@ -164,15 +172,90 @@ export async function buscarHabito(userId: string, id: string): Promise<HabitIte
  */
 export async function resumirRitmo(userId: string): Promise<HabitsSummary> {
   const hoje = await hojeDoUsuario(userId);
-  const [total, semana] = await Promise.all([
+  const [total, semana, dias] = await Promise.all([
     prisma.habitEntry.aggregate({ where: { userId }, _sum: { points: true } }),
     prisma.habitEntry.aggregate({
       where: { userId, day: { gte: paraColunaDia(inicioDaSemana(hoje)) } },
       _sum: { points: true },
     }),
+    diasAtivos(userId),
   ]);
   const xp = total._sum.points ?? 0;
-  return { today: hoje, xp, weekXp: semana._sum.points ?? 0, level: nivelDoXp(xp) };
+  return {
+    today: hoje,
+    xp,
+    weekXp: semana._sum.points ?? 0,
+    level: nivelDoXp(xp),
+    streak: resumoDaOfensiva(dias.keys(), hoje),
+  };
+}
+
+/** Os dias com registro, com os pontos somados. Uma consulta agrupada (RNF-13). */
+async function diasAtivos(userId: string): Promise<Map<string, number>> {
+  const linhas = await prisma.habitEntry.groupBy({
+    by: ["day"],
+    where: { userId },
+    _sum: { points: true },
+  });
+  return new Map(linhas.map((l) => [paraDia(l.day), l._sum.points ?? 0]));
+}
+
+/**
+ * RF-32 a RF-35 (Ritmo 3): a ofensiva geral, a de cada hábito e os recordes.
+ * Duas consultas agrupadas — por dia, e por hábito e dia — e o resto é conta
+ * em memória, com as funções puras de `shared` (RNF-12 e RNF-13). Entram os
+ * hábitos arquivados: o recorde deles continua sendo do usuário.
+ */
+export async function listarOfensivas(userId: string): Promise<HabitsStreaks> {
+  const hoje = await hojeDoUsuario(userId);
+  const [dias, porHabitoEDia, habitos] = await Promise.all([
+    diasAtivos(userId),
+    prisma.habitEntry.groupBy({
+      by: ["habitId", "day"],
+      where: { userId },
+      _sum: { points: true },
+    }),
+    prisma.habit.findMany({
+      where: { userId },
+      select: { id: true, name: true, weeklyGoal: true, targetDays: true, archivedAt: true },
+      orderBy: [...ORDEM],
+    }),
+  ]);
+
+  const pontosDoHabito = new Map<string, Map<string, number>>();
+  for (const l of porHabitoEDia) {
+    const doHabito = pontosDoHabito.get(l.habitId) ?? new Map<string, number>();
+    doHabito.set(paraDia(l.day), l._sum.points ?? 0);
+    pontosDoHabito.set(l.habitId, doHabito);
+  }
+
+  const habitWeeks: HabitsStreaks["records"]["habitWeeks"] = [];
+  const porHabito = habitos.map((h) => {
+    const pontos = pontosDoHabito.get(h.id) ?? new Map<string, number>();
+    const sequencias = sequenciasDeSemanas(semanasComMeta(h, pontos), hoje);
+    for (const s of sequencias) habitWeeks.push({ ...s, habitId: h.id, habitName: h.name });
+    return {
+      habitId: h.id,
+      name: h.name,
+      archived: h.archivedAt !== null,
+      current: ofensivaViva(sequencias),
+      best: sequencias.reduce((m, s) => Math.max(m, s.length), 0),
+      bestWeek: melhoresSemanas(pontos, 1)[0] ?? null,
+    };
+  });
+
+  const limite = somarDias(hoje, -(MAX_DIAS_DO_HISTORICO - 1));
+  return {
+    today: hoje,
+    general: resumoDaOfensiva(dias.keys(), hoje),
+    activeDays: [...dias.keys()].filter((d) => d >= limite && d <= hoje).sort(),
+    habits: porHabito,
+    records: {
+      days: maiores(sequenciasDeDias(dias.keys(), hoje)),
+      habitWeeks: maiores(habitWeeks),
+      weeks: melhoresSemanas(dias),
+    },
+  };
 }
 
 /* ------------------------------------------------------------- hábitos */

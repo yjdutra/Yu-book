@@ -22,6 +22,7 @@ import { EstadoVazio, ItemAgenda } from "../components/agenda/ItemAgenda";
 import { indexarPorDia, inicioDe, itemDeTarefa, tituloDe } from "../components/agenda/itens";
 import type { ItemDoDia, ResumoDoDia } from "../components/agenda/itens";
 import { useFolhaItem } from "../components/folha/FolhaItem";
+import { ChamaDoInicio } from "../components/ritmo/ChamaDoInicio";
 import { HojeNoRitmo } from "../components/ritmo/HojeNoRitmo";
 import { useMarcarAtividade } from "../components/ritmo/marcar";
 import { diaCurto, diaRelativo } from "../lib/datas";
@@ -285,11 +286,11 @@ export function InicioPage() {
       </section>
 
       {/* Frente Ritmo, RF-26: logo depois dos números, antes do dia inteiro. */}
-      {hoje && porDia && (
-        <div className="mt-6">
-          <HojeNoRitmo hoje={hoje} itens={porDia.get(hoje)?.itens ?? []} />
-        </div>
-      )}
+      {/* A chama e o dia do ritmo (RF-37, RF-26); cada um some sem hábito. */}
+      <div className="mt-6 space-y-4 empty:hidden">
+        <ChamaDoInicio />
+        {hoje && porDia && <HojeNoRitmo hoje={hoje} itens={porDia.get(hoje)?.itens ?? []} />}
+      </div>
 
       {aviso && (
         <Aviso tom="erro" onFechar={limparAviso} className="mt-6">

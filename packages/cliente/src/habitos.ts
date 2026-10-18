@@ -11,6 +11,7 @@ import type {
   HabitEntryInput,
   HabitEntryItem,
   HabitItem,
+  HabitsStreaks,
   HabitsSummary,
 } from "@yu-book/shared";
 import { api } from "./api";
@@ -60,6 +61,15 @@ export function useResumoRitmo() {
   return useQuery({
     queryKey: [...CHAVE_HABITOS, "resumo"],
     queryFn: () => api.get<HabitsSummary>("/habits/summary"),
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** RF-35 (Ritmo 3): ofensivas, a de cada hábito e os recordes. */
+export function useOfensivas() {
+  return useQuery({
+    queryKey: [...CHAVE_HABITOS, "ofensivas"],
+    queryFn: () => api.get<HabitsStreaks>("/habits/streaks"),
     refetchOnWindowFocus: true,
   });
 }

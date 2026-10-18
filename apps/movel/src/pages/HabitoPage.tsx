@@ -2,7 +2,13 @@ import { ApiError } from "@yu-book/cliente/api";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Botao } from "@yu-book/cliente/base/Botao";
 import { BarrasPorDia } from "@yu-book/cliente/graficos/BarrasPorDia";
-import { oQueFalta, useHabito, useRegistros, useResumoRitmo } from "@yu-book/cliente/habitos";
+import {
+  oQueFalta,
+  useHabito,
+  useOfensivas,
+  useRegistros,
+  useResumoRitmo,
+} from "@yu-book/cliente/habitos";
 import { IconeChevron, IconeMais } from "@yu-book/cliente/icones";
 import { AnelProgresso } from "@yu-book/cliente/ritmo/AnelProgresso";
 import { BarrasPonderadas } from "@yu-book/cliente/ritmo/BarrasPonderadas";
@@ -11,7 +17,7 @@ import { PilulaPontos } from "@yu-book/cliente/ritmo/LinhaAtividade";
 import { MapaCalor } from "@yu-book/cliente/ritmo/MapaCalor";
 import type { CelulaDoMapa } from "@yu-book/cliente/ritmo/MapaCalor";
 import { inicioDaSemana, somarDias } from "@yu-book/shared";
-import type { HabitEntryItem, HabitItem } from "@yu-book/shared";
+import type { HabitEntryItem, HabitItem, HabitStreak } from "@yu-book/shared";
 import { useId, useMemo } from "react";
 import type { ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -69,6 +75,7 @@ export function HabitoPage() {
   const hoje = resumo.data?.today ?? null;
   const inicioDoMapa = hoje ? somarDias(inicioDaSemana(hoje), -(SEMANAS_DO_MAPA - 1) * 7) : null;
   const registros = useRegistros(id, inicioDoMapa, hoje);
+  const ofensivas = useOfensivas();
 
   const voltar = (
     <Link
@@ -127,6 +134,7 @@ export function HabitoPage() {
         habito={habito.data}
         hoje={hoje}
         registros={registros.data}
+        ofensiva={ofensivas.data?.habits.find((o) => o.habitId === habito.data?.id)}
         falhaDoHistorico={registros.isError}
         onTentarHistorico={() => void registros.refetch()}
       />
@@ -138,12 +146,15 @@ function Detalhe({
   habito,
   hoje,
   registros,
+  ofensiva,
   falhaDoHistorico,
   onTentarHistorico,
 }: {
   habito: HabitItem;
   hoje: string;
   registros: HabitEntryItem[] | undefined;
+  /** A ofensiva e os recordes do hábito (Ritmo 3, RF-38). */
+  ofensiva: HabitStreak | undefined;
   falhaDoHistorico: boolean;
   onTentarHistorico: () => void;
 }) {
@@ -211,6 +222,14 @@ function Detalhe({
         </AnelProgresso>
         <p className="font-semibold text-titulo">{oQueFalta(habito, hoje)}</p>
         <div className="flex flex-wrap justify-center gap-1.5">
+          {ofensiva && ofensiva.current > 0 && (
+            <span
+              className="rounded-full bg-[color-mix(in_srgb,var(--color-chama-500)_16%,transparent)]
+                         px-2.5 py-1 text-xs font-semibold text-chama-300"
+            >
+              {ofensiva.current} {ofensiva.current === 1 ? "semana seguida" : "semanas seguidas"}
+            </span>
+          )}
           <span className="rounded-full bg-ink-800 px-2.5 py-1 text-xs font-semibold text-ink-200">
             {targetDays} {targetDays === 1 ? "dia" : "dias"} · teto {week.cap}/dia
           </span>
@@ -319,6 +338,37 @@ function Detalhe({
           esqueleto
         )}
       </Bloco>
+
+      {ofensiva && (
+        <section aria-label="Recordes do hábito">
+          <dl className="grid grid-cols-2 gap-3">
+            <div className="rounded-dialogo border border-ink-800/70 bg-superficie p-4 shadow-e1">
+              <dt className="rotulo">Melhor semana</dt>
+              <dd className="mt-1 text-2xl font-extrabold tabular-nums text-titulo">
+                {ofensiva.bestWeek ? `${ofensiva.bestWeek.points} pts` : "—"}
+              </dd>
+              {ofensiva.bestWeek && (
+                <dd className="text-miudo text-ink-400">
+                  {diaMesCurto(ofensiva.bestWeek.start)} – {diaMesCurto(ofensiva.bestWeek.end)}
+                </dd>
+              )}
+            </div>
+            <div className="rounded-dialogo border border-ink-800/70 bg-superficie p-4 shadow-e1">
+              <dt className="rotulo">Maior sequência</dt>
+              <dd className="mt-1 text-2xl font-extrabold tabular-nums text-titulo">
+                {ofensiva.best} {ofensiva.best === 1 ? "semana" : "semanas"}
+              </dd>
+              <dd className="text-miudo text-ink-400">
+                {ofensiva.best === 0
+                  ? "bata a meta para começar"
+                  : ofensiva.current >= ofensiva.best
+                    ? "é a de agora"
+                    : `faltam ${ofensiva.best - ofensiva.current} para bater`}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
     </div>
   );
 }
