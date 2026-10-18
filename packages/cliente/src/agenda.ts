@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import type {
   AgendaRange,
+  ConversionScope,
   EventInput,
   EventItem,
   EventScope,
@@ -9,6 +10,8 @@ import type {
   EventUpdateInput,
   TaskInput,
   TaskItem,
+  TaskSeriesItem,
+  TaskSeriesUpdateInput,
   TaskStatus,
   TaskToEventInput,
   TaskUpdateInput,
@@ -128,8 +131,13 @@ export function useCriarEvento() {
  * `todas`: a série inteira, ou o evento simples — o que o Desfazer do chat
  * quer, e o que estas rotas faziam antes da série.
  */
-function caminhoDoEvento(id: string, escopo?: EventScope, sufixo = ""): string {
+function caminhoDoEvento(
+  id: string,
+  escopo?: EventScope | ConversionScope,
+  sufixo = "",
+): string {
   if (!escopo) return `/events/${id}${sufixo}`;
+  if (!escopo.scope) return `/events/${id}${sufixo}`;
   const busca = new URLSearchParams({ scope: escopo.scope });
   if (escopo.occurrenceDate) busca.set("occurrenceDate", escopo.occurrenceDate);
   return `/events/${id}${sufixo}?${busca.toString()}`;
@@ -179,8 +187,9 @@ export function useExcluirEvento() {
 
 /**
  * O evento vira tarefa: a tarefa nasce e o evento sai, numa transação do
- * servidor. Numa série, só a ocorrência (`escopo` com `scope: "esta"`). O
- * corpo passa por cima do que se tira do evento; vazio, leva tudo como está.
+ * servidor. Numa série o alcance é obrigatório: `esta` (com o dia) converte a
+ * ocorrência; `todas` faz da série uma tarefa recorrente. O corpo passa por
+ * cima do que se tira do evento; vazio, leva tudo como está.
  */
 export function useConverterEvento() {
   const qc = useQueryClient();
@@ -192,7 +201,7 @@ export function useConverterEvento() {
     }: {
       id: string;
       corpo?: EventToTaskInput;
-      escopo?: EventScope;
+      escopo?: ConversionScope;
     }) => api.post<TaskItem>(caminhoDoEvento(id, escopo, "/to-task"), corpo),
     onSuccess: () => invalidarAgenda(qc),
   });
@@ -204,6 +213,29 @@ export function useConverterTarefa() {
   return useMutation({
     mutationFn: ({ id, corpo = {} }: { id: string; corpo?: TaskToEventInput }) =>
       api.post<EventItem>(`/tasks/${id}/to-event`, corpo),
+    onSuccess: () => invalidarAgenda(qc),
+  });
+}
+
+/**
+ * A série de uma tarefa recorrente: muda a regra e as ocorrências abertas de
+ * hoje em diante. Uma ocorrência só se edita pelo PATCH da tarefa, que a
+ * solta da série.
+ */
+export function useAtualizarSerieDeTarefa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, mudanca }: { id: string; mudanca: TaskSeriesUpdateInput }) =>
+      api.patch<TaskSeriesItem>(`/task-series/${id}`, mudanca),
+    onSuccess: () => invalidarAgenda(qc),
+  });
+}
+
+/** Encerra a série de hoje em diante; o que já passou e o concluído ficam. */
+export function useEncerrarSerieDeTarefa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/task-series/${id}`),
     onSuccess: () => invalidarAgenda(qc),
   });
 }

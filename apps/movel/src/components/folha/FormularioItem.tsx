@@ -1,11 +1,13 @@
 import {
   invalidarAgenda,
   useAtualizarEvento,
+  useAtualizarSerieDeTarefa,
   useAtualizarTarefa,
   useConverterEvento,
   useConverterTarefa,
   useCriarEvento,
   useCriarTarefa,
+  useEncerrarSerieDeTarefa,
   useExcluirEvento,
   useExcluirTarefa,
 } from "@yu-book/cliente/agenda";
@@ -39,6 +41,7 @@ import type {
   EventUpdateInput,
   PedidoDeHorario,
   TaskItem,
+  TaskSeriesUpdateInput,
   TaskUpdateInput,
 } from "@yu-book/shared";
 import { useQueryClient } from "@tanstack/react-query";
@@ -189,6 +192,10 @@ function estadoInicial(abertura: AberturaFolha, hoje: string | null, fuso: strin
     hora: t.time,
     projeto: t.board?.id ?? null,
     descricao: t.descriptionMd,
+    // Ocorrência de tarefa recorrente: a regra é a da série.
+    repetir: t.series != null,
+    dias: t.series?.days ?? [],
+    ate: t.series?.until ?? null,
   };
 }
 
@@ -357,7 +364,25 @@ function paraNovaTarefa(e: Estado): NovaTarefa {
     date: e.dia,
     time: e.dia ? e.hora : null,
     boardId: e.projeto,
+    // Tarefa recorrente: o dia escolhido é o primeiro da série.
+    ...(e.repetir && e.dia && { repeat: { days: e.dias, until: e.ate } }),
   };
+}
+
+/**
+ * O que muda na série inteira de uma tarefa recorrente: o texto, a hora, o
+ * projeto e a regra. O dia não — ele é de uma ocorrência, e a pergunta de
+ * alcance nem oferece "Toda a série" quando ele mudou.
+ */
+function mudancaDaSerie(e: Estado, ini: Estado): TaskSeriesUpdateInput {
+  const m: TaskSeriesUpdateInput = {};
+  if (e.titulo.trim() !== ini.titulo) m.title = e.titulo.trim();
+  if (e.descricao !== ini.descricao) m.descriptionMd = e.descricao;
+  if (e.projeto !== ini.projeto) m.boardId = e.projeto;
+  if (e.hora !== ini.hora) m.time = e.hora;
+  const regra = regraDo(e, true);
+  if (regra && !mesmaRegra(regra, regraDo(ini, true))) m.repeat = regra;
+  return m;
 }
 
 function mudancaDaTarefa(e: Estado, ini: Estado): TaskUpdateInput {
@@ -515,6 +540,12 @@ export function FormularioItem({
   const criarTarefa = useCriarTarefa();
   const atualizarTarefa = useAtualizarTarefa();
   const excluirTarefa = useExcluirTarefa();
+  const atualizarSerieDeTarefa = useAtualizarSerieDeTarefa();
+  const encerrarSerieDeTarefa = useEncerrarSerieDeTarefa();
+  // As perguntas de alcance da tarefa recorrente e da conversão de série,
+  // inline no pé como as do evento.
+  const [alcanceDaTarefa, setAlcanceDaTarefa] = useState(false);
+  const [alcanceDaConversao, setAlcanceDaConversao] = useState(false);
   const concluir = useConcluirTarefa();
   const converterEvento = useConverterEvento();
   const converterTarefa = useConverterTarefa();
@@ -525,7 +556,8 @@ export function FormularioItem({
     criarTarefa.isPending ||
     atualizarTarefa.isPending ||
     converterEvento.isPending ||
-    converterTarefa.isPending;
+    converterTarefa.isPending ||
+    atualizarSerieDeTarefa.isPending;
   const excluindo = excluirEvento.isPending || excluirTarefa.isPending;
   const evento = e.tipo === "evento";
   const tarefa = "tarefa" in abertura ? abertura.tarefa : null;
@@ -545,6 +577,13 @@ export function FormularioItem({
   // alternância nem aparece para ela.
   const convertendo = editando && e.tipo !== tipoAberto(abertura);
   const podeConverter = editando && !tarefa?.completedAt;
+  // A tarefa recorrente: na criação, "Repetir" aparece com dia escolhido; na
+  // edição, só numa ocorrência de série (a regra se muda na série inteira).
+  const serieDaTarefa = !convertendo ? (tarefa?.series ?? null) : null;
+  const repeteTarefa = !evento && e.repetir && e.dia !== null;
+  const mostrarRepetirTarefa = !evento && e.dia !== null && (!editando || serieDaTarefa !== null);
+  const regraDaTarefaMudou =
+    serieDaTarefa !== null && !mesmaRegra(regraDo(e, true), regraDo(inicial, true));
 
   function mudar(parcial: Partial<Estado>, limpar?: Campo) {
     setE((atual) => ({ ...atual, ...parcial }));
@@ -588,6 +627,9 @@ export function FormularioItem({
       }
     }
     if (repete && e.dias.length === 0) locais.repetir = "Escolha pelo menos um dia da semana";
+    if (repeteTarefa && e.dias.length === 0) {
+      locais.repetir = "Escolha pelo menos um dia da semana";
+    }
     // A regra da série (um dia só, `until` depois do início, algum dia
     // escolhido até o fim) pela função do servidor, `resolverSerie` — só na
     // criação: ao editar uma ocorrência, o início da série não é o dia que a
@@ -624,17 +666,29 @@ export function FormularioItem({
    * tarefa. A descrição só vai se a pessoa a mexeu — intocada, o servidor
    * anexa local e link do evento sozinho.
    */
-  async function converter() {
+  async function converter(alcance?: "esta" | "todas") {
+    // Série de evento: antes, a pergunta — só esta ocorrência, ou a série
+    // inteira, que vira tarefa recorrente.
+    if (eventoAberto && serie && !alcance) {
+      setAlcanceDaConversao(true);
+      return;
+    }
+    if (alcance) setAlcanceEmCurso(alcance);
     try {
       if (eventoAberto) {
-        const { descriptionMd: _descricao, ...corpo } = paraNovaTarefa(e);
+        const { descriptionMd: _descricao, repeat: _regra, ...tudo } = paraNovaTarefa(e);
+        // A série inteira começa hoje com os dias dela: o dia da tela não vai.
+        const { date: _dia, ...semDia } = tudo;
+        const corpo = alcance === "todas" ? semDia : tudo;
         const mexeu = e.descricao !== inicial.descricao;
         await converterEvento.mutateAsync({
           id: eventoAberto.id,
           corpo: mexeu ? { ...corpo, descriptionMd: descricaoConvertida(e) } : corpo,
-          escopo: serie
-            ? { scope: "esta", occurrenceDate: serie.occurrenceDate ?? serie.date }
-            : undefined,
+          escopo: !serie
+            ? undefined
+            : alcance === "todas"
+              ? { scope: "todas" }
+              : { scope: "esta", occurrenceDate: serie.occurrenceDate ?? serie.date },
         });
       } else if (tarefa && e.dia) {
         await converterTarefa.mutateAsync({
@@ -644,7 +698,58 @@ export function FormularioItem({
       }
       onFechar();
     } catch (erro) {
+      setAlcanceDaConversao(false);
       falhou(erro, serie !== null);
+    } finally {
+      setAlcanceEmCurso(null);
+    }
+  }
+
+  /**
+   * Salvar uma ocorrência de tarefa recorrente: `esta` a solta da série com as
+   * mudanças (o PATCH da tarefa); `todas` muda a série e as abertas de hoje em
+   * diante.
+   */
+  async function salvarTarefaNaSerie(alcance: "esta" | "todas") {
+    if (!tarefa || !serieDaTarefa) return;
+    setAlcanceEmCurso(alcance);
+    try {
+      if (alcance === "esta") {
+        const mudanca = mudancaDaTarefa(e, inicial);
+        if (Object.keys(mudanca).length > 0) {
+          await atualizarTarefa.mutateAsync({ id: tarefa.id, mudanca });
+        }
+      } else if (!e.repetir) {
+        // "Não repete" na série toda é encerrá-la de hoje em diante.
+        await encerrarSerieDeTarefa.mutateAsync(serieDaTarefa.id);
+      } else {
+        const mudanca = mudancaDaSerie(e, inicial);
+        if (Object.keys(mudanca).length > 0) {
+          await atualizarSerieDeTarefa.mutateAsync({ id: serieDaTarefa.id, mudanca });
+        }
+      }
+      onFechar();
+    } catch (erro) {
+      setAlcanceDaTarefa(false);
+      falhou(erro);
+      requestAnimationFrame(focarSalvar);
+    } finally {
+      setAlcanceEmCurso(null);
+    }
+  }
+
+  async function encerrarSerie() {
+    if (!serieDaTarefa) return;
+    setAlcanceEmCurso("todas");
+    try {
+      await encerrarSerieDeTarefa.mutateAsync(serieDaTarefa.id);
+      onFechar();
+    } catch (erro) {
+      setConfirmarExclusao(false);
+      falhou(erro);
+      requestAnimationFrame(focarExcluir);
+    } finally {
+      setAlcanceEmCurso(null);
     }
   }
 
@@ -675,6 +780,11 @@ export function FormularioItem({
         }
       } else {
         const mudanca = mudancaDaTarefa(e, inicial);
+        // Numa ocorrência de série, o alcance vem antes da ida.
+        if (serieDaTarefa && (Object.keys(mudanca).length > 0 || regraDaTarefaMudou)) {
+          setAlcanceDaTarefa(true);
+          return;
+        }
         if (Object.keys(mudanca).length > 0) {
           await atualizarTarefa.mutateAsync({ id: abertura.tarefa.id, mudanca });
         }
@@ -766,6 +876,7 @@ export function FormularioItem({
   const sujo = !editando
     ? e.titulo.trim() !== "" || e.descricao.trim() !== "" || e.local.trim() !== ""
     : convertendo ||
+      regraDaTarefaMudou ||
       Object.keys(evento ? mudancaDoEvento(e, inicial, { cabe }) : mudancaDaTarefa(e, inicial))
         .length > 0;
   const sujoRef = useRef(sujo);
@@ -815,6 +926,15 @@ export function FormularioItem({
             </span>
           )}
         </div>
+        {serieDaTarefa && (
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-400">
+            <IconeRepetir className="size-3.5" />
+            <span>
+              Repete {descreverDias(serieDaTarefa.days)}
+              {tarefa?.date ? ` · esta é a de ${diaCurto(tarefa.date)}` : ""}
+            </span>
+          </p>
+        )}
         {serie?.recurrence && (
           // Quem abre uma ocorrência sabe, antes de mexer, que é de uma série —
           // e qual: salvar e excluir vão perguntar o alcance.
@@ -846,9 +966,8 @@ export function FormularioItem({
             {evento
               ? "Ao salvar, a tarefa vira evento e sai da lista de tarefas."
               : serie
-                ? `Ao salvar, só a ocorrência de ${diaCurto(
-                    serie.occurrenceDate ?? serie.date,
-                  )} vira tarefa; as outras continuam na série.`
+                ? "Ao salvar, você escolhe: só esta ocorrência vira tarefa, ou a série toda vira " +
+                  "tarefa recorrente, de hoje em diante."
                 : "Ao salvar, o evento vira tarefa. Local e link vão para os detalhes, e a " +
                   "duração não fica."}
           </p>
@@ -1044,6 +1163,20 @@ export function FormularioItem({
             )
           )}
 
+          {mostrarRepetirTarefa && (
+            <SecaoRepetir
+              e={e}
+              erro={erros.repetir}
+              escolhendoAte={escolhendo === "ate"}
+              mostrarPrimeira={!editando}
+              onEscolherAte={() => setEscolhendo("ate")}
+              onMudar={(parcial) => {
+                if (parcial.ate === null) setEscolhendo(null);
+                mudar(parcial, "repetir");
+              }}
+            />
+          )}
+
           {evento && cabe && (
             <SecaoRepetir
               e={e}
@@ -1231,6 +1364,143 @@ export function FormularioItem({
                 Cancelar
               </Botao>
             </div>
+          </div>
+        ) : alcanceDaTarefa && serieDaTarefa ? (
+          <div role="group" aria-labelledby={`${idTitulo}-t`}>
+            <p id={`${idTitulo}-t`} className="mb-3 text-sm text-ink-200">
+              Esta tarefa se repete. Aplicar a alteração a quais?
+            </p>
+            {e.dia !== inicial.dia && (
+              <p className="mb-3 text-xs text-ink-400">
+                O dia muda só nesta: ela sai da série e fica avulsa.
+              </p>
+            )}
+            {regraDaTarefaMudou && (
+              <p className="mb-3 text-xs text-ink-400">
+                {e.repetir
+                  ? "A repetição muda na série toda, de hoje em diante."
+                  : "Sem repetição, a série se encerra: as abertas de hoje em diante saem."}
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              {!regraDaTarefaMudou && (
+                <Botao
+                  variante="primario"
+                  tamanho="g"
+                  autoFocus
+                  carregando={alcanceEmCurso === "esta"}
+                  disabled={alcanceEmCurso !== null}
+                  onClick={() => void salvarTarefaNaSerie("esta")}
+                >
+                  Só esta
+                </Botao>
+              )}
+              {e.dia === inicial.dia && (
+                <Botao
+                  variante={regraDaTarefaMudou ? "primario" : "secundario"}
+                  tamanho="g"
+                  autoFocus={regraDaTarefaMudou}
+                  carregando={alcanceEmCurso === "todas"}
+                  disabled={alcanceEmCurso !== null}
+                  onClick={() => void salvarTarefaNaSerie("todas")}
+                >
+                  Toda a série
+                </Botao>
+              )}
+              <Botao
+                variante="fantasma"
+                tamanho="g"
+                disabled={alcanceEmCurso !== null}
+                className={regraDaTarefaMudou || e.dia !== inicial.dia ? "" : "col-span-2"}
+                onClick={() => {
+                  setAlcanceDaTarefa(false);
+                  requestAnimationFrame(focarSalvar);
+                }}
+              >
+                Cancelar
+              </Botao>
+            </div>
+          </div>
+        ) : alcanceDaConversao && serie ? (
+          <div role="group" aria-labelledby={`${idTitulo}-c`}>
+            <p id={`${idTitulo}-c`} className="mb-3 text-sm text-ink-200">
+              Este evento se repete. Converter o quê?
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Botao
+                variante="primario"
+                tamanho="g"
+                autoFocus
+                carregando={alcanceEmCurso === "esta"}
+                disabled={alcanceEmCurso !== null}
+                onClick={() => void converter("esta")}
+              >
+                Só esta
+              </Botao>
+              <Botao
+                variante="secundario"
+                tamanho="g"
+                carregando={alcanceEmCurso === "todas"}
+                disabled={alcanceEmCurso !== null}
+                onClick={() => void converter("todas")}
+              >
+                Toda a série
+              </Botao>
+              <Botao
+                variante="fantasma"
+                tamanho="g"
+                disabled={alcanceEmCurso !== null}
+                className="col-span-2"
+                onClick={() => {
+                  setAlcanceDaConversao(false);
+                  requestAnimationFrame(focarSalvar);
+                }}
+              >
+                Cancelar
+              </Botao>
+            </div>
+          </div>
+        ) : confirmarExclusao && serieDaTarefa ? (
+          <div role="group" aria-labelledby={`${idTitulo}-x`}>
+            <p id={`${idTitulo}-x`} className="mb-3 text-sm text-ink-200">
+              Esta tarefa se repete. Excluir só esta, ou encerrar a série? Não dá para desfazer.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Botao
+                variante="perigo"
+                tamanho="g"
+                autoFocus
+                carregando={excluindo}
+                disabled={alcanceEmCurso !== null}
+                onClick={() => void excluir()}
+              >
+                Excluir só esta
+              </Botao>
+              <Botao
+                variante="perigo"
+                tamanho="g"
+                carregando={alcanceEmCurso === "todas"}
+                disabled={alcanceEmCurso !== null}
+                onClick={() => void encerrarSerie()}
+              >
+                Encerrar a série
+              </Botao>
+              <Botao
+                variante="secundario"
+                tamanho="g"
+                disabled={alcanceEmCurso !== null}
+                className="col-span-2"
+                onClick={() => {
+                  setConfirmarExclusao(false);
+                  requestAnimationFrame(focarExcluir);
+                }}
+              >
+                Cancelar
+              </Botao>
+            </div>
+            <p className="mt-2 text-xs text-ink-400">
+              Encerrar tira as abertas de hoje em diante; as feitas ficam.
+            </p>
           </div>
         ) : confirmarExclusao && serie ? (
           <div role="group" aria-labelledby={`${idTitulo}-x`}>
