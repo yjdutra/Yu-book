@@ -66,6 +66,7 @@ const TAREFA: TaskItem = {
   completion: null,
   board: null,
   ai: null,
+  series: null,
   createdAt: AGORA,
   updatedAt: AGORA,
 };

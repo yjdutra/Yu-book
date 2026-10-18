@@ -719,7 +719,7 @@ const urlDoEventoSchema = z
 
 /// A regra que cruza com o horário (série de um dia, `until` depois do início)
 /// roda em `resolverSerie`, sobre o evento inteiro.
-const repeticaoSchema = z.object({
+export const repeticaoSchema = z.object({
   days: z
     .array(z.number().int().min(0, "Dia da semana de 0 a 6").max(6, "Dia da semana de 0 a 6"))
     .min(1, "Escolha pelo menos um dia da semana")
@@ -819,6 +819,17 @@ export type EventInput = z.input<typeof eventInputSchema>;
 export type EventUpdateInput = z.input<typeof eventUpdateSchema>;
 export type TaskToEventInput = z.input<typeof taskToEventSchema>;
 export type EventScope = z.infer<typeof eventScopeSchema>;
+
+/**
+ * O alcance de `POST /events/:id/to-task`. Ao contrário do PATCH e do DELETE,
+ * **sem padrão**: numa série, converter sem dizer o alcance é recusado —
+ * `todas` faz da série uma tarefa recorrente, e isso não se faz por omissão.
+ */
+export const conversionScopeSchema = z.object({
+  scope: z.enum(["esta", "todas"]).optional(),
+  occurrenceDate: diaCivilSchema.optional(),
+});
+export type ConversionScope = z.infer<typeof conversionScopeSchema>;
 export type AgendaQuery = z.infer<typeof agendaQuerySchema>;
 
 /* ------------------------------------------------------------- respostas */

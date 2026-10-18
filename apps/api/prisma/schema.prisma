@@ -108,6 +108,7 @@ model User {
   companies     Company[]
   events        Event[]
   tasks         Task[]
+  taskSeries    TaskSeries[]
   links         Link[]
   refreshTokens RefreshToken[]
 
@@ -286,6 +287,7 @@ model Board {
   /// `SetNull` do outro lado — excluir o quadro solta o item, não o apaga.
   events        Event[]
   tasks         Task[]
+  taskSeries    TaskSeries[]
 
   @@unique([workspaceId, name])
   @@index([userId, workspaceId])
@@ -525,6 +527,13 @@ model Task {
   aiRunId          String?   @map("ai_run_id") @db.Uuid
   aiRoutineName    String?   @map("ai_routine_name")
 
+  /// A série de onde a tarefa saiu (tarefa recorrente): cada ocorrência é
+  /// uma tarefa de verdade, gerada pela série, e concluir, editar e converter
+  /// valem por ocorrência. Editar ou excluir uma só a solta da série — o dia
+  /// entra nos `exdates` dela, para não ser gerado de novo. Série encerrada
+  /// solta as que ficaram, não as apaga.
+  seriesId  String?  @map("series_id") @db.Uuid
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -532,10 +541,57 @@ model Task {
   board          Board?          @relation(fields: [boardId], references: [id], onDelete: SetNull)
   aiConversation AiConversation? @relation("TarefasGeradas", fields: [aiConversationId], references: [id], onDelete: SetNull)
   aiRun          AiRoutineRun?   @relation("TarefasDaRotina", fields: [aiRunId], references: [id], onDelete: SetNull)
+  series         TaskSeries?     @relation(fields: [seriesId], references: [id], onDelete: SetNull)
 
+  /// Uma ocorrência por dia da série: é o que torna a geração idempotente
+  /// entre as duas instâncias da API (INV-60) — quem insere primeiro leva.
+  @@unique([seriesId, date])
   @@index([userId, completedAt, date])
   @@index([boardId])
   @@map("task")
+}
+
+/// Tarefa recorrente: a regra e o molde das ocorrências. As ocorrências são
+/// linhas de `task`, geradas de `start_date` (ou de hoje, o que vier depois)
+/// até `generated_through`, que o relógio da API empurra para a frente
+/// (`estenderSeriesDeTarefas`). Datas civis, como `task.date` (INV-66).
+model TaskSeries {
+  id            String     @id @default(uuid()) @db.Uuid
+  userId        String     @map("user_id") @db.Uuid
+  boardId       String?    @map("board_id") @db.Uuid
+  title         String
+  descriptionMd String     @default("") @map("description_md")
+  /// `HH:MM` local de toda ocorrência, ou nenhuma.
+  time          String?    @db.VarChar(5)
+  startDate     DateTime   @map("start_date") @db.Date
+  /// Dias da semana, 0 = domingo; nunca vazio.
+  repeatDays    Int[]      @map("repeat_days")
+  repeatUntil   DateTime?  @map("repeat_until") @db.Date
+  /// Dias que não se geram: a ocorrência foi solta (editada ou excluída só ela).
+  exdates       DateTime[] @default([]) @db.Date
+  /// Até onde as ocorrências já foram geradas, inclusive.
+  generatedThrough DateTime @map("generated_through") @db.Date
+
+  /// A marca de IA que as ocorrências herdam (INV-58), sem conversa nem
+  /// execução: essas apontam para linhas que podem sumir antes da próxima
+  /// geração.
+  aiGeneratedAt DateTime? @map("ai_generated_at")
+  aiVia         AiVia?    @map("ai_via")
+  aiAuthor      String?   @map("ai_author")
+  aiAgentName   String?   @map("ai_agent_name")
+  aiRoutineName String?   @map("ai_routine_name")
+  aiRevisedAt   DateTime? @map("ai_revised_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  board Board? @relation(fields: [boardId], references: [id], onDelete: SetNull)
+  tasks Task[]
+
+  @@index([userId])
+  @@index([generatedThrough])
+  @@map("task_series")
 }
 
 /// Preferências de IA. Primeira tabela de configuração por usuário do projeto:

@@ -549,6 +549,8 @@ function linhaDaTarefa(tarefa: TaskItem, comDia: boolean): string {
     .join(" ");
   if (quando) partes.push(quando);
   if (tarefa.board?.name) partes.push(`projeto ${tarefa.board.name}`);
+  // `?.`: a API mais velha que a tarefa recorrente nem manda a chave.
+  if (tarefa.series?.days?.length) partes.push(`repete ${descreverDias(tarefa.series.days)}`);
   return `${partes.join(" · ")}${sufixoIa(tarefa.ai ?? null)}\n  id: ${tarefa.id}`;
 }
 
@@ -598,8 +600,15 @@ export function formatarTarefa(tarefa: TaskItem): string {
   const linhas = [
     `${caixa} **${tarefa.title}**`,
     `${quando}${tarefa.overdue ? " (atrasada)" : ""}`,
-    `id: ${tarefa.id}`,
   ];
+  const serie = tarefa.series ?? null;
+  if (serie?.days?.length) {
+    linhas.push(
+      `repete ${descreverDias(serie.days)}${serie.until ? ` até ${serie.until}` : ""}` +
+        ` · série ${serie.id}`,
+    );
+  }
+  linhas.push(`id: ${tarefa.id}`);
   if (tarefa.board?.name) linhas.push(`projeto: ${tarefa.board.name}`);
   if (tarefa.ai) linhas.push(linhaDaMarcaSemDia(tarefa.ai, "a"));
   if (tarefa.completedAt) {

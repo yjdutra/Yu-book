@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import type {
   AgendaQuery,
   AgendaRange,
+  ConversionScope,
   EventInput,
   EventItem,
   EventRecurrence,
@@ -42,6 +43,9 @@ import {
   buscarTarefa,
   colunasDoQuando,
   conferirQuadro,
+  gravarSerie,
+  semDiaNoHorizonte,
+  soltarDaSerie,
   quadroQueSumiu,
   tarefasAtrasadas,
   tarefasDoPeriodo,
@@ -812,7 +816,7 @@ export async function converterEventoEmTarefa(
   userId: string,
   id: string,
   input: EventToTaskInput,
-  escopo: EventScope,
+  escopo: ConversionScope,
 ): Promise<TaskItem> {
   const linha = await prisma.event.findFirst({
     where: { id, userId },
@@ -822,12 +826,18 @@ export async function converterEventoEmTarefa(
   const { timezone } = await preferenciaDe(userId);
 
   const serie = linha.repeatDays.length > 0;
+  if (serie && escopo.scope === "todas") {
+    return converterSerieEmTarefas(userId, linha, input, timezone);
+  }
   if (serie && escopo.scope !== "esta") {
     throw invalido(
-      "Numa série, converta uma ocorrência por vez: diga o dia dela (scope=esta e occurrenceDate)",
+      "Numa série, diga o alcance: uma ocorrência (scope=esta e occurrenceDate) ou a série " +
+        "inteira, que vira tarefa recorrente (scope=todas)",
     );
   }
-  const tocada = serie ? ocorrenciaTocada(linha, escopo, timezone) : null;
+  const tocada = serie
+    ? ocorrenciaTocada(linha, { scope: "esta", occurrenceDate: escopo.occurrenceDate }, timezone)
+    : null;
   const horario = tocada?.ocorrencia ?? horarioNoFuso(linha, timezone);
 
   const boardId = input.boardId !== undefined ? input.boardId : (linha.board?.id ?? null);
@@ -866,6 +876,81 @@ export async function converterEventoEmTarefa(
 }
 
 /**
+ * A série de evento inteira vira tarefa recorrente: a série de tarefa começa
+ * hoje (ou no início do evento, se ele ainda não começou), com os mesmos dias,
+ * fim e dias cancelados de hoje em diante; a hora é a de início, nenhuma no
+ * dia inteiro. **O evento não some do passado**: a série termina ontem, e só
+ * a que nem tinha começado é apagada. A marca de IA vai para a série de
+ * tarefa e daí para cada ocorrência (INV-58).
+ */
+async function converterSerieEmTarefas(
+  userId: string,
+  linha: LinhaDaCopia,
+  input: EventToTaskInput,
+  fuso: string,
+): Promise<TaskItem> {
+  const recurrence = regraDe(linha);
+  if (!recurrence) throw invalido("Este evento não se repete");
+  const hoje = diaLocal(new Date(), fuso);
+  if (recurrence.until && recurrence.until < hoje) {
+    throw invalido("Esta série já terminou: não há o que converter de hoje em diante");
+  }
+  const primeiro = horarioNoFuso(linha, fuso);
+  const startDate = primeiro.date > hoje ? primeiro.date : hoje;
+  const boardId = input.boardId !== undefined ? input.boardId : (linha.board?.id ?? null);
+  if (boardId && boardId !== linha.board?.id) await conferirQuadro(userId, boardId);
+  const time = input.time !== undefined ? input.time : primeiro.startTime;
+  colunasDoQuando(startDate, time);
+  const marca = copiaDaMarca(linha);
+
+  const tarefaId = await prisma
+    .$transaction(async (tx) => {
+      const daqui = { id: linha.id, userId, updatedAt: linha.updatedAt };
+      if (primeiro.date >= hoje) {
+        const { count } = await tx.event.deleteMany({ where: daqui });
+        if (count === 0) throw notFound("Evento não encontrado");
+      } else {
+        const { count } = await tx.event.updateMany({
+          where: daqui,
+          data: {
+            repeatUntil: deDiaCivil(somarDias(hoje, -1)),
+            exdates: serieDe(linha, recurrence)
+              .exdates.filter((d) => d < hoje)
+              .map(deDiaCivil),
+          },
+        });
+        if (count === 0) throw notFound("Evento não encontrado");
+      }
+      const primeira = await gravarSerie(
+        tx,
+        userId,
+        {
+          title: (input.title ?? linha.title).trim(),
+          descriptionMd: input.descriptionMd ?? descricaoDaTarefa(linha),
+          time,
+          boardId,
+          startDate,
+          recurrence,
+          exdates: serieDe(linha, recurrence).exdates.filter((d) => d >= hoje),
+        },
+        {
+          aiGeneratedAt: marca.aiGeneratedAt,
+          aiVia: marca.aiVia,
+          aiAuthor: marca.aiAuthor,
+          aiAgentName: marca.aiAgentName,
+          aiRoutineName: marca.aiRoutineName,
+          aiRevisedAt: marca.aiRevisedAt,
+        },
+        hoje,
+      );
+      if (!primeira) throw semDiaNoHorizonte();
+      return primeira;
+    })
+    .catch(quadroQueSumiu);
+  return buscarTarefa(userId, tarefaId);
+}
+
+/**
  * A tarefa vira evento, numa transação: o evento nasce e a tarefa sai. Do
  * evento vêm título, descrição e projeto; o horário sai do dia e da hora da
  * tarefa — com hora, começa nela e dura o padrão; sem hora, é de dia inteiro.
@@ -891,6 +976,7 @@ export async function converterTarefaEmEvento(
       boardId: true,
       completedAt: true,
       updatedAt: true,
+      seriesId: true,
       ...CAMPOS_DA_MARCA,
     },
   });
@@ -923,6 +1009,10 @@ export async function converterTarefaEmEvento(
 
   const eventoId = await prisma
     .$transaction(async (tx) => {
+      // Ocorrência de série sai só ela: o dia não é gerado de novo.
+      if (tarefa.seriesId && tarefa.date) {
+        await soltarDaSerie(tx, userId, tarefa.seriesId, tarefa.date);
+      }
       const { count } = await tx.task.deleteMany({
         where: { id, userId, updatedAt: tarefa.updatedAt, completedAt: null },
       });

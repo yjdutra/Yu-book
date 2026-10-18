@@ -1,6 +1,7 @@
 import {
   taskCompleteSchema,
   taskInputSchema,
+  taskSeriesUpdateSchema,
   taskToEventSchema,
   tasksQuerySchema,
   taskUpdateSchema,
@@ -62,6 +63,26 @@ export async function tarefasRoutes(app: FastifyInstance): Promise<void> {
   app.delete("/tasks/:id", async (request, reply) => {
     const { id } = paramsSchema.parse(request.params);
     await service.excluirTarefa(request.userId, id);
+    return reply.status(204).send();
+  });
+
+  // Tarefa recorrente: a série. Cada ocorrência é uma tarefa, e editar ou
+  // excluir uma só é pelas rotas de cima (ela sai da série); estas mexem na
+  // regra e nas ocorrências abertas de hoje em diante.
+  app.get("/task-series/:id", async (request) => {
+    const { id } = paramsSchema.parse(request.params);
+    return service.buscarSerie(request.userId, id);
+  });
+
+  app.patch("/task-series/:id", async (request) => {
+    const { id } = paramsSchema.parse(request.params);
+    const input = taskSeriesUpdateSchema.parse(request.body);
+    return service.atualizarSerie(request.userId, id, input);
+  });
+
+  app.delete("/task-series/:id", async (request, reply) => {
+    const { id } = paramsSchema.parse(request.params);
+    await service.encerrarSerie(request.userId, id);
     return reply.status(204).send();
   });
 }

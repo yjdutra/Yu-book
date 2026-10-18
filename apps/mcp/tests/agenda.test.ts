@@ -83,6 +83,7 @@ function tarefa(completedAt: string | null, autor: string | null): TaskItem {
     completion: completedAt && autor ? { via: "mcp", author: autor, agentName: null } : null,
     board: null,
     ai: null,
+    series: null,
     createdAt: AGORA,
     updatedAt: AGORA,
   };

@@ -156,8 +156,7 @@ describe("evento → tarefa", () => {
     expect(semEscopo.status).toBe(422);
     expect(mensagem(semEscopo.body)).toContain("scope=esta");
 
-    const todas = await api(dono, "POST", `/events/${serie.id}/to-task?scope=todas`);
-    expect(todas.status).toBe(422);
+    // `scope=todas` faz da série uma tarefa recorrente: ver tarefas-recorrentes.test.ts.
 
     const { status, body } = await api(
       dono,

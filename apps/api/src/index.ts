@@ -8,6 +8,7 @@ import {
   vigiarExecucoes,
 } from "./modules/assistente/execucao.service.js";
 import { pruneRefreshTokens } from "./modules/auth/auth.service.js";
+import { vigiarSeriesDeTarefas } from "./modules/tarefas/tarefas.service.js";
 
 async function main(): Promise<void> {
   const app = await buildApp();
@@ -33,10 +34,14 @@ async function main(): Promise<void> {
   /// Etapa F: o relógio da agenda de rotinas. As duas instâncias do deploy o
   /// rodam juntas, e o banco garante que cada horário roda uma vez (INV-60).
   const pararAgenda = vigiarAgenda(app.log);
+  /// Tarefa recorrente: o horizonte das séries anda sozinho. Nas duas
+  /// instâncias, e idempotente pelo único `(series_id, date)` (INV-60).
+  const pararSeries = vigiarSeriesDeTarefas(app.log);
 
   const shutdown = async (signal: string): Promise<void> => {
     app.log.info({ signal }, "encerrando");
     pararVarredura();
+    pararSeries();
     /// Antes de encerrar as execuções: um horário não pode começar uma nova
     /// enquanto as vivas estão sendo gravadas `interrompida`.
     await pararAgenda().catch(() => undefined);

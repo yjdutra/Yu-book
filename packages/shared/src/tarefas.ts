@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { diaCivilSchema, horaCivilSchema } from "./eventos.js";
+import { diaCivilSchema, horaCivilSchema, repeticaoSchema } from "./eventos.js";
+import type { EventRecurrence } from "./eventos.js";
 import type { BoardRef } from "./kanban.js";
 import type { AiCompletion, AiMark } from "./marca.js";
 import { origemMcpSchema } from "./marca.js";
@@ -48,10 +49,20 @@ const camposDaTarefa = z.object({
   origin: origemMcpSchema.optional(),
 });
 
-export const taskInputSchema = camposDaTarefa.refine((v) => v.time === null || v.date !== null, {
-  path: ["time"],
-  message: "Hora só com data: informe o dia",
-});
+export const taskInputSchema = camposDaTarefa
+  .extend({
+    /// Tarefa recorrente: a tarefa vira série, e `date` é o primeiro dia dela.
+    /// Só na criação — a série se edita por `PATCH /task-series/:id`.
+    repeat: repeticaoSchema.nullable().optional(),
+  })
+  .refine((v) => v.time === null || v.date !== null, {
+    path: ["time"],
+    message: "Hora só com data: informe o dia",
+  })
+  .refine((v) => !v.repeat || v.date !== null, {
+    path: ["date"],
+    message: "Tarefa que se repete precisa do primeiro dia",
+  });
 
 /// Sem `origin` (INV-58), e sem conclusão: concluir tem rota própria, a que
 /// grava quem concluiu. "Hora só com data" roda no servidor, sobre o mesclado.
@@ -77,6 +88,22 @@ export const taskCompleteSchema = z.object({
  */
 export const eventToTaskSchema = camposDaTarefa.omit({ origin: true }).partial();
 
+/**
+ * O corpo de `PATCH /task-series/:id`: muda a série e as ocorrências abertas
+ * de hoje em diante, que são geradas de novo. As de antes de hoje e as já
+ * concluídas ficam como estão.
+ */
+export const taskSeriesUpdateSchema = z
+  .object({
+    title: z.string().trim().min(1, "Informe um título").max(MAX_TAREFA_TITULO),
+    descriptionMd: z.string().max(MAX_TAREFA_DESCRICAO, "Descrição grande demais"),
+    time: horaCivilSchema.nullable(),
+    boardId: z.string().uuid("Quadro inválido").nullable(),
+    repeat: repeticaoSchema,
+  })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, "Nada para atualizar");
+
 export const tasksQuerySchema = z.object({
   status: z.enum(TASK_STATUSES).default("abertas"),
   boardId: z.string().uuid("Quadro inválido").optional(),
@@ -86,6 +113,24 @@ export type TaskInput = z.input<typeof taskInputSchema>;
 export type TaskUpdateInput = z.input<typeof taskUpdateSchema>;
 export type TaskCompleteInput = z.input<typeof taskCompleteSchema>;
 export type EventToTaskInput = z.input<typeof eventToTaskSchema>;
+export type TaskSeriesUpdateInput = z.input<typeof taskSeriesUpdateSchema>;
+
+/**
+ * A série de uma tarefa recorrente, como a ocorrência a mostra. `days` e
+ * `until` têm a forma da regra do evento (`EventRecurrence`).
+ */
+export interface TaskSeriesRef extends EventRecurrence {
+  id: string;
+}
+
+/** A série inteira: a resposta de `PATCH /task-series/:id`. */
+export interface TaskSeriesItem extends TaskSeriesRef {
+  title: string;
+  descriptionMd: string;
+  time: string | null;
+  startDate: string;
+  board: BoardRef | null;
+}
 export type TasksQuery = z.infer<typeof tasksQuerySchema>;
 
 export interface TaskItem {
@@ -101,6 +146,9 @@ export interface TaskItem {
   completion: AiCompletion | null;
   board: BoardRef | null;
   ai: AiMark | null;
+  /// A série de onde veio (tarefa recorrente), ou `null` na tarefa avulsa.
+  /// Ocorrência de série nunca fica atrasada: hábito perdido não se acumula.
+  series: TaskSeriesRef | null;
   createdAt: string;
   updatedAt: string;
 }

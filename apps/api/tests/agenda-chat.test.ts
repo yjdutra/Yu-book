@@ -994,6 +994,7 @@ describe("formatarAgenda tolera a API mais velha que o pacote", () => {
     overdue: false,
     completedAt: null,
     completion: null,
+    series: null,
     ...CAMPOS_COMUNS,
   };
   const agenda: AgendaRange = {

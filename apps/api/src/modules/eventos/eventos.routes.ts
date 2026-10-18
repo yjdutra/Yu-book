@@ -1,5 +1,6 @@
 import {
   agendaQuerySchema,
+  conversionScopeSchema,
   eventInputSchema,
   eventScopeSchema,
   eventToTaskSchema,
@@ -42,11 +43,12 @@ export async function eventosRoutes(app: FastifyInstance): Promise<void> {
     return service.atualizarEvento(request.userId, id, input, escopo);
   });
 
-  // O evento vira tarefa (numa série, só `?scope=esta&occurrenceDate=…`). O
-  // corpo, opcional, passa por cima do que se tira do evento.
+  // O evento vira tarefa. Numa série o alcance é obrigatório: `esta` (com
+  // `occurrenceDate`) converte a ocorrência; `todas` faz da série uma tarefa
+  // recorrente. O corpo, opcional, passa por cima do que se tira do evento.
   app.post("/events/:id/to-task", async (request, reply) => {
     const { id } = paramsSchema.parse(request.params);
-    const escopo = eventScopeSchema.parse(request.query);
+    const escopo = conversionScopeSchema.parse(request.query);
     const input = eventToTaskSchema.parse(request.body ?? {});
     const tarefa = await service.converterEventoEmTarefa(request.userId, id, input, escopo);
     return reply.status(201).send(tarefa);
