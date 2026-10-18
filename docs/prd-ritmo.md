@@ -760,44 +760,84 @@ hábito pela tela — a configuração segue no MCP (RF-13).
 
   O fim foi conferido com o início guardado adiantado à mão, e não com 25 minutos de relógio.
 
-## 10. Fases seguintes (escopo, detalhado quando cada uma começar)
+## 10. Ritmo 7 — Povoar pelo MCP (plano; não executado)
 
-### Ritmo 3 — Ofensivas, níveis e recordes
+> Escrito em 2026-10-18, ao fechar a Ritmo 6. A Ritmo 7 é dados, não código. Ela escreve em
+> **produção** pelo MCP `yu-book-prod`. Por isso só roda depois do deploy das Ritmo 2 a 6, com as
+> quatro migrations aplicadas (`20261018190000_ritmo_humor`, `20261018200000_ritmo_skills`,
+> `20261018210000_ritmo_foco`, e a da Ritmo 1, que já está lá), e com a conexão do MCP refeita,
+> porque a sessão guarda o catálogo antigo de tools.
+>
+> Fonte: o artefato "Rotina da Casa" (abas Rotina, Casa, Cozinha, Mercado e Mente). A lista de
+> compras ("O que está acabando?", os chips de estoque) fica fora.
 
-- **Ofensiva geral:** dias seguidos com qualquer registro de hábito ou check-in de humor.
-- **Ofensiva do hábito:** semanas seguidas com `goalMet`.
-- **Recordes:** as 5 maiores sequências de cada tipo, mais as melhores semanas por pontos.
-- **XP e nível:** a curva veio antes, na Ritmo 2 (RN-15), porque o cartão de nível é dela.
-- Tudo calculado na leitura (P3). Há uma folha de conquista só para os marcos raros.
+### 10.1 Antes de escrever
 
-### Ritmo 4 — Humor
+1. `list_habits`: conferir que "Inglês" já existe, e não criá-lo de novo. Se já houver "Casa em
+   ordem" ou "Planejamento", atualizar com `update_habit` em vez de criar.
+2. `list_skills`: deve vir vazia. Se não vier, criar só as que faltam.
+3. `search_notes`: procurar por "Rotina da Casa", para não duplicar as notas.
 
-- Uma linha por dia: manhã, durante e noite, cada um de 1 a 5, mais uma descrição. A descrição
-  pode ser ditada com `useDitado`, que só preenche o campo.
-- O histórico mostra uma linha de humor sobre os pontos do dia, e cartões "com/sem hábito" com
-  o `n` à mostra. Um cartão só aparece com pelo menos 7 dias de cada lado.
-- No MCP: `log_mood` e `get_mood`.
+### 10.2 Hábitos (`create_habit`)
 
-### Ritmo 5 — Skills
+**Casa em ordem** — cor `verde`, emblema `casa`, meta de 120 pts em 6 dias (teto de 20 por dia).
+A rotina diária cabe no teto e sobra espaço para uma tarefa da semana no mesmo dia; o resto vira XP.
 
-- A skill tem nome, descrição, "quando usar", emblema do catálogo e cor.
-- "Usei agora" grava um uso. Os níveis vêm do número de usos: Bronze no 1º, Prata com 15, Ouro com
-  50 e Mestre com 150.
-- O skill do dia aparece no Início, em rodízio.
-- Skill não dá pontos de hábito (P4).
-- No MCP: `upsert_skill` e `log_skill_use`.
+| Atividade | Pontos | Pontos por pomodoro | O que cobre (da aba Rotina) |
+|---|---|---|---|
+| Rotina mínima do dia | 15 | — | cama, janelas, louça, bancada e pia, guardar a bagunça, lixo, cozinha organizada, limpar enquanto cozinha |
+| Lavanderia | 15 | — | lavar, dobrar e guardar no mesmo dia |
+| Roupa de cama | 10 | — | trocar a roupa de cama |
+| Banheiro | 15 | 10 | limpar o banheiro |
+| Chão e superfícies | 10 | 10 | passar pano e organizar as superfícies |
+| Geladeira e vencidos | 10 | — | limpar a geladeira e verificar os vencidos |
+| Mercado da semana | 15 | — | ver o que acabou e fazer as compras |
+| Cozinhar em quantidade | 20 | 10 | arroz, feijão e frango para a semana |
+| Faxina do mês | 30 | 10 | armários, gavetas, forno e fogão, lixeira, estoque, descarte, contas e recibos |
 
-### Ritmo 6 — Foco
+**Planejamento** — cor `azul`, emblema `mente`, meta de 30 pts em 2 dias (teto de 15).
 
-- O timer roda no cliente, guardando o instante final, com Wake Lock.
-- A sessão de foco é gravada. O pomodoro concluído numa atividade com "pontos por pomodoro" gera um
-  registro de origem `focus`.
+| Atividade | Pontos | Pontos por pomodoro | O que cobre (da aba Mente) |
+|---|---|---|---|
+| Planejar a semana | 20 | 10 | revisar compromissos e pendências, prioridades reais, distribuir lavanderia, mercado e limpeza, deixar espaço livre |
+| Regra 1-3-5 do dia | 5 | — | 1 tarefa grande, 3 médias e 5 pequenas no calendário |
+| Responder mensagens pendentes | 5 | — | da rotina semanal |
 
-### Ritmo 7 — Povoar pelo MCP
+O hábito não tem campo de descrição, e o checklist completo vai na nota 1 (§10.4). "Programe
+tempo de descanso" não vira atividade: dar ponto a descansar contraria P4.
 
-Do "Rotina da Casa":
+### 10.3 Skills (`upsert_skill`, sem `skillId`)
 
-- Rotina diária e semanal → o hábito "Casa em ordem", com atividades e checklist na descrição.
-- Regras da aba Mente → skills.
-- Dicas → notas.
-- Lista de compras → fica fora.
+| Nome | Emblema | Cor | Descrição | Quando usar |
+|---|---|---|---|---|
+| Agora mesmo | `raio` | `ambar` | Se leva menos de 2 minutos, faz agora. Tarefa pequena não acumula. | Ao notar algo pequeno pendente: a louça, uma resposta curta, guardar o que está fora do lugar. |
+| Pausa tática | `ampulheta` | `violeta` | Antes de agir, 3 a 5 segundos de silêncio. Pensa na ação, depois executa. | Antes de responder no impulso, decidir uma compra ou entrar numa discussão. |
+| Arranque | `foguete` | `rosa` | Conta 5-4-3-2-1 e começa. Não espera a vontade chegar. | Quando estiver enrolando para começar algo que já decidiu fazer. |
+| Uma coisa só | `alvo` | `azul` | Uma tarefa por vez. Divide o grande em partes menores, e começar fica mais fácil. | Quando sentir que está abrindo várias frentes ao mesmo tempo. |
+| Anote na hora | `lapis` | `verde` | A mente não foi feita para guardar tudo. Tirou da cabeça, pôs no Yu-book. | Assim que lembrar de um compromisso, ideia ou coisa a comprar. |
+| Não fazer | `escudo` | `cinza` | Identifica o que não precisa ser feito, delega quando puder e protege a energia. | No planejamento da semana e antes de aceitar mais um compromisso. |
+| Decida uma vez | `balanca` | `ambar` | Quanto menos decisões, menos fadiga. Repetir refeições e rotinas é parte do sistema. | Ao planejar refeições e a semana, e quando a escolha do dia pesar. |
+
+"Agora mesmo", "Pausa tática" e "Arranque" foram pedidos pelo usuário. "Arranque" é a regra dos 5
+segundos e é distinta da "Pausa tática": uma faz começar, a outra faz esperar. O pomodoro não vira
+skill, porque já é o foco (Ritmo 6).
+
+### 10.4 Notas (`create_note`, tipo livre, tag `rotina-da-casa`)
+
+1. **Rotina da Casa — checklists**: os itens de "Todo dia", "Toda semana" e "Todo mês", na íntegra,
+   com a referência às atividades de "Casa em ordem".
+2. **Casa — sistemas**: Lavanderia, Limpeza, Documentos e Lugares fixos.
+3. **Cozinha — as 5 refeições básicas**: arroz, feijão, ovos, macarrão e frango; "Coisas que
+   facilitam"; e "Sem culpa: repetir refeições é parte do sistema".
+4. **Mercado — como comprar**: "Antes de ir", "Na loja" e "Gastos silenciosos". A lista de
+   compras fica fora.
+5. **Mente leve — regras**: as quatro regras; "Contra o esgotamento" (2 minutos, 5 segundos,
+   pomodoro, uma coisa de cada vez, "não fazer"); "Para não esquecer"; e "O que piora a memória e a
+   semana".
+
+### 10.5 Depois de escrever
+
+- `list_habits`, `list_skills` e `search_notes "rotina-da-casa"`, para conferir. O relatório
+  final lista cada id criado.
+- Fica fora: tarefas e eventos agendados ligados às atividades. Depende de quando o usuário quer
+  cada uma (a frequência é dele), e fica para uma conversa à parte.
