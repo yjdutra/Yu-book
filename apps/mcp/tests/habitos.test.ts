@@ -31,7 +31,15 @@ const EVENTO_ID = "55555555-5555-4555-8555-555555555555";
 const COMPLETO = identidade(["yubook:read", "yubook:write"]);
 
 function atividade(nome: string, pontos: number, id = ATIVIDADE_ID): HabitActivityItem {
-  return { id, habitId: HABITO_ID, name: nome, points: pontos, position: 0, archived: false };
+  return {
+    id,
+    habitId: HABITO_ID,
+    name: nome,
+    points: pontos,
+    pointsPerPomodoro: null,
+    position: 0,
+    archived: false,
+  };
 }
 
 /** Tipado pelo contrato: campo novo em `HabitItem` quebra o typecheck aqui. */
@@ -246,6 +254,28 @@ describe("update_habit", () => {
       expect(texto(r)).toContain("Alteração parcial");
       expect(texto(r)).toContain("atividade «Podcast» criada");
       expect(texto(r)).toContain("Não repita");
+    } finally {
+      await cliente.encerrar();
+    }
+  });
+});
+
+describe("pontos por pomodoro (Ritmo 6, CA-39)", () => {
+  it("update_habit manda `pointsPerPomodoro` na atividade nova e na editada", async () => {
+    const cliente = await abrirCliente({ escrita: true }, COMPLETO);
+    try {
+      const r = await cliente.chamarTool("update_habit", {
+        habitId: HABITO_ID,
+        activities: [
+          { id: ATIVIDADE_ID, pointsPerPomodoro: 10 },
+          { name: "Leitura técnica", points: 15, pointsPerPomodoro: 5 },
+        ],
+      });
+      expect(r.isError).toBeFalsy();
+      const editada = chamadas.find((c) => c.caminho === `/habit-activities/${ATIVIDADE_ID}`);
+      expect(editada?.corpo).toEqual({ pointsPerPomodoro: 10 });
+      const nova = chamadas.find((c) => c.caminho === `/habits/${HABITO_ID}/activities`);
+      expect(nova?.corpo).toEqual({ name: "Leitura técnica", points: 15, pointsPerPomodoro: 5 });
     } finally {
       await cliente.encerrar();
     }

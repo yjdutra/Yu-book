@@ -23,3 +23,4 @@ export * from "./habitos.js";
 export * from "./ofensivas.js";
 export * from "./humor.js";
 export * from "./skills.js";
+export * from "./foco.js";

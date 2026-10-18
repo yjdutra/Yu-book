@@ -840,3 +840,46 @@ export const ICONE_EMBLEMA_SKILL: Record<EmblemaDaSkill, (p: IconeProps) => Reac
   chave: SkillChave,
   balanca: SkillBalanca,
 };
+
+/* O foco (Ritmo 6). O "iniciar" do timer é `IconeRodar`, o mesmo triângulo de
+   pôr algo para rodar; o resto tem desenho próprio. */
+
+/** Duas barras — pausar o timer. */
+export function IconePausar(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <rect x="4" y="3" width="2.6" height="10" rx="0.8" />
+      <rect x="9.4" y="3" width="2.6" height="10" rx="0.8" />
+    </Icone>
+  );
+}
+
+/** Cronômetro — abrir o foco numa atividade. */
+export function IconeCronometro(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <circle cx="8" cy="9" r="5.2" />
+      <path d="M6.4 1.8h3.2M8 1.8v2M8 9l2.2-2.2M12.4 4.4l1-1" />
+    </Icone>
+  );
+}
+
+/** Seta que volta ao começo — recomeçar o tempo do modo. */
+export function IconeRecomecar(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M3 8a5 5 0 1 0 1.5-3.6" />
+      <path d="M3 2.8v2.6h2.6" />
+    </Icone>
+  );
+}
+
+/** Avançar até a barra — pular a pausa. */
+export function IconePular(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M3.4 3.4v9.2l6.6-4.6Z" />
+      <path d="M12.6 3.4v9.2" />
+    </Icone>
+  );
+}

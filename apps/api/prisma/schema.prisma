@@ -114,6 +114,7 @@ model User {
   moodDays      MoodDay[]
   skills        Skill[]
   skillUses     SkillUse[]
+  focusSessions FocusSession[]
   links         Link[]
   refreshTokens RefreshToken[]
 
@@ -1139,6 +1140,8 @@ enum HabitEntryOrigin {
   task
   event
   manual
+  /// Ritmo 6: o pomodoro concluído numa atividade com `points_per_pomodoro`.
+  focus
 }
 
 /// O hábito. Arquivar tira da lista e fecha para registro novo, sem apagar o
@@ -1176,16 +1179,19 @@ model HabitActivity {
   userId     String    @map("user_id") @db.Uuid
   name       String
   points     Int
+  /// Ritmo 6: os pontos de cada pomodoro concluído nela; nulo, não pontua.
+  pointsPerPomodoro Int? @map("points_per_pomodoro")
   position   Int       @default(0)
   archivedAt DateTime? @map("archived_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
 
-  habit      Habit        @relation(fields: [habitId], references: [id], onDelete: Cascade)
-  entries    HabitEntry[]
-  tasks      Task[]
-  taskSeries TaskSeries[]
-  events     Event[]
+  habit         Habit          @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  entries       HabitEntry[]
+  tasks         Task[]
+  taskSeries    TaskSeries[]
+  events        Event[]
+  focusSessions FocusSession[]
 
   @@unique([habitId, name])
   @@index([userId])
@@ -1210,6 +1216,8 @@ model HabitEntry {
   taskId      String?          @unique @map("task_id") @db.Uuid
   /// Com `day`, a ocorrência do evento que rendeu o check-in (RN-04).
   eventId     String?          @map("event_id") @db.Uuid
+  /// Ritmo 6: a sessão de foco que rendeu o registro — uma só por sessão.
+  focusSessionId String?       @unique @map("focus_session_id") @db.Uuid
   /// Quem registrou, quando foi o assistente (RN-12), como a marca de
   /// conclusão da tarefa (INV-63). Gravada só pelo servidor.
   aiVia       AiVia?           @map("ai_via")
@@ -1222,6 +1230,7 @@ model HabitEntry {
   activity HabitActivity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
   task     Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
   event    Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  focusSession FocusSession? @relation(fields: [focusSessionId], references: [id], onDelete: SetNull)
 
   @@unique([eventId, day])
   @@index([userId, day])
@@ -1297,4 +1306,29 @@ model SkillUse {
 
   @@index([userId, skillId])
   @@map("skill_use")
+}
+
+/// Um pomodoro concluído (frente Ritmo, Ritmo 6). O timer roda no aparelho;
+/// a sessão só se grava no fim (RN-35), e o `client_id` torna a gravação
+/// idempotente para o aparelho que repete o envio.
+model FocusSession {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  clientId   String   @map("client_id") @db.Uuid
+  activityId String?  @map("activity_id") @db.Uuid
+  habitId    String?  @map("habit_id") @db.Uuid
+  minutes    Int
+  startedAt  DateTime @map("started_at")
+  endedAt    DateTime @map("ended_at")
+  /// Dia civil do fim, no fuso do usuário (INV-66).
+  day        DateTime @db.Date
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activity HabitActivity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  entry    HabitEntry?
+
+  @@unique([userId, clientId])
+  @@index([userId, day])
+  @@map("focus_session")
 }

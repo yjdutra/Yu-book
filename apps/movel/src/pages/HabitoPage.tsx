@@ -9,7 +9,7 @@ import {
   useRegistros,
   useResumoRitmo,
 } from "@yu-book/cliente/habitos";
-import { IconeChevron, IconeMais } from "@yu-book/cliente/icones";
+import { IconeChevron, IconeCronometro, IconeMais } from "@yu-book/cliente/icones";
 import { AnelProgresso } from "@yu-book/cliente/ritmo/AnelProgresso";
 import { BarrasPonderadas } from "@yu-book/cliente/ritmo/BarrasPonderadas";
 import { EmblemaHabito, TOM_DO_HABITO } from "@yu-book/cliente/ritmo/Emblema";
@@ -278,10 +278,26 @@ function Detalhe({
                   <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold text-titulo">
                     {a.name}
                   </span>
-                  <span className="text-xs tabular-nums text-ink-400">
+                  <span className="text-right text-xs tabular-nums text-ink-400">
                     {historico ? `${vezes}× nesta semana` : ""}
+                    {a.pointsPerPomodoro ? (
+                      <span className="block">+{a.pointsPerPomodoro} por pomodoro</span>
+                    ) : null}
                   </span>
                   <PilulaPontos pontos={a.points} />
+                  <Link
+                    to={`/foco?atividade=${a.id}`}
+                    aria-label={`Focar em “${a.name}”`}
+                    className="-mr-1 grid size-11 shrink-0 place-items-center rounded-full"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="grid size-9 place-items-center rounded-full bg-accent-500/15
+                                 text-accent-400"
+                    >
+                      <IconeCronometro className="size-4.5" />
+                    </span>
+                  </Link>
                 </li>
               );
             })}

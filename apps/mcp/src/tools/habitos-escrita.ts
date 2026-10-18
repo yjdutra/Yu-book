@@ -109,7 +109,13 @@ export function registrarEscritaDeHabitos(server: McpServer): void {
               "e atividade nova precisa de `name` e `points`.",
           );
         }
-        if (a.id && a.name === undefined && a.points === undefined && a.archived === undefined) {
+        if (
+          a.id &&
+          a.name === undefined &&
+          a.points === undefined &&
+          a.pointsPerPomodoro === undefined &&
+          a.archived === undefined
+        ) {
           return recusa(
             `**Nada foi alterado.** A atividade ${i + 1} tem \`id\` mas nenhum campo para mudar.`,
           );
@@ -158,6 +164,7 @@ export function registrarEscritaDeHabitos(server: McpServer): void {
             const nova = await api.post<HabitActivityItem>(`/habits/${habitId}/activities`, {
               name: a.name,
               points: a.points,
+              ...(a.pointsPerPomodoro != null && { pointsPerPomodoro: a.pointsPerPomodoro }),
             });
             feito.push(`atividade «${nova.name}» criada`);
           }

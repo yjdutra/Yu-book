@@ -71,6 +71,7 @@ const CAMPOS_ATIVIDADE = {
   habitId: true,
   name: true,
   points: true,
+  pointsPerPomodoro: true,
   position: true,
   archivedAt: true,
 } satisfies Prisma.HabitActivitySelect;
@@ -100,6 +101,7 @@ function paraAtividade(linha: LinhaAtividade): HabitActivityItem {
     habitId: linha.habitId,
     name: linha.name,
     points: linha.points,
+    pointsPerPomodoro: linha.pointsPerPomodoro,
     position: linha.position,
     archived: linha.archivedAt !== null,
   };
@@ -284,6 +286,7 @@ export async function criarHabito(userId: string, input: HabitInput): Promise<Ha
             userId,
             name: a.name.trim(),
             points: a.points,
+            pointsPerPomodoro: a.pointsPerPomodoro ?? null,
             position: i,
           })),
         },
@@ -345,7 +348,14 @@ export async function criarAtividade(
   const posicao = await prisma.habitActivity.count({ where: { habitId, userId } });
   const linha = await prisma.habitActivity
     .create({
-      data: { habitId, userId, name: input.name.trim(), points: input.points, position: posicao },
+      data: {
+        habitId,
+        userId,
+        name: input.name.trim(),
+        points: input.points,
+        pointsPerPomodoro: input.pointsPerPomodoro ?? null,
+        position: posicao,
+      },
       select: CAMPOS_ATIVIDADE,
     })
     .catch(nomeRepetido("uma atividade neste hábito"));
@@ -364,6 +374,9 @@ export async function atualizarAtividade(
       data: {
         ...(input.name !== undefined && { name: input.name.trim() }),
         ...(input.points !== undefined && { points: input.points }),
+        ...(input.pointsPerPomodoro !== undefined && {
+          pointsPerPomodoro: input.pointsPerPomodoro,
+        }),
         ...(input.position !== undefined && { position: input.position }),
         ...(input.archived !== undefined && { archivedAt: input.archived ? new Date() : null }),
       },
@@ -386,7 +399,7 @@ export async function excluirAtividade(userId: string, id: string): Promise<void
 
 /* ------------------------------------------------------------- registros */
 
-const CAMPOS_REGISTRO = {
+export const CAMPOS_REGISTRO = {
   id: true,
   habitId: true,
   activity: { select: { id: true, name: true } },
@@ -396,6 +409,7 @@ const CAMPOS_REGISTRO = {
   note: true,
   taskId: true,
   eventId: true,
+  focusSessionId: true,
   aiVia: true,
   aiAuthor: true,
   aiAgentName: true,
@@ -404,7 +418,7 @@ const CAMPOS_REGISTRO = {
 
 type LinhaRegistro = Prisma.HabitEntryGetPayload<{ select: typeof CAMPOS_REGISTRO }>;
 
-function paraRegistro(linha: LinhaRegistro): HabitEntryItem {
+export function paraRegistro(linha: LinhaRegistro): HabitEntryItem {
   return {
     id: linha.id,
     habitId: linha.habitId,
@@ -415,6 +429,7 @@ function paraRegistro(linha: LinhaRegistro): HabitEntryItem {
     note: linha.note,
     taskId: linha.taskId,
     eventId: linha.eventId,
+    focusSessionId: linha.focusSessionId,
     ai: linha.aiVia
       ? { via: linha.aiVia, author: linha.aiAuthor, agentName: linha.aiAgentName }
       : null,
@@ -516,6 +531,8 @@ export async function excluirRegistro(userId: string, id: string): Promise<void>
       userId,
       OR: [
         { origin: "manual" },
+        // Ritmo 6 (RN-38): o do foco também; a sessão fica.
+        { origin: "focus" },
         { origin: "task", taskId: null },
         { origin: "event", eventId: null },
       ],

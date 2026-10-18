@@ -62,7 +62,8 @@ export const EMBLEMAS_DO_HABITO = [
 ] as const;
 export type EmblemaDoHabito = (typeof EMBLEMAS_DO_HABITO)[number];
 
-export const HABIT_ENTRY_ORIGINS = ["task", "event", "manual"] as const;
+/** `focus` desde a Ritmo 6: o pomodoro concluído numa atividade que pontua por ele. */
+export const HABIT_ENTRY_ORIGINS = ["task", "event", "manual", "focus"] as const;
 export type HabitEntryOrigin = (typeof HABIT_ENTRY_ORIGINS)[number];
 
 /* ------------------------------------------------------------- schemas */
@@ -93,6 +94,8 @@ const posicao = z.number().int().min(0);
 export const habitActivityInputSchema = z.object({
   name: nomeDaAtividade,
   points: pontos,
+  /// Ritmo 6 (RF-56): os pontos de cada pomodoro concluído nela.
+  pointsPerPomodoro: pontos.nullable().optional(),
 });
 
 /** RF-01: o hábito nasce com as atividades, numa transação só. */
@@ -131,6 +134,7 @@ export const habitActivityUpdateSchema = z
   .object({
     name: nomeDaAtividade,
     points: pontos,
+    pointsPerPomodoro: pontos.nullable(),
     archived: z.boolean(),
     position: posicao,
   })
@@ -216,6 +220,8 @@ export interface HabitActivityItem {
   habitId: string;
   name: string;
   points: number;
+  /// Ritmo 6: os pontos de cada pomodoro, ou `null`. A API da janela do deploy não manda.
+  pointsPerPomodoro: number | null;
   position: number;
   archived: boolean;
 }
@@ -266,6 +272,8 @@ export interface HabitEntryItem {
   note: string | null;
   taskId: string | null;
   eventId: string | null;
+  /** Ritmo 6: a sessão de foco que rendeu o registro. A API da janela do deploy não manda. */
+  focusSessionId?: string | null;
   /** Quem registrou, quando foi o assistente (RN-12). */
   ai: AiCompletion | null;
   createdAt: string;

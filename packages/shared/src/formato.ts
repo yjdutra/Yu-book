@@ -747,7 +747,11 @@ export function formatarHabitos(habitos: HabitItem[]): string {
     linhas.push("", cabeca.join(" · "), `id: ${h.id}`);
     if (w.extra > 0) linhas.push(`acima do teto (só XP): ${w.extra} pts`);
     const ativas = (h.activities ?? []).filter((a) => !a.archived);
-    for (const a of ativas) linhas.push(`- ${a.name} · ${a.points} pts · id: ${a.id}`);
+    for (const a of ativas) {
+      // `pointsPerPomodoro` é da Ritmo 6: a API mais velha não o manda.
+      const foco = a.pointsPerPomodoro ? ` · ${a.pointsPerPomodoro} por pomodoro` : "";
+      linhas.push(`- ${a.name} · ${a.points} pts${foco} · id: ${a.id}`);
+    }
     if (ativas.length === 0) linhas.push("- sem atividades: registre com `points`");
   }
   return linhas.join("\n");

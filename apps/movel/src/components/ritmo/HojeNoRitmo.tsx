@@ -1,11 +1,12 @@
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { Botao } from "@yu-book/cliente/base/Botao";
 import { useHabitos } from "@yu-book/cliente/habitos";
-import { IconeMais } from "@yu-book/cliente/icones";
+import { IconeCronometro, IconeMais } from "@yu-book/cliente/icones";
 import { TOM_DO_HABITO } from "@yu-book/cliente/ritmo/Emblema";
 import { LinhaAtividade } from "@yu-book/cliente/ritmo/LinhaAtividade";
 import type { HabitActivityRef } from "@yu-book/shared";
 import { useId } from "react";
+import { Link } from "react-router-dom";
 import { tituloDe } from "../agenda/itens";
 import type { ItemDoDia } from "../agenda/itens";
 import { useMarcarAtividade } from "./marcar";
@@ -100,6 +101,22 @@ export function HojeNoRitmo({ hoje, itens }: { hoje: string; itens: ItemDoDia[] 
                   if (item.tipo === "tarefa") marcarTarefa(item.tarefa, hoje);
                   else if (item.tipo === "evento") marcarEvento(item.evento);
                 }}
+                acao={
+                  // O foco abre a partir de uma atividade (Ritmo 6, P1).
+                  <Link
+                    to={`/foco?atividade=${vinculo.id}`}
+                    aria-label={`Focar em “${nome}”`}
+                    className="grid size-11 shrink-0 place-items-center rounded-full"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="grid size-9 place-items-center rounded-full bg-accent-500/15
+                                 text-accent-400"
+                    >
+                      <IconeCronometro className="size-4.5" />
+                    </span>
+                  </Link>
+                }
               />
             );
           })}

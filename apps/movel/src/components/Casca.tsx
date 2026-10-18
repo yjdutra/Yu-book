@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { AgendaPage } from "../pages/AgendaPage";
 import { AssistentePage } from "../pages/AssistentePage";
+import { FocoPage } from "../pages/FocoPage";
 import { InicioPage } from "../pages/InicioPage";
 import { ProjetoPage } from "../pages/ProjetoPage";
 import { ProjetosPage } from "../pages/ProjetosPage";
@@ -37,6 +38,7 @@ const TITULOS: Record<string, string> = {
   "/tarefas": "Plano",
   "/projetos": "Projetos",
   "/ritmo": "Ritmo",
+  "/foco": "Foco",
   "/assistente": "Assistente",
 };
 
@@ -61,6 +63,7 @@ export function Casca() {
           : "Início");
   const conversa = naConversa(pathname);
 
+
   useEffect(() => lembrarDoPlano(pathname, search), [pathname, search]);
 
   useEffect(() => {
@@ -68,6 +71,20 @@ export function Casca() {
     // Trocar de área é página nova: começa do topo, não da rolagem da outra.
     window.scrollTo(0, 0);
   }, [pathname, titulo]);
+
+  // O foco (Ritmo 6, RNF-20) é tela cheia, como a conversa: a barra sai, o
+  // trilho do desktop fica. As folhas da frente (registro, conquista) ficam
+  // à mão por `ProvedorRitmo`.
+  if (pathname === "/foco") {
+    return (
+      <ProvedorFolhaItem>
+        <ProvedorRitmo>
+          <Navegacao soTrilho />
+          <FocoPage />
+        </ProvedorRitmo>
+      </ProvedorFolhaItem>
+    );
+  }
 
   /// Dentro da conversa a barra inferior some (o trilho do desktop fica) e o
   /// cabeçalho é o dela. Uma rota só, `/assistente/:id`, e fora do `<main>`

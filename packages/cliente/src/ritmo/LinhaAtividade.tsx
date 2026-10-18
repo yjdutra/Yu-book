@@ -17,6 +17,7 @@ export function LinhaAtividade({
   onAlternar,
   desabilitada = false,
   className = "",
+  acao,
 }: {
   nome: string;
   /** "Inglês · 19:00" — o hábito e o quando. */
@@ -29,6 +30,8 @@ export function LinhaAtividade({
   desabilitada?: boolean;
   /** A classe de `TOM_DO_HABITO`, para o ponto e o check. */
   className?: string;
+  /** Um controle a mais no fim da linha — o foco da atividade (Ritmo 6). */
+  acao?: ReactNode;
 }) {
   return (
     <li
@@ -67,6 +70,7 @@ export function LinhaAtividade({
         </span>
       </span>
       <PilulaPontos pontos={pontos} />
+      {acao}
     </li>
   );
 }

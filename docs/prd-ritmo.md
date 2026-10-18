@@ -668,7 +668,99 @@ hábito pela tela — a configuração segue no MCP (RF-13).
   - a subida para Ouro com a folha;
   - a skill do dia no Início.
 
-## 9. Fases seguintes (escopo, detalhado quando cada uma começar)
+## 9. Ritmo 6 — Foco
+
+> Detalhado em 2026-10-18.
+
+### 9.1 Modelo
+
+- **Atividade** ganha `pointsPerPomodoro`, opcional, de 1 a 500.
+- **Sessão de foco** (`focus_session`): um pomodoro concluído, com:
+  - a atividade (opcional; se ela for excluída, vira nula) e o hábito dela;
+  - os minutos planejados, o início e o fim, e o dia civil do fim;
+  - o `clientId` que o aparelho gera, único por usuário.
+- **Registro** ganha a origem `focus`, com `focus_session_id` único.
+
+### 9.2 Requisitos funcionais
+
+- **RF-54** — O timer roda no cliente e guarda o **instante final**, não um contador. Assim
+  sobrevive à aba dormindo e ao recarregar (a sessão em curso fica no aparelho). Enquanto roda, a
+  tela fica acesa (Wake Lock), quando o navegador deixa, e a tela diz se está.
+- **RF-55** — Três modos: Foco 25, Pausa 5 e Pausa 15. Os quatro pontos do ciclo dizem quantos
+  pomodoros já se concluíram hoje, no ciclo de 4.
+- **RF-56** — Ao fim de um foco, o app grava a sessão: `POST /focus-sessions` com `clientId`,
+  `activityId`, `minutes` e `startedAt`. Se a atividade tiver `pointsPerPomodoro`, a sessão grava
+  um registro `focus` com esses pontos, na mesma transação, no dia do fim. Repetir o mesmo
+  `clientId` devolve a sessão que ficou, sem duplicar.
+- **RF-57** — `GET /focus-sessions?from&to` lista as sessões do período (padrão: hoje), para o
+  ciclo e o resumo do dia.
+- **RF-58** — O foco abre a partir de uma atividade (P1): o botão de foco em "Hoje no ritmo" e no
+  detalhe do hábito. A tela tem uma troca de atividade, que inclui "sem atividade".
+- **RF-59** — Ao concluir um foco, a folha "Pomodoro N de 4" diz os pontos ganhos, se houver, e
+  oferece a pausa de 5 minutos (de 15 no quarto).
+- **RF-60** — `create_habit` e `update_habit`, no MCP, aceitam `pointsPerPomodoro` na atividade, e
+  `list_habits` o mostra.
+
+### 9.3 Regras de negócio
+
+- **RN-35** — Só o foco concluído vira sessão. Pausar ou sair no meio não grava nada.
+- **RN-36** — O servidor confere a duração: o `startedAt` precisa estar pelo menos 90% dos minutos
+  antes de agora (folga para o relógio do aparelho) e no máximo 6 horas antes. Fora disso, 422.
+- **RN-37** — Atividade ou hábito arquivados gravam a sessão, mas não pontuam (RN-07).
+- **RN-38** — O registro `focus` se exclui pela rota de registros, como o avulso (RN-10). A sessão
+  fica.
+- **RN-39** — O registro `focus` guarda os pontos do momento (P5), e entra na semana ponderada e no
+  teto como qualquer outro.
+
+### 9.4 Requisitos não funcionais
+
+- **RNF-19** — O timer não usa `setInterval` como fonte de verdade: a cada tique, o restante é
+  `fim − agora`. Com `prefers-reduced-motion`, o anel não anima a transição.
+- **RNF-20** — A tela de foco é cheia: sem a barra de navegação, como a conversa do chat.
+
+### 9.5 Critérios de aceite
+
+- **CA-36** — Um foco de 25 minutos numa atividade com 10 por pomodoro grava a sessão e um
+  registro `focus` de 10. Repetir o `clientId` não duplica.
+- **CA-37** — `startedAt` de 5 minutos atrás, para 25 minutos, é 422.
+- **CA-38** — Atividade sem `pointsPerPomodoro`: a sessão grava, e o registro não.
+- **CA-39** — Pelo MCP, `update_habit` define `pointsPerPomodoro`, e `list_habits` o mostra.
+- **CA-40** — No móvel: o foco abre de "Hoje no ritmo"; o timer conta, pausa e recomeça; concluir
+  mostra a folha e soma no hábito; recarregar no meio mantém o tempo.
+
+### 9.6 Decisões tomadas na implementação (2026-10-18)
+
+- **O timer vive em `localStorage` (`yb-foco`)**, com o instante final, o início do foco, o
+  `clientId` e a atividade. É conveniência do aparelho, e não estado que outro precise ler. Sem
+  armazenamento, ele vale enquanto a tela está aberta.
+- **Só a pausa se pula.** O foco antes do tempo não passaria pela conferência de duração (RN-36),
+  e o botão "Concluir agora" do protótipo enganaria. No foco, o terceiro botão fica invisível,
+  ocupando o lugar.
+- **Pausar não zera o início.** O tempo pausado conta na duração que o servidor confere, e por isso
+  um foco com pausas sempre passa.
+- **Falhar ao gravar não perde o pomodoro.** A tela guarda o foco terminado e oferece "Tentar de
+  novo" com o mesmo `clientId`, que é idempotente.
+- **`focus_session.habit_id` sem chave estrangeira.** É só o rótulo de qual hábito era, para a
+  sessão não perder o contexto quando a atividade some (`activity_id` vira nulo). O registro
+  `focus` é que leva o hábito de verdade.
+- **Migration `20261018210000_ritmo_foco`, gerada por `prisma migrate diff`.** O `migrate dev`
+  parou num aviso interativo da unique nova, e o `prisma format` reformatava o schema inteiro;
+  nenhum dos dois ficou.
+- **`foco.ts` já existia em `packages/cliente`** (prender o foco do teclado). O do Ritmo se chama
+  `focoDoRitmo.ts`, exportado como `@yu-book/cliente/focoDoRitmo`.
+- **Wake Lock:** o pedido sai e é refeito ao voltar à aba. O navegador da conferência não concedeu,
+  e a pílula "Tela acesa" não apareceu, o que é o certo quando a trava não existe. Num celular de
+  verdade, isso não foi conferido.
+- **Portões:** typecheck limpo; API com 718 de 719 testes passando (a mesma falha de ambiente);
+  MCP com 121 de 121. A interface foi conferida em 375 px:
+  - a entrada por "Hoje no ritmo";
+  - a troca de atividade;
+  - o timer contando, recarregar no meio sem perder o tempo, o fim gravando com "+10";
+  - a folha "Pomodoro 1 de 4" e a pausa em verde.
+
+  O fim foi conferido com o início guardado adiantado à mão, e não com 25 minutos de relógio.
+
+## 10. Fases seguintes (escopo, detalhado quando cada uma começar)
 
 ### Ritmo 3 — Ofensivas, níveis e recordes
 

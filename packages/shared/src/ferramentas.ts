@@ -956,11 +956,12 @@ export const FERRAMENTAS_DO_ACERVO = {
           z.object({
             name: z.string().trim().min(1).max(MAX_ATIVIDADE_NOME),
             points: z.number().int().min(1).max(MAX_PONTOS),
+            pointsPerPomodoro: z.number().int().min(1).max(MAX_PONTOS).optional(),
           }),
         )
         .max(MAX_ATIVIDADES_NA_CRIACAO)
         .optional()
-        .describe("Atividades, cada uma com nome e pontos."),
+        .describe("Atividades: nome, pontos e, se pontua no foco, pontos por pomodoro."),
     },
   },
 
@@ -991,6 +992,7 @@ export const FERRAMENTAS_DO_ACERVO = {
             id: z.string().uuid().optional(),
             name: z.string().trim().min(1).max(MAX_ATIVIDADE_NOME).optional(),
             points: z.number().int().min(1).max(MAX_PONTOS).optional(),
+            pointsPerPomodoro: z.number().int().min(1).max(MAX_PONTOS).nullable().optional(),
             archived: z.boolean().optional(),
           }),
         )
