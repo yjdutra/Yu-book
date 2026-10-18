@@ -37,7 +37,8 @@ describe("revisao_semanal", () => {
 
   it("com escrita, oferece as ações da agenda — só quando eu pedir", async () => {
     const t = await revisao(true);
-    expect(t).toContain("criar eventos e tarefas, concluir tarefas");
+    expect(t).toContain("criar, alterar, converter e excluir eventos");
+    expect(t).toContain("concluir tarefas");
     expect(t).toContain("só quando eu pedir");
     expect(t).not.toContain("Esta sessão só lê");
   });

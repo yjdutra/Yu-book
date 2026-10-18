@@ -374,6 +374,14 @@ const EXECUTORES: Record<NomeDoAssistente, Executor | undefined> = {
   move_card: undefined,
   trash_note: undefined,
   restore_note: undefined,
+  // O controle da agenda é do MCP: o chat cria e conclui, não edita, exclui
+  // nem converte (RN-03).
+  update_event: undefined,
+  delete_event: undefined,
+  update_task: undefined,
+  delete_task: undefined,
+  convert_event_to_task: undefined,
+  convert_task_to_event: undefined,
 
   /// A URL vem do modelo: `abrirPagina` sai só por `pedirPublico` (INV-08).
   /// Página que não abriu **não** lança — volta como texto, e sem fonte: não

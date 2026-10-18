@@ -163,6 +163,20 @@ Escrita — em stdio só contra API local; em HTTP, com escopo `yubook:write`:
 | `create_event` | Cria um evento; dia e hora **locais**, convertidos pela API — marcado como gerado por IA | o app móvel (`apps/movel`) |
 | `create_task` | Cria uma tarefa, com ou sem dia — marcada como gerada por IA | o app móvel (`apps/movel`) |
 | `complete_task` | Conclui ou reabre uma tarefa; a conclusão fica marcada como feita por IA | `complete_task` com `completed: false` |
+| `update_event` | Altera um evento; numa série, só com `scope` (`esta`, `seguintes` ou `todas`) | outro `update_event` |
+| `delete_event` | Exclui um evento ou parte da série, **sem desfazer**; série sem `scope` é recusada | — |
+| `update_task` | Altera título, detalhes, dia, hora ou projeto de uma tarefa | outro `update_task` |
+| `delete_task` | Exclui uma tarefa, **sem desfazer** | — |
+| `convert_event_to_task` | O evento vira tarefa; numa série, só a ocorrência de `occurrenceDate` | `convert_task_to_event` |
+| `convert_task_to_event` | A tarefa aberta vira evento (com hora, de uma hora; sem, de dia inteiro) | `convert_event_to_task` |
+
+**As exclusões da agenda são a exceção ao critério abaixo, e de propósito.** Excluir evento e
+tarefa é irreversível como excluir card, mas o operador pediu controle total da agenda pelo MCP
+para reorganizar o que já estava marcado. Entraram com `destructiveHint`, com a `description`
+mandando conferir o título em `list_agenda` antes, e com uma trava que o card não tem: **série sem
+`scope` não é tocada** — a tool lê o evento e recusa, porque a API trata o alcance ausente como
+`todas`. Nenhuma das seis vai para o chat interno (RN-03), e nenhuma manda `origin`: editar,
+excluir e converter não geram conteúdo; a marca de IA do convertido é a do original.
 
 Sobre a ressalva de `trash_note`: os `[[…]]` de e para a nota são apagados e **voltam** ao
 restaurar (`recalcularLinks` + `reconstruirEntradas`); o `noteId` dos cards que apontavam para ela
@@ -172,7 +186,7 @@ produziu uma afirmação errada na `description` da tool, corrigida na revisão 
 ## O que deliberadamente **não** vira tool
 
 - **Excluir card** (`DELETE /cards/:id`) e **excluir nota em definitivo** — as duas são
-  irreversíveis, e card nem lixeira tem. Um mal-entendido apagaria trabalho sem volta. Ficam onde
+  irreversíveis, e card nem lixeira tem (a agenda é a exceção declarada acima). Um mal-entendido apagaria trabalho sem volta. Ficam onde
   já estão: no aplicativo, com um humano confirmando.
 - **Criar quadro, coluna ou workspace** — estrutura. Criar quadro por conversa gera quadro paralelo
   em silêncio, e excluir coluna exige decidir o destino dos cards (INV-14): é escolha de dono.

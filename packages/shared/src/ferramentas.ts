@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   diasEntre,
+  ESCOPOS_DO_EVENTO,
   horaCivilSchema,
   MAX_EVENTO_DESCRICAO,
   MAX_EVENTO_LOCAL,
@@ -99,6 +100,39 @@ export function periodoDeListAgenda(entrada: { from: string; to?: string | undef
         : null;
   return { from: entrada.from, to, problema };
 }
+
+/**
+ * A repetição semanal que o modelo escreve, em siglas — uma instância nova por
+ * campo: o mesmo schema em duas tools sairia como `$ref` no JSON Schema.
+ */
+function novaRepeticao() {
+  return z.object({
+    days: z.array(z.enum(SIGLAS_DOS_DIAS)).min(1).max(7),
+    until: novoDiaCivilSchema().describe("Último dia, inclusive, AAAA-MM-DD.").optional(),
+  });
+}
+
+/// Estas três frases valem para as tools que mexem num evento existente: o
+/// modelo as lê em cada uma, e é por elas que ele não muda a série inteira
+/// achando que mudou uma ocorrência.
+const ALCANCE_DA_SERIE =
+  "Numa série, `scope` é obrigatório: `esta` (só a ocorrência), `seguintes` ou `todas`; " +
+  "`esta` e `seguintes` pedem `occurrenceDate`, o dia em que a ocorrência aparece em " +
+  "`list_agenda`.";
+
+const ESCRITA_DA_AGENDA = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: false,
+  openWorldHint: false,
+} satisfies AnotacoesDeFerramenta;
+
+const EXCLUSAO_DA_AGENDA = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: true,
+  openWorldHint: false,
+} satisfies AnotacoesDeFerramenta;
 
 export const FERRAMENTAS_DO_ACERVO = {
   search_notes: {
@@ -509,6 +543,162 @@ export const FERRAMENTAS_DO_ACERVO = {
         .boolean()
         .optional()
         .describe("false reabre a tarefa. Omita para concluir."),
+    },
+  },
+
+  // Controle da agenda pelo MCP: editar, excluir e converter. Ficam fora do
+  // chat (`FERRAMENTAS_DO_CHAT`), cuja escrita é criar e concluir (RN-03).
+  update_event: {
+    titulo: "Alterar um evento da agenda",
+    descricao:
+      "Altera um evento: mande só o que muda. Dia e hora são locais do usuário: não converta " +
+      `fuso. ${ALCANCE_DA_SERIE} Não converte em tarefa (\`convert_event_to_task\`).`,
+    escrita: true,
+    anotacoes: ESCRITA_DA_AGENDA,
+    entrada: {
+      eventId: z.string().uuid().describe("Id do evento, de `list_agenda`."),
+      scope: z.enum(ESCOPOS_DO_EVENTO).optional().describe("Numa série: esta, seguintes ou todas."),
+      occurrenceDate: novoDiaCivilSchema()
+        .describe("Dia da ocorrência, AAAA-MM-DD, para `esta` e `seguintes`.")
+        .optional(),
+      title: z.string().trim().min(1).max(MAX_EVENTO_TITULO).optional().describe("Novo título."),
+      date: novoDiaCivilSchema().describe("Novo dia de início, AAAA-MM-DD.").optional(),
+      startTime: horaCivilSchema.describe("Nova hora de início, HH:MM.").optional(),
+      endTime: horaCivilSchema.describe("Nova hora de término, HH:MM.").optional(),
+      endDate: novoDiaCivilSchema()
+        .describe("Novo último dia, AAAA-MM-DD, só se passar de um dia.")
+        .optional(),
+      allDay: z.boolean().optional().describe("true para dia inteiro; false volta à hora."),
+      location: z.string().trim().max(MAX_EVENTO_LOCAL).optional().describe("Local; vazio apaga."),
+      description: z
+        .string()
+        .max(MAX_EVENTO_DESCRICAO)
+        .optional()
+        .describe("Detalhes; substituem os atuais."),
+      boardId: z
+        .string()
+        .uuid()
+        .nullable()
+        .optional()
+        .describe("O projeto, de `list_boards`; null tira."),
+      repeat: novaRepeticao()
+        .nullable()
+        .optional()
+        .describe("Nova repetição semanal; null deixa de repetir. Não vale com `esta`."),
+    },
+  },
+
+  delete_event: {
+    titulo: "Excluir um evento da agenda",
+    descricao:
+      "Exclui um evento, sem desfazer. Só exclua o que o usuário pediu, com o título conferido " +
+      `em \`list_agenda\`. ${ALCANCE_DA_SERIE}`,
+    escrita: true,
+    anotacoes: EXCLUSAO_DA_AGENDA,
+    entrada: {
+      eventId: z.string().uuid().describe("Id do evento, de `list_agenda`."),
+      scope: z.enum(ESCOPOS_DO_EVENTO).optional().describe("Numa série: esta, seguintes ou todas."),
+      occurrenceDate: novoDiaCivilSchema()
+        .describe("Dia da ocorrência, AAAA-MM-DD, para `esta` e `seguintes`.")
+        .optional(),
+    },
+  },
+
+  update_task: {
+    titulo: "Alterar uma tarefa",
+    descricao:
+      "Altera título, detalhes, dia, hora ou projeto de uma tarefa: mande só o que muda. " +
+      "`date: null` tira a data, e a hora vai junto. Não conclui (`complete_task`) nem converte " +
+      "(`convert_task_to_event`).",
+    escrita: true,
+    anotacoes: ESCRITA_DA_AGENDA,
+    entrada: {
+      taskId: z.string().uuid().describe("Id da tarefa, de `list_agenda`."),
+      title: z.string().trim().min(1).max(MAX_TAREFA_TITULO).optional().describe("Novo título."),
+      descriptionMd: z
+        .string()
+        .max(MAX_TAREFA_DESCRICAO)
+        .optional()
+        .describe("Detalhes em Markdown; substituem os atuais."),
+      date: novoDiaCivilSchema()
+        .nullable()
+        .optional()
+        .describe("Novo dia, AAAA-MM-DD; null deixa sem data."),
+      time: horaCivilSchema.nullable().optional().describe("Nova hora, HH:MM; null tira a hora."),
+      boardId: z
+        .string()
+        .uuid()
+        .nullable()
+        .optional()
+        .describe("O projeto, de `list_boards`; null tira."),
+    },
+  },
+
+  delete_task: {
+    titulo: "Excluir uma tarefa",
+    descricao:
+      "Exclui uma tarefa, sem desfazer. Só exclua o que o usuário pediu. Tarefa feita se " +
+      "conclui (`complete_task`), não se exclui.",
+    escrita: true,
+    anotacoes: EXCLUSAO_DA_AGENDA,
+    entrada: {
+      taskId: z.string().uuid().describe("Id da tarefa, de `list_agenda`."),
+    },
+  },
+
+  convert_event_to_task: {
+    titulo: "Transformar um evento em tarefa",
+    descricao:
+      "O evento vira tarefa com o título, os detalhes, o dia, a hora de início e o projeto dele, " +
+      "e some da agenda. Local e link vão para os detalhes; a duração se perde. Numa série, só " +
+      "a ocorrência de `occurrenceDate` (obrigatório) vira tarefa, e as outras ficam. Os campos " +
+      "opcionais substituem o que vem do evento.",
+    escrita: true,
+    anotacoes: ESCRITA_DA_AGENDA,
+    entrada: {
+      eventId: z.string().uuid().describe("Id do evento, de `list_agenda`."),
+      occurrenceDate: novoDiaCivilSchema()
+        .describe("Numa série, o dia da ocorrência, AAAA-MM-DD.")
+        .optional(),
+      title: z.string().trim().min(1).max(MAX_TAREFA_TITULO).optional().describe("Outro título."),
+      date: novoDiaCivilSchema()
+        .nullable()
+        .optional()
+        .describe("Outro dia, AAAA-MM-DD; null deixa a tarefa sem data."),
+      time: horaCivilSchema.nullable().optional().describe("Outra hora, HH:MM; null, sem hora."),
+      boardId: z
+        .string()
+        .uuid()
+        .nullable()
+        .optional()
+        .describe("Outro projeto, de `list_boards`; null tira."),
+    },
+  },
+
+  convert_task_to_event: {
+    titulo: "Transformar uma tarefa em evento",
+    descricao:
+      "A tarefa aberta vira evento com o título, os detalhes, o dia e o projeto dela, e sai da " +
+      "lista de tarefas. Com hora, o evento começa nela e dura uma hora; sem hora, é de dia " +
+      "inteiro. Tarefa sem data exige `date`; tarefa concluída é recusada. Os campos opcionais " +
+      "substituem o que vem da tarefa.",
+    escrita: true,
+    anotacoes: ESCRITA_DA_AGENDA,
+    entrada: {
+      taskId: z.string().uuid().describe("Id da tarefa, de `list_agenda`."),
+      date: novoDiaCivilSchema().describe("Dia do evento, AAAA-MM-DD.").optional(),
+      startTime: horaCivilSchema.describe("Hora de início, HH:MM.").optional(),
+      endTime: horaCivilSchema.describe("Hora de término, HH:MM.").optional(),
+      allDay: z.boolean().optional().describe("true para dia inteiro."),
+      title: z.string().trim().min(1).max(MAX_EVENTO_TITULO).optional().describe("Outro título."),
+      location: z.string().trim().max(MAX_EVENTO_LOCAL).optional().describe("Local."),
+      boardId: z
+        .string()
+        .uuid()
+        .nullable()
+        .optional()
+        .describe("Outro projeto, de `list_boards`; null tira."),
+      repeat: novaRepeticao().optional().describe("Repetição semanal, a partir do dia."),
     },
   },
   /// `satisfies`, e não uma anotação de tipo: a anotação apagaria a forma

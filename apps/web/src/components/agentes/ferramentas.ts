@@ -32,6 +32,13 @@ const EXPLICACAO: Record<NomeDoAssistente, string> = {
   create_event: "Marca um compromisso na agenda, no dia e na hora que você pedir.",
   create_task: "Cria uma tarefa, com ou sem dia e hora, quando você pedir.",
   complete_task: "Marca uma tarefa como feita, ou a reabre, quando você pedir.",
+  // Controle da agenda — só o MCP as publica; o chat não as oferece (RN-03).
+  update_event: "Muda horário, título ou detalhes de um evento da agenda.",
+  delete_event: "Exclui um evento da agenda, sem desfazer.",
+  update_task: "Muda título, dia, hora ou detalhes de uma tarefa.",
+  delete_task: "Exclui uma tarefa, sem desfazer.",
+  convert_event_to_task: "Transforma um evento em tarefa.",
+  convert_task_to_event: "Transforma uma tarefa em evento.",
   open_page:
     "Lê o texto de uma página pública, pelo endereço — o seu ou um que a busca achou. " +
     "LinkedIn nunca, nem endereço da rede interna.",
