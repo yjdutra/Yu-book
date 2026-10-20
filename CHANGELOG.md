@@ -17,6 +17,115 @@ _Nada pendente._
 
 ---
 
+## [0.39.0] — 2026-10-20
+
+**Pastas na gaveta de links, foco ajustável, assistente rápido e o lugar do evento no celular.**
+Dois planos do mesmo dia numa entrada só, porque movem o mesmo conjunto de pacotes: o de gaveta de
+links, foco e assistente rápido, e o de modo de visualização e local do evento. A gaveta de links
+do web ganha pastas de favoritos e um campo único que busca e salva. O foco do celular passa a ter
+o tempo ajustável, e os pontos por pomodoro ficam proporcionais aos minutos. A aba Assistente do
+celular abre num assistente rápido, de conversa descartável. Tocar num evento ou numa tarefa
+mostra o item antes de editar, e o evento ganha um lugar de verdade, buscado no Google, com mapa e
+"Como chegar".
+
+**Os seis pacotes se movem**, porque o contrato mudou em `packages/shared`: `folderId` no link e
+as pastas, `ephemeral` na conversa, `place` no evento, os códigos de erro do mapa e a conta
+`pontosDoFoco`. `packages/shared` vai de `0.24.0` para `0.25.0`, `apps/api` e `apps/mcp` de
+`0.25.0` para `0.26.0`, `apps/web` de `0.32.0` para `0.33.0`, e `apps/movel` e `packages/cliente`
+de `0.9.0` para `0.10.0`. No MCP o que muda é só o texto do detalhe do evento, que passa a trazer
+o endereço; nenhuma tool nova, e o chat paga o mesmo por turno.
+
+**Três migrations, só aditivas**, aplicadas pela API no boot, nesta ordem:
+- `20261020221747_links_pastas` cria a tabela `link_folder` e a coluna `folder_id`, opcional, em
+  `link`, com `ON DELETE SET NULL`;
+- `20261020222249_conversa_descartavel` acrescenta `ephemeral`, falso por padrão, em
+  `ai_conversation`;
+- `20261020224314_evento_lugar` acrescenta `place_id`, `place_address`, `place_lat` e `place_lng`,
+  opcionais, em `event`.
+
+Nenhuma linha existente muda. **No deploy, a API sobe antes do web e do móvel.** Contra a API
+velha, o web não acha `/link-folders` e o móvel não acha `/places/*`. O formatador lê `place`
+tolerando a ausência, e o MCP contra a API velha só omite o endereço.
+
+**O Google precisa de chave.** A busca de lugar e o mapa só funcionam com a env opcional
+`GOOGLE_MAPS_API_KEY` na API, com a Places API (New) e a Maps Static API ligadas no projeto do
+Google. Sem ela, o local segue texto livre, e "Abrir no Maps" busca pelo texto.
+
+Portões: `pnpm typecheck` limpo nos seis pacotes. O MCP passou com **121 testes**, os mesmos. A API
+passou com **741 de 742** (eram 718 de 719). A única falha é de ambiente, a mesma das entradas
+anteriores: `web.test.ts › DNS rebinding` sobe um servidor em `127.0.0.2`, endereço que o macOS
+não tem sem alias de loopback. As suítes rodaram num Postgres 15 temporário, porque o Postgres
+local do operador estava fora do ar. São novas as suítes de pastas de links, conversa
+descartável, lugar do evento e busca de lugar, mais o caso proporcional do foco. O celular foi
+conferido no navegador em 375 px, no tema escuro, e a gaveta no desktop. **O Google real não foi
+chamado**: sem chave, a busca e o mapa foram conferidos contra um dublê local.
+
+### Adicionado
+- **Pastas de favoritos na gaveta de links.** As pastas têm um nível só e aparecem como tiles no
+  começo da grade. Clicar abre a pasta, com o caminho "Favoritos › Pasta". Arrastar um favorito
+  para um tile o põe na pasta, e soltá-lo em "Favoritos", no caminho, o devolve à raiz. Excluir a
+  pasta devolve os links ao fim da raiz. Com termo de busca, as pastas somem e os links aparecem
+  todos juntos.
+- **Rotas de pasta:** `GET`, `POST`, `PATCH` e `DELETE` em `/link-folders`, e
+  `PATCH /link-folders/:id/move`. `PATCH /links/:id/move` aceita `folderId`, a pasta ou `null` para
+  a raiz. Nome de pasta repetido é 409.
+- **Foco com tempo ajustável.** Uma folha ajusta o foco (5 a 120 min), a pausa (1 a 30) e a pausa
+  longa (5 a 60). O ajuste fica lembrado no aparelho (RF-55).
+- **Atalho do pomodoro sem atividade.** O Início ganhou o cartão "Pomodoro", e o ícone do app
+  instalado oferece dois atalhos, Pomodoro e Assistente.
+- **Assistente rápido no celular.** A aba Assistente abre numa tela cheia feita para pedir uma
+  coisa e voltar: marcar evento ou anotar tarefa, falando ou escrevendo. O agente escolhido fica
+  lembrado no aparelho, há sugestões de pedido, e o que foi criado aparece com Desfazer. Um gato
+  preto em pixel art acompanha a resposta, parado, pensando, feito ou com erro. A animação dele
+  para com `prefers-reduced-motion`. A lista de conversas mudou para `/assistente/conversas`.
+- **Conversa descartável.** `POST /ai/conversations` aceita `ephemeral`. A conversa descartável
+  não entra na lista e é apagada passadas 24 h da última mensagem. O gasto dela continua contando
+  no teto diário.
+- **Modo de visualização de evento e tarefa no celular.** Tocar num item mostra quando é, a
+  repetição, o local, o link, o projeto, o hábito, a descrição e a marca de IA, com Editar. Na
+  tarefa, também Concluir e Reabrir. O "Abrir" do que o chat criou também abre neste modo.
+- **Local do evento com o Google Maps.** O campo de local sugere lugares do Google enquanto se
+  digita. Escolhido um lugar, o evento guarda o endereço e as coordenadas ao lado do nome. A
+  visualização mostra o mapa, "Como chegar" e "Abrir no Maps". Mudar o texto à mão, sem escolher
+  uma sugestão, desfaz o vínculo, e o local vira só texto.
+- **Rotas de lugar:** `GET /places/autocomplete`, `GET /places/:placeId` e `GET /places/map`, e os
+  códigos de erro `MAPAS_INDISPONIVEL` (sem chave) e `MAPAS_FALHOU` (o Google não respondeu).
+  `GET /events` e `GET /events/:id` trazem `place` em cada evento.
+
+### Alterado
+- **Os pontos do foco são proporcionais aos minutos:** `floor(pontos × minutos / 25)`. Um foco de
+  50 min vale dois pomodoros, e um de 10 min, nenhum. O de 25 min vale o mesmo de antes. A conta
+  mora em `packages/shared`, e quem a aplica é o servidor (RF-56).
+- **Os modos do foco** se chamam Foco, Pausa e Pausa longa, sem o número de minutos no nome.
+- **O campo da gaveta de links fica no topo e é um só.** Ele busca e, quando o texto é um
+  endereço, oferece salvar como favorito ou para ver depois. O formulário fixo do rodapé saiu. As
+  ações de cada favorito saíram do canto sobreposto e foram para um menu "⋯", que abre para o
+  lado com espaço. O clique que termina um arraste não abre o link.
+- **O card de atividade do hábito** e a linha de "Hoje no ritmo" mostram o título inteiro em cima,
+  quebrando linha, e a meta, os pontos e a ação embaixo.
+- **O detalhe do evento no chat e no MCP** mostra o endereço ao lado do local, quando há lugar. A
+  lista não muda.
+- **Converter evento em tarefa** leva o endereço do lugar para a descrição da tarefa.
+
+### Segurança
+- **A chave do Google não sai do servidor.** A busca, o detalhe e o mapa são chamados pela API, só
+  para hosts fixos do Google (`places.googleapis.com` e `maps.googleapis.com`), como o bucket dos
+  anexos (INV-08). O mapa chega ao app como imagem pela API. O endereço de saída nunca vem do
+  usuário.
+
+### Limitações conhecidas
+- **O Google real não foi testado.** A busca, o detalhe e o mapa só rodaram contra o dublê.
+- **A descartável vencida só se apaga quando outra nasce.** A limpeza pega carona na criação da
+  próxima conversa descartável, sem relógio novo. Quem para de usar o assistente rápido deixa a
+  última no banco.
+- **O lugar estruturado é só do celular.** O chat e o MCP escrevem só o texto do local. Mudar o
+  texto por eles desfaz o vínculo com o lugar. O web não edita a agenda.
+- **Tarefa não tem local**, só o modo de visualização.
+- **O ajuste do foco fica no aparelho.** Outro aparelho começa nos 25, 5 e 15 de padrão.
+- **Interface conferida só no tema escuro.**
+
+---
+
 ## [0.38.0] — 2026-10-18
 
 **Ritmo no celular: hábitos, ofensivas, humor, skills e foco (frente Ritmo, Ritmo 2 a 6).** A

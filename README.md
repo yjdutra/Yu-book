@@ -222,7 +222,7 @@ on purpose.
   deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
   unique index), never through process memory. A run that started is never retried, because a
   retry costs money again.
-- **Tests against real infrastructure:** 719 integration tests boot the whole Fastify app against a
+- **Tests against real infrastructure:** 742 integration tests boot the whole Fastify app against a
   real Postgres; 121 more cover the MCP server.
 
 ---
@@ -390,6 +390,13 @@ single day from paying for the whole week. Around the habits come streaks and pe
 daily mood check-in that keeps the streak alive without earning points, and skills: ways of
 acting you practice, which level up with use. Habits and skills are set up through the MCP
 server; the phone records and shows them.
+
+The latest round polishes daily use. Favorites in the link drawer can be grouped into folders,
+with one field at the top that both searches and saves. On the phone, the focus timer's lengths
+are adjustable, a quick assistant opens straight to a disposable conversation for booking an event
+or jotting down a task, events and tasks open in a read view before editing, and an event's place
+can be picked from Google, with a map and directions. The Google lookup needs an optional API key;
+without it, the place stays plain text.
 
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
