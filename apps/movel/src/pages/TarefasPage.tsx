@@ -140,7 +140,7 @@ export function TarefasPage() {
   }
 
   function abrirItem(item: ItemDoDia) {
-    if (item.tipo === "tarefa") abrir({ modo: "editar", tarefa: item.tarefa });
+    if (item.tipo === "tarefa") abrir({ modo: "ver", tarefa: item.tarefa });
   }
 
   const contagemAbertas = abertas.data?.filter((t) => t.completedAt === null).length;

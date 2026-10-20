@@ -97,6 +97,15 @@ export function IconeLink(p: IconeProps) {
   );
 }
 
+/** Pasta: a de favoritos da gaveta de links. */
+export function IconePasta(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M2.2 4.6c0-.7.5-1.2 1.2-1.2h2.8l1.4 1.5h4.9c.7 0 1.2.5 1.2 1.2v5.8c0 .7-.5 1.2-1.2 1.2H3.4c-.7 0-1.2-.5-1.2-1.2z" />
+    </Icone>
+  );
+}
+
 export function IconeLixeira(p: IconeProps) {
   return (
     <Icone {...p}>
@@ -308,6 +317,25 @@ export function IconeTeclado(p: IconeProps) {
 }
 
 /** Relógio — prazo que ainda não venceu, e a fila de "ver depois". */
+/** Pino de mapa: o local do evento. */
+export function IconeLocal(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M8 14.2s4.6-4.1 4.6-7.6a4.6 4.6 0 0 0-9.2 0c0 3.5 4.6 7.6 4.6 7.6Z" />
+      <circle cx="8" cy="6.6" r="1.7" />
+    </Icone>
+  );
+}
+
+/** Seta de navegação: o "Como chegar". */
+export function IconeRota(p: IconeProps) {
+  return (
+    <Icone {...p}>
+      <path d="M13.6 2.4 2.6 7.1l4.6 1.7 1.7 4.6z" />
+    </Icone>
+  );
+}
+
 export function IconeRelogio(p: IconeProps) {
   return (
     <Icone {...p}>

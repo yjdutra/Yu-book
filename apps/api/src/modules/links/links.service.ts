@@ -18,6 +18,7 @@ function toLink(link: LinkNoBanco): Link {
     domain: link.domain,
     kind: link.kind,
     position: link.position,
+    folderId: link.folderId,
     createdAt: link.createdAt.toISOString(),
     // RF-14: sem título de verdade, o nome é o domínio — e dá para tentar de novo.
     semTitulo: link.title === link.domain,
@@ -78,8 +79,11 @@ export async function criar(userId: string, input: LinkInput): Promise<Link> {
     ? { title: input.title.trim(), durationSeconds: null }
     : await descrever(normalizada.url, normalizada.domain);
 
+  // O favorito novo entra no fim da raiz da gaveta.
   const position =
-    kind === "favorito" ? await prisma.link.count({ where: { userId, kind } }) : 0;
+    kind === "favorito"
+      ? await prisma.link.count({ where: { userId, kind, folderId: null } })
+      : 0;
 
   try {
     const link = await prisma.link.create({
@@ -125,16 +129,20 @@ export async function atualizar(
       data: {
         ...(input.title !== undefined && { title: input.title.slice(0, 200) }),
         ...(input.kind !== undefined && { kind: input.kind }),
-        // RF-31: quem chega nos favoritos entra no fim da grade.
+        // Pasta só existe entre os favoritos: trocar de lista sempre sai dela.
+        ...(mudouDeLista && { folderId: null }),
+        // RF-31: quem chega nos favoritos entra no fim da raiz da grade.
         ...(mudouDeLista &&
           input.kind === "favorito" && {
-            position: await prisma.link.count({ where: { userId, kind: "favorito" } }),
+            position: await prisma.link.count({
+              where: { userId, kind: "favorito", folderId: null },
+            }),
           }),
       },
     });
 
     // A lista de origem fecha a fila que ficou aberta.
-    if (mudouDeLista && atual.kind === "favorito") await renumerarFavoritos(userId);
+    if (mudouDeLista && atual.kind === "favorito") await renumerarFavoritos(userId, atual.folderId);
 
     return toLink(link);
   } catch (erro) {
@@ -148,16 +156,26 @@ export async function atualizar(
 export async function excluir(userId: string, id: string): Promise<void> {
   const link = await doUsuario(userId, id);
   await prisma.link.delete({ where: { id } });
-  if (link.kind === "favorito") await renumerarFavoritos(userId);
+  if (link.kind === "favorito") await renumerarFavoritos(userId, link.folderId);
 }
 
-/** RN-03: posições contíguas a partir de 0, como no kanban. */
-async function renumerarFavoritos(userId: string, ordem?: string[]): Promise<void> {
+type Cliente = Prisma.TransactionClient | typeof prisma;
+
+/**
+ * RN-03: posições contíguas a partir de 0, como no kanban — dentro de um
+ * recipiente só: a raiz da gaveta (`folderId` nulo) ou uma pasta.
+ */
+export async function renumerarFavoritos(
+  userId: string,
+  folderId: string | null,
+  ordem?: string[],
+  db: Cliente = prisma,
+): Promise<void> {
   const ids =
     ordem ??
     (
-      await prisma.link.findMany({
-        where: { userId, kind: "favorito" },
+      await db.link.findMany({
+        where: { userId, kind: "favorito", folderId },
         orderBy: { position: "asc" },
         select: { id: true },
       })
@@ -166,28 +184,49 @@ async function renumerarFavoritos(userId: string, ordem?: string[]): Promise<voi
   if (ids.length === 0) return;
 
   const valores = Prisma.join(ids.map((id, i) => Prisma.sql`(${id}::uuid, ${i}::int)`));
-  await prisma.$executeRaw`
+  await db.$executeRaw`
     UPDATE link SET position = v.pos
     FROM (VALUES ${valores}) AS v(id, pos)
     WHERE link.id = v.id
   `;
 }
 
-export async function mover(userId: string, id: string, position: number): Promise<Link[]> {
+/**
+ * Reordena o favorito no recipiente dele, ou o leva a outro (`folderId`: uma
+ * pasta, `null` a raiz). Mudando de recipiente, a origem fecha o buraco.
+ */
+export async function mover(
+  userId: string,
+  id: string,
+  position: number,
+  folderId?: string | null,
+): Promise<Link[]> {
   const link = await doUsuario(userId, id);
   if (link.kind !== "favorito") throw invalido("Só favoritos têm ordem manual.");
 
-  const outros = await prisma.link.findMany({
-    where: { userId, kind: "favorito", NOT: { id } },
-    orderBy: { position: "asc" },
-    select: { id: true },
+  const destino = folderId === undefined ? link.folderId : folderId;
+  if (destino) {
+    const pasta = await prisma.linkFolder.findFirst({ where: { id: destino, userId } });
+    if (!pasta) throw notFound("Pasta não encontrada");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const outros = await tx.link.findMany({
+      where: { userId, kind: "favorito", folderId: destino, NOT: { id } },
+      orderBy: { position: "asc" },
+      select: { id: true },
+    });
+
+    const indice = Math.min(Math.max(position, 0), outros.length);
+    const ordem = outros.map((l) => l.id);
+    ordem.splice(indice, 0, id);
+
+    if (destino !== link.folderId) {
+      await tx.link.update({ where: { id }, data: { folderId: destino } });
+      await renumerarFavoritos(userId, link.folderId, undefined, tx);
+    }
+    await renumerarFavoritos(userId, destino, ordem, tx);
   });
-
-  const indice = Math.min(Math.max(position, 0), outros.length);
-  const ordem = outros.map((l) => l.id);
-  ordem.splice(indice, 0, id);
-
-  await renumerarFavoritos(userId, ordem);
   return listar(userId, "favorito");
 }
 

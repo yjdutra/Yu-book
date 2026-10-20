@@ -116,6 +116,7 @@ model User {
   skillUses     SkillUse[]
   focusSessions FocusSession[]
   links         Link[]
+  linkFolders   LinkFolder[]
   refreshTokens RefreshToken[]
 
   aiPreference    AiPreference?
@@ -415,17 +416,42 @@ model Link {
   kind   LinkKind @default(depois)
   /// Duração em segundos, quando a fonte informa (hoje: vídeo do YouTube).
   durationSeconds Int? @map("duration_seconds")
-  /// Ordem manual; só significa algo entre os favoritos (RN-03).
+  /// Ordem manual; só significa algo entre os favoritos (RN-03), e conta dentro
+  /// do recipiente: a raiz da gaveta ou a pasta do link.
+  position  Int      @default(0)
+  /// A pasta do favorito (um nível só). Nula na raiz e sempre nula em "ver
+  /// depois". Excluir a pasta devolve os links à raiz pelo service; o
+  /// `SetNull` é só a rede.
+  folderId  String?  @map("folder_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder LinkFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, kind, url])
+  @@index([folderId])
+  @@index([userId, kind, position])
+  @@index([userId, kind, createdAt(sort: Desc)])
+  @@map("link")
+}
+
+/// Pasta de favoritos da gaveta de links: um nível só, sem subpasta.
+model LinkFolder {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  /// Ordem manual entre as pastas, contígua a partir de 0.
   position  Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  links Link[]
 
-  @@unique([userId, kind, url])
-  @@index([userId, kind, position])
-  @@index([userId, kind, createdAt(sort: Desc)])
-  @@map("link")
+  @@unique([userId, name])
+  @@index([userId, position])
+  @@map("link_folder")
 }
 
 model Company {
@@ -470,6 +496,13 @@ model Event {
   /// Ocorrências canceladas, pelo dia local em que começam. Data civil.
   exdates     DateTime[] @default([]) @db.Date
   location    String?
+  /// O lugar do Google por trás de `location` (o nome), quando foi escolhido
+  /// numa sugestão: endereço e coordenadas para o mapa e o "Como chegar". Os
+  /// quatro andam juntos, e mudar o texto à mão sem escolher de novo os limpa.
+  placeId      String? @map("place_id")
+  placeAddress String? @map("place_address")
+  placeLat     Float?  @map("place_lat")
+  placeLng     Float?  @map("place_lng")
   url         String?
   noteId      String?  @map("note_id") @db.Uuid
   cardId      String?  @map("card_id") @db.Uuid
@@ -753,6 +786,9 @@ model AiConversation {
   /// o agente não apaga a conversa, e `agentName` guarda quem respondeu.
   agentId   String? @map("agent_id") @db.Uuid
   agentName String? @map("agent_name")
+  /// Conversa do assistente rápido do celular: fica fora da lista e é apagada
+  /// passadas 24 h da última mensagem. Existe só para a 2ª interação ler a 1ª.
+  ephemeral Boolean @default(false)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

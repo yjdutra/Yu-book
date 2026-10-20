@@ -23,10 +23,17 @@ import { lembrarDoPlano } from "../lib/plano";
 const ConversaPage = lazy(() =>
   import("../pages/ConversaPage").then((m) => ({ default: m.ConversaPage })),
 );
+/** O assistente rápido, a porta de entrada da área: o mesmo chunk de Markdown. */
+const AssistenteRapidoPage = lazy(() =>
+  import("../pages/AssistenteRapidoPage").then((m) => ({ default: m.AssistenteRapidoPage })),
+);
 
-/** `/assistente/nova` e `/assistente/:id` — a conversa em tela cheia. */
+/**
+ * `/assistente/nova` e `/assistente/:id` — a conversa em tela cheia. A lista
+ * guardada, `/assistente/conversas`, é página comum da casca.
+ */
 export function naConversa(pathname: string): boolean {
-  return /^\/assistente\/[^/]+\/?$/.test(pathname);
+  return /^\/assistente\/(?!conversas\/?$)[^/]+\/?$/.test(pathname);
 }
 
 // Projetos não está na barra (cinco posições é o teto do polegar): chega-se
@@ -40,6 +47,7 @@ const TITULOS: Record<string, string> = {
   "/ritmo": "Ritmo",
   "/foco": "Foco",
   "/assistente": "Assistente",
+  "/assistente/conversas": "Conversas",
 };
 
 /**
@@ -82,6 +90,25 @@ export function Casca() {
           <Navegacao soTrilho />
           <FocoPage />
         </ProvedorRitmo>
+      </ProvedorFolhaItem>
+    );
+  }
+
+  // O assistente rápido é tela cheia, como a conversa: o compositor fica
+  // preso acima do teclado, e a barra sai.
+  if (pathname === "/assistente") {
+    return (
+      <ProvedorFolhaItem>
+        <Navegacao soTrilho />
+        <Suspense
+          fallback={
+            <p role="status" className="p-6 text-sm text-ink-400 lg:pl-34">
+              Abrindo o assistente…
+            </p>
+          }
+        >
+          <AssistenteRapidoPage />
+        </Suspense>
       </ProvedorFolhaItem>
     );
   }
@@ -136,7 +163,7 @@ export function Casca() {
                   <Route path="/ritmo" element={<RitmoPage />} />
                   <Route path="/ritmo/habitos/:id" element={<HabitoPage />} />
                   <Route path="/ritmo/:aba" element={<RitmoPage />} />
-                  <Route path="/assistente" element={<AssistentePage />} />
+                  <Route path="/assistente/conversas" element={<AssistentePage />} />
                   {/* Inclui o `/login` de onde se acabou de entrar. */}
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

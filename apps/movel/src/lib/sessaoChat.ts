@@ -33,6 +33,8 @@ export interface Envio {
   pergunta: string;
   /** Só na criação: o agente é fixo por conversa (Etapa D). */
   agenteId: string | null;
+  /** Só na criação: a conversa descartável do assistente rápido. */
+  efemera?: boolean;
   /** A conversa nasceu — quem chama troca a rota para ela. */
   aoCriar: (id: string) => void;
   /** Recusada antes do fluxo: a pergunta volta ao campo. */
@@ -55,7 +57,7 @@ export function useEnvioChat() {
   const limparErro = useCallback(() => setErro(null), []);
 
   const enviar = useCallback(
-    async ({ conversaId, pergunta, agenteId, aoCriar, aoRecusar }: Envio) => {
+    async ({ conversaId, pergunta, agenteId, efemera, aoCriar, aoRecusar }: Envio) => {
       const texto = pergunta.trim();
       if (!texto || abortarRef.current) return;
       const controle = new AbortController();
@@ -72,6 +74,7 @@ export function useEnvioChat() {
           const nova = await criar.mutateAsync({
             title: texto.slice(0, 60),
             ...(agenteId && { agentId: agenteId }),
+            ...(efemera && { ephemeral: true }),
           });
           alvo = nova.id;
           /// Saiu da tela enquanto a conversa nascia: nada vai ao provedor, e

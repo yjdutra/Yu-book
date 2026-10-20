@@ -37,6 +37,7 @@ import {
 import type {
   EscopoDoEvento,
   EventItem,
+  EventPlace,
   EventScope,
   EventUpdateInput,
   PedidoDeHorario,
@@ -60,6 +61,7 @@ import {
 import { useHoje } from "../../lib/hoje";
 import { useQuadros } from "../../lib/quadros";
 import { Alca } from "../Alca";
+import { CampoLocal } from "./CampoLocal";
 import { ErroDoCampo, GrupoPilulas, Pilula, PilulaEscolher } from "./Pilulas";
 
 export type TipoItem = "evento" | "tarefa";
@@ -80,6 +82,9 @@ interface Estado {
   inicio: string | null;
   fim: Fim;
   local: string;
+  /// O lugar do Google por trás de `local`, quando escolhido numa sugestão.
+  /// Escrever no campo à mão o desfaz (`CampoLocal`).
+  lugar: EventPlace | null;
   /// A hora da tarefa, opcional (só com dia).
   hora: string | null;
   projeto: string | null;
@@ -131,6 +136,7 @@ function estadoInicial(abertura: AberturaFolha, hoje: string | null, fuso: strin
     // folha começa no mesmo padrão, e não numa cópia dele.
     fim: { tipo: "duracao", minutos: DURACAO_PADRAO_DO_EVENTO_MIN } as Fim,
     local: "",
+    lugar: null,
     hora: null,
     projeto: null,
     descricao: "",
@@ -172,6 +178,8 @@ function estadoInicial(abertura: AberturaFolha, hoje: string | null, fuso: strin
       // e um evento de três dias não encolhe para uma pílula de 2 h.
       fim: { tipo: "duracao", minutos },
       local: e.location ?? "",
+      // Ausente na API da janela do deploy: lê como sem lugar.
+      lugar: e.place ?? null,
       projeto: e.board?.id ?? null,
       descricao: e.description,
       // `!= null`, não `!== null`: na janela do deploy a API velha não manda o
@@ -251,6 +259,7 @@ function paraNovoEvento(e: Estado, dia: string, inicio: string | null, cabe: boo
     title: e.titulo.trim(),
     description: e.descricao,
     location: e.local.trim() || null,
+    ...(e.lugar && e.local.trim() && { place: e.lugar }),
     boardId: e.projeto,
     ...pedidoDeHorario(e, dia, inicio),
     ...(regra && { repeat: regra }),
@@ -304,6 +313,12 @@ function mudancaDoEvento(
   if (e.titulo.trim() !== ini.titulo) m.title = e.titulo.trim();
   if (e.descricao !== ini.descricao) m.description = e.descricao;
   if (e.local.trim() !== ini.local) m.location = e.local.trim() || null;
+  // O lugar escolhido de novo vai explícito; o texto mudado sem lugar o
+  // desfaz no servidor sozinho.
+  if (e.lugar && e.lugar.placeId !== ini.lugar?.placeId) {
+    m.location = e.local.trim() || null;
+    m.place = e.lugar;
+  }
   if (e.projeto !== ini.projeto) m.boardId = e.projeto;
   const regra = regraDo(e, cabe);
   if (comRegra && !mesmaRegra(regra, regraDo(ini, true))) m.repeat = regra;
@@ -1243,12 +1258,11 @@ export function FormularioItem({
             {detalhes && (
               <div id={idDetalhes} className="mt-3 space-y-4">
                 {evento && (
-                  <CampoTexto
-                    rotulo="Local"
+                  <CampoLocal
                     valor={e.local}
+                    lugar={e.lugar}
                     erro={erros.local}
-                    onMudar={(local) => mudar({ local }, "local")}
-                    maxLength={200}
+                    onMudar={(local, lugar) => mudar({ local, lugar }, "local")}
                   />
                 )}
                 <CampoTexto

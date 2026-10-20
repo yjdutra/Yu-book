@@ -67,3 +67,100 @@ html {
 .cartao-pastel {
   background-color: color-mix(in srgb, var(--tom) var(--forca-pastel), var(--color-superficie));
 }
+
+/* ---------------------------------------------------------------
+   O gato do assistente rápido (`GatoPixel`). Só `transform` e
+   `opacity`: nada de layout por quadro. Com menos movimento pedido,
+   o bloco do tema corta tudo e ele fica parado.
+   --------------------------------------------------------------- */
+.gato g {
+  transform-box: fill-box;
+}
+.gato-rabo {
+  transform-origin: 0% 100%;
+  animation: gato-rabo 2.4s ease-in-out infinite;
+}
+.gato-olhos {
+  transform-origin: 50% 50%;
+  animation: gato-piscar 4.2s steps(1, end) infinite;
+}
+.gato-pensando .gato-olhos,
+.gato-feito .gato-olhos {
+  animation: none;
+}
+.gato-pensando .gato-corpo {
+  animation: gato-balanco 1.2s ease-in-out infinite;
+}
+.gato-pata-e,
+.gato-pata-d {
+  animation: gato-digitar 0.32s steps(1, end) infinite;
+}
+.gato-pata-d {
+  animation-delay: 0.16s;
+}
+.gato-feito .gato-corpo {
+  animation: gato-pulo 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) 2;
+}
+.gato-feito .gato-rabo {
+  animation-duration: 0.9s;
+}
+.gato-balao {
+  transform-origin: 20% 100%;
+  animation: gato-balao 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+
+@keyframes gato-rabo {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-14deg);
+  }
+}
+@keyframes gato-piscar {
+  0%,
+  94% {
+    transform: scaleY(1);
+  }
+  95%,
+  98% {
+    transform: scaleY(0.15);
+  }
+}
+@keyframes gato-balanco {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.5px);
+  }
+}
+@keyframes gato-digitar {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1px);
+  }
+}
+@keyframes gato-pulo {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-2px);
+  }
+}
+@keyframes gato-balao {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

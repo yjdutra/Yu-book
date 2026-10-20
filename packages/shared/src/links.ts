@@ -132,12 +132,44 @@ export const linkUpdateSchema = z
   })
   .refine((v) => Object.keys(v).length > 0, "Nada para atualizar");
 
-export const linkMoveSchema = z.object({ position: z.number().int().min(0) });
+/**
+ * Reordena o favorito no recipiente dele, ou o leva a outro: `folderId` uma
+ * pasta, `null` a raiz; omitido, fica onde está.
+ */
+export const linkMoveSchema = z.object({
+  position: z.number().int().min(0),
+  folderId: z.string().uuid("Pasta inválida").nullable().optional(),
+});
 
 export const listLinksQuerySchema = z.object({ kind: linkKindSchema.optional() });
 
 export type LinkInput = z.input<typeof linkInputSchema>;
 export type LinkUpdateInput = z.input<typeof linkUpdateSchema>;
+export type LinkMoveInput = z.input<typeof linkMoveSchema>;
+
+/* ------------------------------------------------------------- Pastas */
+
+export const MAX_NOME_PASTA = 60;
+
+const nomePasta = z
+  .string()
+  .trim()
+  .min(1, "Dê um nome à pasta")
+  .max(MAX_NOME_PASTA, `Até ${MAX_NOME_PASTA} caracteres`);
+
+export const linkFolderInputSchema = z.object({ name: nomePasta });
+export const linkFolderUpdateSchema = z.object({ name: nomePasta });
+export const linkFolderMoveSchema = z.object({ position: z.number().int().min(0) });
+
+export type LinkFolderInput = z.input<typeof linkFolderInputSchema>;
+
+/** Pasta de favoritos: um nível só, sem subpasta. */
+export interface LinkFolder {
+  id: string;
+  name: string;
+  position: number;
+  createdAt: string;
+}
 
 export interface Link {
   id: string;
@@ -146,6 +178,8 @@ export interface Link {
   domain: string;
   kind: LinkKind;
   position: number;
+  /** A pasta do favorito, ou `null` na raiz (e sempre em "ver depois"). */
+  folderId: string | null;
   createdAt: string;
   /** true quando o título é o domínio, porque a página não respondeu (RF-14). */
   semTitulo: boolean;

@@ -5,6 +5,7 @@ import type {
   ConversionScope,
   EventInput,
   EventItem,
+  EventPlace,
   EventRecurrence,
   EventScope,
   EventToTaskInput,
@@ -87,6 +88,10 @@ const CAMPOS_EVENTO = {
   repeatUntil: true,
   exdates: true,
   location: true,
+  placeId: true,
+  placeAddress: true,
+  placeLat: true,
+  placeLng: true,
   url: true,
   createdAt: true,
   updatedAt: true,
@@ -136,6 +141,56 @@ function serieDe(linha: LinhaDaSerie, recurrence: EventRecurrence): SerieDoEvent
   };
 }
 
+type ColunasDoLugar = Pick<LinhaEvento, "placeId" | "placeAddress" | "placeLat" | "placeLng">;
+
+function lugarDe(linha: ColunasDoLugar): EventPlace | null {
+  if (!linha.placeId || linha.placeLat === null || linha.placeLng === null) return null;
+  return {
+    placeId: linha.placeId,
+    address: linha.placeAddress ?? "",
+    lat: linha.placeLat,
+    lng: linha.placeLng,
+  };
+}
+
+/** As quatro colunas do lugar. Sem nome (`location` vazio) não há lugar. */
+function colunasDoLugar(location: string | null, place: EventPlace | null): ColunasDoLugar {
+  const vale = location && place;
+  return {
+    placeId: vale ? place.placeId : null,
+    placeAddress: vale ? place.address || null : null,
+    placeLat: vale ? place.lat : null,
+    placeLng: vale ? place.lng : null,
+  };
+}
+
+function colunasDoLugarDe(linha: ColunasDoLugar): ColunasDoLugar {
+  return {
+    placeId: linha.placeId,
+    placeAddress: linha.placeAddress,
+    placeLat: linha.placeLat,
+    placeLng: linha.placeLng,
+  };
+}
+
+/**
+ * O lugar num PATCH: `place` enviado manda (sobre o `location` final);
+ * ausente, o texto mudado desfaz o vínculo — escrito à mão é só texto. Sem
+ * nenhum dos dois, nada muda.
+ */
+function lugarNaMudanca(
+  atual: Pick<LinhaEvento, "location"> & ColunasDoLugar,
+  input: EventUpdateInput,
+): Partial<ColunasDoLugar> {
+  const location = input.location !== undefined ? limpo(input.location) : atual.location;
+  if (input.place !== undefined) return colunasDoLugar(location, input.place);
+  if (input.location !== undefined && location !== atual.location) {
+    return colunasDoLugar(null, null);
+  }
+  if (!location) return colunasDoLugar(null, null);
+  return {};
+}
+
 /**
  * A linha como a resposta a mostra. Sem `ocorrencia`, o horário é o gravado —
  * o evento simples, ou a série pela primeira ocorrência (`GET /events/:id`).
@@ -166,6 +221,7 @@ function paraEvento(
     occurrenceDate,
     recurrence: regraDe(linha),
     location: linha.location,
+    place: lugarDe(linha),
     url: linha.url,
     board: linha.board,
     habitActivity: paraVinculo(linha.habitActivity),
@@ -416,6 +472,7 @@ export async function criarEvento(
         ...instantes,
         ...colunasDaRegra(recurrence),
         location: limpo(input.location),
+        ...colunasDoLugar(limpo(input.location), input.place ?? null),
         url: limpo(input.url),
         boardId: input.boardId ?? null,
         habitActivityId: input.habitActivityId ?? null,
@@ -559,6 +616,7 @@ async function atualizarTodas(
           ...(input.description !== undefined && { description: input.description }),
           ...(horario ?? {}),
           ...(input.location !== undefined && { location: limpo(input.location) }),
+          ...lugarNaMudanca(atual, input),
           ...(input.url !== undefined && { url: limpo(input.url) }),
           ...(input.boardId !== undefined && { boardId: input.boardId }),
           ...(input.habitActivityId !== undefined && { habitActivityId: input.habitActivityId }),
@@ -628,6 +686,8 @@ function copiaDaSerie(atual: LinhaDaCopia, input: EventUpdateInput) {
     title: input.title !== undefined ? input.title.trim() : atual.title,
     description: input.description !== undefined ? input.description : (atual.description ?? ""),
     location: input.location !== undefined ? limpo(input.location) : atual.location,
+    ...colunasDoLugarDe(atual),
+    ...lugarNaMudanca(atual, input),
     url: input.url !== undefined ? limpo(input.url) : atual.url,
     boardId: input.boardId !== undefined ? input.boardId : (atual.board?.id ?? null),
     habitActivityId:
@@ -912,10 +972,12 @@ export async function conferirOcorrencia(
 function descricaoDaTarefa(linha: {
   description: string | null;
   location: string | null;
+  placeAddress: string | null;
   url: string | null;
 }) {
   const extras = [
-    linha.location && `Local: ${linha.location}`,
+    linha.location &&
+      `Local: ${linha.location}${linha.placeAddress ? ` — ${linha.placeAddress}` : ""}`,
     linha.url && `Link: ${linha.url}`,
   ].filter(Boolean);
   const base = linha.description ?? "";
@@ -1165,6 +1227,7 @@ export async function converterTarefaEmEvento(
           ...instantes,
           ...colunasDaRegra(recurrence),
           location: limpo(input.location),
+          ...colunasDoLugar(limpo(input.location), input.place ?? null),
           url: limpo(input.url),
           boardId,
           habitActivityId,

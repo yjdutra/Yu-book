@@ -205,8 +205,8 @@ export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
   app.get("/ai/conversations", async (request) => conversas.listar(request.userId));
 
   app.post("/ai/conversations", async (request, reply) => {
-    const { title, agentId } = conversationInputSchema.parse(request.body);
-    const conversa = await conversas.criar(request.userId, title, agentId);
+    const { title, agentId, ephemeral } = conversationInputSchema.parse(request.body);
+    const conversa = await conversas.criar(request.userId, title, agentId, ephemeral);
     return reply.status(201).send(conversa);
   });
 

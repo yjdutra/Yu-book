@@ -729,6 +729,21 @@ export const repeticaoSchema = z.object({
   until: diaCivilSchema.nullable().optional(),
 });
 
+export const MAX_ENDERECO_DO_LUGAR = 300;
+
+/**
+ * O lugar do Google escolhido para o local do evento. O nome é o próprio
+ * `location`; aqui vai o que o texto não tem: o id do lugar, o endereço e as
+ * coordenadas, para o mapa e o "Como chegar".
+ */
+export const eventPlaceSchema = z.object({
+  placeId: z.string().trim().min(1).max(MAX_ENDERECO_DO_LUGAR),
+  address: z.string().trim().max(MAX_ENDERECO_DO_LUGAR),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+});
+export type EventPlace = z.infer<typeof eventPlaceSchema>;
+
 const camposDoEvento = z.object({
   title: z.string().trim().min(1, "Informe um título").max(MAX_EVENTO_TITULO),
   description: z.string().max(MAX_EVENTO_DESCRICAO, "Descrição grande demais").default(""),
@@ -739,6 +754,9 @@ const camposDoEvento = z.object({
   startTime: horaCivilSchema.nullable().optional(),
   endTime: horaCivilSchema.nullable().optional(),
   location: z.string().trim().max(MAX_EVENTO_LOCAL, "Local grande demais").nullable().default(null),
+  /// O lugar do Google por trás do `location`. No PATCH, ausente com o
+  /// `location` mudado desfaz o vínculo — o texto escrito à mão é só texto.
+  place: eventPlaceSchema.nullable().optional(),
   url: urlDoEventoSchema.nullable().default(null),
   /// O projeto. Quadro de outra conta é 404, como inexistente.
   boardId: z.string().uuid("Quadro inválido").nullable().default(null),
@@ -864,6 +882,9 @@ export interface EventItem {
   /// A regra, ou `null` no evento simples.
   recurrence: EventRecurrence | null;
   location: string | null;
+  /// O lugar do Google por trás de `location`, quando foi escolhido numa
+  /// sugestão. A API da janela do deploy não manda: leia com `?? null`.
+  place: EventPlace | null;
   url: string | null;
   board: BoardRef | null;
   /// A atividade de hábito que o check-in da ocorrência pontua (frente Ritmo,

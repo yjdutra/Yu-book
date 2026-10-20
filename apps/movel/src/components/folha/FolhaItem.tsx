@@ -5,10 +5,18 @@ import { useFolhaNoHistorico } from "../../lib/historico";
 import { useHoje } from "../../lib/hoje";
 import { FormularioItem, tituloDaFolha } from "./FormularioItem";
 import type { AberturaFolha, TipoItem } from "./FormularioItem";
+import { VisualizacaoItem } from "./VisualizacaoItem";
+import type { AberturaVer } from "./VisualizacaoItem";
+
+/** O que a folha abre: o formulário (criar, editar) ou a visualização. */
+export type AberturaDaFolha = AberturaFolha | AberturaVer;
 
 interface Folha {
-  /** Abre a folha para criar ou editar. */
-  abrir: (abertura: AberturaFolha) => void;
+  /**
+   * Abre a folha para criar, editar ou ver. O toque num item **vê**; o
+   * "Editar" da visualização troca para o formulário na mesma folha.
+   */
+  abrir: (abertura: AberturaDaFolha) => void;
   /** O "+" da barra: decide o tipo de partida (ver `tipoDaBarra`). */
   abrirDaBarra: (pathname: string) => void;
   /** A folha está aberta pelo "+" da barra — o `aria-expanded` dele. */
@@ -45,7 +53,7 @@ function tipoDaBarra(pathname: string): TipoItem {
  * a prop viva (`aberto`), e o formulário nasce de novo a cada abertura.
  */
 export function ProvedorFolhaItem({ children }: { children: ReactNode }) {
-  const [abertura, setAbertura] = useState<AberturaFolha | null>(null);
+  const [abertura, setAbertura] = useState<AberturaDaFolha | null>(null);
   const [pelaBarra, setPelaBarra] = useState(false);
   const [tipo, setTipo] = useState<TipoItem>("evento");
   const focoTitulo = useRef<HTMLInputElement>(null);
@@ -54,7 +62,7 @@ export function ProvedorFolhaItem({ children }: { children: ReactNode }) {
   // já encontra "Hoje" e "Amanhã" decididos, sem esperar a API.
   useHoje();
 
-  const abrir = useCallback((nova: AberturaFolha) => {
+  const abrir = useCallback((nova: AberturaDaFolha) => {
     setAbertura(nova);
     setPelaBarra(false);
     setTipo(nova.modo === "criar" ? nova.tipo : "evento" in nova ? "evento" : "tarefa");
@@ -98,7 +106,15 @@ export function ProvedorFolhaItem({ children }: { children: ReactNode }) {
       <Dialogo
         aberto={abertura !== null}
         onFechar={pedirFechar}
-        rotulo={abertura ? tituloDaFolha(abertura, tipo) : "Criar"}
+        rotulo={
+          !abertura
+            ? "Criar"
+            : abertura.modo === "ver"
+              ? "evento" in abertura
+                ? abertura.evento.title
+                : abertura.tarefa.title
+              : tituloDaFolha(abertura, tipo)
+        }
         posicao="folha"
         largura="max-w-lg"
         // Criar abre o teclado no título, que é o que se vai escrever. Editar
@@ -106,7 +122,21 @@ export function ProvedorFolhaItem({ children }: { children: ReactNode }) {
         // teclado cobriria metade da folha.
         focoInicial={abertura?.modo === "criar" ? focoTitulo : focoCabecalho}
       >
-        {abertura && (
+        {abertura?.modo === "ver" && (
+          <VisualizacaoItem
+            abertura={abertura}
+            onEditar={() =>
+              abrir(
+                "evento" in abertura
+                  ? { modo: "editar", evento: abertura.evento }
+                  : { modo: "editar", tarefa: abertura.tarefa },
+              )
+            }
+            onFechar={fechar}
+            focoCabecalho={focoCabecalho}
+          />
+        )}
+        {abertura && abertura.modo !== "ver" && (
           <FormularioItem
             abertura={abertura}
             onFechar={fechar}

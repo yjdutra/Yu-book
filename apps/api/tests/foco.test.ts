@@ -4,6 +4,7 @@ import {
   TREINO_PERMITIDO_PADRAO,
   diaLocal,
   formatarHabitos,
+  pontosDoFoco,
 } from "@yu-book/shared";
 import type { FocusSessionItem, FocusSessionResult, HabitItem } from "@yu-book/shared";
 import type { FastifyInstance } from "fastify";
@@ -145,6 +146,29 @@ describe("POST /focus-sessions (RF-56)", () => {
       expect(r.status).toBe(201);
       expect((r.body as FocusSessionResult).entry).toBeNull();
     }
+  });
+
+  test("o tempo ajustado pontua proporcional, arredondado para baixo", async () => {
+    // Arquitetura vale 10 por pomodoro de 25 min.
+    const casos = [
+      { minutes: 50, pontos: 20 },
+      { minutes: 15, pontos: 6 },
+      { minutes: 2, pontos: null },
+    ];
+    for (const { minutes, pontos } of casos) {
+      const r = await api(dono, "POST", "/focus-sessions", {
+        clientId: randomUUID(),
+        activityId: atividade("Arquitetura"),
+        minutes,
+        startedAt: minutosAtras(minutes),
+      });
+      expect(r.status, JSON.stringify(r.body)).toBe(201);
+      const { session, entry } = r.body as FocusSessionResult;
+      expect(entry?.points ?? null).toBe(pontos);
+      expect(session.points).toBe(pontos ?? 0);
+    }
+    expect(pontosDoFoco(10, 25)).toBe(10);
+    expect(pontosDoFoco(10, 10)).toBe(4);
   });
 
   test("atividade arquivada grava sem pontuar (RN-37)", async () => {

@@ -271,33 +271,33 @@ function Detalhe({
             {ativas.map((a) => {
               const vezes = historico?.vezes.get(a.id) ?? 0;
               return (
-                <li
-                  key={a.id}
-                  className="flex min-h-14 items-center gap-3 rounded-cartao bg-ink-900 px-3 py-2"
-                >
-                  <span className="min-w-0 flex-1 truncate text-[0.9375rem] font-semibold text-titulo">
+                // O nome inteiro em cima, quebrando linha; o resto embaixo — numa
+                // linha só, os controles espremiam o nome até o truncar.
+                <li key={a.id} className="rounded-cartao bg-ink-900 py-2 pl-3 pr-2">
+                  <span className="block break-words text-[0.9375rem] font-semibold text-titulo">
                     {a.name}
                   </span>
-                  <span className="text-right text-xs tabular-nums text-ink-400">
-                    {historico ? `${vezes}× nesta semana` : ""}
-                    {a.pointsPerPomodoro ? (
-                      <span className="block">+{a.pointsPerPomodoro} por pomodoro</span>
-                    ) : null}
-                  </span>
-                  <PilulaPontos pontos={a.points} />
-                  <Link
-                    to={`/foco?atividade=${a.id}`}
-                    aria-label={`Focar em “${a.name}”`}
-                    className="-mr-1 grid size-11 shrink-0 place-items-center rounded-full"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="grid size-9 place-items-center rounded-full bg-accent-500/15
-                                 text-accent-400"
-                    >
-                      <IconeCronometro className="size-4.5" />
+                  <span className="mt-1 flex items-center gap-2">
+                    <span className="min-w-0 flex-1 text-xs tabular-nums text-ink-400">
+                      {historico ? `${vezes}× nesta semana` : ""}
+                      {historico && a.pointsPerPomodoro ? " · " : ""}
+                      {a.pointsPerPomodoro ? `+${a.pointsPerPomodoro} por pomodoro` : ""}
                     </span>
-                  </Link>
+                    <PilulaPontos pontos={a.points} />
+                    <Link
+                      to={`/foco?atividade=${a.id}`}
+                      aria-label={`Focar em “${a.name}”`}
+                      className="grid size-11 shrink-0 place-items-center rounded-full"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="grid size-9 place-items-center rounded-full bg-accent-500/15
+                                   text-accent-400"
+                      >
+                        <IconeCronometro className="size-4.5" />
+                      </span>
+                    </Link>
+                  </span>
                 </li>
               );
             })}

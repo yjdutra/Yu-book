@@ -64,6 +64,7 @@ const CAMPOS_DA_CONVERSA = {
   title: true,
   agentId: true,
   agentName: true,
+  ephemeral: true,
   agent: { select: { name: true, color: true } },
   createdAt: true,
   updatedAt: true,
@@ -75,6 +76,7 @@ function toConversa(c: ConversaNoBanco): Conversation {
   return {
     id: c.id,
     title: c.title,
+    ephemeral: c.ephemeral,
     agent:
       c.agentName === null
         ? null
@@ -90,7 +92,8 @@ function toConversa(c: ConversaNoBanco): Conversation {
 
 export async function listar(userId: string): Promise<Conversation[]> {
   const linhas = await prisma.aiConversation.findMany({
-    where: { userId },
+    // A descartável do assistente rápido não entra na lista.
+    where: { userId, ephemeral: false },
     orderBy: { updatedAt: "desc" },
     select: CAMPOS_DA_CONVERSA,
   });
@@ -106,7 +109,12 @@ export async function criar(
   userId: string,
   title: string,
   agentId?: string,
+  ephemeral = false,
 ): Promise<Conversation> {
+  // A limpeza das descartáveis vencidas pega carona na criação de outra: sem
+  // relógio novo, e idempotente entre as duas instâncias da API.
+  if (ephemeral) await apagarDescartaveis(userId, new Date());
+
   let agente: { id: string; name: string } | null = null;
   if (agentId !== undefined) {
     agente = await prisma.aiAgent.findFirst({
@@ -118,7 +126,13 @@ export async function criar(
 
   try {
     const linha = await prisma.aiConversation.create({
-      data: { userId, title, agentId: agente?.id ?? null, agentName: agente?.name ?? null },
+      data: {
+        userId,
+        title,
+        agentId: agente?.id ?? null,
+        agentName: agente?.name ?? null,
+        ephemeral,
+      },
       select: CAMPOS_DA_CONVERSA,
     });
     return toConversa(linha);
@@ -128,6 +142,25 @@ export async function criar(
     if (ehAgenteQueSumiu(erro)) throw notFound("Agente não encontrado");
     throw erro;
   }
+}
+
+/** Quanto a conversa descartável vive depois da última mensagem. */
+export const VIDA_DA_DESCARTAVEL_MS = 24 * 3_600_000;
+
+/**
+ * Apaga as descartáveis do usuário paradas há mais de 24 h. A cascata leva as
+ * mensagens; `ai_usage` aponta com `SetNull`, então o teto de gasto não perde
+ * nada, e o que a conversa criou só perde o "Abrir conversa".
+ */
+export async function apagarDescartaveis(userId: string, agora: Date): Promise<number> {
+  const { count } = await prisma.aiConversation.deleteMany({
+    where: {
+      userId,
+      ephemeral: true,
+      updatedAt: { lt: new Date(agora.getTime() - VIDA_DA_DESCARTAVEL_MS) },
+    },
+  });
+  return count;
 }
 
 /// O Prisma 6 põe o nome da constraint em `meta.constraint`. Conferir o nome, e

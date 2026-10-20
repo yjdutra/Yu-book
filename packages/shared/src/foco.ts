@@ -9,13 +9,25 @@ import type { HabitEntryItem } from "./habitos.js";
    pomodoro concluído vira sessão (RN-35).
    --------------------------------------------------------------- */
 
-/** RF-55: os três modos, em minutos. */
+/** RF-55: os três modos, com o tempo padrão em minutos; o aparelho pode ajustá-lo. */
 export const MODOS_DO_FOCO = [
-  { key: "foco", name: "Foco 25", minutes: 25 },
-  { key: "pausa", name: "Pausa 5", minutes: 5 },
-  { key: "pausaLonga", name: "Pausa 15", minutes: 15 },
+  { key: "foco", name: "Foco", minutes: 25 },
+  { key: "pausa", name: "Pausa", minutes: 5 },
+  { key: "pausaLonga", name: "Pausa longa", minutes: 15 },
 ] as const;
 export type ModoDoFoco = (typeof MODOS_DO_FOCO)[number]["key"];
+
+/** O pomodoro de referência: `pointsPerPomodoro` vale por estes minutos. */
+export const MINUTOS_DO_POMODORO = 25;
+
+/**
+ * Os pontos de um foco de `minutos` numa atividade que vale `pontosPorPomodoro`
+ * a cada 25 min: proporcionais, arredondados para baixo. 50 min valem dois
+ * pomodoros, e 10 min nenhum — encurtar o foco não rende o ponto inteiro.
+ */
+export function pontosDoFoco(pontosPorPomodoro: number, minutos: number): number {
+  return Math.floor((pontosPorPomodoro * minutos) / MINUTOS_DO_POMODORO);
+}
 
 /** RF-55: o ciclo de pomodoros antes da pausa longa. */
 export const POMODOROS_DO_CICLO = 4;

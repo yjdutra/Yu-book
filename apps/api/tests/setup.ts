@@ -46,3 +46,10 @@ process.env.S3_BUCKET ??= "yubook-teste";
 process.env.S3_ACCESS_KEY_ID ??= "chave-de-teste";
 process.env.S3_SECRET_ACCESS_KEY ??= "segredo-de-teste";
 process.env.S3_PATH_STYLE ??= "true";
+
+// Local do evento: o Google aponta para o dublê de `tests/lugares.test.ts`.
+// Sobrescrito, e não `??=`: uma chave de verdade no `.env` de desenvolvimento
+// iria ao dublê, e a suíte nunca pode gastar cota do Google.
+process.env.GOOGLE_MAPS_API_KEY = "chave-de-teste";
+process.env.GOOGLE_PLACES_BASE_URL = "http://127.0.0.1:39335/v1";
+process.env.GOOGLE_STATICMAP_BASE_URL = "http://127.0.0.1:39335/staticmap";

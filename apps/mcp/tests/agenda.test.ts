@@ -63,6 +63,7 @@ function evento(corpo: Record<string, unknown>): EventItem {
     occurrenceDate: String(corpo["date"]),
     recurrence: repeat ? { days: repeat.days, until: repeat.until ?? null } : null,
     location: null,
+    place: null,
     url: null,
     board: null,
     habitActivity: null,

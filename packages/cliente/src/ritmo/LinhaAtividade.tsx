@@ -56,21 +56,25 @@ export function LinhaAtividade({
           <IconeCheck className="size-4.5" />
         </span>
       </button>
+      {/* O nome inteiro em cima, quebrando linha; meta, pontos e ação embaixo —
+          numa linha só, eles espremiam o nome até o truncar. */}
       <span className="min-w-0 flex-1">
         <span
-          className={`block truncate text-[0.9375rem] font-semibold ${
+          className={`block break-words text-[0.9375rem] font-semibold ${
             feita ? "text-ink-400 line-through decoration-ink-700" : "text-titulo"
           }`}
         >
           {nome}
         </span>
-        <span className="flex min-w-0 items-center gap-1.5 text-xs text-ink-400">
-          <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-(--tom)" />
-          <span className="truncate">{meta}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 text-xs text-ink-400">
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-(--tom)" />
+            <span className="truncate">{meta}</span>
+          </span>
+          <PilulaPontos pontos={pontos} />
+          {acao}
         </span>
       </span>
-      <PilulaPontos pontos={pontos} />
-      {acao}
     </li>
   );
 }

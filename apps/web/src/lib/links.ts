@@ -1,4 +1,4 @@
-import type { Link, LinkInput, LinkKind, LinkUpdateInput } from "@yu-book/shared";
+import type { Link, LinkFolder, LinkInput, LinkKind, LinkUpdateInput } from "@yu-book/shared";
 import { normalizarUrl } from "@yu-book/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@yu-book/cliente/api";
@@ -45,6 +45,7 @@ export function useCriarLink() {
         domain: normalizada.domain,
         kind: (input.kind ?? "depois") as LinkKind,
         position: anterior.length,
+        folderId: null,
         createdAt: new Date().toISOString(),
         semTitulo: !input.title,
         durationSeconds: null,
@@ -107,11 +108,56 @@ export function useExcluirLink() {
   });
 }
 
+interface Movimento {
+  id: string;
+  position: number;
+  /** Uma pasta, `null` a raiz; omitido, fica no recipiente em que está. */
+  folderId?: string | null;
+}
+
+/**
+ * O mesmo movimento que o servidor faz, no cache: tira o favorito do
+ * recipiente dele, põe no destino na posição pedida e renumera os dois
+ * (RN-03). Só para o arraste não "voltar" até a resposta chegar — ela
+ * substitui tudo em seguida.
+ */
+export function moverNaGaveta(links: Link[], { id, position, folderId }: Movimento): Link[] {
+  const alvo = links.find((l) => l.id === id);
+  if (!alvo || alvo.kind !== "favorito") return links;
+  const destino = folderId === undefined ? alvo.folderId : folderId;
+  const doRecipiente = (pasta: string | null) =>
+    ordenar(links, "favorito").filter((l) => l.folderId === pasta && l.id !== id);
+
+  const novaOrdem = doRecipiente(destino);
+  novaOrdem.splice(Math.min(Math.max(position, 0), novaOrdem.length), 0, {
+    ...alvo,
+    folderId: destino,
+  });
+  const posicoes = new Map<string, Link>();
+  novaOrdem.forEach((l, i) => posicoes.set(l.id, { ...l, position: i }));
+  if (destino !== alvo.folderId) {
+    doRecipiente(alvo.folderId).forEach((l, i) => posicoes.set(l.id, { ...l, position: i }));
+  }
+  return links.map((l) => posicoes.get(l.id) ?? l);
+}
+
 export function useMoverLink() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, position }: { id: string; position: number }) =>
-      api.patch<Link[]>(`/links/${id}/move`, { position }),
+    mutationFn: ({ id, position, folderId }: Movimento) =>
+      api.patch<Link[]>(`/links/${id}/move`, {
+        position,
+        ...(folderId !== undefined && { folderId }),
+      }),
+    onMutate: async (movimento) => {
+      await qc.cancelQueries({ queryKey: CHAVE });
+      const anterior = qc.getQueryData<Link[]>(CHAVE) ?? [];
+      qc.setQueryData<Link[]>(CHAVE, moverNaGaveta(anterior, movimento));
+      return { anterior };
+    },
+    onError: (_erro, _movimento, contexto) => {
+      if (contexto?.anterior) qc.setQueryData(CHAVE, contexto.anterior);
+    },
     // A resposta traz os favoritos já renumerados (RN-03).
     onSuccess: (favoritos) => {
       qc.setQueryData<Link[]>(CHAVE, (atual) => [
@@ -140,4 +186,61 @@ export function ordenar(links: Link[], kind: LinkKind): Link[] {
   return kind === "favorito"
     ? lista.sort((a, b) => a.position - b.position)
     : lista.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+/* ------------------------------------------------------------- Pastas */
+
+const CHAVE_PASTAS = ["link-folders"] as const;
+
+/** As pastas de favoritos, na ordem manual. Um nível só. */
+export function usePastasDeLinks() {
+  return useQuery({
+    queryKey: CHAVE_PASTAS,
+    queryFn: () => api.get<LinkFolder[]>("/link-folders"),
+    staleTime: 60_000,
+  });
+}
+
+export function useCriarPasta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => api.post<LinkFolder>("/link-folders", { name }),
+    onSuccess: (pasta) => {
+      qc.setQueryData<LinkFolder[]>(CHAVE_PASTAS, (atual) => [...(atual ?? []), pasta]);
+    },
+  });
+}
+
+export function useRenomearPasta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      api.patch<LinkFolder>(`/link-folders/${id}`, { name }),
+    onSuccess: (pasta) => {
+      qc.setQueryData<LinkFolder[]>(CHAVE_PASTAS, (atual) =>
+        (atual ?? []).map((p) => (p.id === pasta.id ? pasta : p)),
+      );
+    },
+  });
+}
+
+export function useMoverPasta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, position }: { id: string; position: number }) =>
+      api.patch<LinkFolder[]>(`/link-folders/${id}/move`, { position }),
+    onSuccess: (pastas) => qc.setQueryData(CHAVE_PASTAS, pastas),
+  });
+}
+
+/** Excluir a pasta devolve os links dela à raiz: os dois caches se refazem. */
+export function useExcluirPasta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<void>(`/link-folders/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: CHAVE_PASTAS });
+      void qc.invalidateQueries({ queryKey: CHAVE });
+    },
+  });
 }

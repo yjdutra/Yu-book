@@ -287,7 +287,7 @@ export function ConversaPage() {
                    pt-[calc(env(safe-area-inset-top)+0.5rem)]"
       >
         <Link
-          to="/assistente"
+          to="/assistente/conversas"
           aria-label="Voltar para as conversas"
           title="Voltar para as conversas"
           className="flex size-11 shrink-0 items-center justify-center rounded-full
@@ -325,7 +325,10 @@ export function ConversaPage() {
           {naoExiste ? (
             <Aviso tom="alerta">
               Esta conversa não existe mais.{" "}
-              <Link to="/assistente" className="font-medium underline underline-offset-2">
+              <Link
+                to="/assistente/conversas"
+                className="font-medium underline underline-offset-2"
+              >
                 Ver as conversas
               </Link>
             </Aviso>

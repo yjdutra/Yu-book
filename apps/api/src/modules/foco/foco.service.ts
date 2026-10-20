@@ -7,6 +7,7 @@ import {
   diaLocal,
   diasEntre,
   ehDiaCivil,
+  pontosDoFoco,
 } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
@@ -104,9 +105,10 @@ export async function gravarSessao(
 
   const { timezone } = await preferenciaDe(userId);
   const dia = paraColunaDia(diaLocal(agora, timezone));
+  // Proporcional aos minutos: o tempo do foco se ajusta no aparelho.
   const pontua =
     atividade?.pointsPerPomodoro && !atividade.archivedAt && !atividade.habit.archivedAt
-      ? atividade.pointsPerPomodoro
+      ? pontosDoFoco(atividade.pointsPerPomodoro, input.minutes)
       : null;
 
   try {

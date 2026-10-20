@@ -7,14 +7,22 @@ import {
   IconeCheck,
   IconeChevron,
   IconeCronometro,
+  IconeAjustes,
   IconeFechar,
+  IconeMais,
   IconePausar,
   IconePular,
   IconeRecomecar,
   IconeRodar,
 } from "@yu-book/cliente/icones";
 import { AnelProgresso } from "@yu-book/cliente/ritmo/AnelProgresso";
-import { MODOS_DO_FOCO, POMODOROS_DO_CICLO } from "@yu-book/shared";
+import {
+  MAX_MINUTOS_DO_FOCO,
+  MINUTOS_DO_POMODORO,
+  MODOS_DO_FOCO,
+  POMODOROS_DO_CICLO,
+  pontosDoFoco,
+} from "@yu-book/shared";
 import type { FocusSessionResult, HabitItem, ModoDoFoco } from "@yu-book/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -27,6 +35,8 @@ const CHAVE = "yb-foco";
 
 interface Estado {
   modo: ModoDoFoco;
+  /** A duração deste período, fixada quando ele nasce; vai no `minutes`. */
+  minutos: number;
   /** Instante final (ms) com o timer rodando; `null` parado. */
   fim: number | null;
   /** O que falta, em ms, com o timer parado. */
@@ -38,13 +48,52 @@ interface Estado {
   atividade: string | null;
 }
 
-const minutosDe = (modo: ModoDoFoco) => MODOS_DO_FOCO.find((m) => m.key === modo)?.minutes ?? 25;
+type Tempos = Record<ModoDoFoco, number>;
 
-function novo(modo: ModoDoFoco, atividade: string | null): Estado {
+/// O tempo de cada modo, ajustável e lembrado no aparelho (`yb-foco-tempos`):
+/// o passo e os limites de cada um, e o padrão de `MODOS_DO_FOCO`.
+const CHAVE_TEMPOS = "yb-foco-tempos";
+const AJUSTE: Record<ModoDoFoco, { passo: number; min: number; max: number }> = {
+  foco: { passo: 5, min: 5, max: MAX_MINUTOS_DO_FOCO },
+  pausa: { passo: 1, min: 1, max: 30 },
+  pausaLonga: { passo: 5, min: 5, max: 60 },
+};
+const PADRAO = Object.fromEntries(MODOS_DO_FOCO.map((m) => [m.key, m.minutes])) as Tempos;
+
+const nomeDe = (modo: ModoDoFoco) => MODOS_DO_FOCO.find((m) => m.key === modo)?.name ?? "";
+
+function limitar(modo: ModoDoFoco, minutos: number): number {
+  const { min, max } = AJUSTE[modo];
+  return Number.isInteger(minutos) ? Math.min(max, Math.max(min, minutos)) : PADRAO[modo];
+}
+
+function carregarTempos(): Tempos {
+  try {
+    const bruto = JSON.parse(localStorage.getItem(CHAVE_TEMPOS) ?? "{}") as Partial<Tempos>;
+    return {
+      foco: limitar("foco", bruto.foco ?? PADRAO.foco),
+      pausa: limitar("pausa", bruto.pausa ?? PADRAO.pausa),
+      pausaLonga: limitar("pausaLonga", bruto.pausaLonga ?? PADRAO.pausaLonga),
+    };
+  } catch {
+    return PADRAO;
+  }
+}
+
+function guardarTempos(t: Tempos): void {
+  try {
+    localStorage.setItem(CHAVE_TEMPOS, JSON.stringify(t));
+  } catch {
+    // Sem armazenamento: o ajuste vale enquanto a tela está aberta.
+  }
+}
+
+function novo(modo: ModoDoFoco, atividade: string | null, minutos: number): Estado {
   return {
     modo,
+    minutos,
     fim: null,
-    restante: minutosDe(modo) * 60_000,
+    restante: minutos * 60_000,
     inicio: null,
     clientId: crypto.randomUUID(),
     atividade,
@@ -57,7 +106,9 @@ function carregar(): Estado | null {
   try {
     const bruto = localStorage.getItem(CHAVE);
     const e = bruto ? (JSON.parse(bruto) as Estado) : null;
-    return e && MODOS_DO_FOCO.some((m) => m.key === e.modo) && e.clientId ? e : null;
+    if (!e || !MODOS_DO_FOCO.some((m) => m.key === e.modo) || !e.clientId) return null;
+    // Um foco guardado antes do tempo ajustável não tem `minutos`.
+    return { ...e, minutos: e.minutos ?? PADRAO[e.modo] };
   } catch {
     return null;
   }
@@ -129,13 +180,17 @@ export function FocoPage() {
   const habitos = useHabitos();
   const sessoes = useSessoesDeFoco();
   const gravar = useGravarFoco();
+  const [tempos, setTempos] = useState<Tempos>(carregarTempos);
   const [estado, setEstado] = useState<Estado>(() => {
     const salvo = carregar();
+    // `?livre` é o atalho do pomodoro genérico: abre sem atividade.
+    const livre = params.has("livre");
     const daUrl = params.get("atividade");
     // A atividade da URL vale para um foco que ainda não começou.
-    if (salvo && (salvo.inicio || !daUrl)) return salvo;
-    return novo("foco", daUrl ?? salvo?.atividade ?? null);
+    if (salvo && (salvo.inicio || (!daUrl && !livre))) return salvo;
+    return novo("foco", livre ? null : (daUrl ?? salvo?.atividade ?? null), tempos.foco);
   });
+  const [ajustando, setAjustando] = useState(false);
   const [agora, setAgora] = useState(Date.now);
   const [escolhendo, setEscolhendo] = useState(false);
   const [concluido, setConcluido] = useState<FocusSessionResult | null>(null);
@@ -145,11 +200,12 @@ export function FocoPage() {
 
   const rodando = estado.fim !== null;
   const restante = rodando ? Math.max(0, (estado.fim ?? 0) - agora) : estado.restante;
-  const total = minutosDe(estado.modo) * 60_000;
+  const total = estado.minutos * 60_000;
   const foco = estado.modo === "foco";
   const acesa = useTelaAcesa(rodando);
 
   useEffect(() => guardar(estado), [estado]);
+  useEffect(() => guardarTempos(tempos), [tempos]);
 
   // O tique só redesenha: o restante sai de `fim − agora` (RNF-19).
   useEffect(() => {
@@ -172,9 +228,8 @@ export function FocoPage() {
         .mutateAsync({
           clientId: alvo.clientId,
           activityId: alvo.atividade,
-          minutes: minutosDe(alvo.modo),
-          startedAt:
-            alvo.inicio ?? new Date(Date.now() - minutosDe(alvo.modo) * 60_000).toISOString(),
+          minutes: alvo.minutos,
+          startedAt: alvo.inicio ?? new Date(Date.now() - alvo.minutos * 60_000).toISOString(),
         })
         .then((resultado) => {
           setConcluido(resultado);
@@ -191,14 +246,14 @@ export function FocoPage() {
     concluindo.current = true;
     const terminado = estado;
     if (terminado.modo === "foco") {
-      setEstado(novo("foco", terminado.atividade));
+      setEstado(novo("foco", terminado.atividade, tempos.foco));
       enviar(terminado);
     } else {
-      setEstado(novo("foco", terminado.atividade));
+      setEstado(novo("foco", terminado.atividade, tempos.foco));
       setAnuncio("Pausa encerrada. Pronto para o próximo foco.");
     }
     concluindo.current = false;
-  }, [rodando, restante, estado, enviar]);
+  }, [rodando, restante, estado, enviar, tempos.foco]);
 
   function alternar() {
     const t = Date.now();
@@ -217,13 +272,27 @@ export function FocoPage() {
   }
 
   function trocarModo(modo: ModoDoFoco) {
-    setEstado((e) => novo(modo, e.atividade));
-    setAnuncio(`${MODOS_DO_FOCO.find((m) => m.key === modo)?.name ?? ""}, pronto para começar.`);
+    setEstado((e) => novo(modo, e.atividade, tempos[modo]));
+    setAnuncio(`${nomeDe(modo)} de ${tempos[modo]} min, pronto para começar.`);
   }
 
+  /// Ajustar vale para os próximos períodos; o atual só muda se ainda não
+  /// começou — um foco em curso mantém o tempo com que nasceu.
+  function ajustar(modo: ModoDoFoco, delta: number) {
+    const minutos = limitar(modo, tempos[modo] + delta);
+    setTempos((t) => ({ ...t, [modo]: minutos }));
+    setEstado((e) =>
+      e.modo === modo && !e.fim && !e.inicio && e.restante === e.minutos * 60_000
+        ? { ...e, minutos, restante: minutos * 60_000 }
+        : e,
+    );
+  }
+
+  const pausaLonga = feitosHoje > 0 && feitosHoje % POMODOROS_DO_CICLO === 0;
+
   function comecarPausa() {
-    const longa = feitosHoje > 0 && feitosHoje % POMODOROS_DO_CICLO === 0;
-    const pausa = novo(longa ? "pausaLonga" : "pausa", estado.atividade);
+    const modo = pausaLonga ? "pausaLonga" : "pausa";
+    const pausa = novo(modo, estado.atividade, tempos[modo]);
     const t = Date.now();
     setAgora(t);
     setEstado({ ...pausa, fim: t + pausa.restante });
@@ -232,7 +301,9 @@ export function FocoPage() {
 
   const fecharEscolha = useCallback(() => setEscolhendo(false), []);
   const fecharConcluido = useCallback(() => setConcluido(null), []);
+  const fecharAjuste = useCallback(() => setAjustando(false), []);
   useFolhaNoHistorico(escolhendo, fecharEscolha);
+  useFolhaNoHistorico(ajustando, fecharAjuste);
   useFolhaNoHistorico(concluido !== null, fecharConcluido);
 
   const status = rodando
@@ -254,7 +325,7 @@ export function FocoPage() {
                    pb-[calc(env(safe-area-inset-bottom)+1.5rem)]
                    pt-[calc(env(safe-area-inset-top)+1.25rem)]"
       >
-        <header className="flex items-center justify-between">
+        <header className="flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))}
@@ -268,6 +339,15 @@ export function FocoPage() {
               Tela acesa
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => setAjustando(true)}
+            aria-haspopup="dialog"
+            aria-label="Ajustar tempos"
+            className="grid size-11 place-items-center rounded-cartao bg-ink-800 text-ink-200"
+          >
+            <IconeAjustes className="size-5" />
+          </button>
         </header>
 
         <div
@@ -287,7 +367,8 @@ export function FocoPage() {
                   : "font-medium text-ink-400 hover:text-ink-200"
               }`}
             >
-              {m.name}
+              {/* Na aba, "Longa": "Pausa longa 15" não cabe num terço de 375 px. */}
+              {m.key === "pausaLonga" ? "Longa" : m.name} {tempos[m.key]}
             </button>
           ))}
         </div>
@@ -356,7 +437,10 @@ export function FocoPage() {
                 {atividade
                   ? `${atividade.habito.name} · ${
                       atividade.pointsPerPomodoro
-                        ? `cada pomodoro vale +${atividade.pointsPerPomodoro}`
+                        ? `${tempos.foco} min valem +${pontosDoFoco(
+                            atividade.pointsPerPomodoro,
+                            tempos.foco,
+                          )}`
                         : "não pontua por pomodoro"
                     }`
                   : "foco livre, sem pontos"}
@@ -453,7 +537,9 @@ export function FocoPage() {
                       <span className="block text-miudo text-ink-400">
                         {a
                           ? a.habito.name +
-                            (a.pointsPerPomodoro ? ` · +${a.pointsPerPomodoro} por pomodoro` : "")
+                            (a.pointsPerPomodoro
+                              ? ` · +${a.pointsPerPomodoro} a cada ${MINUTOS_DO_POMODORO} min`
+                              : "")
                           : "foco livre, sem pontos"}
                       </span>
                     </span>
@@ -463,6 +549,89 @@ export function FocoPage() {
               );
             })}
           </ul>
+        </div>
+      </Dialogo>
+
+      <Dialogo
+        aberto={ajustando}
+        onFechar={fecharAjuste}
+        rotulo="Ajustar tempos"
+        posicao="folha"
+        largura="max-w-lg"
+      >
+        <div className="flex flex-col gap-3 px-5 pb-5 pt-3">
+          <Alca />
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-titulo">Tempos</h2>
+            <button
+              type="button"
+              onClick={fecharAjuste}
+              aria-label="Fechar"
+              className="grid size-11 place-items-center rounded-full text-ink-400 hover:bg-ink-800"
+            >
+              <IconeFechar className="size-5" />
+            </button>
+          </div>
+          <ul className="space-y-1.5">
+            {MODOS_DO_FOCO.map((m) => {
+              const { passo, min, max } = AJUSTE[m.key];
+              const valor = tempos[m.key];
+              return (
+                <li
+                  key={m.key}
+                  className="flex min-h-14 items-center gap-3 rounded-cartao bg-ink-900 pl-3.5 pr-1.5"
+                >
+                  <span className="min-w-0 flex-1 font-semibold text-titulo">{m.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => ajustar(m.key, -passo)}
+                    disabled={valor <= min}
+                    aria-label={`Menos ${passo} min de ${m.name.toLowerCase()}`}
+                    className="grid size-11 place-items-center rounded-full bg-ink-800 text-xl
+                               font-semibold text-ink-200 disabled:opacity-40"
+                  >
+                    −
+                  </button>
+                  <output
+                    aria-live="polite"
+                    className="w-18 whitespace-nowrap text-center text-lg font-bold tabular-nums
+                               text-titulo"
+                  >
+                    {valor} min
+                  </output>
+                  <button
+                    type="button"
+                    onClick={() => ajustar(m.key, passo)}
+                    disabled={valor >= max}
+                    aria-label={`Mais ${passo} min de ${m.name.toLowerCase()}`}
+                    className="grid size-11 place-items-center rounded-full bg-ink-800 text-ink-200
+                               disabled:opacity-40"
+                  >
+                    <IconeMais className="size-5" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-miudo text-ink-400">
+            Os pontos por pomodoro valem a cada {MINUTOS_DO_POMODORO} min de foco, proporcionais.
+            O foco que já começou mantém o tempo dele.
+          </p>
+          <Botao
+            variante="fantasma"
+            tamanho="g"
+            onClick={() => {
+              setTempos(PADRAO);
+              setEstado((e) =>
+                !e.fim && !e.inicio && e.restante === e.minutos * 60_000
+                  ? novo(e.modo, e.atividade, PADRAO[e.modo])
+                  : e,
+              );
+            }}
+            className="w-full"
+          >
+            Voltar ao padrão 25 · 5 · 15
+          </Botao>
         </div>
       </Dialogo>
 
@@ -510,8 +679,7 @@ export function FocoPage() {
               </span>
             </p>
             <Botao variante="primario" tamanho="g" onClick={comecarPausa} className="mt-1 w-full">
-              Começar pausa de{" "}
-              {feitosHoje > 0 && feitosHoje % POMODOROS_DO_CICLO === 0 ? "15" : "5"} min
+              Começar pausa de {tempos[pausaLonga ? "pausaLonga" : "pausa"]} min
             </Botao>
             <Botao variante="fantasma" tamanho="g" onClick={fecharConcluido} className="w-full">
               Agora não

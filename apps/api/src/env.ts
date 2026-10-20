@@ -23,6 +23,18 @@ const envSchema = z.object({
   /// (via oEmbed, que não pede chave) — só a duração fica de fora.
   YOUTUBE_API_KEY: z.string().optional(),
 
+  /// Opcional. A chave do Google Maps Platform, com a Places API (New) e a Maps
+  /// Static API ligadas: as sugestões e o mapa do local do evento. Sem ela o
+  /// local segue texto livre, e o "Abrir no Google Maps" busca pelo texto.
+  GOOGLE_MAPS_API_KEY: z.string().optional(),
+  /// Os hosts do Google, como `OPENROUTER_BASE_URL`: variáveis só para a suíte
+  /// apontar para um dublê. Em produção ninguém define.
+  GOOGLE_PLACES_BASE_URL: z.string().url().default("https://places.googleapis.com/v1"),
+  GOOGLE_STATICMAP_BASE_URL: z
+    .string()
+    .url()
+    .default("https://maps.googleapis.com/maps/api/staticmap"),
+
   /// Opcional. Sem ela a API sobe normal e só as funções de IA ficam
   /// indisponíveis, com o motivo na tela (RF-05, RNF-03, CA-02).
   OPENROUTER_API_KEY: z.string().optional(),

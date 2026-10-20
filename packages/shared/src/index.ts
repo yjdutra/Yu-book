@@ -18,6 +18,7 @@ export * from "./agentes.js";
 export * from "./rotinas.js";
 export * from "./agenda.js";
 export * from "./eventos.js";
+export * from "./lugares.js";
 export * from "./tarefas.js";
 export * from "./habitos.js";
 export * from "./ofensivas.js";

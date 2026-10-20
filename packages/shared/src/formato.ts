@@ -592,7 +592,10 @@ export function formatarEvento(evento: EventItem): string {
     const feito = evento.checkedIn ? ` · check-in feito em ${evento.occurrenceDate}` : "";
     linhas.push(linhaDoVinculo(evento.habitActivity, "check-in") + feito);
   }
-  if (evento.location) linhas.push(`local: ${evento.location}`);
+  // O endereço só no detalhe: na lista ele pesaria em todo turno. `place` é
+  // novo, e a API da janela do deploy não o manda — ausente lê como sem lugar.
+  const endereco = evento.place?.address;
+  if (evento.location) linhas.push(`local: ${evento.location}${endereco ? ` (${endereco})` : ""}`);
   if (evento.url) linhas.push(`link: ${evento.url}`);
   if (evento.ai) linhas.push(linhaDaMarcaSemDia(evento.ai, "o"));
   if (evento.description) linhas.push(`descrição: ${evento.description.length} caracteres`);

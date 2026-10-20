@@ -22,6 +22,7 @@ import { EstadoVazio, ItemAgenda } from "../components/agenda/ItemAgenda";
 import { indexarPorDia, inicioDe, itemDeTarefa, tituloDe } from "../components/agenda/itens";
 import type { ItemDoDia, ResumoDoDia } from "../components/agenda/itens";
 import { useFolhaItem } from "../components/folha/FolhaItem";
+import { AtalhoPomodoro } from "../components/ritmo/AtalhoPomodoro";
 import { ChamaDoInicio } from "../components/ritmo/ChamaDoInicio";
 import { HojeNoRitmo } from "../components/ritmo/HojeNoRitmo";
 import { HumorDoInicio } from "../components/ritmo/HumorDoInicio";
@@ -251,8 +252,8 @@ export function InicioPage() {
     : [];
 
   function abrirItem(item: ItemDoDia) {
-    if (item.tipo === "evento") abrir({ modo: "editar", evento: item.evento });
-    else if (item.tipo === "tarefa") abrir({ modo: "editar", tarefa: item.tarefa });
+    if (item.tipo === "evento") abrir({ modo: "ver", evento: item.evento });
+    else if (item.tipo === "tarefa") abrir({ modo: "ver", tarefa: item.tarefa });
   }
 
   const carregando = consulta.isPending;
@@ -294,6 +295,7 @@ export function InicioPage() {
         <HumorDoInicio />
         {hoje && porDia && <HojeNoRitmo hoje={hoje} itens={porDia.get(hoje)?.itens ?? []} />}
         <SkillDoDia />
+        <AtalhoPomodoro />
       </div>
 
       {aviso && (

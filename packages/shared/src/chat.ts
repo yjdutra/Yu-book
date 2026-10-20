@@ -113,6 +113,8 @@ export interface Conversation {
   /// O agente da conversa (Etapa D), fixo desde a criação. `null` é o
   /// Assistente de sempre.
   agent: ConversationAgent | null;
+  /// Do assistente rápido: fora da lista e apagada depois de 24 h.
+  ephemeral: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -183,6 +185,8 @@ export const conversationInputSchema = z.object({
   title: z.string().trim().min(1, "Informe um título").max(MAX_TITULO_CONVERSA),
   /// Só na criação: o agente é fixo por conversa, e renomear ignora o campo.
   agentId: z.string().uuid().optional(),
+  /// Só na criação: a conversa descartável do assistente rápido.
+  ephemeral: z.boolean().optional(),
 });
 
 /**

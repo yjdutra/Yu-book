@@ -82,9 +82,9 @@ export function Criados({
     setOcupado(chaveCriado(c));
     try {
       if (c.kind === "event") {
-        abrir({ modo: "editar", evento: await api.get<EventItem>(`/events/${c.id}`) });
+        abrir({ modo: "ver", evento: await api.get<EventItem>(`/events/${c.id}`) });
       } else if (c.kind === "task") {
-        abrir({ modo: "editar", tarefa: await api.get<TaskItem>(`/tasks/${c.id}`) });
+        abrir({ modo: "ver", tarefa: await api.get<TaskItem>(`/tasks/${c.id}`) });
       }
     } catch (e) {
       if (e instanceof ApiError && e.code === "NOT_FOUND") {

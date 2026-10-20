@@ -50,6 +50,10 @@ export const ERROR_CODES = [
   "ARQUIVO_GRANDE",
   /** Frente de cards, Parte 2: os bytes do anexo não são de um tipo aceito. */
   "TIPO_NAO_PERMITIDO",
+  /** Local do evento: o servidor não tem `GOOGLE_MAPS_API_KEY`; o local fica texto. */
+  "MAPAS_INDISPONIVEL",
+  /** Local do evento: o Google não respondeu, ou respondeu erro. */
+  "MAPAS_FALHOU",
   "INTERNAL_ERROR",
 ] as const;
 

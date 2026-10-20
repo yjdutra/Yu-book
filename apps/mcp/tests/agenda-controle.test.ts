@@ -47,6 +47,7 @@ function evento(id: string, serie: boolean): EventItem {
     occurrenceDate: "2026-10-21",
     recurrence: serie ? { days: [1, 3], until: null } : null,
     location: null,
+    place: null,
     url: null,
     board: null,
     habitActivity: null,

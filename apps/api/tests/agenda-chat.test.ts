@@ -982,6 +982,7 @@ describe("formatarAgenda tolera a API mais velha que o pacote", () => {
     occurrenceDate: "2030-11-12",
     recurrence: null,
     location: null,
+    place: null,
     url: null,
     checkedIn: false,
     ...CAMPOS_COMUNS,

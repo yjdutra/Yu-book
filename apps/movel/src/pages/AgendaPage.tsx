@@ -75,8 +75,8 @@ export function AgendaPage() {
   }
 
   function abrirItem(item: ItemDoDia) {
-    if (item.tipo === "evento") abrir({ modo: "editar", evento: item.evento });
-    else if (item.tipo === "tarefa") abrir({ modo: "editar", tarefa: item.tarefa });
+    if (item.tipo === "evento") abrir({ modo: "ver", evento: item.evento });
+    else if (item.tipo === "tarefa") abrir({ modo: "ver", tarefa: item.tarefa });
   }
 
   return (

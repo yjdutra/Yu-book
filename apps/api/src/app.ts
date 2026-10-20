@@ -17,6 +17,7 @@ import { eventosRoutes } from "./modules/eventos/eventos.routes.js";
 import { healthRoutes } from "./modules/health.routes.js";
 import { kanbanRoutes } from "./modules/kanban/kanban.routes.js";
 import { linksRoutes } from "./modules/links/links.routes.js";
+import { lugaresRoutes } from "./modules/lugares/lugares.routes.js";
 import { notesRoutes } from "./modules/notes/notes.routes.js";
 import { organizacaoRoutes } from "./modules/organizacao/organizacao.routes.js";
 import { tarefasRoutes } from "./modules/tarefas/tarefas.routes.js";
@@ -113,6 +114,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await app.register(kanbanRoutes);
   await app.register(arquivosRoutes);
   await app.register(linksRoutes);
+  await app.register(lugaresRoutes);
   await app.register(dashboardRoutes);
   await app.register(eventosRoutes);
   await app.register(tarefasRoutes);
