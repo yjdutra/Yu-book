@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@yu-book/cliente/api";
 import { CHAVE_AGENTES, CHAVE_AJUSTES, CHAVE_SAUDE_IA } from "@yu-book/cliente/ia";
 import { motivoSemChat } from "@yu-book/cliente/motivoSemChat";
-import type { AgentSummary, AiHealth, AiSettings } from "@yu-book/shared";
+import type { AgentSummary, AiHealth, AiProvider, AiSettings } from "@yu-book/shared";
 
 /**
  * O que o chat do móvel precisa saber da IA antes de enviar (Fase 5 da frente
@@ -11,10 +11,11 @@ import type { AgentSummary, AiHealth, AiSettings } from "@yu-book/shared";
  * só (`@yu-book/cliente/ia`), para quem invalida lá dizer o mesmo aqui.
  */
 
-export function useAiSaude() {
+/// Por provedor, como no web: o chat depende da chave do provedor do modelo.
+export function useAiSaude(provider: AiProvider) {
   return useQuery({
-    queryKey: CHAVE_SAUDE_IA,
-    queryFn: () => api.get<AiHealth>("/ai/health"),
+    queryKey: [...CHAVE_SAUDE_IA, provider],
+    queryFn: () => api.get<AiHealth>(`/ai/health?provider=${provider}`),
     staleTime: 60_000,
   });
 }
@@ -43,7 +44,9 @@ export const NO_COMPUTADOR = "Isso se ajusta no Yu-book do computador, em Ajuste
  * (`NO_COMPUTADOR`).
  */
 export function useMotivoSemChat(agente: AgentSummary | null): string | null {
-  const { data: saude } = useAiSaude();
+  const anthropic = useAiSaude("anthropic").data;
+  const openrouter = useAiSaude("openrouter").data;
   const { data: ajustes } = useAiAjustes();
-  return motivoSemChat(saude, ajustes, agente)?.texto ?? null;
+  const saudeDe = (provider: AiProvider) => (provider === "anthropic" ? anthropic : openrouter);
+  return motivoSemChat(saudeDe, ajustes, agente)?.texto ?? null;
 }

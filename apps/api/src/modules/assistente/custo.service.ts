@@ -1,9 +1,12 @@
-import type { AiCostSource, AiTask, AiUsageSummary } from "@yu-book/shared";
+import type { AiCostSource, AiProvider, AiTask, AiUsageSummary } from "@yu-book/shared";
+import type { PrecoAnthropic, UsoAnthropic } from "@yu-book/shared";
 import {
   CHARS_ESTIMADOS_DA_BUSCA,
   CUSTO_ESTIMADO_BUSCA_MICROS,
+  custoAnthropicMicros,
   diaLocal,
   microsParaDolares,
+  precoAnthropic,
 } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError } from "../../lib/errors.js";
@@ -26,6 +29,18 @@ const CHARS_POR_TOKEN = 4;
 /// o custo de um passo com o mesmo número.
 export const MAX_SAIDA_TOKENS = 2_048;
 
+/**
+ * Folga de saída para o pensamento dos modelos da Anthropic, somada ao
+ * `max_tokens` de cada chamada a ela. Os modelos atuais pensam sempre, e o
+ * pensamento conta **dentro** de `max_tokens`: sem folga, ele comeria a
+ * resposta de 2 mil tokens e a formatação de uma nota sairia cortada. Com
+ * esforço baixo (`anthropic-fluxo.ts`) costuma sobrar quase toda.
+ *
+ * Entra também na estimativa do teto (`estimarComBusca`), pelo preço de saída:
+ * folga que o teto não visse seria gasto que ele deixa passar (INV-47).
+ */
+export const FOLGA_PENSAMENTO_TOKENS = 4_096;
+
 /** Tokens aproximados de um texto, pela heurística acima. */
 export function tokensAproximados(chars: number): number {
   return Math.ceil(chars / CHARS_POR_TOKEN);
@@ -39,6 +54,38 @@ export interface TetoDoUsuario {
 interface PrecoDoModelo {
   promptMicros: number;
   completionMicros: number;
+  /// Sem ele, o OpenRouter. O favorito (`AiFavorite`) sempre o tem.
+  provider?: AiProvider;
+  /// O id, para a Anthropic achar a faixa longa na tabela. O favorito o tem.
+  id?: string;
+}
+
+/**
+ * O preço que a estimativa do teto deve usar — cota superior do que a chamada
+ * pode custar (INV-47). No OpenRouter, o do favorito. Na Anthropic, dois
+ * ajustes que a revisão da F2 apontou:
+ *
+ * - **a faixa longa:** acima de 100 mil tokens de prompt, o Haiku 5.5 custa
+ *   cinco vezes mais, e o favorito só guarda o preço base;
+ * - **a escrita de cache:** com o cache automático ligado, a entrada pode ser
+ *   cobrada a 1,25× (escrita), não a 1×. `comCache` falso no formatar, que
+ *   não pede cache.
+ */
+export function precoParaEstimativa(
+  preco: PrecoDoModelo,
+  tokensEntrada: number,
+  comCache: boolean,
+): PrecoDoModelo {
+  if (preco.provider !== "anthropic") return preco;
+  const tabela = preco.id ? precoAnthropic(preco.id) : undefined;
+  const faixa =
+    tabela?.longo && tokensEntrada > tabela.longo.acimaDeTokens ? tabela.longo : tabela;
+  const entrada = faixa ? faixa.promptMicros : preco.promptMicros;
+  return {
+    ...preco,
+    promptMicros: comCache ? (faixa?.cacheWriteMicros ?? Math.ceil(entrada * 1.25)) : entrada,
+    completionMicros: faixa ? faixa.completionMicros : preco.completionMicros,
+  };
 }
 
 /** µUSD por milhão → µUSD do pedido. */
@@ -84,6 +131,14 @@ export function estimarComBusca(
   maxTokensSaida: number,
   buscaNaWeb: boolean,
 ): number {
+  /// Na Anthropic, a saída pode ir até a folga do pensamento — e a estimativa
+  /// conta com ela. A busca usa a tarifa do OpenRouter, que é maior (US$ 0,02
+  /// contra US$ 0,01): na dúvida, o teto protege.
+  if (preco.provider === "anthropic") {
+    maxTokensSaida += FOLGA_PENSAMENTO_TOKENS;
+    const chars = charsEntrada + (buscaNaWeb ? CHARS_ESTIMADOS_DA_BUSCA : 0);
+    preco = precoParaEstimativa(preco, tokensAproximados(chars), true);
+  }
   if (!buscaNaWeb) return estimarCustoMicros(preco, charsEntrada, maxTokensSaida);
   return (
     estimarCustoMicros(preco, charsEntrada + CHARS_ESTIMADOS_DA_BUSCA, maxTokensSaida) +
@@ -194,6 +249,41 @@ export function custoDaResposta(uso: UsoDoProvedor | undefined, preco: PrecoDoMo
   return { promptTokens: 0, completionTokens: 0, costMicros: 0, costSource: "desconhecido" };
 }
 
+export interface CustoApuradoAnthropic extends CustoApurado {
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+}
+
+/**
+ * O custo de uma chamada à Anthropic, que devolve tokens e nunca dólares —
+ * por isso é sempre `estimado`, pela tabela de `packages/shared`, com cache e
+ * busca. `promptTokens` fica sendo a entrada **sem** cache, como a resposta
+ * informa; o cache vai nas colunas próprias.
+ *
+ * Modelo que saiu da tabela depois de favoritado cai no preço do favorito, com
+ * os multiplicadores padrão de cache (0,1× a leitura, 1,25× a escrita): o
+ * favorito ainda tem preço, e gravar zero tiraria a chamada do teto.
+ */
+export function custoDaAnthropic(
+  uso: UsoAnthropic,
+  modelo: PrecoDoModelo & { id: string },
+): CustoApuradoAnthropic {
+  const preco: PrecoAnthropic = precoAnthropic(modelo.id) ?? {
+    promptMicros: modelo.promptMicros,
+    completionMicros: modelo.completionMicros,
+    cacheWriteMicros: Math.ceil(modelo.promptMicros * 1.25),
+    cacheReadMicros: Math.ceil(modelo.promptMicros / 10),
+  };
+  return {
+    promptTokens: uso.inputTokens,
+    completionTokens: uso.outputTokens,
+    cacheReadTokens: uso.cacheReadTokens,
+    cacheWriteTokens: uso.cacheWriteTokens,
+    costMicros: custoAnthropicMicros(preco, uso),
+    costSource: "estimado",
+  };
+}
+
 /**
  * A parcela da busca na web (Etapa G), quando a chamada a levou.
  *
@@ -227,6 +317,11 @@ export interface RegistroDeUso extends CustoApurado {
   userId: string;
   task: AiTask;
   modelId: string;
+  /// Quem atendeu. Sem ele, a linha é do OpenRouter — o padrão da coluna.
+  provider?: AiProvider;
+  /// Tokens de cache da Anthropic, fora de `promptTokens`. O OpenRouter não os informa.
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
   /// O que o provedor de fato usou. Sem isto, uma estimativa usaria o preço do
   /// modelo pedido quando o roteamento escolheu outro.
   modelUsed?: string | null;
@@ -252,8 +347,11 @@ export async function registrarUso(registro: RegistroDeUso): Promise<void> {
       modelId: registro.modelId,
       modelUsed: registro.modelUsed ?? null,
       generationId: registro.generationId ?? null,
+      provider: registro.provider ?? "openrouter",
       promptTokens: registro.promptTokens,
       completionTokens: registro.completionTokens,
+      cacheReadTokens: registro.cacheReadTokens ?? 0,
+      cacheWriteTokens: registro.cacheWriteTokens ?? 0,
       costMicros: registro.costMicros,
       costSource: registro.costSource,
       durationMs: registro.durationMs,

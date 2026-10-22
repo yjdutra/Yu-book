@@ -1,3 +1,4 @@
+import type { AiProvider } from "@yu-book/shared";
 import type { ReactNode } from "react";
 import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
 import { contexto, emDolares, provedorDe } from "./comum";
@@ -11,6 +12,8 @@ export interface ModeloDoCartao {
   completionMicros: number;
   supportsTools: boolean;
   free: boolean;
+  /// Quem atende. Ausente, o OpenRouter — o padrão de antes da Anthropic.
+  provider?: AiProvider;
 }
 
 /**
@@ -37,7 +40,7 @@ export function CartaoModelo({
   destaque?: boolean;
   className?: string;
 }) {
-  const provedor = provedorDe(modelo.id);
+  const provedor = provedorDe(modelo);
   return (
     <div
       className={`relative rounded-cartao border bg-superficie p-3 ${
@@ -56,7 +59,7 @@ export function CartaoModelo({
           <p className="truncate text-sm font-medium text-titulo" title={modelo.name}>
             {modelo.name}
           </p>
-          {provedor && <p className="truncate text-miudo text-ink-400">{provedor}</p>}
+          <p className="truncate text-miudo text-ink-400">{provedor}</p>
         </div>
         {acoes}
       </div>

@@ -1,12 +1,15 @@
+import type Anthropic from "@anthropic-ai/sdk";
 import type {
   AiModel,
   AiModelIndices,
   AiModelList,
   AiModelSort,
+  AiProvider,
   ListAiModelsQuery,
 } from "@yu-book/shared";
-import { normalizarTitulo } from "@yu-book/shared";
+import { normalizarTitulo, precoAnthropic } from "@yu-book/shared";
 import { AppError } from "../../lib/errors.js";
+import { clienteAnthropic, traduzirErroAnthropic } from "./anthropic.service.js";
 import { pedirDoProvedor } from "./openrouter.service.js";
 
 /**
@@ -47,7 +50,8 @@ interface Catalogo {
   modelos: AiModel[];
 }
 
-let catalogo: Catalogo | null = null;
+/// Um cache por provedor: cada um tem o próprio endpoint, que cai sozinho.
+const catalogos: Partial<Record<AiProvider, Catalogo>> = {};
 
 /**
  * Modelo de lote — a variante `:batch` do provedor.
@@ -129,6 +133,7 @@ function normalizar(bruto: ModeloDoProvedor): AiModel | null {
   const corte = bruto.knowledge_cutoff;
 
   return {
+    provider: "openrouter",
     id,
     name: typeof name === "string" && name ? name : id,
     contextLength: typeof contexto === "number" && contexto > 0 ? contexto : 0,
@@ -198,18 +203,86 @@ async function buscarDoProvedor(): Promise<AiModel[]> {
 }
 
 /**
- * Lista o catálogo, filtrado.
+ * Um modelo da Anthropic no formato do catálogo, ou `null` quando a tabela de
+ * preços de `packages/shared` não o conhece.
+ *
+ * Sem preço, fora — a mesma regra do OpenRouter, pelo mesmo motivo: a
+ * Anthropic não informa custo, só tokens, e o teto diário estima pela tabela.
+ * Um modelo novo que a API já lista e a tabela ainda não aparece aqui no dia
+ * em que alguém copiar o preço dele para `PRECOS_ANTHROPIC`.
+ *
+ * Todo modelo de texto atual da Anthropic chama ferramenta; não há campo para
+ * isso em `capabilities`, e por isso `supportsTools` é sempre verdadeiro.
+ */
+function normalizarAnthropic(bruto: Anthropic.ModelInfo): AiModel | null {
+  const preco = precoAnthropic(bruto.id);
+  if (!preco) return null;
+  return {
+    provider: "anthropic",
+    id: bruto.id,
+    name: bruto.display_name || bruto.id,
+    contextLength: bruto.max_input_tokens ?? 0,
+    promptMicros: preco.promptMicros,
+    completionMicros: preco.completionMicros,
+    supportsTools: true,
+    free: false,
+    reasoning: bruto.capabilities?.thinking.supported ?? false,
+    acceptsImage: bruto.capabilities?.image_input.supported ?? false,
+    indices: null,
+    knowledgeCutoff: null,
+  };
+}
+
+/**
+ * O catálogo da Anthropic. Ao contrário do OpenRouter, `GET /v1/models` exige
+ * chave — sem `ANTHROPIC_API_KEY` o erro sobe com o motivo, e a tela o mostra.
+ */
+async function buscarDaAnthropic(): Promise<AiModel[]> {
+  const brutos: Anthropic.ModelInfo[] = [];
+  try {
+    /// O SDK pagina sozinho na iteração; são poucas dezenas de modelos.
+    for await (const modelo of clienteAnthropic({ orcamentoMs: ORCAMENTO_MS }).models.list({
+      limit: 100,
+    })) {
+      brutos.push(modelo);
+    }
+  } catch (erro) {
+    throw traduzirErroAnthropic(erro);
+  }
+
+  const modelos = brutos.map(normalizarAnthropic).filter((m): m is AiModel => m !== null);
+  /// A API listou e a tabela não reconheceu nenhum: não é catálogo vazio, é
+  /// tabela de preços velha. Falha alto, com o remédio, em vez de "0 de 0".
+  if (brutos.length > 0 && modelos.length === 0) {
+    throw new AppError(
+      503,
+      "PROVEDOR_INDISPONIVEL",
+      "Nenhum modelo da Anthropic tem preço conhecido neste servidor (PRECOS_ANTHROPIC).",
+    );
+  }
+  return modelos;
+}
+
+/**
+ * Lista o catálogo de um provedor, filtrado. Sem `provider`, o do OpenRouter —
+ * o padrão de `listAiModelsQuerySchema`, para quem chama por dentro também.
  *
  * Não recebe `userId`, como `saude`: o catálogo é do provedor, igual para todo
  * mundo. A rota continua exigindo autenticação.
  */
-export async function listarModelos(query: ListAiModelsQuery): Promise<AiModelList> {
+export async function listarModelos(
+  query: Omit<ListAiModelsQuery, "provider"> & { provider?: AiProvider },
+): Promise<AiModelList> {
+  const provider = query.provider ?? "openrouter";
   const agora = Date.now();
   let stale = false;
+  let catalogo = catalogos[provider];
 
   if (!catalogo || agora - catalogo.emMs > TTL_MS) {
     try {
-      catalogo = { emMs: agora, modelos: await buscarDoProvedor() };
+      const buscar = provider === "anthropic" ? buscarDaAnthropic : buscarDoProvedor;
+      catalogo = { emMs: agora, modelos: await buscar() };
+      catalogos[provider] = catalogo;
     } catch (erro) {
       /// Com cache quente, provedor fora do ar não derruba a tela de ajustes —
       /// ela mostra o que tinha e **diz que está velho**. Sem cache, o erro sobe.
@@ -298,8 +371,8 @@ function criterioDesconhecido(criterio: never): never {
  * Favoritar precisa da cópia dos campos de preço, e buscar o catálogo inteiro
  * outra vez seria pagar centenas de KB por clique.
  */
-export async function acharModelo(id: string): Promise<AiModel | null> {
-  const { items } = await listarModelos({ q: id, limit: 100, sort: "relevance" });
+export async function acharModelo(id: string, provider: AiProvider): Promise<AiModel | null> {
+  const { items } = await listarModelos({ provider, q: id, limit: 100, sort: "relevance" });
   return items.find((m) => m.id === id) ?? null;
 }
 
@@ -310,5 +383,6 @@ export async function acharModelo(id: string): Promise<AiModel | null> {
  * esperar uma hora. Produção nunca chama.
  */
 export function esquecerCatalogo(): void {
-  catalogo = null;
+  delete catalogos.openrouter;
+  delete catalogos.anthropic;
 }

@@ -2,12 +2,17 @@ import type { AiCallUsage, FormatNoteResult } from "@yu-book/shared";
 import { extrairWikilinks, normalizarTitulo } from "@yu-book/shared";
 import { prisma } from "../../db.js";
 import { AppError, notFound } from "../../lib/errors.js";
+import { fluxoNaAnthropic } from "./anthropic-fluxo.js";
 import {
+  custoDaAnthropic,
   custoDaResposta,
   estimarCustoMicros,
+  FOLGA_PENSAMENTO_TOKENS,
   garantirTeto,
+  precoParaEstimativa,
   registrarUso,
   tokensAproximados,
+  type CustoApurado,
   type UsoDoProvedor,
 } from "./custo.service.js";
 import { pedirDoProvedor, politicaDeDados } from "./openrouter.service.js";
@@ -120,26 +125,67 @@ export async function formatarNota(
     );
   }
 
-  const estimativa = estimarCustoMicros(modelo, contentMd.length, maxTokens);
+  /// Na Anthropic a saída pode ir até a folga do pensamento, e o teto a conta.
+  const anthropic = modelo.provider === "anthropic";
+  const maxTokensDoPedido = anthropic ? maxTokens + FOLGA_PENSAMENTO_TOKENS : maxTokens;
+  const estimativa = estimarCustoMicros(
+    precoParaEstimativa(modelo, tokensEntrada, false),
+    contentMd.length,
+    maxTokensDoPedido,
+  );
   /// Recusa **antes de abrir conexão**, e devolve o dia que o registro vai usar.
   const { localDay } = await garantirTeto(userId, preferencia, estimativa);
 
   const inicio = Date.now();
-  let resposta: RespostaDeChat;
+  const mensagens = [
+    { role: "system" as const, content: INSTRUCOES },
+    { role: "user" as const, content: contentMd },
+  ];
+  /// O mesmo formato para os dois provedores daqui para baixo: o texto bruto,
+  /// quem respondeu, o id da resposta, o custo apurado e se a saída foi cortada.
+  let bruto: unknown;
+  let modelUsed: string | null;
+  let generationId: string | null;
+  let apurado: CustoApurado & { cacheReadTokens?: number; cacheWriteTokens?: number };
+  let cortada = false;
   try {
-    resposta = await pedirDoProvedor<RespostaDeChat>("/chat/completions", {
-      metodo: "POST",
-      orcamentoMs: ORCAMENTO_MS,
-      corpo: {
-        model: modelo.id,
-        max_tokens: maxTokens,
-        messages: [
-          { role: "system", content: INSTRUCOES },
-          { role: "user", content: contentMd },
-        ],
-        ...politicaDeDados(preferencia.allowTraining),
-      },
-    });
+    if (anthropic) {
+      /// Pelo fluxo, mesmo sem tela esperando delta: uma nota grande pede
+      /// `max_tokens` alto, e o SDK recusa chamada longa sem streaming.
+      const fluxo = fluxoNaAnthropic({
+        modelo: modelo.id,
+        mensagens,
+        catalogo: [],
+        maxTokens: maxTokensDoPedido,
+        buscaNaWeb: false,
+        cache: false,
+        orcamentoMs: ORCAMENTO_MS,
+      });
+      let passo = await fluxo.next();
+      while (!passo.done) passo = await fluxo.next();
+      const resultado = passo.value;
+      /// Recusa do modelo também é "não devolveu texto": a nota não muda.
+      bruto = resultado.parou === "refusal" ? "" : resultado.texto;
+      modelUsed = resultado.modelUsed;
+      generationId = resultado.generationId;
+      apurado = custoDaAnthropic(resultado.uso, modelo);
+      cortada = resultado.parou === "max_tokens";
+    } else {
+      const resposta = await pedirDoProvedor<RespostaDeChat>("/chat/completions", {
+        metodo: "POST",
+        orcamentoMs: ORCAMENTO_MS,
+        corpo: {
+          model: modelo.id,
+          max_tokens: maxTokens,
+          messages: mensagens,
+          ...politicaDeDados(preferencia.allowTraining),
+        },
+      });
+      bruto = resposta.choices?.[0]?.message?.content;
+      modelUsed = typeof resposta.model === "string" ? resposta.model : null;
+      generationId = typeof resposta.id === "string" ? resposta.id : null;
+      apurado = custoDaResposta(resposta.usage, modelo);
+    }
   } catch (erro) {
     /// A chamada pode ter custado mesmo falhando, e o registro é a trilha de
     /// auditoria do teto. Nunca engole o erro original.
@@ -147,6 +193,7 @@ export async function formatarNota(
       userId,
       task: "formatar",
       modelId: modelo.id,
+      provider: modelo.provider,
       promptTokens: 0,
       completionTokens: 0,
       costMicros: 0,
@@ -160,13 +207,13 @@ export async function formatarNota(
     throw erro;
   }
 
-  const apurado = custoDaResposta(resposta.usage, modelo);
   const comum = {
     userId,
     task: "formatar" as const,
     modelId: modelo.id,
-    modelUsed: typeof resposta.model === "string" ? resposta.model : null,
-    generationId: typeof resposta.id === "string" ? resposta.id : null,
+    provider: modelo.provider,
+    modelUsed,
+    generationId,
     durationMs: Date.now() - inicio,
     localDay,
     noteId,
@@ -178,7 +225,13 @@ export async function formatarNota(
     throw new AppError(502, "RESPOSTA_INVALIDA", motivo);
   }
 
-  const bruto = resposta.choices?.[0]?.message?.content;
+  /// Saída cortada por `max_tokens` é nota pela metade: gravá-la apagaria o fim.
+  if (cortada) {
+    return recusar(
+      "A resposta do modelo veio cortada. A nota não foi alterada — tente um modelo com " +
+        "mais saída.",
+    );
+  }
   if (typeof bruto !== "string" || !bruto.trim()) {
     // Acontece de verdade: há modelos gratuitos que respondem 200 com conteúdo
     // vazio. A mensagem precisa dizer o que fazer, não só que falhou.
@@ -196,7 +249,7 @@ export async function formatarNota(
 
   const usage: AiCallUsage = {
     modelId: modelo.id,
-    modelUsed: comum.modelUsed,
+    modelUsed,
     promptTokens: apurado.promptTokens,
     completionTokens: apurado.completionTokens,
     costMicros: apurado.costMicros,

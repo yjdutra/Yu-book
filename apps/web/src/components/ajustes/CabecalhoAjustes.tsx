@@ -15,7 +15,8 @@ export function CabecalhoAjustes({
   onFecharErro: () => void;
 }) {
   const { data: ajustes } = useAiAjustes();
-  const { data: saude } = useAiSaude();
+  const { data: anthropic } = useAiSaude("anthropic");
+  const { data: openrouter } = useAiSaude("openrouter");
   const uso = ajustes?.usage;
   const fracao =
     uso && ajustes && ajustes.dailyCapMicros > 0
@@ -56,13 +57,15 @@ export function CabecalhoAjustes({
         )}
       </div>
 
-      {saude && !saude.configured && (
+      {anthropic && openrouter && !anthropic.configured && !openrouter.configured && (
         // RNF-03: sem chave, o resto do app funciona igual — e isso é dito em
         // qualquer seção, não só na do provedor: escolher modelos sem saber
-        // que nada vai rodar é trabalho jogado fora.
+        // que nada vai rodar é trabalho jogado fora. Com uma das duas chaves já
+        // há o que usar; qual falta para cada modelo, a seção Provedor diz.
         <Aviso tom="alerta" urgente>
-          Nenhuma chave configurada no servidor. Defina <code>OPENROUTER_API_KEY</code> no
-          ambiente da API para habilitar as funções de IA. O resto do Yu-book funciona normal.
+          Nenhuma chave configurada no servidor. Defina <code>ANTHROPIC_API_KEY</code> (os
+          créditos do plano do Claude) ou <code>OPENROUTER_API_KEY</code> no ambiente da API para
+          habilitar as funções de IA. O resto do Yu-book funciona normal.
         </Aviso>
       )}
 

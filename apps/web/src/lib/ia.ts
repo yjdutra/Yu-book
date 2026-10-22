@@ -3,9 +3,11 @@ import type {
   AiHealth,
   AiModelList,
   AiModelSort,
+  AiProvider,
   AiSettings,
   AiSettingsPatch,
   AiUsageReport,
+  ClaudeUsageReport,
   FormatNoteResult,
   OpenRouterAccount,
   OpenRouterKeyReport,
@@ -27,12 +29,23 @@ import { CHAVE_USO } from "./chat";
 
 const TAREFA = ["ia", "tarefa"] as const;
 
-export function useAiSaude() {
+/**
+ * A saúde de um provedor. Cada um tem chave própria, e a chave de cache leva o
+ * provedor debaixo de `CHAVE_SAUDE_IA` — quem invalida o prefixo alcança os dois.
+ */
+export function useAiSaude(provider: AiProvider) {
   return useQuery({
-    queryKey: CHAVE_SAUDE_IA,
-    queryFn: () => api.get<AiHealth>("/ai/health"),
+    queryKey: [...CHAVE_SAUDE_IA, provider],
+    queryFn: () => api.get<AiHealth>(`/ai/health?provider=${provider}`),
     staleTime: 60_000,
   });
+}
+
+/** As duas saúdes, para quem decide pelo provedor do modelo (`motivoSemChat`). */
+export function useAiSaudes(): (provider: AiProvider) => AiHealth | undefined {
+  const anthropic = useAiSaude("anthropic").data;
+  const openrouter = useAiSaude("openrouter").data;
+  return (provider) => (provider === "anthropic" ? anthropic : openrouter);
 }
 
 /** Os três blocos da tela vêm juntos, numa requisição só. */
@@ -104,8 +117,22 @@ export function useUsoIa(dias: PeriodoDeUso) {
   });
 }
 
+/**
+ * A tela de custo do Claude (`/ajustes/claude`). Debaixo de `CHAVE_USO`: uma
+ * mensagem do chat invalida o prefixo, e esta tela acompanha como a do dash.
+ */
+export function useUsoClaude(dias: PeriodoDeUso) {
+  return useQuery({
+    queryKey: [...CHAVE_USO, "claude", dias],
+    queryFn: () => api.get<ClaudeUsageReport>(`/ai/claude/usage?days=${dias}`),
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
 /** O que a tela pergunta ao catálogo. `maxPrice` em µUSD por milhão; `null` = sem teto. */
 export interface FiltrosDeModelo {
+  provider: AiProvider;
   q: string;
   tools: boolean;
   reasoning: boolean;
@@ -114,7 +141,11 @@ export interface FiltrosDeModelo {
 }
 
 export function useAiModelos(filtros: FiltrosDeModelo) {
-  const busca = new URLSearchParams({ limit: "20", sort: filtros.sort });
+  const busca = new URLSearchParams({
+    provider: filtros.provider,
+    limit: "20",
+    sort: filtros.sort,
+  });
   if (filtros.q) busca.set("q", filtros.q);
   if (filtros.tools) busca.set("tools", "true");
   if (filtros.reasoning) busca.set("reasoning", "true");
@@ -146,7 +177,8 @@ export function useAtualizarAjustes() {
 export function useFavoritar() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (modelId: string) => api.post<AiFavorite>("/ai/favorites", { modelId }),
+    mutationFn: (modelo: { modelId: string; provider: AiProvider }) =>
+      api.post<AiFavorite>("/ai/favorites", modelo),
     // A resposta é só o favorito, não a tela inteira — aqui invalidar é honesto.
     onSuccess: () => qc.invalidateQueries({ queryKey: CHAVE_AJUSTES }),
   });

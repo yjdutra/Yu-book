@@ -1,6 +1,7 @@
 import { z } from "zod";
 /// Os enums espelhados do Prisma moram todos em `enums.ts`.
-import type { AiCostSource, AiTask, TarefaComModelo } from "./enums.js";
+import { AI_PROVIDERS } from "./enums.js";
+import type { AiCostSource, AiProvider, AiTask, TarefaComModelo } from "./enums.js";
 
 /**
  * Contrato da frente de IA — Fase 5 do roteiro, detalhada em
@@ -83,6 +84,10 @@ export function ehFusoValido(fuso: string): boolean {
 /// Teto máximo aceito no ajuste: US$ 100 por dia. Guarda contra dedo escorregado.
 export const TETO_DIARIO_MAXIMO_MICROS = 100_000_000;
 
+/// Crédito mensal máximo aceito no ajuste: US$ 2 mil. Guarda contra dedo escorregado,
+/// e cabe no `Int` de 32 bits da coluna, como o teto diário.
+export const CREDITO_MENSAL_MAXIMO_MICROS = 2_000_000_000;
+
 export const aiSettingsPatchSchema = z.object({
   dailyCapMicros: z
     .number()
@@ -92,12 +97,24 @@ export const aiSettingsPatchSchema = z.object({
     .optional(),
   timezone: z.string().refine(ehFusoValido, "Fuso horário desconhecido").optional(),
   allowTraining: z.boolean().optional(),
+  /// Os créditos mensais da API da Anthropic, em µUSD, para a tela de custo do
+  /// Claude comparar o gasto do mês. `null` apaga. Só informativo: não é teto.
+  anthropicMonthlyCreditMicros: z
+    .number()
+    .int()
+    .min(0)
+    .max(CREDITO_MENSAL_MAXIMO_MICROS, "Crédito mensal acima do limite aceito")
+    .nullable()
+    .optional(),
 });
 
 /// O id do modelo vai no corpo, não no caminho: o slug do OpenRouter tem barra
 /// (`anthropic/claude-sonnet-4`) e estouraria o roteamento.
 export const aiFavoriteInputSchema = z.object({
   modelId: z.string().trim().min(1, "Informe o modelo").max(200),
+  /// De qual catálogo o modelo veio. O padrão é o de antes da Anthropic, para um
+  /// cliente que ainda não manda o campo continuar favoritando o que favoritava.
+  provider: z.enum(AI_PROVIDERS).default("openrouter"),
 });
 
 export const aiTaskModelSchema = z.object({
@@ -132,6 +149,8 @@ export type AiModelSort = (typeof AI_MODEL_SORTS)[number];
 export const FAIXAS_DE_PRECO_MICROS = [0, 500_000, 2_000_000] as const;
 
 export const listAiModelsQuerySchema = z.object({
+  /// Qual catálogo. Mesmo padrão de `aiFavoriteInputSchema`, pelo mesmo motivo.
+  provider: z.enum(AI_PROVIDERS).default("openrouter"),
   q: z.string().trim().max(80).optional(),
   /// Teto de preço de **entrada**, em µUSD por milhão. `0` quer dizer gratuito.
   maxPrice: z.coerce.number().int().min(0).optional(),
@@ -147,6 +166,11 @@ export const listAiModelsQuerySchema = z.object({
     .optional()
     .transform((v) => (v === undefined ? undefined : v === "true")),
   limit: z.coerce.number().int().min(1).max(100).default(30),
+});
+
+/// `GET /ai/health?provider=`: cada provedor tem chave própria e responde sozinho.
+export const aiHealthQuerySchema = z.object({
+  provider: z.enum(AI_PROVIDERS).default("openrouter"),
 });
 
 export const formatNoteSchema = z.object({
@@ -176,6 +200,7 @@ export interface AiModelIndices {
 }
 
 export interface AiModel {
+  provider: AiProvider;
   id: string;
   name: string;
   contextLength: number;
@@ -215,6 +240,8 @@ export interface AiModelList {
  */
 export interface AiFavorite {
   favoriteId: string;
+  /// Quem atende as chamadas deste modelo — o provedor segue o modelo.
+  provider: AiProvider;
   snapshotAt: string;
   id: string;
   name: string;
@@ -244,10 +271,12 @@ export interface AiSettings {
   favorites: AiFavorite[];
   /// Só as tarefas com modelo próprio: `rotina` usa o do agente ou o do chat.
   taskModels: Partial<Record<TarefaComModelo, string>>;
+  /// Os créditos mensais da Anthropic informados pelo usuário, ou `null`.
+  anthropicMonthlyCreditMicros: number | null;
 }
 
 export interface AiHealth {
-  provider: "openrouter";
+  provider: AiProvider;
   /// Existe chave no ambiente do servidor.
   configured: boolean;
   /// O provedor respondeu. Consultado **sem** executar inferência (RF-08).

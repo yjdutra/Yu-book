@@ -31,6 +31,7 @@ import { BotaoIcone } from "@yu-book/cliente/base/Botao";
 import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
 import { Menu } from "@yu-book/cliente/base/Menu";
 import { IconeAlca, IconeAlerta, IconeFechar, IconeOpcoes } from "@yu-book/cliente/icones";
+import { AvisoOpenRouter } from "./AvisoOpenRouter";
 import { CartaoModelo } from "./CartaoModelo";
 import {
   EXIGE_FERRAMENTA,
@@ -366,6 +367,14 @@ export function QuadroDeModelos({ onErro }: { onErro: (mensagem: string | null) 
 
   const modeloArrastado = arrastando ? modeloDe(arrastando.modelId) : undefined;
   const tarefaSobre = tarefaDe(sobre);
+  /// As tarefas que hoje gastam no OpenRouter, não nos créditos do Claude. O
+  /// aviso fica enquanto durar a escolha, e não só no instante da troca: quem
+  /// volta à tela semanas depois precisa ver de onde o gasto sai.
+  const noOpenRouter = TAREFAS_COM_MODELO.filter((t) => {
+    const id = escolhidos[t];
+    return id !== undefined && modeloDe(id)?.provider === "openrouter";
+  });
+  const nomesNoOpenRouter = noOpenRouter.map((t) => ROTULO_DA_TAREFA[t].titulo).join(" e ");
 
   return (
     <DndContext
@@ -380,6 +389,15 @@ export function QuadroDeModelos({ onErro }: { onErro: (mensagem: string | null) 
         setSobre(null);
       }}
     >
+      {/* Dentro do `DndContext`, que não desenha nó nenhum: fora dele seria um
+          fragmento e o quadro inteiro mudaria de indentação por uma linha. */}
+      {noOpenRouter.length > 0 && (
+        <AvisoOpenRouter
+          className="mb-3"
+          onde={`${noOpenRouter.length > 1 ? "as tarefas" : "a tarefa"} ${nomesNoOpenRouter}`}
+          plural={noOpenRouter.length > 1}
+        />
+      )}
       <div
         className="grid gap-4"
         style={{

@@ -6,6 +6,8 @@ import type {
   AiUsageByTask,
   AiUsageCall,
   AiUsageError,
+  ClaudeUsageByModel,
+  ClaudeUsageReport,
 } from "@yu-book/shared";
 import { useState } from "react";
 import type { ReactNode } from "react";
@@ -19,8 +21,8 @@ import { diaCurto } from "@yu-book/cliente/graficos/BarrasPorDia";
 import { duracao, emDolares, ROTULO_DA_TAREFA } from "./comum";
 
 /**
- * As tabelas do AI usage dash (`SecaoUsoIa`). Separadas só pelo tamanho: não
- * têm outro consumidor.
+ * As tabelas do AI usage dash (`SecaoUsoIa`) e da tela de custo do Claude
+ * (`SecaoClaude`), que dividem o desenho. Separadas das seções só pelo tamanho.
  */
 
 export const INTEIRO = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
@@ -369,4 +371,47 @@ function Origem({
     );
   }
   return <span className="inline-flex items-center gap-1">{partes}</span>;
+}
+
+/**
+ * Por modelo, na tela do Claude: com as duas colunas de cache, que só a
+ * Anthropic informa. "Entrada" é a parte **sem** cache, como ela conta.
+ */
+export function TabelaClaudePorModelo({ linhas }: { linhas: ClaudeUsageByModel[] }) {
+  return (
+    <Tabela
+      legenda="Uso do Claude por modelo"
+      colunas={["Modelo", "Chamadas", "Entrada", "Cache lido", "Cache escrito", "Saída", "Custo"]}
+    >
+      {linhas.map((m) => (
+        <tr key={m.model} className={LINHA}>
+          <th scope="row" className={`${CABECA_DE_LINHA} font-mono break-all`}>
+            {m.model}
+          </th>
+          <td className={CELULA}>{INTEIRO.format(m.calls)}</td>
+          <td className={CELULA}>{INTEIRO.format(m.inputTokens)}</td>
+          <td className={CELULA}>{INTEIRO.format(m.cacheReadTokens)}</td>
+          <td className={CELULA}>{INTEIRO.format(m.cacheWriteTokens)}</td>
+          <td className={CELULA}>{INTEIRO.format(m.outputTokens)}</td>
+          <td className={CELULA}>{emDolares(m.costMicros)}</td>
+        </tr>
+      ))}
+    </Tabela>
+  );
+}
+
+export function TabelaClaudePorTarefa({ linhas }: { linhas: ClaudeUsageReport["byTask"] }) {
+  return (
+    <Tabela legenda="Uso do Claude por tarefa" colunas={["Tarefa", "Chamadas", "Custo"]}>
+      {linhas.map((t) => (
+        <tr key={t.task} className={LINHA}>
+          <th scope="row" className={CABECA_DE_LINHA}>
+            {ROTULO_DE_TAREFA[t.task]}
+          </th>
+          <td className={CELULA}>{INTEIRO.format(t.calls)}</td>
+          <td className={CELULA}>{emDolares(t.costMicros)}</td>
+        </tr>
+      ))}
+    </Tabela>
+  );
 }

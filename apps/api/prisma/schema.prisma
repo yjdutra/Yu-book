@@ -81,6 +81,14 @@ enum AiCostSource {
   desconhecido
 }
 
+/// Quem atende a chamada de IA. O provedor segue o modelo: está no favorito e
+/// é copiado para cada linha de uso. `openrouter` é o padrão das colunas porque
+/// é o que todo dado gravado antes da Anthropic era.
+enum AiProvider {
+  openrouter
+  anthropic
+}
+
 /// As seis cores de agente (Etapa D da frente de IA). Tons fixos, mapeados para
 /// tokens do tema no front — cor livre em hex não passaria pelos dois temas.
 /// Espelha `AGENT_COLORS` de `packages/shared/src/agentes.ts`.
@@ -671,6 +679,10 @@ model AiPreference {
   /// conta, não por navegador — o operador usa mais de um dispositivo. Nulo é
   /// "nunca", e o Início mostra as das últimas 24 h.
   runsSeenAt     DateTime? @map("runs_seen_at")
+  /// Os créditos mensais da API da Anthropic, em µUSD, informados à mão em
+  /// `/ajustes/claude` para comparar com o gasto do mês. Só informativo: o teto
+  /// é `dailyCapMicros`. A API da Anthropic não deixa ler o saldo de créditos.
+  anthropicMonthlyCreditMicros Int? @map("anthropic_monthly_credit_micros")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -700,6 +712,10 @@ model AiModelFavorite {
   /// A bandeira de que as etapas seguintes dependem: um modelo que não sabe
   /// chamar ferramenta conversa bem e não consegue consultar o acervo.
   supportsTools    Boolean  @map("supports_tools")
+  /// O catálogo de onde o modelo veio, e por isso quem atende as chamadas dele.
+  /// O único continua `(userId, modelId)`: id da Anthropic não tem barra e não
+  /// colide com slug do OpenRouter.
+  provider         AiProvider @default(openrouter)
   snapshotAt       DateTime @default(now()) @map("snapshot_at")
   createdAt        DateTime @default(now()) @map("created_at")
 
@@ -738,9 +754,15 @@ model AiUsage {
   /// Id da resposta do provedor. Entra agora porque é o que permite reconciliar
   /// o custo depois sem migration nova; a reconciliação em si é outra entrega.
   generationId String? @map("generation_id")
+  /// Quem atendeu. A tela de custo do Claude (`/ajustes/claude`) recorta por aqui.
+  provider     AiProvider @default(openrouter)
 
   promptTokens     Int          @default(0) @map("prompt_tokens")
   completionTokens Int          @default(0) @map("completion_tokens")
+  /// Tokens de cache da Anthropic, **fora** de `promptTokens` — que fica sendo a
+  /// entrada sem cache, como a resposta dela informa. O OpenRouter grava zero.
+  cacheReadTokens  Int          @default(0) @map("cache_read_tokens")
+  cacheWriteTokens Int          @default(0) @map("cache_write_tokens")
   costMicros       Int          @default(0) @map("cost_micros")
   costSource       AiCostSource @map("cost_source")
   durationMs       Int          @map("duration_ms")
@@ -769,6 +791,7 @@ model AiUsage {
   run          AiRoutineRun?   @relation(fields: [runId], references: [id], onDelete: SetNull)
 
   @@index([userId, localDay])
+  @@index([userId, provider, localDay])
   @@index([userId, createdAt(sort: Desc)])
   @@map("ai_usage")
 }

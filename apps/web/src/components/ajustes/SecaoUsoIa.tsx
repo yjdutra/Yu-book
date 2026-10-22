@@ -143,7 +143,7 @@ const PADRAO: PeriodoDeUso = 30;
  * Voltar desfaz a troca. Valor que a lista não tem cai no padrão, em vez de
  * pedir ao servidor um período que ele recusaria com 422.
  */
-function usePeriodoDaUrl() {
+export function usePeriodoDaUrl() {
   const [params, setParams] = useSearchParams();
   const texto = params.get("dias");
   const periodo = PERIODOS_DE_USO.find((p) => String(p) === texto) ?? PADRAO;
@@ -161,7 +161,7 @@ function usePeriodoDaUrl() {
  * ergue como cartão, então a escolha tem forma além da cor (RNF-09), e
  * `aria-pressed` diz o mesmo ao leitor de tela.
  */
-function SeletorPeriodo({
+export function SeletorPeriodo({
   periodo,
   onPeriodo,
 }: {
@@ -207,7 +207,7 @@ const VARIACAO = new Intl.NumberFormat("pt-BR", {
  * A variação contra o período anterior, com o sinal escrito ("+12%"), e não
  * uma seta colorida: subir o gasto não é, por si, bom nem ruim.
  */
-function variacao(atual: number, anterior: number, dias: number): string {
+export function variacao(atual: number, anterior: number, dias: number): string {
   if (anterior === 0) return `sem gasto nos ${dias} dias anteriores`;
   return `${VARIACAO.format((atual - anterior) / anterior)} contra os ${dias} dias anteriores`;
 }
@@ -267,7 +267,8 @@ function Honestidade({ relatorio }: { relatorio: AiUsageReport }) {
         <Aviso tom="alerta">
           {PORCENTAGEM.format(estimatedMicros / costMicros)} do gasto do período (
           {emDolares(estimatedMicros)}) é estimativa: o provedor não informou o custo dessas
-          chamadas, e a conta usou os tokens e o preço do catálogo.
+          chamadas, e a conta usou os tokens e o preço do catálogo. Na Anthropic é sempre
+          assim — ela devolve só tokens; a tela Custo do Claude explica a conta.
         </Aviso>
       )}
       {callsWithoutCost > 0 && (

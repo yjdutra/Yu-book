@@ -2,16 +2,20 @@ import { z } from "zod";
 import { CUSTO_ESTIMADO_BUSCA_MICROS, MAX_RESULTADOS_DA_BUSCA } from "@yu-book/shared";
 import type { AiCallUsage, AiFavorite, AiTask } from "@yu-book/shared";
 import { AppError } from "../../lib/errors.js";
+import { fluxoNaAnthropic } from "./anthropic-fluxo.js";
+import type { PassoDaAnthropic } from "./anthropic-fluxo.js";
 import {
   comBusca,
+  custoDaAnthropic,
   custoDaResposta,
   estimarComBusca,
+  FOLGA_PENSAMENTO_TOKENS,
   garantirTeto,
   MAX_SAIDA_TOKENS,
   registrarUso,
   tokensAproximados,
 } from "./custo.service.js";
-import type { CustoApurado } from "./custo.service.js";
+import type { CustoApurado, RegistroDeUso } from "./custo.service.js";
 import type { FerramentaParaProvedor } from "./ferramentas.service.js";
 import { lerFluxo } from "./fluxo.js";
 import type { Citacao, PedidoDeFerramenta } from "./fluxo.js";
@@ -43,7 +47,15 @@ const MINIMO_SAIDA_TOKENS = 256;
 
 export type MensagemDoProvedor =
   | { role: "system" | "user"; content: string }
-  | { role: "assistant"; content: string; tool_calls?: unknown[] }
+  | {
+      role: "assistant";
+      content: string;
+      tool_calls?: unknown[];
+      /// A fala como a Anthropic a devolveu (`ResultadoDoPasso.nativo`), só em
+      /// memória, dentro do laço de uma mensagem: é o que leva o pensamento ao
+      /// passo seguinte. Nunca é gravado, e o OpenRouter não o lê.
+      nativo?: unknown;
+    }
   | { role: "tool"; tool_call_id: string; content: string };
 
 export function charsDe(mensagens: MensagemDoProvedor[]): number {
@@ -74,6 +86,21 @@ export function estimarPasso(
  * real — a conferir em produção junto do custo (ver `comBusca`).
  */
 const PLUGIN_DA_BUSCA = { id: "web", engine: "exa", max_results: MAX_RESULTADOS_DA_BUSCA };
+
+/**
+ * Se a volta `volta` do laço leva a busca na web, com ela ligada no agente.
+ *
+ * No OpenRouter, só a primeira: as seguintes já têm os resultados no histórico,
+ * e cada busca é cobrada (Etapa G). **Na Anthropic, todas** — a busca é uma
+ * ferramenta em `tools`, e o pensamento reenviado pelo `nativo` só vale com o
+ * mesmo conjunto de ferramentas do passo que o produziu. Tirá-la no passo 2
+ * invalida o bloco, e conta criada desde 2026-08-31 recebe 400 (revisão da
+ * F2). Mantida em todas as voltas, a estimativa de cada uma conta a busca
+ * (`estimarPasso`), e o teto continua sendo cota superior.
+ */
+export function buscaNaVolta(modelo: AiFavorite, ligada: boolean, volta: number): boolean {
+  return ligada && (volta === 1 || modelo.provider === "anthropic");
+}
 
 export function paraToolCalls(pedidos: PedidoDeFerramenta[]): unknown[] {
   return pedidos.map((p) => ({
@@ -110,6 +137,141 @@ export function saidaDisponivel(
   return maxTokens < MINIMO_SAIDA_TOKENS
     ? { maxTokens: null, tokensEntrada }
     : { maxTokens, tokensEntrada };
+}
+
+type RegistroDoPasso = Pick<
+  RegistroDeUso,
+  "userId" | "task" | "modelId" | "provider" | "localDay" | "conversationId" | "runId"
+>;
+
+/**
+ * A linha de uso da chamada que falhou: custo zero e `desconhecido`, porque não
+ * há `usage` para ler. Vale para os dois provedores.
+ */
+async function registrarFalha(
+  registro: RegistroDoPasso,
+  inicio: number,
+  erro: unknown,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  await registrarUso({
+    ...registro,
+    promptTokens: 0,
+    completionTokens: 0,
+    costMicros: 0,
+    costSource: "desconhecido",
+    durationMs: Date.now() - inicio,
+    ok: false,
+    errorCode: signal?.aborted
+      ? "CANCELADA"
+      : erro instanceof AppError
+        ? erro.code
+        : "INTERNAL_ERROR",
+  });
+}
+
+/**
+ * O passo na Anthropic, depois do teto. Mesmo contrato do ramo do OpenRouter —
+ * deltas, linha de uso em toda saída, erro com código estável —, com três
+ * diferenças:
+ *
+ * - `max_tokens` leva a folga do pensamento (`FOLGA_PENSAMENTO_TOKENS`), que a
+ *   estimativa do teto já contou;
+ * - o custo é sempre `estimado`, pela tabela, com cache e busca;
+ * - recusa do modelo (`stop_reason: "refusal"`) chega como 200 e já foi paga:
+ *   grava o custo com `ok: false` e só então lança.
+ */
+async function* passoNaAnthropic(
+  pedido: PedidoDoPasso,
+  registro: RegistroDoPasso,
+  inicio: number,
+): AsyncGenerator<string, ResultadoDoPasso, undefined> {
+  const { modelo } = pedido;
+
+  let resultado: PassoDaAnthropic;
+  try {
+    const fluxo = fluxoNaAnthropic({
+      modelo: modelo.id,
+      mensagens: pedido.mensagens,
+      catalogo: pedido.catalogo,
+      maxTokens: pedido.maxTokens + FOLGA_PENSAMENTO_TOKENS,
+      buscaNaWeb: pedido.buscaNaWeb,
+      cache: true,
+      orcamentoMs: ORCAMENTO_MS,
+      signal: pedido.signal,
+    });
+    while (true) {
+      const pedaco = await fluxo.next();
+      if (pedaco.done) {
+        resultado = pedaco.value;
+        break;
+      }
+      yield pedaco.value;
+    }
+  } catch (erro) {
+    await registrarFalha(registro, inicio, erro, pedido.signal);
+    throw erro;
+  }
+
+  const durationMs = Date.now() - inicio;
+  const custo = custoDaAnthropic(resultado.uso, modelo);
+  const linha = {
+    ...registro,
+    modelUsed: resultado.modelUsed,
+    generationId: resultado.generationId,
+    durationMs,
+    ...custo,
+  };
+
+  if (resultado.parou === "refusal") {
+    await registrarUso({ ...linha, ok: false, errorCode: "RECUSA_DO_MODELO" });
+    throw new AppError(
+      502,
+      "RESPOSTA_INVALIDA",
+      "O modelo recusou responder a este pedido. Reformule a mensagem ou troque o modelo.",
+    );
+  }
+  /// O laço do servidor (a busca roda código por baixo) pausou antes de
+  /// terminar. Continuar seria outra chamada paga, fora do teto deste passo;
+  /// tomar o parcial como resposta gravaria meia fala como `ok`.
+  if (resultado.parou === "pause_turn") {
+    await registrarUso({ ...linha, ok: false, errorCode: "RESPOSTA_INVALIDA" });
+    throw new AppError(
+      502,
+      "RESPOSTA_INVALIDA",
+      "A busca na web não terminou a tempo. Tente de novo, ou peça algo mais específico.",
+    );
+  }
+  /// Cortado no meio de um pedido de ferramenta: os argumentos podem estar
+  /// pela metade, e executá-los seria agir sobre um pedido que não existe.
+  if (resultado.parou === "max_tokens" && resultado.pedidos.length > 0) {
+    await registrarUso({ ...linha, ok: false, errorCode: "RESPOSTA_INVALIDA" });
+    throw new AppError(
+      502,
+      "RESPOSTA_INVALIDA",
+      "A resposta do modelo veio cortada no meio de uma consulta ao acervo. Tente de novo.",
+    );
+  }
+  await registrarUso({ ...linha, ok: true });
+
+  return {
+    texto: resultado.texto,
+    citacoes: resultado.citacoes,
+    pedidos: resultado.pedidos,
+    usage: {
+      modelId: modelo.id,
+      modelUsed: resultado.modelUsed,
+      promptTokens: custo.promptTokens,
+      completionTokens: custo.completionTokens,
+      costMicros: custo.costMicros,
+      costSource: custo.costSource,
+    },
+    custo,
+    modelUsed: resultado.modelUsed,
+    generationId: resultado.generationId,
+    durationMs,
+    nativo: resultado.nativo,
+  };
 }
 
 /** A que o uso gravado se prende. Um ou outro, nunca os dois. */
@@ -152,6 +314,9 @@ export interface ResultadoDoPasso {
   modelUsed: string | null;
   generationId: string | null;
   durationMs: number;
+  /// Na Anthropic, o conteúdo da fala como veio — quem guarda a fala no laço o
+  /// repassa em `MensagemDoProvedor.nativo`. No OpenRouter, ausente.
+  nativo?: unknown;
 }
 
 /**
@@ -180,9 +345,16 @@ export async function* passoNoProvedor(
     userId,
     task: pedido.task,
     modelId: modelo.id,
+    provider: modelo.provider,
     localDay,
     ...pedido.vinculo,
   };
+
+  /// O provedor segue o modelo (docs/plano-provedor-anthropic.md). O teto já
+  /// foi conferido acima, para os dois.
+  if (modelo.provider === "anthropic") {
+    return yield* passoNaAnthropic(pedido, registro, inicio);
+  }
 
   let resultado;
   try {
@@ -222,20 +394,7 @@ export async function* passoNoProvedor(
     /// então — não há `usage` para ler, e inventar a tarifa aqui tiraria a
     /// chamada da contagem de "sem custo", que é o sinal do INV-48. O gasto
     /// real, se houve, fica no painel do OpenRouter e fora do teto.
-    await registrarUso({
-      ...registro,
-      promptTokens: 0,
-      completionTokens: 0,
-      costMicros: 0,
-      costSource: "desconhecido",
-      durationMs: Date.now() - inicio,
-      ok: false,
-      errorCode: pedido.signal?.aborted
-        ? "CANCELADA"
-        : erro instanceof AppError
-          ? erro.code
-          : "INTERNAL_ERROR",
-    });
+    await registrarFalha(registro, inicio, erro, pedido.signal);
     throw erro;
   }
 

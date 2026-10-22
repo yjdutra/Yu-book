@@ -1,13 +1,21 @@
-import type { AiHealth } from "@yu-book/shared";
+import type { AiHealth, AiProvider } from "@yu-book/shared";
 import { env } from "../../env.js";
 import { AppError } from "../../lib/errors.js";
+import { saudeAnthropic } from "./anthropic.service.js";
 import { pedirDoProvedor, rotuloPublico, temChave } from "./openrouter.service.js";
 
 /**
- * Regra do módulo de IA (RF-01). O provedor é um só — OpenRouter —, e por isso
- * não existe interface abstrata aqui: com uma implementação, ela seria cerimônia
- * que ninguém exercita.
+ * Regra do módulo de IA (RF-01). Desde 2026-10-21 são dois provedores —
+ * OpenRouter e Anthropic —, e o provedor segue o modelo escolhido
+ * (docs/plano-provedor-anthropic.md). Continua sem interface abstrata: quem
+ * despacha é quem chama, por um `if` sobre `AiProvider`, e o compilador cobra
+ * o ramo que faltar.
  */
+
+/** A saúde do provedor pedido. Cada um tem chave própria e responde sozinho. */
+export async function saudeDe(provider: AiProvider): Promise<AiHealth> {
+  return provider === "anthropic" ? saudeAnthropic() : saude();
+}
 
 /// Checagem de chave é leve; não vale esperar os 8 s do orçamento padrão.
 const ORCAMENTO_SAUDE_MS = 5_000;

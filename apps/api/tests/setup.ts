@@ -35,6 +35,15 @@ process.env.OPENROUTER_API_KEY ??= "chave-de-teste";
 // Nenhuma outra suíte lê esta variável.
 process.env.OPENROUTER_MANAGEMENT_KEY = "gestao-de-teste";
 
+// A Anthropic, segundo provedor de IA (docs/plano-provedor-anthropic.md): o
+// dublê de `tests/anthropic.ts`. Sobrescritas, e não `??=`, como as do Google:
+// uma chave de verdade no `.env` de desenvolvimento iria no header para o
+// dublê, e o resultado da suíte passaria a depender da máquina. A guarda de
+// `anthropic.service.ts` ainda lança, em modo de teste, se o host não for
+// 127.0.0.1. Sem `/v1`: o SDK o acrescenta.
+process.env.ANTHROPIC_BASE_URL = "http://127.0.0.1:39336";
+process.env.ANTHROPIC_API_KEY = "chave-anthropic-de-teste";
+
 // Frente de cards, Parte 2: o bucket dos anexos aponta para o dublê de
 // `tests/armazem.ts`, pelo mesmo motivo da porta fixa acima. `lib/armazem.ts`
 // ainda lança, em modo de teste, se o host não for 127.0.0.1 — se o `.env` de

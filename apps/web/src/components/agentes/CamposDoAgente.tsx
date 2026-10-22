@@ -4,6 +4,7 @@ import { useId } from "react";
 import { Link } from "react-router-dom";
 import { useAiAjustes } from "../../lib/ia";
 import { useBoard, useBoards } from "../../lib/kanban";
+import { AvisoOpenRouter } from "../ajustes/AvisoOpenRouter";
 import { CartaoModelo } from "../ajustes/CartaoModelo";
 import { Aviso } from "@yu-book/cliente/base/Aviso";
 import { BotaoIcone } from "@yu-book/cliente/base/Botao";
@@ -350,6 +351,12 @@ export function EscolhaDeModelo({
           </Link>
           .
         </Aviso>
+      )}
+      {/* O provedor segue o modelo: o deste agente pode gastar fora dos
+          créditos do Claude mesmo com o chat na Anthropic. Com "usar o do
+          chat", o aviso é o do quadro de modelos, em Ajustes. */}
+      {escolhido?.provider === "openrouter" && (
+        <AvisoOpenRouter onde="este agente" className="mb-3" />
       )}
       {escolhido && usaFerramentas && !escolhido.supportsTools && (
         <Aviso tom="alerta" className="mb-3">

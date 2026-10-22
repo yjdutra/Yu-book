@@ -9,7 +9,7 @@ export function SecaoModelos({ onErro }: { onErro: (mensagem: string | null) => 
           `overflow-hidden` do cartão a prenderia. */}
       <section aria-labelledby="titulo-catalogo">
         <h3 id="titulo-catalogo" className="mb-3 text-sm font-semibold text-titulo">
-          Catálogo do provedor
+          Catálogo
         </h3>
         <CatalogoModelos onErro={onErro} />
       </section>

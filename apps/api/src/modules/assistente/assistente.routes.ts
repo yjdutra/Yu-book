@@ -1,6 +1,7 @@
 import { Readable } from "node:stream";
 import {
   aiFavoriteInputSchema,
+  aiHealthQuerySchema,
   aiSettingsPatchSchema,
   aiTaskModelSchema,
   agentInputSchema,
@@ -33,6 +34,7 @@ import * as painel from "./openrouter-painel.service.js";
 import * as preferencias from "./preferencias.service.js";
 import * as rotinas from "./rotinas.service.js";
 import * as uso from "./uso.service.js";
+import * as usoClaude from "./uso-claude.service.js";
 
 /**
  * Caminho em **inglês** com prefixo `/ai`, como todo o resto da fronteira; o
@@ -83,7 +85,10 @@ const CABECALHOS_SSE = {
 export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", authenticate);
 
-  app.get("/ai/health", async () => service.saude());
+  app.get("/ai/health", async (request) => {
+    const { provider } = aiHealthQuerySchema.parse(request.query);
+    return service.saudeDe(provider);
+  });
 
   /// Painel do OpenRouter em `/ajustes/openrouter`. Três rotas, e não uma, para
   /// cada bloco carregar e falhar sozinho: sem management key, o bloco da chave
@@ -114,6 +119,13 @@ export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
     return uso.relatorio(request.userId, days);
   });
 
+  /// Tela de custo do Claude em `/ajustes/claude`: o mesmo registro, só da
+  /// Anthropic, com cache e o mês dos créditos. Só lê o banco, como a de cima.
+  app.get("/ai/claude/usage", async (request) => {
+    const { days } = aiUsageQuerySchema.parse(request.query);
+    return usoClaude.relatorioClaude(request.userId, days);
+  });
+
   app.get("/ai/models", async (request) => {
     const query = listAiModelsQuerySchema.parse(request.query);
     return modelos.listarModelos(query);
@@ -131,8 +143,8 @@ export async function assistenteRoutes(app: FastifyInstance): Promise<void> {
   /// O id do modelo vem no corpo, não no caminho: o slug do provedor tem barra
   /// (`anthropic/claude-x`) e estouraria o roteamento.
   app.post("/ai/favorites", async (request, reply) => {
-    const { modelId } = aiFavoriteInputSchema.parse(request.body);
-    const { favorito, criado } = await preferencias.favoritar(request.userId, modelId);
+    const { modelId, provider } = aiFavoriteInputSchema.parse(request.body);
+    const { favorito, criado } = await preferencias.favoritar(request.userId, modelId, provider);
     return reply.status(criado ? 201 : 200).send(favorito);
   });
 

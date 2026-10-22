@@ -2,7 +2,7 @@ import type { AgentSummary, ChatAttachmentInput } from "@yu-book/shared";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, useMatch } from "react-router-dom";
 import { useAgentes } from "../../lib/agentes";
-import { useAiAjustes, useAiSaude } from "../../lib/ia";
+import { useAiAjustes, useAiSaudes } from "../../lib/ia";
 import { useBoards, useCard } from "../../lib/kanban";
 import { useBusca, useNota } from "../../lib/notas";
 import { useSessaoChat } from "../../lib/sessaoChat";
@@ -56,9 +56,9 @@ function useContextoDaTela(): Anexo | null {
  * Ajustes.
  */
 function useMotivoSemChat(agente: AgentSummary | null) {
-  const { data: saude } = useAiSaude();
+  const saudeDe = useAiSaudes();
   const { data: ajustes } = useAiAjustes();
-  return motivoSemChat(saude, ajustes, agente);
+  return motivoSemChat(saudeDe, ajustes, agente);
 }
 
 export function Compositor({ placeholder }: { placeholder?: string }) {

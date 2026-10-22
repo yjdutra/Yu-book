@@ -32,6 +32,7 @@ import { estimarComBusca, garantirTeto, MAX_SAIDA_TOKENS } from "./custo.service
 import * as ferramentas from "./ferramentas.service.js";
 import {
   motivoDaFalha,
+  buscaNaVolta,
   paraToolCalls,
   passoNoProvedor,
   saidaDisponivel,
@@ -1082,9 +1083,9 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
           task: "rotina",
           vinculo: { runId },
           signal,
-          /// Só a primeira volta busca: as seguintes já têm os resultados no
-          /// histórico, e cada busca é cobrada (Etapa G).
-          buscaNaWeb: agente.webSearch && volta === 1,
+          /// Só a primeira volta busca no OpenRouter; na Anthropic, todas
+          /// (`buscaNaVolta` diz por quê).
+          buscaNaWeb: buscaNaVolta(modelo, agente.webSearch, volta),
           /// O teto da execução, no mesmo ponto do diário: antes de a conexão
           /// sair, com a mesma estimativa. `custoDoRun` já inclui as voltas
           /// anteriores deste passo.
@@ -1133,6 +1134,8 @@ async function executar(plano: Plano, viva: Viva, preferencia: PreferenciaDeIa):
           role: "assistant",
           content: resultado.texto,
           tool_calls: paraToolCalls(resultado.pedidos),
+          /// Só em memória: leva o pensamento da Anthropic ao passo seguinte.
+          nativo: resultado.nativo,
         });
         /// O texto até a consulta era preâmbulo, e a tela o apaga no evento
         /// `ferramenta`. O parcial é zerado **junto**, para que quem assinar

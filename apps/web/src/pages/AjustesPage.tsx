@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { CabecalhoAjustes } from "../components/ajustes/CabecalhoAjustes";
+import { SecaoClaude } from "../components/ajustes/SecaoClaude";
 import { SecaoGasto } from "../components/ajustes/SecaoGasto";
 import { SecaoModelos } from "../components/ajustes/SecaoModelos";
 import { SecaoOpenRouter } from "../components/ajustes/SecaoOpenRouter";
@@ -31,6 +32,7 @@ export function AjustesPage() {
           <Route path="modelos" element={<SecaoModelos onErro={setErro} />} />
           <Route path="provedor" element={<SecaoProvedor onErro={setErro} />} />
           <Route path="gasto" element={<SecaoGasto onErro={setErro} />} />
+          <Route path="claude" element={<SecaoClaude onErro={setErro} />} />
           {/* Sem `onErro`: a seção só consulta, e cada bloco mostra o próprio erro. */}
           <Route path="openrouter" element={<SecaoOpenRouter />} />
           <Route path="uso" element={<SecaoUsoIa />} />

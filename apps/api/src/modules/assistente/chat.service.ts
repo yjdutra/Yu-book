@@ -17,6 +17,7 @@ import * as ferramentas from "./ferramentas.service.js";
 import {
   estimarPasso,
   motivoDaFalha,
+  buscaNaVolta,
   paraToolCalls,
   passoNoProvedor,
   saidaDisponivel,
@@ -448,8 +449,10 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
       /// delta; as duas recusas se distinguem pelo código.
       /// A busca na web só no primeiro passo: as voltas seguintes já têm os
       /// resultados no histórico, e cada busca é cobrada (Etapa G).
-      const buscaNaWeb = sessao.buscaNaWeb && passo === 1;
-      if (buscaNaWeb) yield { tipo: "busca", passo };
+      /// Na Anthropic, a ferramenta de busca fica em todas as voltas
+      /// (`buscaNaVolta`); o evento continua só no primeiro passo.
+      const buscaNaWeb = buscaNaVolta(modelo, sessao.buscaNaWeb, passo);
+      if (buscaNaWeb && passo === 1) yield { tipo: "busca", passo };
 
       let resultado: ResultadoDoPasso;
       try {
@@ -524,6 +527,8 @@ export async function* conversar(sessao: Sessao): AsyncGenerator<ChatEvent> {
         role: "assistant",
         content: resultado.texto,
         ...(resultado.pedidos.length && { tool_calls: paraToolCalls(resultado.pedidos) }),
+        /// Só em memória: leva o pensamento da Anthropic ao passo seguinte.
+        nativo: resultado.nativo,
       });
 
       if (resultado.pedidos.length === 0) {

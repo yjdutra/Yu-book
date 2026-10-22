@@ -54,6 +54,14 @@ const envSchema = z.object({
   /// (`openrouter-painel.service.ts`). Sem ela, a tela mostra só a chave comum.
   OPENROUTER_MANAGEMENT_KEY: z.string().optional(),
 
+  /// Opcional. A chave da API da Anthropic (platform.claude.com), onde caem os
+  /// créditos mensais do plano do Claude. Sem ela a API sobe normal e só os
+  /// modelos da Anthropic ficam indisponíveis — o OpenRouter segue como era.
+  ANTHROPIC_API_KEY: z.string().optional(),
+  /// O host da Anthropic, pelo mesmo motivo de `OPENROUTER_BASE_URL`: a suíte
+  /// aponta para um dublê. Sem `/v1` — o SDK o acrescenta. Em produção ninguém define.
+  ANTHROPIC_BASE_URL: z.string().url().default("https://api.anthropic.com"),
+
   /// Frente de cards, Parte 2: o bucket dos anexos (Railway Storage Bucket, ou
   /// qualquer S3). Opcionais, como a chave de IA: sem as quatro primeiras a API
   /// sobe normal e só os anexos ficam indisponíveis, com o motivo na tela. Na

@@ -1,5 +1,5 @@
 import { FAIXAS_DE_PRECO_MICROS, TAREFAS_COM_MODELO } from "@yu-book/shared";
-import type { AiModel, AiModelIndices, AiModelSort } from "@yu-book/shared";
+import type { AiModel, AiModelIndices, AiModelSort, AiProvider } from "@yu-book/shared";
 import { useEffect, useRef, useState } from "react";
 import { ApiError } from "@yu-book/cliente/api";
 import { useAiAjustes, useAiModelos, useDesfavoritar, useFavoritar } from "../../lib/ia";
@@ -8,7 +8,23 @@ import { Vazio } from "@yu-book/cliente/base/Bloco";
 import { Botao } from "@yu-book/cliente/base/Botao";
 import { Etiqueta } from "@yu-book/cliente/base/Etiqueta";
 import { IconeBusca, IconeEstrela } from "@yu-book/cliente/icones";
+import { AvisoOpenRouter } from "./AvisoOpenRouter";
 import { ROTULO_DA_TAREFA, contexto, emDolares, provedorDe } from "./comum";
+
+/**
+ * Os dois catálogos, na ordem da tela. A Anthropic vem primeiro e é o padrão:
+ * é onde caem os créditos mensais do plano do Claude. O OpenRouter continua a
+ * um clique, com o aviso de que o gasto sai de lá.
+ */
+const ROTULO_DO_CATALOGO: Record<AiProvider, { rotulo: string; dica: string }> = {
+  anthropic: { rotulo: "Anthropic", dica: "créditos do Claude" },
+  openrouter: { rotulo: "OpenRouter", dica: "centenas de modelos" },
+};
+/// A ordem da tela. O `Record` acima cobra o rótulo de um provedor novo no
+/// enum; esta lista, a posição dele.
+const CATALOGOS = (["anthropic", "openrouter"] as const satisfies readonly AiProvider[]).map(
+  (provider) => ({ provider, ...ROTULO_DO_CATALOGO[provider] }),
+);
 
 /**
  * Índices de qualidade de terceiro, quando existem.
@@ -49,7 +65,7 @@ const ROTULO_ORDEM: Record<AiModelSort, string> = {
 };
 
 /**
- * O catálogo do provedor, em grade de cartões. Continua um `listbox`: ↑↓
+ * O catálogo de um provedor, em grade de cartões. Continua um `listbox`: ↑↓
  * andam pela ordem de leitura e Enter favorita — ou, num modelo que já é
  * favorito, desfavorita. O cartão virou interruptor: clicar de novo mandava
  * outro `POST` para algo que já estava lá.
@@ -64,6 +80,8 @@ export function CatalogoModelos({ onErro }: { onErro: (mensagem: string | null) 
   const favoritar = useFavoritar();
   const desfavoritar = useDesfavoritar();
 
+  const [catalogoDe, setCatalogoDe] = useState<AiProvider>("anthropic");
+  const anthropic = catalogoDe === "anthropic";
   const [busca, setBusca] = useState("");
   const [termo, setTermo] = useState("");
   const [soFerramentas, setSoFerramentas] = useState(false);
@@ -79,9 +97,13 @@ export function CatalogoModelos({ onErro }: { onErro: (mensagem: string | null) 
     return () => clearTimeout(t);
   }, [busca]);
 
-  useEffect(() => setIndice(0), [termo, soFerramentas, soRaciocinio, tetoDePreco, ordem]);
+  useEffect(
+    () => setIndice(0),
+    [catalogoDe, termo, soFerramentas, soRaciocinio, tetoDePreco, ordem],
+  );
 
   const catalogo = useAiModelos({
+    provider: catalogoDe,
     q: termo,
     tools: soFerramentas,
     reasoning: soRaciocinio,
@@ -112,7 +134,7 @@ export function CatalogoModelos({ onErro }: { onErro: (mensagem: string | null) 
     }
     try {
       if (favorito) await desfavoritar.mutateAsync(favorito.favoriteId);
-      else await favoritar.mutateAsync(modelo.id);
+      else await favoritar.mutateAsync({ modelId: modelo.id, provider: modelo.provider });
     } catch (e) {
       onErro(e instanceof ApiError ? e.message : "Não foi possível mudar os favoritos.");
     }
@@ -139,6 +161,33 @@ export function CatalogoModelos({ onErro }: { onErro: (mensagem: string | null) 
         className="sticky top-0 z-10 -mx-1 flex flex-col gap-2 rounded-cartao bg-ink-950/90 px-1
                    pb-2 pt-1 backdrop-blur"
       >
+        <div role="group" aria-label="Catálogo" className="flex gap-2">
+          {CATALOGOS.map((c) => (
+            <button
+              key={c.provider}
+              type="button"
+              onClick={() => {
+                // Os filtros de preço e de ferramenta não existem na Anthropic;
+                // sem limpar, um chip "grátis" escondido zeraria a lista dela.
+                setTetoDePreco(null);
+                setSoFerramentas(false);
+                setCatalogoDe(c.provider);
+              }}
+              aria-pressed={catalogoDe === c.provider}
+              className={`rounded-controle border px-3 py-1.5 text-left text-xs transition-colors ${
+                catalogoDe === c.provider
+                  ? "border-accent-400 bg-accent-500/10 text-titulo"
+                  : "border-ink-700 text-ink-400 hover:bg-ink-800 hover:text-ink-200"
+              }`}
+            >
+              <span className="block text-sm font-medium">{c.rotulo}</span>
+              <span className="block text-miudo text-ink-400">{c.dica}</span>
+            </button>
+          ))}
+        </div>
+
+        {!anthropic && <AvisoOpenRouter />}
+
         <label
           className="flex h-9 items-center gap-2 rounded-controle border border-ink-700 bg-superficie
                      px-3 shadow-e1 focus-within:border-accent-400"
@@ -148,7 +197,7 @@ export function CatalogoModelos({ onErro }: { onErro: (mensagem: string | null) 
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             onKeyDown={aoTeclar}
-            placeholder="Buscar no catálogo do provedor"
+            placeholder={anthropic ? "Buscar nos modelos da Anthropic" : "Buscar no OpenRouter"}
             aria-label="Buscar modelo"
             role="combobox"
             aria-expanded={modelos.length > 0}
@@ -161,8 +210,10 @@ export function CatalogoModelos({ onErro }: { onErro: (mensagem: string | null) 
         {/* As faixas saem da distribuição real do catálogo — mediana em
             US$ 0,325/M —, não de números redondos escolhidos no olho. */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-ink-400">Preço</span>
-          {FAIXAS.map((f) => (
+          {/* Na Anthropic não há modelo grátis e todos chamam ferramenta: os
+              chips e a caixa só filtrariam para nada. */}
+          {!anthropic && <span className="text-ink-400">Preço</span>}
+          {!anthropic && FAIXAS.map((f) => (
             <button
               key={f.rotulo}
               type="button"
@@ -178,14 +229,16 @@ export function CatalogoModelos({ onErro }: { onErro: (mensagem: string | null) 
             </button>
           ))}
 
-          <label className="ml-2 flex items-center gap-1 text-ink-400">
-            <input
-              type="checkbox"
-              checked={soFerramentas}
-              onChange={(e) => setSoFerramentas(e.target.checked)}
-            />
-            ferramentas
-          </label>
+          {!anthropic && (
+            <label className="ml-2 flex items-center gap-1 text-ink-400">
+              <input
+                type="checkbox"
+                checked={soFerramentas}
+                onChange={(e) => setSoFerramentas(e.target.checked)}
+              />
+              ferramentas
+            </label>
+          )}
           <label className="flex items-center gap-1 text-ink-400">
             <input
               type="checkbox"
@@ -216,7 +269,11 @@ export function CatalogoModelos({ onErro }: { onErro: (mensagem: string | null) 
 
       {catalogo.isError && (
         <Aviso tom="erro">
-          Não foi possível carregar o catálogo.{" "}
+          {/* O motivo do servidor primeiro: sem `ANTHROPIC_API_KEY`, ele diz qual
+              variável falta, e "não foi possível" não diria a ninguém. */}
+          {catalogo.error instanceof ApiError
+            ? catalogo.error.message
+            : "Não foi possível carregar o catálogo."}{" "}
           <Botao variante="fantasma" onClick={() => void catalogo.refetch()} className="-my-1">
             Tentar de novo
           </Botao>
@@ -239,7 +296,7 @@ export function CatalogoModelos({ onErro }: { onErro: (mensagem: string | null) 
         {modelos.map((m, i) => {
           const favorito = favoritos.some((f) => f.id === m.id);
           const serve = tarefasDe(m.id);
-          const provedor = provedorDe(m.id);
+          const origem = provedorDe(m);
           return (
             <li key={m.id}>
               <button
@@ -261,9 +318,7 @@ export function CatalogoModelos({ onErro }: { onErro: (mensagem: string | null) 
                 <span className="flex w-full items-start gap-2">
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium text-titulo">{m.name}</span>
-                    {provedor && (
-                      <span className="block truncate text-miudo text-ink-400">{provedor}</span>
-                    )}
+                    <span className="block truncate text-miudo text-ink-400">{origem}</span>
                   </span>
                   {favorito && (
                     <span className="flex shrink-0 items-center gap-1 text-miudo text-amber-400">

@@ -65,6 +65,16 @@ export const AI_COST_SOURCES = ["provedor", "estimado", "desconhecido"] as const
 export type AiCostSource = (typeof AI_COST_SOURCES)[number];
 
 /**
+ * Quem atende a chamada de IA. Espelha o enum `AiProvider` do Prisma.
+ *
+ * **O provedor segue o modelo**: cada favorito é de um, e a tarefa, o agente
+ * e o passo de rotina usam o provedor do modelo escolhido. `openrouter` é o
+ * padrão das colunas porque é o que todo dado gravado antes da Anthropic era.
+ */
+export const AI_PROVIDERS = ["openrouter", "anthropic"] as const;
+export type AiProvider = (typeof AI_PROVIDERS)[number];
+
+/**
  * Por qual superfície um conteúdo gerado por IA entrou no acervo. Espelha o
  * enum `AiVia` do Prisma (Etapa C da frente de IA). `rotina` entrou na Etapa E;
  * agente não é via — é quem escreveu, e vai em `AiMark.agentName`.

@@ -1,5 +1,11 @@
 import { TAREFAS_COM_MODELO } from "@yu-book/shared";
-import type { AiFavorite, AiSettings, AiSettingsPatch, TarefaComModelo } from "@yu-book/shared";
+import type {
+  AiFavorite,
+  AiProvider,
+  AiSettings,
+  AiSettingsPatch,
+  TarefaComModelo,
+} from "@yu-book/shared";
 import {
   FUSO_PADRAO,
   TETO_DIARIO_PADRAO_MICROS,
@@ -30,6 +36,7 @@ function toFavorite(f: FavoritoNoBanco): AiFavorite {
     supportsTools: f.supportsTools,
     free: f.promptMicros === 0 && f.completionMicros === 0,
     favoriteId: f.id,
+    provider: f.provider,
     snapshotAt: f.snapshotAt.toISOString(),
   };
 }
@@ -44,6 +51,7 @@ function toFavorite(f: FavoritoNoBanco): AiFavorite {
  */
 export interface PreferenciaDeIa extends TetoDoUsuario {
   allowTraining: boolean;
+  anthropicMonthlyCreditMicros: number | null;
 }
 
 export async function preferenciaDe(userId: string): Promise<PreferenciaDeIa> {
@@ -52,6 +60,7 @@ export async function preferenciaDe(userId: string): Promise<PreferenciaDeIa> {
     dailyCapMicros: linha?.dailyCapMicros ?? TETO_DIARIO_PADRAO_MICROS,
     timezone: linha?.timezone ?? FUSO_PADRAO,
     allowTraining: linha?.allowTraining ?? TREINO_PERMITIDO_PADRAO,
+    anthropicMonthlyCreditMicros: linha?.anthropicMonthlyCreditMicros ?? null,
   };
 }
 
@@ -63,11 +72,17 @@ export async function atualizarPreferencia(
   const dailyCapMicros = patch.dailyCapMicros ?? atual.dailyCapMicros;
   const timezone = patch.timezone ?? atual.timezone;
   const allowTraining = patch.allowTraining ?? atual.allowTraining;
+  /// `null` apaga e ausente mantém: por isso `!== undefined`, e não `??`.
+  const anthropicMonthlyCreditMicros =
+    patch.anthropicMonthlyCreditMicros !== undefined
+      ? patch.anthropicMonthlyCreditMicros
+      : atual.anthropicMonthlyCreditMicros;
 
+  const campos = { dailyCapMicros, timezone, allowTraining, anthropicMonthlyCreditMicros };
   await prisma.aiPreference.upsert({
     where: { userId },
-    create: { userId, dailyCapMicros, timezone, allowTraining },
-    update: { dailyCapMicros, timezone, allowTraining },
+    create: { userId, ...campos },
+    update: campos,
   });
 
   return montarSettings(userId);
@@ -128,13 +143,14 @@ export async function listarFavoritos(userId: string): Promise<AiFavorite[]> {
 export async function favoritar(
   userId: string,
   modelId: string,
+  provider: AiProvider,
 ): Promise<{ favorito: AiFavorite; criado: boolean }> {
   const existente = await prisma.aiModelFavorite.findUnique({
     where: { userId_modelId: { userId, modelId } },
   });
   if (existente) return { favorito: toFavorite(existente), criado: false };
 
-  const modelo = await acharModelo(modelId);
+  const modelo = await acharModelo(modelId, provider);
   if (!modelo) throw invalido(`O modelo "${modelId}" não está no catálogo do provedor.`);
 
   try {
@@ -147,6 +163,7 @@ export async function favoritar(
         promptMicros: modelo.promptMicros,
         completionMicros: modelo.completionMicros,
         supportsTools: modelo.supportsTools,
+        provider: modelo.provider,
       },
     });
     return { favorito: toFavorite(criado), criado: true };
@@ -326,6 +343,7 @@ export async function montarSettings(userId: string): Promise<AiSettings> {
     dailyCapMicros: preferencia.dailyCapMicros,
     timezone: preferencia.timezone,
     allowTraining: preferencia.allowTraining,
+    anthropicMonthlyCreditMicros: preferencia.anthropicMonthlyCreditMicros,
     usage,
     favorites,
     taskModels: tarefas,

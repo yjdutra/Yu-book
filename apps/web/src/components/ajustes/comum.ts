@@ -1,5 +1,5 @@
 import { microsParaDolares } from "@yu-book/shared";
-import type { TarefaComModelo } from "@yu-book/shared";
+import type { AiProvider, TarefaComModelo } from "@yu-book/shared";
 
 /**
  * As seções de `/ajustes`, na ordem do painel contextual. Moram aqui, e não na
@@ -10,6 +10,7 @@ export const SECOES_DE_AJUSTES = [
   { caminho: "modelos", titulo: "Modelos" },
   { caminho: "provedor", titulo: "Provedor" },
   { caminho: "gasto", titulo: "Gasto" },
+  { caminho: "claude", titulo: "Custo do Claude" },
   { caminho: "openrouter", titulo: "Dashboard OpenRouter" },
   { caminho: "uso", titulo: "AI usage dash" },
 ] as const;
@@ -75,7 +76,14 @@ export function contexto(tokens: number): string {
   return tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : String(tokens);
 }
 
-/** O provedor do modelo é o prefixo do id — `anthropic/claude-…` é da Anthropic. */
-export function provedorDe(id: string): string {
-  return id.includes("/") ? (id.split("/")[0] ?? "") : "";
+/**
+ * A linha de origem do modelo no cartão. **O provedor segue o modelo**
+ * (docs/plano-provedor-anthropic.md): quem atende é o campo `provider`, não o
+ * prefixo do id. No OpenRouter o prefixo continua dizendo de quem é o modelo
+ * (`anthropic/claude-…` é um Claude servido pelo OpenRouter, cobrado lá).
+ */
+export function provedorDe(modelo: { id: string; provider?: AiProvider }): string {
+  if (modelo.provider === "anthropic") return "Anthropic · créditos do Claude";
+  const dono = modelo.id.includes("/") ? (modelo.id.split("/")[0] ?? "") : "";
+  return dono ? `via OpenRouter · ${dono}` : "via OpenRouter";
 }
