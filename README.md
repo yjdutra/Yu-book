@@ -160,6 +160,7 @@ flowchart LR
     db[(Postgres 16)]
   end
 
+  ant[Anthropic API<br/>Claude models]
   or[OpenRouter<br/>LLM provider]
   www[Public web]
 
@@ -168,6 +169,7 @@ flowchart LR
   mcpc -- Streamable HTTP --> mcp
   mcp -- REST, as the user --> api
   api --> db
+  api -- chat, agents, routines --> ant
   api -- chat, agents, routines --> or
   api -- SSRF-hardened fetch --> www
 
@@ -222,7 +224,7 @@ on purpose.
   deploy, so the engine decides through the database (heartbeats, conditional writes, a partial
   unique index), never through process memory. A run that started is never retried, because a
   retry costs money again.
-- **Tests against real infrastructure:** 742 integration tests boot the whole Fastify app against a
+- **Tests against real infrastructure:** 780 integration tests boot the whole Fastify app against a
   real Postgres; 121 more cover the MCP server.
 
 ---
@@ -257,7 +259,7 @@ invariants, and a changelog entry: see [`CHANGELOG.md`](CHANGELOG.md).
 | Language | TypeScript everywhere, `strict` with `noUncheckedIndexedAccess`, ESM |
 | API | Fastify 5, Prisma 6, PostgreSQL 16 (full-text search with `unaccent`, GIN and trigram indexes) |
 | Web | React 19, Vite 6, Tailwind CSS v4, TanStack Query v5, dnd-kit, CodeMirror 6 |
-| AI | OpenRouter (any model in its catalog), server-sent events for streaming |
+| AI | Anthropic API (official SDK) and OpenRouter (any model in its catalog), side by side; server-sent events for streaming |
 | MCP | Official TypeScript SDK, stdio and Streamable HTTP, OAuth 2.1 with PKCE |
 | Tests | Vitest, integration tests against real Postgres |
 | Hosting | Railway: Postgres, API, web, phone app and MCP as five services from one repository |
@@ -289,9 +291,10 @@ Generate the secret with `openssl rand -base64 48`. The API refuses to boot with
 development). To use the phone app locally, add `http://localhost:5174` to `CORS_ORIGIN` (a
 comma-separated list).
 
-AI features are optional: set `OPENROUTER_API_KEY` in `apps/api/.env` and pick a model per task
-in `/ajustes/modelos`. Without it, the app runs normally and the AI features explain why they are
-unavailable.
+AI features are optional: set `ANTHROPIC_API_KEY` (a Claude Console key) and/or
+`OPENROUTER_API_KEY` in `apps/api/.env` and pick a model per task in `/ajustes/modelos`. Each
+model belongs to one provider, and each call goes to the provider of the model it uses. Without
+a key, the app runs normally and the AI features explain why they are unavailable.
 
 | Command | What it does |
 |---|---|
@@ -343,6 +346,7 @@ CORS_ORIGIN=https://<web-domain>      # add ,https://<phone-app-domain> if you d
 COOKIE_SAMESITE=none
 NIXPACKS_NODE_VERSION=22
 # optional
+ANTHROPIC_API_KEY=...           # Claude models, billed to your Claude Console credits
 OPENROUTER_API_KEY=...
 OPENROUTER_MANAGEMENT_KEY=...   # read-only usage dashboard; never reaches the browser
 YOUTUBE_API_KEY=...             # video durations in the link drawer
@@ -398,6 +402,13 @@ or jotting down a task, events and tasks open in a read view before editing, and
 can be picked from Google, with a map and directions. The Google lookup needs an optional API key;
 without it, the place stays plain text.
 
+AI can now run on Anthropic's API as well as OpenRouter, so the monthly API credits that come with
+a Claude plan can pay for it. The provider follows the model: each favorite belongs to one, and the
+chat, note formatting, agents and routines use whichever provider their model comes from, so the
+two can be mixed. Anthropic is the default in settings, choosing an OpenRouter model says where
+that spend goes, and a dedicated screen shows what Yu-book has spent on Claude, cache savings
+included. The Anthropic key is optional; without it, OpenRouter works as before.
+
 Next on the roadmap: semantic search over the knowledge base and Google Calendar integration.
 
 Known limitations, stated on purpose:
@@ -419,9 +430,13 @@ Known limitations, stated on purpose:
   MCP server.
 - **No front-end tests and no CI.** The automated gates are the type check and the API and MCP
   test suites; the UI is verified by hand.
-- **Note content leaves the server for every AI task.** The provider is a cloud one: a local model
-  was dropped because the API runs without a GPU. The settings screen says this, and whether the
-  provider may train on your data is a toggle, off by default.
+- **Note content leaves the server for every AI task.** Both providers are cloud ones: a local
+  model was dropped because the API runs without a GPU. The settings screen says this, and whether
+  OpenRouter may train on your data is a toggle, off by default.
+- **Claude spend is Yu-book's own estimate.** Anthropic returns tokens, not dollars, and offers no
+  way to read the credit balance from an individual account, so cost comes from a price table kept
+  in the code. Running out of credits stops the call; there is no automatic fallback to the other
+  provider.
 - **Voice dictation is the browser's own speech recognition.** Yu-book never receives audio, but
   the browser's recognizer does: in Chrome that is a Google service, and the microphone button
   says so. Firefox has no such API, so the button is not shown there. Dictated text is never sent

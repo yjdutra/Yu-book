@@ -17,6 +17,115 @@ _Nada pendente._
 
 ---
 
+## [0.40.0] — 2026-10-21
+
+**A Anthropic como segundo provedor de IA.** O Yu-book passa a chamar a API da Anthropic direto,
+ao lado do OpenRouter, para gastar os créditos mensais de API que vêm com o plano do Claude. **O
+provedor segue o modelo.** Cada favorito é de um provedor, e a tarefa, o agente e o passo de rotina
+usam o do modelo escolhido. Dá para misturar: o chat na Anthropic e o formatar no OpenRouter, por
+exemplo. Formatar nota, chat, agentes e rotinas funcionam pelos dois. Em Ajustes, a Anthropic é o
+padrão, e escolher um modelo do OpenRouter mostra que aquele gasto sai da conta do OpenRouter, não
+dos créditos do Claude. A nova tela `/ajustes/claude` mostra quanto o Yu-book gastou na Anthropic.
+
+**Cinco pacotes se movem; `apps/mcp` fica.** O contrato cresceu em `packages/shared`: o provedor no
+modelo, no favorito e na saúde, a tabela de preços da Anthropic e os créditos mensais nos ajustes.
+`packages/shared` vai de `0.25.0` para `0.26.0`, `apps/api` de `0.26.0` para `0.27.0`, `apps/web`
+de `0.33.0` para `0.34.0`, e `apps/movel` e `packages/cliente` de `0.10.0` para `0.11.0`. `apps/mcp`
+segue em `0.26.0`: ele só lê `timezone` de `/ai/settings`, não conhece provedor, e nenhuma linha
+dele mudou. Os campos novos são aditivos, e os que o MCP importa só ganharam campo.
+
+**Duas migrations, só aditivas**, aplicadas pela API no boot, nesta ordem:
+- `20261021180000_provedor_anthropic` cria o enum `AiProvider` e acrescenta `provider` em
+  `ai_model_favorite` e em `ai_usage`, com padrão `openrouter`, mais `cache_read_tokens` e
+  `cache_write_tokens` em `ai_usage` e o índice `(user_id, provider, local_day)`;
+- `20261021190000_provedor_anthropic_creditos` acrescenta `anthropic_monthly_credit_micros`,
+  opcional, em `ai_preference`.
+
+Tudo o que já estava gravado era do OpenRouter, e o padrão deixa isso certo sem backfill. **No
+deploy, a API sobe antes do web e do móvel.** Contra a API velha, o catálogo da Anthropic no web
+mostraria o do OpenRouter, porque a API velha descarta o `provider` da consulta, e
+`/ajustes/claude` não teria rota.
+
+**A Anthropic precisa de chave.** Ela vai na env opcional `ANTHROPIC_API_KEY` da API, criada no
+Console da Anthropic, na organização onde caem os créditos. Sem ela, só os modelos da Anthropic
+ficam indisponíveis, e o OpenRouter segue como era.
+
+Portões: `pnpm typecheck` limpo nos seis pacotes, e os builds de API, web e móvel passaram. O MCP
+passou com **121 testes**, os mesmos. A API passou com **779 de 780** (eram 741 de 742). A única
+falha é de ambiente, a mesma das entradas anteriores: `web.test.ts › DNS rebinding` sobe um
+servidor em `127.0.0.2`, endereço que o macOS não tem sem alias de loopback. São novas as suítes
+`anthropic.test.ts`, `anthropic-chat.test.ts` e `anthropic-custo.test.ts`, com 38 testes, contra
+um dublê local da Anthropic que responde SSE na forma real. As telas de Ajustes foram conferidas
+no navegador, com um usuário descartável e dados semeados. **A Anthropic real não foi chamada**:
+sem chave local, catálogo, inferência, busca e custo só rodaram contra o dublê.
+
+### Adicionado
+- **Modelos da Anthropic no catálogo.** O catálogo de Ajustes → Modelos ganha um seletor de
+  provedor, que abre na Anthropic. Ali só aparecem os modelos que a chave enxerga e que têm preço
+  na tabela, e somem os filtros de preço e de ferramentas, porque não há modelo grátis e todos
+  chamam ferramenta. Sem chave, o erro diz qual env falta.
+- **Aviso de gasto no OpenRouter.** Escolher um modelo do OpenRouter mostra que o gasto sai da
+  conta do OpenRouter. O aviso aparece no catálogo e fica enquanto a escolha durar: no quadro de
+  tarefas e no editor de agente.
+- **Selo de provedor** no cartão do modelo, no catálogo e no editor de agente: "Anthropic ·
+  créditos do Claude" ou "via OpenRouter".
+- **Formatar, chat, agentes e rotinas pela Anthropic**, quando o modelo escolhido é dela. O
+  esforço é baixo. O laço de ferramenta usa cache automático, e o pensamento do modelo volta
+  intacto entre as voltas de uma mesma mensagem, mas não entra no histórico gravado.
+- **Busca na web nativa da Anthropic.** Um agente com pesquisa ligada, num modelo da Anthropic,
+  usa a busca do próprio servidor da Anthropic, uma por chamada, no lugar do plugin do OpenRouter.
+  "Abrir página" não muda.
+- **Tela "Custo do Claude"** em `/ajustes/claude`. Mostra o gasto do Yu-book na Anthropic por
+  período, por dia, por modelo e por tarefa. Mostra também o mês civil no fuso do usuário, o
+  efeito do cache (a economia pode ser negativa, se o cache foi escrito e nunca lido) e as
+  recusas, por crédito acabado ou limite de uso e pelo próprio modelo. É estimativa: a fonte
+  oficial é o Console da Anthropic.
+- **Créditos mensais informados à mão**, até US$ 2 mil, em `/ajustes/claude`, para comparar com o
+  gasto do mês. A API da Anthropic não deixa ler o saldo. O valor não é teto.
+- **Rotas:** `GET /ai/claude/usage?days=`. `GET /ai/health` e `GET /ai/models` aceitam `provider`
+  (`anthropic` ou `openrouter`, padrão `openrouter`). `POST /ai/favorites` aceita `provider`, com o
+  mesmo padrão. `PATCH /ai/settings` aceita `anthropicMonthlyCreditMicros`, e `null` apaga o valor.
+- **Envs opcionais da API:** `ANTHROPIC_API_KEY` e `ANTHROPIC_BASE_URL`, esta só para apontar a
+  suíte para o dublê. Dependência nova: `@anthropic-ai/sdk`, na versão exata `0.131.0`.
+
+### Alterado
+- **A seção Provedores** de Ajustes mostra as duas conexões, cada uma com a sua saúde. A
+  permissão de treino continua valendo só para o OpenRouter.
+- **O chat, no web e no celular, confere a chave do provedor do modelo que vai responder**, o do
+  agente ou o do chat. Antes conferia sempre a do OpenRouter, e quem usasse só a Anthropic teria o
+  chat bloqueado. A frase diz qual chave falta.
+- **O custo da Anthropic é estimado** por uma tabela de preços em `packages/shared`, com entrada,
+  saída, escrita e leitura de cache e a busca na web. A Anthropic devolve tokens, não dólares. Um
+  modelo sem preço na tabela não entra no catálogo, como já acontecia no OpenRouter.
+- **O teto diário vale para os dois provedores.** Na Anthropic, a estimativa antes de cada chamada
+  soma uma folga para o pensamento e conta a escrita de cache e a faixa de contexto longo pelo
+  preço maior. Assim, a estimativa fica sempre acima do custo real.
+- **O AI usage dash** soma os dois provedores e avisa que, na Anthropic, o custo é sempre
+  estimado, apontando para a tela Custo do Claude.
+
+### Corrigido
+- **Respostas da Anthropic que chegam com status 200 mas não terminam** viram erro e ficam
+  registradas como pagas. São os casos de recusa do modelo, saída cortada pelo limite de tokens,
+  `pause_turn` e chamada de ferramenta cortada no meio.
+
+### Segurança
+- **A chave da Anthropic não sai do servidor.** As chamadas vão só ao host fixo da Anthropic,
+  configurado no ambiente, e nunca a um endereço vindo do usuário ou do modelo (INV-08).
+
+### Limitações conhecidas
+- **A Anthropic real não foi testada.** Catálogo, inferência, busca nativa e custo só rodaram
+  contra o dublê.
+- **A tela de custo é o registro do Yu-book**, não o da Anthropic. A Admin API não existe para
+  contas individuais do Console, e é numa delas que caem os créditos do plano.
+- **Não há recaída automática entre provedores.** Crédito acabado na Anthropic recusa a chamada
+  com aviso, como o teto, e não passa a usar o OpenRouter.
+- **O login da assinatura do claude.ai não entra.** Só a chave do Console. Projetos e memória do
+  claude.ai não ficam acessíveis.
+- **A tabela de preços é copiada à mão** da página oficial, conferida em 2026-10-21. Se o preço
+  mudar e ninguém atualizar a tabela, o custo e o teto passam a errar.
+
+---
+
 ## [0.39.0] — 2026-10-20
 
 **Pastas na gaveta de links, foco ajustável, assistente rápido e o lugar do evento no celular.**
