@@ -45,16 +45,20 @@ const SEM_ESFORCO = new Set(["claude-haiku-4-5"]);
 const ESFORCO = "low" as const;
 
 /**
- * A ferramenta de busca do servidor. A variante com filtragem dinâmica
- * (`_20260209`) existe no Opus e no Sonnet desde a 4.6; Haiku e Fable ficam
- * na básica. `max_uses: 1` é o que mantém a estimativa do teto honesta: ela
- * conta **uma** busca por chamada, como o plugin do OpenRouter (INV-47).
+ * A ferramenta de busca do servidor, **na variante básica** (`_20250305`) em
+ * todos os modelos. A de filtragem dinâmica (`_20260209`) busca de dentro de
+ * uma execução de código: medido em 2026-10-21 com a chave real, no Opus 5.5,
+ * a primeira busca falhou no código do próprio modelo, a segunda esbarrou em
+ * `max_uses`, a resposta saiu sem fonte e a chamada custou US$ 0,056 — o
+ * dobro da conta de uma busca, pelos tokens da execução. A básica é uma busca
+ * direta, como o plugin do OpenRouter. `max_uses: 1` é o que mantém a
+ * estimativa do teto honesta: ela conta **uma** busca por chamada (INV-47).
  */
-function ferramentaDeBusca(modelo: string): Anthropic.ToolUnion {
-  return /^claude-(opus|sonnet)-/.test(modelo)
-    ? { type: "web_search_20260209", name: "web_search", max_uses: 1 }
-    : { type: "web_search_20250305", name: "web_search", max_uses: 1 };
-}
+const FERRAMENTA_DE_BUSCA: Anthropic.ToolUnion = {
+  type: "web_search_20250305",
+  name: "web_search",
+  max_uses: 1,
+};
 
 function paraFerramenta(ferramenta: FerramentaParaProvedor): Anthropic.Tool {
   return {
@@ -215,7 +219,7 @@ export async function* fluxoNaAnthropic(
 ): AsyncGenerator<string, PassoDaAnthropic, undefined> {
   const { system, messages } = paraAnthropic(pedido.mensagens);
   const tools: Anthropic.ToolUnion[] = pedido.catalogo.map(paraFerramenta);
-  if (pedido.buscaNaWeb) tools.push(ferramentaDeBusca(pedido.modelo));
+  if (pedido.buscaNaWeb) tools.push(FERRAMENTA_DE_BUSCA);
 
   let final: Anthropic.Message;
   try {

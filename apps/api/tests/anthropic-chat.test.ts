@@ -384,7 +384,7 @@ describe("o laço do chat pela Anthropic", () => {
 
     const ferramentas = pedidosDeMensagem()[0]?.["tools"] as Record<string, unknown>[];
     expect(ferramentas).toContainEqual({
-      type: "web_search_20260209",
+      type: "web_search_20250305",
       name: "web_search",
       max_uses: 1,
     });

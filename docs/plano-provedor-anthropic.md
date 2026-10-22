@@ -94,7 +94,8 @@ passos de rotina —, com o provedor seguindo o modelo.
 - `anthropic-fluxo.ts`: conversão na borda (`paraAnthropic`: `system` à parte, `tool_calls` em
   `tool_use` com argumentos parseados, mensagens `tool` seguidas num só `user`) e o passo pelo
   fluxo do SDK. Esforço `low` (o Haiku 4.5 não aceita `effort`), cache automático no último
-  bloco, busca do servidor com `max_uses: 1` (variante `_20260209` no Opus e no Sonnet).
+  bloco, busca do servidor com `max_uses: 1` — variante básica `_20250305` em todos os modelos
+  (ver "Teste real", abaixo).
 - `passo.service.ts` despacha por `modelo.provider` depois do teto. O passo devolve `nativo`
   (o conteúdo da fala como veio), que o chat e a rotina guardam **só em memória** na mensagem
   do laço: o pensamento volta intacto no passo seguinte e some do histórico gravado.
@@ -153,3 +154,12 @@ passos de rotina —, com o provedor seguindo o modelo.
   - o contador de recusas da tela diz "crédito acabado ou limite de uso" (os dois são
     `COTA_EXCEDIDA`, e a lista de códigos é fechada).
 - MCP: não acompanha (só lê `timezone` de `/ai/settings`).
+
+## Teste real (2026-10-21, chave da Yuri's Individual Org)
+
+- Saúde, catálogo (11 modelos com preço), laço de duas voltas no Opus 5.5 com `search_notes`
+  (cache gravado no passo 1 e lido no 2) e formatar no Haiku 5.5: tudo certo, ~US$ 0,008.
+- Busca na web no Opus 5.5 com a variante de filtragem dinâmica (`web_search_20260209`): a
+  busca roda de dentro de execução de código; a primeira falhou no código do modelo, a segunda
+  esbarrou em `max_uses: 1`, a resposta saiu sem fonte e custou US$ 0,056. Trocado para a
+  variante básica `web_search_20250305`, busca direta como o plugin do OpenRouter.
